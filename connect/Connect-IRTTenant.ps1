@@ -1,0 +1,199 @@
+New-Alias -Name 'ConnectIRT' -Value 'Connect-IRTTenant' -Force
+New-Alias -Name 'IRTConnect' -Value 'Connect-IRTTenant' -Force
+
+function Connect-IRTTenant {
+    <#
+    .SYNOPSIS
+    Connects to a tenant using a friendly alias looked up from a CSV configuration file.
+
+    .DESCRIPTION
+    Reads tenant information from a CSV file and matches the provided alias against
+    each tenant's Aliases regex pattern. Once matched, it passes the tenant's parameters
+    to Connect-IncidentResponseTools and opens any configured URLs in the browser.
+
+    The CSV file should be stored at $env:APPDATA\IncidentResponseTools\tenants.csv.
+    A template file (tenants_template.csv) is included in the module root for reference.
+
+    .PARAMETER Alias
+    A string to match against tenant alias patterns. Matched as a regex against the
+    Aliases column in the tenants CSV.
+
+    .PARAMETER TenantFile
+    Path to the tenants CSV file. Defaults to $env:APPDATA\IncidentResponseTools\tenants.csv.
+
+    .PARAMETER Graph
+    Connect to Microsoft Graph only.
+
+    .PARAMETER Exchange
+    Connect to Exchange Online only.
+
+    .PARAMETER AdditionalScopes
+    Additional Graph scopes to request beyond the default set.
+
+    .PARAMETER UserPrincipalName
+    Override the AdminEmail value from the tenant CSV.
+
+    .PARAMETER DeviceCode
+    Use device code authentication. Requires the tenant's DeviceAuthAllowed column to be set to 'yes'.
+    Interactive authentication is used by default. An error is thrown if device code is requested
+    but the tenant does not allow it.
+
+    .PARAMETER Browser
+    Browser to use for device code login and URL opening. Valid values: msedge, chrome, firefox, brave, default.
+
+    .PARAMETER Private
+    Open the browser in private/incognito mode.
+
+    .EXAMPLE
+    Connect-IRTTenant contoso
+    Looks up 'contoso' in the tenants CSV and connects to all services.
+
+    .EXAMPLE
+    Connect-IRTTenant fab -Graph
+    Looks up 'fab' in the tenants CSV and connects to Graph only.
+
+    .EXAMPLE
+    connectirt bestcompany
+    Uses the alias to connect to the matching tenant.
+
+    .NOTES
+    Version: 1.0.0
+    #>
+    [CmdletBinding()]
+    param (
+        [Parameter( Mandatory, Position = 0 )]
+        [string] $Alias,
+
+        [string] $TenantFile = (Join-Path $env:APPDATA 'IncidentResponseTools\tenants.csv'),
+
+        [switch] $Graph,
+        [switch] $Exchange,
+
+        [string[]] $AdditionalScopes,
+        [string] $UserPrincipalName,
+        [System.Nullable[bool]] $DeviceCode,
+
+        [ValidateSet('msedge','chrome','firefox','brave','default')]
+        [string] $Browser = 'default',
+        [switch] $Private
+    )
+
+    process {
+
+        # validate tenant file exists
+        if (-not ( Test-Path $TenantFile )) {
+
+            $Message  = "Tenant file not found: ${TenantFile}`n"
+            $Message += "Run Open-IRTTenantsCSV to create it and edit with your tenant information."
+
+            throw $Message
+        }
+
+        # import and search for matching tenant
+        $Tenants = Import-Csv -Path $TenantFile
+        $MatchedTenants = @()
+
+        foreach ($Tenant in $Tenants) {
+
+            if ($Alias -match "^($($Tenant.Aliases))$") {
+                $MatchedTenants += $Tenant
+            }
+        }
+        if ($MatchedTenants.Count -eq 0) {
+
+            $AvailableNames = ($Tenants | ForEach-Object {$_.TenantName}) -join ', '
+            throw "No tenant matched alias '${Alias}'. Available tenants: ${AvailableNames}"
+        }
+        if ($MatchedTenants.Count -gt 1) {
+
+            $MatchedNames = ($MatchedTenants | ForEach-Object {$_.TenantName}) -join ', '
+            throw "Multiple tenants matched alias '${Alias}': ${MatchedNames}. Refine your alias patterns to avoid overlap."
+        }
+
+        $MatchedTenant = $MatchedTenants[0]
+
+        Write-Host "Matched tenant: $($MatchedTenant.TenantName)" -ForegroundColor Cyan
+
+        # build connection parameters
+        $ConnectParams = @{
+            TenantId = $MatchedTenant.TenantId
+        }
+
+        if ($UserPrincipalName) {
+            $ConnectParams['UserPrincipalName'] = $UserPrincipalName
+        } elseif ($MatchedTenant.AdminEmail) {
+            $ConnectParams['UserPrincipalName'] = $MatchedTenant.AdminEmail
+        }
+
+        if ($MatchedTenant.GCCHigh -imatch 'yes|^y$') {
+            $ConnectParams['GCCHigh'] = $true
+        }
+
+        if ($null -ne $DeviceCode) {
+            if ($DeviceCode -eq $true -and $MatchedTenant.DeviceAuthAllowed -notmatch 'yes|^y$') {
+                throw "Device code authentication is not allowed for tenant '$($MatchedTenant.TenantName)'. Set DeviceAuthAllowed to 'yes' in the tenants CSV to permit it."
+            }
+            $ConnectParams['DeviceCode'] = $DeviceCode
+        }
+
+        if ($Graph)    { $ConnectParams['Graph']    = $true }
+        if ($Exchange) { $ConnectParams['Exchange'] = $true }
+
+        if ($AdditionalScopes) {
+            $ConnectParams['AdditionalScopes'] = $AdditionalScopes
+        }
+
+        $ConnectParams['Browser'] = $Browser
+        if ($Private) { $ConnectParams['Private'] = $true }
+
+        # open configured URLs
+        if ($MatchedTenant.URLsToOpen) {
+            $URLs = $MatchedTenant.URLsToOpen -split ';'
+            foreach ($URL in $URLs) {
+                $URL = $URL.Trim()
+                if ($URL) {
+                    Open-Browser -Browser $Browser -Url $URL -Private:$Private
+                }
+            }
+        }
+
+        # connect
+        Connect-IncidentResponseTools @ConnectParams
+    }
+}
+
+function Open-IRTTenantsCSV {
+    <#
+    .SYNOPSIS
+    Opens the tenants CSV file for editing. Creates it from the template if it doesn't exist.
+
+    .PARAMETER TenantFile
+    Path to the tenants CSV file. Defaults to $env:APPDATA\IncidentResponseTools\tenants.csv.
+
+    .NOTES
+    Version: 1.0.0
+    #>
+    [CmdletBinding()]
+    param (
+        [string] $TenantFile = (Join-Path $env:APPDATA 'IncidentResponseTools\tenants.csv')
+    )
+
+    process {
+
+        if (-not ( Test-Path $TenantFile )) {
+
+            $ConfigDir    = Split-Path $TenantFile
+            $TemplateFile = Join-Path $PSScriptRoot 'tenants_TEMPLATE.csv'
+
+            if (-not (Test-Path $ConfigDir)) {
+                New-Item -ItemType Directory -Path $ConfigDir -Force | Out-Null
+            }
+
+            Copy-Item -Path $TemplateFile -Destination $TenantFile
+            Write-Host "Created tenants CSV from template: ${TenantFile}" -ForegroundColor Green
+        }
+
+        Invoke-Item $TenantFile
+    }
+}
+

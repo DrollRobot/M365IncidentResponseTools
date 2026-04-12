@@ -1,0 +1,11 @@
+Value,UserType member name,Description,UserKey
+0,Regular,A regular user without admin permissions.,Microsoft Entra Object ID in GUID format
+2,Admin,An administrator in your Microsoft 365 organization.1,Microsoft Entra Object ID in GUID format
+3,DCAdmin,A Microsoft datacenter administrator or datacenter system account.,Microsoft Entra Object ID in GUID format
+4,System,"An audit event triggered by server-side logic. For example, Windows services or background processes.",Guid.Empty.ToString() (or the value '00000000-0000-0000-0000-000000000000').
+5,Application,An audit event triggered by a Microsoft Entra application.,"Microsoft Entra Application Name or Application ID (when available). Otherwise, an empty string."
+6,ServicePrincipal,A service principal.,Guid.Empty.ToString() (or the value '00000000-0000-0000-0000-000000000000').
+7,CustomPolicy,A customer created or managed policy.,Guid.Empty.ToString() (or the value '00000000-0000-0000-0000-000000000000').
+8,SystemPolicy,A Microsoft-managed or system policy.,Guid.Empty.ToString() (or the value '00000000-0000-0000-0000-000000000000').
+9,PartnerTechnician,A partner tenant's user working on behalf of the customer tenant (in GDAP scenarios).,Guid.Empty.ToString() (or the value '00000000-0000-0000-0000-000000000000').
+10,Guest,A guest or anonymous user.,Guid.Empty.ToString() (or the value '00000000-0000-0000-0000-000000000000').

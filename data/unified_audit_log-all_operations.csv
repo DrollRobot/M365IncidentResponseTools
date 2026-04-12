@@ -1,0 +1,833 @@
+Risk,Workload,RecordType,Operation,FriendlyName,CustomDescription,Description
+High,AzureActiveDirectory,AzureActiveDirectory,Add app role assignment grant to user.,,,
+High,AzureActiveDirectory,AzureActiveDirectory,Add application.,,,
+High,AzureActiveDirectory,AzureActiveDirectory,Add member to role.,Add member to Role,,Added a user to an admin role in Microsoft 365.
+High,AzureActiveDirectory,AzureActiveDirectory,Add service principal.,Added service principal,,An application was registered in Microsoft Entra ID. An application is represented by a service principal in the directory.
+High,AzureActiveDirectory,AzureActiveDirectory,Update PasswordProfile.,,,
+High,Exchange,ExchangeAdmin,New-App,,,
+High,Exchange,ExchangeAdmin,New-InboundConnector,,,Created a new Email connector. Can be used to send email from an account even after credentials have been reset. Seen used to send spam.
+High,Exchange,ExchangeAdmin,New-InboxRule,Created new inbox rule in Outlook web app,,A mailbox owner or other user with access to the mailbox created an inbox rule in the Outlook web app.
+High,Exchange,ExchangeAdmin,Set-InboundConnector,,,"Modified existing email connector. (#FIXME adding because I'm assuming there's also a Set operation. Only personally seen ""New"")"
+High,Exchange,ExchangeAdmin,Set-InboxRule,Modified inbox rule from Outlook web app,,A mailbox owner or other user with access to the mailbox modified an inbox rule using the Outlook web app.
+High,Exchange,ExchangeAdmin,UpdateInboxRules,Updated inbox rules from Outlook client,,"A mailbox owner or other user with access to the mailbox created, modified, or removed an inbox rule by using the Outlook client."
+High,SharePoint,SharePoint,PIMRoleAssigned,,,
+High,ThreatIntelligence,ThreatIntelligence,TIMailData,,Threat Intel Mail Event,Microsoft Threat Intel registers an event related to email. I've seen this event trigger when a phishing email is detected.
+Low,AzureActiveDirectory,AzureActiveDirectory,Delete application password for user.,,,
+Low,AzureActiveDirectory,AzureActiveDirectory,Enable Strong Authentication.,,,
+Low,AzureActiveDirectory,AzureActiveDirectory,Set Company Information.,Set company information,,"Updated the company information for your organization. Includes email addresses for subscription-related email sent by Microsoft 365, and technical notifications about Microsoft 365 services."
+Low,AzureActiveDirectory,AzureActiveDirectory,Update StsRefreshTokenValidFrom Timestamp.,,,
+Low,AzureActiveDirectory,AzureActiveDirectory,Update user.,Admin updated user,,"Administrator changes one or more properties of a user account. For a list of the user properties that can be updated, see the ""Update user attributes"" section in Microsoft Entra audit Report Events."
+Low,AzureActiveDirectory,50,Update user.,Admin updated user,,"Administrator changes one or more properties of a user account. For a list of the user properties that can be updated, see the ""Update user attributes"" section in Microsoft Entra audit Report Events."
+Low,AzureActiveDirectory,AzureActiveDirectoryStsLogon,UserLoggedIn,User logged in*,,A user signed in to their Microsoft 365 user account.
+Low,AzureActiveDirectory,AzureActiveDirectoryStsLogon,UserLoggedOff,User logged off*,,A user signed out of their Microsoft 365 user account.
+Low,AzureActiveDirectory,AzureActiveDirectoryStsLogon,UserLoginFailed,,,
+Low,Exchange,ExchangeItemAggregated,AttachmentAccess,,,
+Low,Exchange,ExchangeItem,Create,Created mailbox item,,"An item is created in the Calendar, Contacts, Notes, or Tasks folder in the mailbox. For example, a new meeting request is created. Creating, sending, or receiving a message isn't audited. Also, creating a mailbox folder isn't audited."
+Low,Exchange,ExchangeItemGroup,HardDelete,Purged messages from the mailbox,,A message was purged from the Recoverable Items folder (permanently deleted from the mailbox).
+Low,Exchange,ExchangeItem,MailItemsAccessed,Accessed mailbox items,,Messages were read or accessed in mailbox. Audit records for this activity are triggered in one of two ways: when a mail client (such as Outlook) performs a bind operation on messages or when mail protocols (such as Exchange ActiveSync or IMAP) sync items in a mail folder. Analyzing audit records for this activity is useful when investigating compromised email account.
+Low,Exchange,ExchangeItemAggregated,MailItemsAccessed,Accessed mailbox items,,Messages were read or accessed in mailbox. Audit records for this activity are triggered in one of two ways: when a mail client (such as Outlook) performs a bind operation on messages or when mail protocols (such as Exchange ActiveSync or IMAP) sync items in a mail folder. Analyzing audit records for this activity is useful when investigating compromised email account.
+Low,Exchange,50,MailItemsAccessed,Accessed mailbox items,,Messages were read or accessed in mailbox. Audit records for this activity are triggered in one of two ways: when a mail client (such as Outlook) performs a bind operation on messages or when mail protocols (such as Exchange ActiveSync or IMAP) sync items in a mail folder. Analyzing audit records for this activity is useful when investigating compromised email account.
+Low,Exchange,ExchangeItemGroup,MoveToDeletedItems,Moved messages to Deleted Items folder,,A message was deleted and moved to the Deleted Items folder.
+Low,Exchange,ExchangeItem,Send,Sent message,,"A message was sent, replied to or forwarded."
+Low,Exchange,ExchangeItem,SendOnBehalf,Sent message using Send On Behalf permissions,,A message was sent using the SendOnBehalf permission. This means that another user sent the message on behalf of the mailbox owner. The message indicates to the recipient whom the message was sent on behalf of and who actually sent the message.
+Low,Exchange,ExchangeAdmin,Set-ConditionalAccessPolicy,,,
+Low,Exchange,ExchangeAdmin,Set-SyncUser,,,
+Low,Exchange,ExchangeItemGroup,SoftDelete,Deleted messages from Deleted Items folder,,A message was permanently deleted or deleted from the Deleted Items folder. These items are moved to the Recoverable Items folder. Messages are also moved to the Recoverable Items folder when a user selects it and presses Shift+Delete.
+Low,Exchange,ExchangeItem,Update,Updated message,,A message or its properties was changed.
+Low,MicrosoftTeams,MicrosoftTeams,MeetingParticipantDetail,Added information about meeting participants 9,,"Teams added information about the participants of a meeting, including the user ID of each participant, the time a participant joined the meeting, and the time a participant left the meeting."
+Low,MicrosoftTeams,MicrosoftTeams,MessageSent,Posted a new message,,A new message was posted to a chat or channel.
+Low,MicrosoftTeams,MicrosoftTeams,MessagesExported,,,
+Low,OneDrive,SharePointSharingOperation,AddedToGroup,Added user or group to SharePoint group,,"User added a member or guest to a SharePoint group. This might have been an intentional action or the result of another activity, such as a sharing event."
+Low,OneDrive,SharePointSharingOperation,AddedToSecureLink,User added to secure link,,A user was added to the list of entities who can use a secure sharing link.
+Low,OneDrive,SharePointSharingOperation,AddedToSharingLink,,,
+Low,OneDrive,SharePointFileOperation,FileAccessed,Accessed file,,"User or system account accesses a file. Once a user accesses a file, the FileAccessed event isn't logged again for the same user for same file for the next five minutes."
+Low,OneDrive,SharePointFileOperation,FileModified,Modified file,,User or system account modifies the content or the properties of a document on a site. The system waits five minutes before it logs another FileModified event when the same user modifies the content or properties of the same document.
+Low,OneDrive,SharePointFileOperation,FileModifiedExtended,,,"This is related to the ""Modified file"" (FileModified) activity. A FileModifiedExtended event is logged when the same person continually modifies a file for an extended period (up to 3 hours)."
+Low,OneDrive,SharePointFileOperation,FilePreviewed,,,"User previews files on a SharePoint or OneDrive for Business site. These events typically occur in high volumes based on a single activity, such as viewing an image gallery."
+Low,OneDrive,SharePointFileOperation,FileRecycled,Recycled a file,,User moves a file into the SharePoint Recycle Bin.
+Low,OneDrive,SharePointFileOperation,FileSyncDownloadedFull,Downloaded files to computer,,User downloads a file to their computer from OneDrive for Business using OneDrive sync app (OneDrive.exe).
+Low,OneDrive,SharePointFileOperation,FileSyncUploadedFull,Uploaded files to document library,,User uploads a new file or changes to a file in SharePoint document library or OneDrive for Business using OneDrive sync app (OneDrive.exe).
+Low,OneDrive,SharePointFileOperation,FileUploaded,Uploaded file,,User uploads a document to a folder on a site.
+Low,SharePoint,SharePointFileOperation,FileAccessed,Accessed file,,"User or system account accesses a file. Once a user accesses a file, the FileAccessed event isn't logged again for the same user for same file for the next five minutes."
+Low,SharePoint,SharePointFileOperation,FilePreviewed,,,"User previews files on a SharePoint or OneDrive for Business site. These events typically occur in high volumes based on a single activity, such as viewing an image gallery."
+Low,Sharepoint,SharePointFileOperation,FileSyncDownloadedFull,Downloaded files to computer,,User downloads a file to their computer from a SharePoint document library.
+Low,SharePoint,SharePointFileOperation,FolderModified,,,
+Low,SharePoint,SharePoint,GroupAdded,,,
+Low,SharePoint,SharePointFieldOperation,ListColumnCreated,,,
+Low,SharePoint,SharePointFieldOperation,ListColumnUpdated,,,
+Low,SharePoint,SharePointListOperation,ListUpdated,,,
+Low,SharePoint,SharePointSharingOperation,SharingInheritanceBroken,,,
+Low,SharePoint,SharePointSharingOperation,SharingSet,,,
+Low,SharePoint,SharePoint,SignInEvent,,,
+Low,SharePoint,SharePoint,SiteAccessWithCustomScripts,,,
+Low,SharePoint,SharePoint,SiteCollectionCreated,,,
+Low,SharePoint,SharePoint,SiteCollectionQuotaModified,,,
+Low,SharePoint,SharePoint,SiteLocksChanged,,,
+Medium,AzureActiveDirectory,AzureActiveDirectory,Change user password.,Changed user password,,"A user changes their password. Self-service password reset has to be enabled (for all or selected users) in your organization to allow users to reset their password. You can also track self-service password reset activity in Microsoft Entra ID. For more information, see Reporting options for Microsoft Entra password management."
+Medium,AzureActiveDirectory,AzureActiveDirectory,Disable account.,,,
+Medium,AzureActiveDirectory,AzureActiveDirectory,Disable Strong Authentication.,,,
+Medium,AzureActiveDirectory,AzureActiveDirectory,Enable account.,,,
+Medium,AzureActiveDirectory,AzureActiveDirectory,Remove member from role.,Removed a user from a directory role,,Removed a user to from an admin role in Microsoft 365.
+Medium,AzureActiveDirectory,AzureActiveDirectory,Reset user password.,,,
+Low,Exchange,ExchangeAdmin,Disable-InboxRule,,,
+Low,Exchange,ExchangeAdmin,Remove-InboxRule,,,
+Medium,Exchange,ExchangeAdmin,Set-Mailbox,,,
+Medium,SecurityComplianceCenter,SecurityComplianceAlerts,AlertEntityGenerated,,,
+Medium,SharePoint,SharePoint,ClientViewSignaled,View signaled by client,,A user's client (such as website or mobile app) has signaled that the indicated page has been viewed by the user. This activity is often logged following a PagePrefetched event for a page.
+Medium,SharePoint,SharePoint,PagePrefetched,,,A user's client (such as website or mobile app) has requested the indicated page to help improve performance if the user browses to it. This event is logged to indicate that the page content has been served to the user's client. This event isn't a definitive indication that the user navigated to the page.
+Medium,SharePoint,SharePoint,PageViewed,Viewed page,,"User views a page on a site. This doesn't include using a Web browser to view files located in a document library. Once a user views a page, the PageViewed event isn't logged again for the same user for same page for the next five minutes."
+Medium,SharePoint,SharePoint,PageViewedExtended,,,"This is related to the ""Viewed page"" (PageViewed) activity. A PageViewedExtended event is logged when the same person continually views a web page for an extended period (up to 3 hours)."
+,,,AcceptedSharingLinkOnFolder,Accepted sharing link on folder,,Accepted sharing link for a folder.
+,,,AccessedOdataLink,Accessed OData link,,Analyst accessed the OData link for a query.
+,,,AccessRequestAccepted,Accepted access request,,"An access request to a site, folder, or document was accepted and the requesting user has been granted access."
+,,,AccessRequestCreated,Created access request,,"User requests access to a site, folder, or document they don't have permissions to access."
+,,,AccessRequestDenied,Denied access request,,"An access request to a site, folder, or document was denied."
+,,,AccessRequestUpdated,Updated access request,,An access request to an item was updated.
+,,,Add delegation entry.,Added delegation entry,,An authentication permission was created/granted to an application in Microsoft Entra ID.
+,,,Add domain to company.,Added domain to company,,Added a domain to your organization.
+,,,Add group.,Added group,,A group was created.
+,,,Add member to group.,Added member to group,,A member was added to a group.
+,,,Add partner to company.,Added a partner to the directory,,Added a partner (delegated administrator) to your organization.
+,,,Add service principal credentials.,Added credentials to a service principal,,Credentials were added to a service principal in Microsoft Entra ID. A service principle represents an application in the directory.
+,,,Add user.,Added user,,A user account was created.
+,,,AddCommentToIncident.,Added comment to incident,,Added comment to incident.
+,,,AddDelegates,Added delegate access,,A user added delegate access for organization insights or Copilot dashboard.
+,,,AddDevicesToBackfill Operation,Backfill CMD Agent,,Backfill CMD Agent on Cloud PC.
+,,,AddDevicesToReinstall Operation,Reinstall CMD Agent,,Reinstall CMD Agent on demand.
+,,,Added role,AddRole,,Added new security role and permissions.
+,,,AddFolderPermissions,Added permissions to folder,,A folder permission was added. Folder permissions control which users in your organization can access folders in a mailbox and the messages located in those folders.
+,,,AddFormCoauthor,Added form coauthor,,A user uses a collaboration link to help design for/view responses. This event is logged when a user uses a collab URL (not when collab URL is first generated).
+,,,AddIndicator,Added indicator,,Created a new Indicator of compromise you can use to track attacks and events.
+,,,Add-MailboxPermission,Added delegate mailbox permissions,,"An administrator assigned the FullAccess mailbox permission to a user (known as a delegate) to another person's mailbox. The FullAccess permission allows the delegate to open the other person's mailbox, and read and manage the contents of the mailbox. The audit record for this activity is also generated when a system account in the Microsoft 365 service periodically performs maintenance tasks in behalf of your organization. A common task performed by a system account is updating the permissions for system mailboxes. For more information, see System accounts in Exchange mailbox audit records."
+,,,AddReviewer,Added reviewers,,A disposition reviewer added one or more other users to the current disposition review stage.
+,,,AddSpecificResponder,Added specific responder,,Form owner adds a new user or group to the specific responders list.
+,,,AddTagsToIncident,Added tags to incident,,Added tags to incident.
+,,,AddUserRole,Added corporate communicator,,A user is assigned as a corporate communicator.
+,,,AdminThreadMuted,Thread Muted,,A thread has been muted by admin or watch alert (system user). A watch alert occurs when a thread is flagged for a certain theme (set by the admin) and is automuted by the system.
+,,,AdminThreadUnmuted,Thread Unmuted,,Admin unmuted a thread.
+,,,AINotesUpdate,Populate AI-generated notes in chat,,AI-generated notes have been populated for a group chat.
+,,,AlertExcelDownloaded,Downloaded security alert Excel,,The detailed Excel file of an alert was downloaded.
+,,,AlertNotificationsRecipientAdded,Added alert notification recipient,,A recipient was added to the security alerts notification configuration.
+,,,AlertNotificationsRecipientDeleted,Deleted alert notification recipient,,A recipient was removed from the security alerts notification configuration.
+,,,AlgoGetReviewSetAttachmentsReport,Viewed analytics review set attachments report,,User viewed analytics attachment report. This audit activity includes case and review set name and ID.
+,,,AlgoGetReviewSetDocumentsReport,Viewed analytics review set documents report,,User viewed analytics document report.
+,,,AlgoGetReviewSetEmailsReport,Viewed analytics review set email report,,User viewed analytics email report.
+,,,AlgoGetReviewSetReport,Viewed analytics review set report,,"User viewed analytics report in a review set. This audit activity includes case and review set name and ID, as well as the report type."
+,,,AlgoGetReviewSetReportByFileType,Viewed analytics review set report by file type,,User viewed analytics report graph by file type.
+,,,AlgoGetReviewSetReportBySource,Viewed analytics review set report by source,,User viewed analytics document by source. This audit activity includes case and review set name and ID.
+,,,AlgoIsSettingChanged,Viewed if analytics settings are changed,,This audit activity includes case and review set name and ID.
+,,,AlgoJobSubmitted,Submitted new algo job,,User ran analytics on the documents in a review set.
+,,,AllowAnonymousResponse,Enabled anyone can respond setting,,Form owner turns on the setting allowing any one to respond to the form.
+,,,AllowedDataLocationAdded,Added allowed data location,,A SharePoint or global administrator added an allowed data location in a multi-geo environment.
+,,,AllowedDataLocationDeleted,Removed allowed data location,,A SharePoint or global administrator removed an allowed data location in a multi-geo environment.
+,,,AllowGroupCreationSet,Allowed user to create groups,,Site administrator or owner adds a permission level to a site that allows a user assigned that permission to create a group for that site.
+,,,AllowShareFormForCopy,Allowed share form for copy,,Form owner creates a template link to share the form with other users. This event is logged when the form owner selects to generate template URL.
+,,,AnonymousLinkCreated,Created an anonymous link,,User created an anonymous link to a resource. Anyone with this link can access the resource without having to be authenticated.
+,,,AnonymousLinkRemoved,Removed an anonymous link,,User removed an anonymous link to a resource. The link can no longer be used to access the resource.
+,,,AnonymousLinkUpdated,Updated an anonymous link,,User updated an anonymous link to a resource. The updated field is included in the EventData property when you export the search results.
+,,,AnonymousLinkUsed,Used an anonymous link,,"An anonymous user accessed a resource by using an anonymous link. The user's identity might be unknown, but you can get other details such as the user's IP address."
+,,,AppBypassInformationBarrier,Changed AppBypassInformationBarrier setting for the tenant,,A SharePoint or global administrator has changed apps access for SharePoint sites.
+,,,AppDeletedFromCatalog,Deleted app,,An app has been deleted from the catalog.
+,,,AppInstalled,Installed app,,An app was installed.
+,,,ApplicableAdaptiveScopeChange,Changed adaptive scope membership,,"Users, sites, or groups were added to or removed from the adaptive scope. These changes are the results of running the scope's query. Because the changes are system-initiated, the reported user displays as a GUID rather than a user account."
+,,,ApplyRecordLabel,Labeled message as a record,,A message was classified as a record. Occurs when a retention label that classifies content as a record is manually or automatically applied to a message.
+,,,AppPublishedToCatalog,Published app,,An app was added to the catalog.
+,,,ApproveDisposal,Approved disposal,,"For manual approval: A disposition reviewer approved the disposition of the item to move it to the next disposition stage. If the item was in the only or final stage of disposition review, the disposition approval marked the item as eligible for permanent deletion."
+,,,AppUninstalled,Uninstalled app,,An app was uninstalled.
+,,,AppUpdatedInCatalog,Updated app,,An app was updated in the catalog.
+,,,AppUpgraded,Upgraded app,,An app was upgraded to its latest version in the catalog.
+,,,AssignUserToIncident,Assigned user to incident,,Assigned user to incident.
+,,,AttachmentCreated,Attachment created,,An attachment was created for a task.
+,,,AttachmentDeleted,Attachment deleted,,An attachment was deleted.
+,,,AttachmentUpdated,Attachment updated,,An attachment was updated.
+,,,AuditSearchCancelled,Audit search canceled,,An audit search job is canceled.
+,,,AuditSearchCompleted,Audit search completed,,An audit search job is completed.
+,,,AuditSearchCreated,Audit search created,,A new audit search request is submitted.
+,,,AuditSearchDeleted,Audit search deleted,,An audit search job is deleted.
+,,,AuditSearchExportJobCompleted,Audit search export job completed,,The export job to export the search results of an audit search query is completed.
+,,,AuditSearchExportJobCreated,Audit search export job created,,An export job is created to export the search results of an audit search query.
+,,,AuditSearchExportResultsDownloaded,Audit search export results downloaded,,The search results from an audit search query were downloaded.
+,,,BackupItemAdded,Backup Item Created,,One or more backup items are added to a Microsoft 365 Backup policy.
+,,,BackupItemRemoved,Backup Item Removed,,One or more backup items is/are removed from a Microsoft 365 Backup policy.
+,,,BackupItemRestoreCompleted,Restore item restoration complete,,The restoration of an item backed up by Microsoft 365 Backup is completed.
+,,,BackupItemRestoreTriggered,Restore item restoration triggered,,Restore is triggered for an item backed up with Microsoft 365 Backup.
+,,,BackupPolicyActivated,Activated a Backup Policy,,A Microsoft 365 Backup policy is activated from an inactive state.
+,,,BackupPolicyDeleted,Deleted a Backup Policy,,A Microsoft 365 Backup policy is deleted.
+,,,BackupPolicyEdited,Edited a Backup Policy,,A Microsoft 365 Backup policy is updated. Backup policies are updated by any of the following actions. 1. Renaming the policy. 2. Add one or more protection units. 3. Removing one or more protection units.
+,,,BackupPolicyPaused,Paused a Backup Policy,,A Microsoft 365 Backup policy is paused from active state.
+,,,BotAddedToTeam,Added bot to team,,A user adds a bot to a team.
+,,,BotRemovedFromTeam,Removed bot from team,,A user removes a bot from a team.
+,,,BreakEnded,Ended break using Time clock,,A user successfully ends a break during an active Time clock session.
+,,,BreakStarted,Started break using Time clock,,A user successfully starts a break during an active Time clock session.
+,,,BurnJobSubmitted,Submitted new burn job,,User converted all the redacted documents in a review set to PDF files.
+,,,CanceledQuery,Canceled query,,Analyst canceled a running query.
+,,,CaseAdded,Created eDiscovery case,,Added a new eDiscovery case.
+,,,CaseClosed,Closed eDiscovery case,,An eDiscovery case was closed.
+,,,CaseListViewed,Viewed eDiscovery case list,,This activity is logged when a user viewed a list of eDiscovery cases. The audit record includes the name and ID of the cases that was viewed in the cases list.
+,,,CaseMembersUpdated,Updated case members,,"Case membership was updated. As a member of a case, a user can perform various case-related tasks depending on whether they've been assigned the necessary permissions."
+,,,CaseMetadataViewed,Viewed case metadata,,Metadata about an eDiscovery case was viewed.
+,,,CaseRemoved,Delete eDiscovery case,,An eDiscovery case was deleted. Any hold associated with the case has to be removed before the case can be deleted.
+,,,CaseReopened,Reopened eDiscovery case,,An eDiscovery case was reopened.
+,,,CaseSettingsDefaultViewed,Viewed default case settings,,Default case setting viewed.
+,,,CaseSettingsUpdated,Updated case settings,,"User modified the settings for a case. Case settings include case information, premium feature access, case permissions, and settings that control search and analytics behavior."
+,,,CaseSettingsViewed,Viewed case settings,,"User viewed the settings for a case. Case settings include case information, premium feature access, case permissions, and settings that control search and analytics behavior."
+,,,CaseUpdated,Changed eDiscovery case,,Updated an eDiscovery case.
+,,,CaseViewed,Viewed eDiscovery case,,"A user viewed an eDiscovery case in the Microsoft Purview portal. The audit record for this event includes the name, case settings, and case ID of the case that was viewed."
+,,,Change user license.,Changed user license,,"The license assigned to a user what changed. To see what licenses were changes, see the corresponding Updated user activity."
+,,,ChangeCustomDetectionRuleStatus,Changed custom detection rule status,,A custom detection rule was turned off or on.
+,,,ChangeDataRetention,Changed data retention,,Edited the data retention settings for Defender for Endpoint.
+,,,ChannelAdded,Added channel,,A user adds a channel to a team.
+,,,ChannelDeleted,Deleted channel,,A user deletes a channel from a team.
+,,,ChannelOwnerResponded,Responded to invitee response to shared channel 3,,A channel owner responded to a response from a user who responded to a shared channel invitation.
+,,,ChannelSettingChanged,Changed channel setting,,"The ChannelSettingChanged operation is logged when the following activities are performed by a team member. For each of these activities, a description of the setting that was changed (shown in parentheses) is displayed in the Item column in the audit log search results."
+,,,ChatCreated,"Created a chat 1, 6",,A Teams chat was created.
+,,,ChatRetrieved,Fetched chat 1,,A Microsoft Teams chat was retrieved.
+,,,ChatUpdated,Updated a chat 1,,A Teams chat was updated.
+,,,Check PowerShell Execution Policy,Check PowerShell Execution Policy,,Check PowerShell execution policy.
+,,,ClassificationAdded,Classification added,,Add classifications to asset entity.
+,,,ClassificationDefinitionCreated,Classification definition created,,Create a classification type.
+,,,ClassificationDefinitionDeleted,Classification definition deleted,,Delete a classification type.
+,,,ClassificationDefinitionUpdated,Classification definition updated,,Update a classification type.
+,,,ClassificationDeleted,Classification deleted,,Delete classifications from asset entity.
+,,,ClassificationUpdated,Classification updated,,Update classifications on asset entity.
+,,,ClockedIn,Clocked in using Time clock,,A user successfully clocks in using Time clock.
+,,,ClockedOut,Clocked out using Time clock,,A user successfully clocks out using Time clock.
+,,,CloseConversation,Conversation closed,,"The Viva Engage thread has been closed, preventing users from replying to it. This action can be carried out by an admin, corporate communicator, or a user delegate."
+,,,CollectInvestigationPackage,Collected investigation package,,Collected information about a device that's used to understand attack tools and techniques.
+,,,CollectionCreated,Created a collection,,Form owner created a collection.
+,,,CollectionHardDeleted,Deleted collection from the Recycle Bin,,Form owner hard-deleted a collection from the Recycle Bin.
+,,,CollectionRenamed,Renamed a collection,,Form owner changed the name of a collection.
+,,,CollectionSoftDeleted,Moved collection to the Recycle Bin,,Form owner moved a collection to the Recycle Bin.
+,,,CollectionUpdated,Updated a collection,,Form owner updated a collection property.
+,,,CompanyLinkCreated,Created a company shareable link,,User created a company-wide link to a resource. company-wide links can only be used by members in your organization. They can't be used by guests.
+,,,CompanyLinkRemoved,Removed a company shareable link,,User removed a company-wide link to a resource. The link can no longer be used to access the resource.
+,,,CompanyLinkUsed,Used a company shareable link,,User accessed a resource by using a company-wide link.
+,,,ComplianceManagerAutomationChange,Testing source automation change,,An admin changed the testing source automation settings.
+,,,ComplianceManagerAutomationLevelChange,Tenant automation level change,,An admin changed the automation level for tenant across all actions.
+,,,ComplianceManagerRolesChange,Roles change,,An admin changed the roles for users.
+,,,ComplianceSettingChanged,Changed retention label for a file,,A retention label was applied to or removed from a document. This event is triggered when a retention label is manually or automatically applied to a message.
+,,,CompromisedSignIn,Compromised sign-in detection,,Sign-in risk detections represent the probability that a given authentication request isn't the authorized owner of the account.
+,,,CompromisedUser,Compromised user detection,,"User risk detections might flag a legitimate user account as at risk, when a potential threat actor gains access to an account by compromising their credentials or when they detect some type of anomalous user activity."
+,,,ConnectorAdded,Added connector,,A user adds a connector to a channel.
+,,,ConnectorRemoved,Removed connector,,A user removes a connector from a channel.
+,,,ConnectorUpdated,Updated connector,,A user modified a connector in a channel.
+,,,ConnectToExcelWorkbook,Connected to Excel workbook,,Connected the form to an Excel workbook.
+,,,ConsentModificationRequest,Approved or denied an app,,A user performed a consent modification request.
+,,,CopilotInteraction,Interacted with Copilot,,A user (or admin or system on behalf of a user) entered prompts in Copilot.
+,,,Copy,Copied messages to another folder,,A message was copied to another folder.
+,,,Create LogCollection Request,Create LogCollection Request,,Create log collection request to Cloud PC.
+,,,Create new work items (Scheduler),Create new work items (Scheduler),,"Create new work items, For example, Provision, Deprovision, Reprovision, etc."
+,,,Create Remote Action Operation in ActionModeratorService,Create Remote Action Operation in ActionModeratorService,,"Create remote action by tenantID, workspaceID, actionType, actionParameters."
+,,,Create VmExtention Request,Create VmExtension Request,,Creates VM extension requests to execute VM extension to run custom scripts on the customer device.
+,,,CreateComment,Created comment,,Form owner adds comment or score to a quiz.
+,,,CreateCopilotPlugin,Created a new Copilot plugin,,A user (or admin or system on behalf of a user) created a new Copilot plugin.
+,,,CreateCopilotPromptBook,Created a new Copilot promptbook,,A user (or admin or system on behalf of a user) created a new promptbook in Copilot.
+,,,CreateCustomDetection,Created custom detection rule,,A new custom detection rule was created.
+,,,CreatedPolicyConfig,Created policy configuration,,A new policy configuration was created.
+,,,CreateForm,Created form,,Form owner creates a new form.
+,,,CreateResponse,Created response,,Similar to receiving a new response. A user has submitted a response to a form.
+,,,CreateRulePackage / EditRulePackage*,Created new sensitive information type,,A new sensitive information type was created. This includes any SITs created by copying an out of the box SIT.
+,,,CreateSuppressionRule,Created suppression rule,,Created alert suppression rule.
+,,,CreateUpdateRequest,Create an update request,,A user successfully creates an update request.
+,,,CustomizeExemptUsers,Changed exempt user agents,,"A SharePoint or global administrator customized the list of exempt user agents in the SharePoint admin center. You can specify which user agents to exempt from receiving an entire web page to index. This means when a user agent you've specified as exempt encounters an InfoPath form, the form is returned as an XML file, instead of an entire web page. This makes indexing InfoPath forms faster."
+,,,Dashboard created,Dashboard created,,User has created a new dashboard on Viva Goals
+,,,Dashboard deleted,Dashboard deleted,,User has deleted a dashboard on Viva Goals.
+,,,Dashboard updated,Dashboard updated,,User has updated a dashboard on Viva Goals
+,,,Data exported,Data exported,,A user has exported list of OKRs or list of users in an organization on Viva Goals.
+,,,DataAccessRequestOperation,Extraction ran,,A user performed an extraction. Partner datasets and ISV runs are excluded.
+,,,DataExport,Exported data,,Verified admin exports Viva Engage network data. Only verified admins can perform this operation.
+,,,DataShareCreated,Data Share Created,,When the data export is created by the user.
+,,,DataShareDeleted,Data Share Deleted,,When the data export is deleted by the user.
+,,,DefenderExpertsAnalystPermissionCreated,Defender Experts analyst permission created,,An administrator granted one or more role permissions to Defender Experts analysts to investigate incidents or remediate threats.
+,,,DefenderExpertsAnalystPermissionModified,Defender Experts analyst permission modified,,An administrator modified role permissions for Defender Experts analysts to investigate incidents or remediate threats.
+,,,Delete group.,Deleted group,,A group was deleted.
+,,,Delete user.,Deleted user,,A user account was deleted.
+,,,DeleteAllResponses,Deleted all responses,,Form owner deletes all response data.
+,,,DeleteCopilotPlugin,Deleted a Copilot plugin,,A user (or admin or system on behalf of a user) deleted a Copilot plugin.
+,,,DeleteCopilotPromptBook,Deleted a Copilot promptbook,,A user (or admin or system on behalf of a user) deleted a Copilot promptbook.
+,,,DeleteCustomDetection,Deleted custom detection rule,,A custom detection rule was removed.
+,,,Deleted role,DeleteRole,,Removed security roles and permissions.
+,,,DeletedAllOrganizationApps,Deleted all organization apps,,Deleted all organization apps from the catalog.
+,,,DeletedPolicyConfig,Deleted policy configuration,,A policy configuration was deleted.
+,,,DeletedResult,Deleted result,,Analyst deleted a query result.
+,,,DeleteForm,Deleted form,,Form owner deletes a form. This includes SoftDelete (delete option used and form moved to recycle bin) and HardDelete (Recycle bin is emptied).
+,,,DeleteIndicator,Deleted indicator,,Removed an Indicator of compromise.
+,,,DeleteResponse,Deleted Response,,Form owner deletes one response.
+,,,DeleteSummaryLink,Deleted summary link,,Form owner deletes summary results link.
+,,,DeleteSuppressionRule,Deleted suppression rule,,Deleted alert suppression rule.
+,,,DeviceAccessPolicyChanged,Changed device access policy,,"A SharePoint or global administrator changed the unmanaged devices policy for your organization. This policy controls access to SharePoint, OneDrive, and Microsoft 365 from devices that aren't joined to your organization. Configuring this policy requires an Enterprise Mobility + Security subscription. For more information, see Control access from unmanaged devices."
+,,,DeviceOffBoarding,Offboarded device,,Removed a device from Defender for Endpoint.
+,,,DirectoryServicesAccountConfigurationUpdated,Updated directory services account configuration,,The Directory services accounts set was modified.
+,,,DisableCollaboration,Disabled collaboration,,Form owner turns off the setting of collaboration on the form.
+,,,DisableCopilotPlugin,Disabled a Copilot plugin,,A user (or admin or system on behalf of a user) disabled a Copilot plugin.
+,,,DisableCopilotPromptBook,Disabled a Copilot promptbook,,A user (or admin or system on behalf of a user) disabled a Copilot promptbook.
+,,,DisableSpecificResponse,Disabled specific people can respond setting,,Form owner turns off the setting allowing only specific people or specific groups in the current organization to respond to the form.
+,,,DisableSuppressionRule,Disabled suppression rule,,Disabled alert suppression rule.
+,,,DisallowAnonymousResponse,Disabled anyone can respond setting,,Form owner turns off the setting allowing any one to respond to the form.
+,,,DisallowShareFormForCopy,Disallowed share form for copy,,Form owner deletes template link.
+,,,DocumentSensitivityMismatchDetected,Detected document sensitivity mismatch,,"User uploads a document to a site that's protected with a sensitivity label and the document has a higher priority sensitivity label than the sensitivity label applied to the site. For example, a document labeled Confidential is uploaded to a site labeled General."
+,,,DomainControllerCoverageExcelDownloaded,Downloaded Domain Controller coverage Excel,,The Domain Controller coverage Excel file was downloaded.
+,,,DownloadCopyOfLakeData,Download Copy Of Lake Data,,When the copy of Lake Data is downloaded.
+,,,DownloadedReport,Downloaded report,,Analyst downloaded a query result file.
+,,,DownloadFile,Downloaded file,,Downloaded a suspicious file for further investigation.
+,,,DownloadOffboardingPkg,Downloaded offboarding package,,Downloaded the package used to remove devices from Defender for Endpoint.
+,,,DownloadOnboardingPkg,Downloaded onboarding package,,Downloaded the package used to onboard devices to Defender for Endpoint.
+,,,DraftRestoreTaskCreated,Created Draft Restore Task,,"A restore task is created in Microsoft 365 Backup. By default, the restore task is created as draft."
+,,,DraftRestoreTaskDeleted,Deleted Draft Restore Task,,A draft restore task is deleted in Microsoft 365 Backup.
+,,,DraftRestoreTaskEdited,Edited Draft Restore Task,,A draft restore task is edited in Microsoft 365 Backup.
+,,,EditCustomDetection,Edited custom detection rule,,A custom detection rule was modified.
+,,,Edited role,EditRole,,Edited security roles and permissions.
+,,,EditForm,Edited form,,"Form owner edits a form such as creating, removing, or editing a question. The property EditOperation:string indicates the edit operation name. The possible operations are: -CreateQuestion, -CreateQuestionChoice, -DeleteQuestion, -DeleteQuestionChoice, -DeleteFormImage, -DeleteQuestionImage, -UpdateQuestion, -UpdateQuestionChoice, -UploadFormImage/Bing/Onedrive, -UploadQuestionImage, -ChangeTheme. FormImage includes any place within Forms that user can upload an image, such as in a query or as a background theme."
+,,,EditIncidentClassification,Edit incident classification,,Edit incident classification.
+,,,EditIndicator,Edited indicator,,Edited an Indicator of compromise.
+,,,EditRulePackage,Edited a sensitive information type,,An existing sensitive information type was edited. This can include operations like adding/removing a pattern and editing the regex/keyword associated with the sensitive information type.
+,,,EditRulePackage / RemoveRulePackage,Deleted a sensitive information type,,An existing sensitive information type was deleted.
+,,,EditSuppressionRule,Edited suppression rule,,Deleted alert suppression rule.
+,,,EditUpdateRequest,Edit an update request,,"A user opens the request editing workflow and selects Save to confirm and save any changes, or enables or disables the update request directly."
+,,,EnableCopilotPlugin,Enabled a Copilot plugin,,A user (or admin or system on behalf of a user) enabled a Copilot plugin.
+,,,EnableCopilotPromptBook,Enabled a Copilot promptbook,,A user (or admin or system on behalf of a user) enabled a Copilot promptbook.
+,,,EnableSameOrgCollaboration,Enabled people in my organization collaboration,,Form owner turns on the setting allowing users in the current organization to view and edit the form.
+,,,EnableSpecificCollaboaration,Enabled specific people collaboration,,Form owner turns on the setting allowing only specific people or specific groups in the current organization to view and edit the form.
+,,,EnableSpecificResponse,Enabled specific people can respond setting,,Form owner turns on the setting allowing only specific people or specific groups in the current organization to respond to the form.
+,,,EnableSuppressionRule,Enabled suppression rule,,Enabled alert suppression rule.
+,,,EnableWorkOrSchoolCollaboration,Enabled Office 365 work or school account collaboration,,Form owner turns on the setting allowing users with a Microsoft 365 work or school account to view and edit the form.
+,,,EntityCreated,Asset or entity created,,A new asset or entity is created or added to an existing asset.
+,,,EntityDeleted,Entity deleted,,An asset or entity is deleted from an existing asset.
+,,,EntityRemediatorConfigurationUpdated,Updated entity remediation configuration,,The Manage action accounts mode was modified.
+,,,EntityUpdated,Entity updated,,"Includes: attribute update, business attribute update, collection info (only include collection ID), contacts update, customAttributes, hierarchy, homeId, labels, sourceDetails"
+,,,ExchangeDataProactivelyPreserved,Retained email item proactively,,Adaptive protection automatically applied a retention label to retain an item in Exchange.
+,,,ExclusionConfigurationAdded,Added exclusions configuration,,A global exclusion was added for an alert or for an entity.
+,,,ExclusionConfigurationDeleted,Deleted exclusions configuration,,A global exclusion was deleted for an alert or for an entity.
+,,,ExclusionConfigurationUpdated,Updated exclusions configuration,,A global exclusion was updated for an alert or for an entity.
+,,,Execute AppHealthPlugin,Execute AppHealthPlugin,,Execute AppHealthPlugin.
+,,,ExecutedQuery,Executed query,,Analyst ran a query.
+,,,ExemptUserAgentSet,Added exempt user agent,,A SharePoint or global administrator added a user agent to the list of exempt user agents in the SharePoint admin center.
+,,,ExportForm,Exported form,,Form owner exports results to Excel.
+,,,ExtendRetention,Extended retention period,,A disposition reviewer extended the retention period of the item.
+,,,FailedValidation,Failed to validate invitation to shared channel 3,,A user responds to an invitation to a shared channel but the invitation failed validation.
+,,,FavoriteListViewed,Viewed favorite list,,User viewed a list of favorite cases.
+,,,FavoriteRemoved,Removed favorite,,User removed a case from favorites.
+,,,FavoriteSet,Added favorite,,User set a case to favorite.
+,,,FileAccessFailure,Failed to access file,,User failed to access a file.
+,,,FileCheckedIn,Checked in file,,User checks in a document that they checked out from a document library.
+,,,FileCheckedOut,Checked out file,,User checks out a document located in a document library. Users can check out and make changes to documents that have been shared with them.
+,,,FileCheckOutDiscarded,Discarded file checkout,,"User discards (or undoes) a checked out file. That means any changes they made to the file when it was checked out are discarded, and not saved to the version of the document in the document library."
+,,,FileCopied,Copied file,,User copies a document from a site. The copied file can be saved to another folder on the site.
+,,,FileCreated,Created file,,User uploads a file.
+,,,FileDeleted,Deleted file,,User deletes a document from a site.
+,,,FileDeletedFirstStageRecycleBin,Deleted file from recycle bin,,User deletes a file from the recycle bin of a site.
+,,,FileDeletedSecondStageRecycleBin,Deleted file from second-stage recycle bin,,User deletes a file from the second-stage recycle bin of a site.
+,,,FileDownloaded,Downloaded file,,User downloads a document from a site.
+,,,FileDownloaded,Downloaded file,,User downloads a file.
+,,,FileMalwareDetected,Detected malware in file,,SharePoint anti-virus engine detects malware in a file.
+,,,FileMoved,Moved file,,User moves a document from its current location on a site to a new location.
+,,,FileRenamed,Renamed file,,User renames a document.
+,,,FileRestored,Restored file,,User restores a document from the recycle bin of a site.
+,,,FileSensitivityLabelApplied,Applied sensitivity label to file,,"A sensitivity label was applied to an item by using Microsoft 365 apps, Office for the web, or an auto-labeling policy."
+,,,FileSensitivityLabelChanged,Changed sensitivity label applied to file,,A different sensitivity label was applied to an item.
+,,,FileSensitivityLabelRemoved,Removed sensitivity label from file,,"A sensitivity label was removed from an item by using Microsoft 365 apps, Office for the web, an auto-labeling policy, or the Unlock-SPOSensitivityLabelEncryptedFile cmdlet."
+,,,FileShared,Shared file,,User shares a file with another user.
+,,,FileSyncDownloadedPartial,Downloaded file changes to computer,,This event has been deprecated along with the old OneDrive for Business sync app (Groove.exe).
+,,,FileSyncUploadedPartial,Uploaded file changes to document library,,This event has been deprecated along with the old OneDrive for Business sync app (Groove.exe).
+,,,FileUpdateDescription,Updated file description,,User changes the description of a file.
+,,,FileUpdateName,Updated file name,,User changes the name of a file.
+,,,FileVersionRecycled,Recycled version of file,,User deletes a version from the version history of a file. The deleted version is moved to the site's recycle bin.
+,,,FileVersionsAllMinorsRecycled,Recycled all minor versions of file,,User deletes all minor versions from the version history of a file. The deleted versions are moved to the site's recycle bin.
+,,,FileVersionsAllRecycled,Recycled all versions of file,,User deletes all versions from the version history of a file. The deleted versions are moved to the site's recycle bin.
+,,,FileVisited,Viewed file,,User views a file.
+,,,FolderCopied,Copied folder,,User copies a folder from a site to another location in SharePoint or OneDrive for Business.
+,,,FolderCreated,Created folder,,User creates a folder on a site.
+,,,FolderDeleted,Deleted folder,,User deletes a folder from a site.
+,,,FolderDeletedFirstStageRecycleBin,Deleted folder from recycle bin,,User deletes a folder from the recycle bin on a site.
+,,,FolderDeletedSecondStageRecycleBin,Deleted folder from second-stage recycle bin,,User deletes a folder from the second-stage recycle bin on a site.
+,,,FolderModified,Modified folder,,"User modifies a folder on a site. This includes changing the folder metadata, such as changing tags and properties."
+,,,FolderMoved,Moved folder,,User moves a folder to a different location on a site.
+,,,FolderRecycled,Recycled a folder,,User moves a folder into the SharePoint Recycle Bin.
+,,,FolderRenamed,Renamed folder,,User renames a folder on a site.
+,,,FolderRestored,Restored folder,,User restores a deleted folder from the recycle bin on a site.
+,,,FolderSharingLinkShared,Folder sharing link shared,,Created a sharing link for a folder.
+,,,GenerateCopyOfLakeData,Generate Copy Of Lake Data,,When the copy of Lake Data is generated.
+,,,GeoAdminAdded,Added geo location admin,,A SharePoint or global administrator added a user as a geo admin of a location.
+,,,GeoAdminDeleted,Removed geo location admin,,A SharePoint or global administrator removed a user as a geo admin of a location.
+,,,GeoQuotaAllocated,Set storage quota for geo location,,A SharePoint or global administrator configured the storage quota for a geo location in a multi-geo environment.
+,,,GetActionsForAllExports,Retrieved all actions for all exports,,"User viewed a list of exports in a case. The audit activity includes case name, ID, case settings, and the list of export names viewed."
+,,,GetActionsForAllHolds,Retrieved all action for hold,,"User viewed a list of actions associated with all holds in a case. The audit activity includes case name, ID, hold name, ID, and the name of the list of actions."
+,,,GetActionsForAllReviewSets,Retrieved actions for all review sets,,User viewed a list of actions associated with all review sets in a case
+,,,GetActionsForCase,Retrieved all actions for case,,User viewed a list of actions (such as exports) associated with an eDiscovery case.
+,,,GetActionsForHold,Retrieved all actions for hold,,User viewed a list of actions associated with a hold.
+,,,GetActionsForReviewSet,Retrieved all actions for review set,,"User viewed a list of actions (such as exports) associated with a review set. The audit activity includes case name, ID, review set name, ID, and the name of the list of actions."
+,,,GetActionsForSearch,Retrieved all action for search,,"User viewed a list of actions (such as exports) associated with a search. The audit activity includes case name, ID, search name, ID, and the name of the list of actions."
+,,,GetAllRestoreArtifactsInTask,Programmatically got list of Restore Items in Restore Task,,A user programmatically gets all artifacts in a restore task in Microsoft 365 Backup.
+,,,GetBackupItem,Programmatically got Backup Item,,User requests the protection unit backed up using Microsoft 365 Backup programmatically.
+,,,GetRestoreTaskDetails,Programmatically got Details of Restore Task,,A user requests details of restore task by its identifier in Microsoft 365 Backup.
+,,,GetSingleActionForCase,Retrieved single action for case,,"User viewed a single action associated with an eDiscovery case. For example, the user viewed the export process in process manager. The audit activity includes case name, ID, and settings and ID associated with the process."
+,,,GetSingleActionForHold,Retrieved single action for hold,,User viewed a single action associated with a hold.
+,,,GetSingleActionForReviewSet,Retrieved single action for review set,,User viewed a single action associated with a review set.
+,,,GetSingleActionForSearch,Retrieved single action for search,,"User viewed a single action associated with a search. For example, the user viewed the export process in the search�s process manager. The audit activity includes case name, ID, and settings and ID associated with the process."
+,,,GetSummaryLink,Created summary link,,Form owner creates summary results link to share results.
+,,,GlossaryTermAssigned,Glossary term assigned,,Assign terms to asset entity.
+,,,GlossaryTermCreated,Glossary term created,,Create a term.
+,,,GlossaryTermDeleted,Glossary term deleted,,Delete a term.
+,,,GlossaryTermDisassociated,Glossary term disassociated,,Disassociate terms from asset entity.
+,,,GlossaryTermUpdated,Glossary term updated,,Update a term.
+,,,Goals policy updated,Goals policy updated,,"The global admin has modified the policy or settings at the tenant level on Viva Goals. For example, the global admin has configured who can create organizations on Viva Goals."
+,,,GroupAccessFailure,Failed to access group,,User failed to access a group.
+,,,GroupAdded,Created group,,"Site administrator or owner creates a group for a site, or performs a task that results in a group being created. For example, the first time a user creates a link to share a file, a system group is added to the user's OneDrive for Business site. This event can also be a result of a user creating a link with edit permissions to a shared file."
+,,,GroupCreation,Created group,,User creates a group.
+,,,GroupDeletion,Deleted group,,A group is deleted from Viva Engage.
+,,,GroupRemoved,Deleted group,,User deletes a group from a site.
+,,,GroupUpdated,Updated group,,"Site administrator or owner changes the settings of a group for a site. This can include changing the group's name, who can view or edit the group membership, and how membership requests are handled."
+,,,HoldCreated,Created hold in eDiscovery case,,"A new hold was created. This audit activity includes the case name, case ID and hold name that was created."
+,,,HoldListViewed,Viewed hold list,,"User viewed the holds list inside a case. This audit activity includes the case name, case ID, and the list of holds name and ID the user viewed."
+,,,HoldRemoved,Deleted hold in eDiscovery case,,A hold that is associated with an eDiscovery case was deleted. Deleting a hold releases all of the content locations from the hold.
+,,,HoldResultsViewed,Viewed hold results,,"User viewed hold�s results. The audit activity includes case name, case ID, hold name, and hold ID."
+,,,HoldRetryDistributionSync,Retried distribution sync for hold,,User trigged �retry policy� in a hold.
+,,,HoldStatusViewed,Viewed hold status,,"User viewed hold�s status. The audit activity includes case name, case ID, hold name, and hold ID."
+,,,HoldUpdated,Changed hold in eDiscovery case,,"Hold was modified or edited. This audit activity includes the hold name, ID, and the specific data sources and query values that were modified."
+,,,HoldViewed,Viewed hold,,User viewed a hold inside a case. This audit activity includes the hold name and ID the user viewed. It also includes the specific data sources and query values inside the hold that was viewed by the user.
+,,,HostSiteSet,Set host site,,A SharePoint or global administrator changes the designated site to host personal or OneDrive for Business sites.
+,,,HubSiteJoined,Joined site to hub site,,A site owner associates their site with a hub site.
+,,,HubSiteOrphanHubDeleted,Deleted orphaned hub site,,"A SharePoint or global administrator deleted an orphan hub site, which is a hub site that doesn't have any sites associated with it. An orphaned hub is likely caused by the deletion of the original hub site."
+,,,HubSiteRegistered,Registered hub site,,A SharePoint or global administrator creates a hub site. The results are that the site is registered to be a hub site.
+,,,HubSiteUnjoined,Unjoined site from hub site,,A site owner disassociates their site from a hub site.
+,,,HubSiteUnregistered,Unregistered hub site,,"A SharePoint or global administrator unregisters a site as a hub site. When a hub site is unregistered, it no longer functions as a hub site."
+,,,InformationBarriersInsightsReportCompleted,Information barriers insights report completed,,System completes build of the information barriers insights report.
+,,,InformationBarriersInsightsReportOneDriveSectionQueried,Information barriers insights report OneDrive section queried,,An administrator queries the information barriers insights report for OneDrive accounts.
+,,,InformationBarriersInsightsReportSchedule,Information barriers insights report scheduled,,An administrator schedules the information barriers insights report.
+,,,InformationBarriersInsightsReportSharePointSectionQueried,Information barriers insights report SharePoint section queried,,An administrator queries the information barriers insights report for Sharepoint sites.
+,,,Install RD agent,Install RD agent,,Install RD agent on the device of the user.
+,,,InviteeResponded,Responded to invitation for shared channel 3,,A user responded to a shared channel invitation.
+,,,InviteSent,Sent invitation for shared channel 3,,A channel owner or member sends an invitation to a shared channel. Invitations to shared channels can be sent to people outside of your organization if the channel policy is configured to share the channel with external users.
+,,,IsolateDevice,Isolated device,,"Isolated a device from the network, helping prevent attacks from spreading."
+,,,LabelContentExplorerAccessedItem,Accessed item,,An admin (or a user who's a member of the Content Explorer Content Viewer role group) uses content explorer to view an email message or SharePoint/OneDrive document.
+,,,LegacyWorkflowEnabledSet,Enabled legacy workflow,,Site administrator or owner adds the SharePoint 2013 Workflow Task content type to the site. Global administrators can also enable work flows for the entire organization in the SharePoint admin center.
+,,,LinkedEntityCreated,Linked entity created,,A linked entity of task was created.
+,,,LinkedEntityDeleted,Linked entity deleted,,A linked entity was deleted.
+,,,LinkedEntityUpdated,Linked entity updated,,A linked entity was updated.
+,,,List Column Deleted,Deleted list column,,A user deleted a SharePoint list column.
+,,,List Item Deleted,Deleted list item,,A user deleted a SharePoint list item.
+,,,ListAllBackupItemsInPolicies,Programmatically got list of Backup Items in Backup Policies,,A list of all protection units present in a backup policy in Microsoft 365 Backup is requested programmatically.
+,,,ListAllBackupItemsInTenant,Programmatically got list of Backup Items in Tenant,,A user programmatically gets list of all protection units in the organization backed up using Microsoft 365 Backup.
+,,,ListAllBackupItemsInWorkload,Programmatically got list of Backup Items in Workload,,"A user programmatically gets list of all protection units in workload (SharePoint, OneDrive, or Exchange) backed up using Microsoft 365 Backup."
+,,,ListAllBackupPolicies,Programmatically got list of all Backup Policies,,A user programmatically gets the list of all backup policies backed up using Microsoft 365 Backup.
+,,,ListAllRestorePoints,Programmatically got list of Restore Points,,A user programmatically gets all restore points in Microsoft 365 Backup. Restore Points represent the timestamp when an artifact is protected (per Protection Policy). Only Global Admins have access.
+,,,ListAllRestoreTasks,Programmatically got list of Restore Tasks,,A user programmatically gets the list of existing restore sessions in Microsoft 365 Backup. This includes the restore session created for every service type enrolled in the organization.
+,,,ListColumnCreated,Created list column,,A user created a SharePoint list column. A list column is a column that's attached to one or more SharePoint lists.
+,,,ListColumnUpdated,Updated list column,,A user updated a SharePoint list column by modifying one or more properties.
+,,,ListContentTypeCreated,Created list content type,,A user created a list content type. A list content type is a content type that's attached to one or more SharePoint lists.
+,,,ListContentTypeDeleted,Deleted list content type,,A user deleted a list content type.
+,,,ListContentTypeUpdated,Updated list content type,,A user updated a list content type by modifying one or more properties.
+,,,ListCreated,Created list,,A user created a SharePoint list.
+,,,ListDeleted,Deleted list,,A user deleted a SharePoint list.
+,,,ListForms,Listed forms,,Form owner is viewing a list of forms.
+,,,ListItemCreated,Created list item,,A user created an item in an existing SharePoint list.
+,,,ListItemRecycled,Recycled list item,,A user moved a SharePoint list item to the Recycle Bin.
+,,,ListItemRestored,Restored list item,,A user restored a SharePoint list item from the Recycle Bin.
+,,,ListItemUpdated,Updated list item,,A user updated a SharePoint list item by modifying one or more properties.
+,,,ListRestored,Restored list,,A user restored a SharePoint list from the Recycle Bin.
+,,,ListUpdated,Updated list,,A user updated a SharePoint list by modifying one or more properties.
+,,,ListViewUpdated,Updated list view,,A user updated a SharePoint list view by modifying one or more properties.
+,,,LiveNotesUpdate,Populate AI-generated notes in live meetings,,AI-generated notes have been populated for a live meeting.
+,,,LiveResponseGetFile,Ran get Live response file link,,"Opened a Live response session, opening a remote shell into a device."
+,,,LoadCountInCaseViewed,Viewed load count in case,,User viewed the count of load sets in a case.
+,,,LoadListViewed,Viewed load list,,User viewed a list of load sets in review set.
+,,,LockRecord,Changed record status to locked,,The record status of a retention label that classifies a document as a record was locked. This means the document can't be modified or deleted. Only users assigned at least the contributor permission for a site can change the record status of a document.
+,,,LogsCollection,Collected Logs,,Collected log information about Defender for Endpoint.
+,,,MailboxLogin,User signed in to mailbox,,The user signed in to their mailbox.
+,,,ManagedSyncClientAllowed,Allowed computer to sync files,,User successfully establishes a sync relationship with a site. The sync relationship is successful because the user's computer is a member of a domain that's been added to the list of domains (called the safe recipients list) that can access document libraries in your organization.
+,,,MarkedMessageChanged,Reacted to message,,User reacted to a message.
+,,,MeetingDetail,Added details about Teams meeting 9,,"Teams added information about a meeting, including the start time, the end time, and the URL to join the meeting."
+,,,MeetingExclusionCreated,Created meeting exclusion,,Analyst created a meeting exclusion rule.
+,,,MemberAdded,"Added members 6, 8",,"A team owner adds members to a team, channel, or group chat."
+,,,MemberRemoved,"Removed members 6, 8",,"A team owner removes members from a team, channel, or group chat."
+,,,MemberRoleChanged,Changed role of members in team,,A team owner changes the role of members in a team. The following values indicate the role type assigned to the user.
+,,,MessageCreatedHasLink,Sent a message with a URL link in Teams,,A user sends a message containing a URL link in Teams.
+,,,MessageCreatedNotification,Sent change notification for message creation 1,,A change notification was sent to notify a subscribed listener application of a new message.
+,,,MessageCreation,Created message,,User creates a message.
+,,,MessageDeleted,Deleted a message 2,,A message in a chat or channel was deleted.
+,,,MessageDeleted,Deleted message,,User deletes a message.
+,,,MessageDeletedNotification,Sent change notification for message deletion 1,,A change notification was sent to notify a subscribed listener application of a deleted message.
+,,,MessageEditedHasLink,Edited a message with a URL link in Teams,,A user edits a message and adds a URL link to it in Teams.
+,,,MessageHostedContentRead,Read hosted content of a message 1,,"Hosted content in a message, such as an image or a code snippet, was retrieved."
+,,,MessageHostedContentsListed,Fetched all hosted content of a message1,,"All hosted content in a message, such as images or code snippets, was retrieved."
+,,,MessageRead,Read a message 1,,A message of a chat or channel was retrieved.
+,,,MessagesExported,"Exported messages 1, 2",,Chat or channel messages were exported.
+,,,MessagesListed,Retrieved messages 1,,Messages from a chat or channel were retrieved.
+,,,MessageUpdated,Updated a message 1,,A message of a chat or channel was updated.
+,,,MessageUpdated,Updated message,,User updates a message.
+,,,MessageUpdatedNotification,Sent change notification for message update 1,,A change notification was sent to notify a subscribed listener application of an updated message.
+,,,MigrationJobCompleted,Completed migration job,,A migration job was successfully completed.
+,,,MonitoringAlertNotificationRecipientAdded,Added health issues notification recipient,,A recipient was added to the health issues notification configuration.
+,,,MonitoringAlertNotificationRecipientDeleted,Deleted health issues notification recipient,,A recipient was removed from the heath issues notification configuration.
+,,,MonitoringAlertUpdated,Updated health issue,,A health issue was modified.
+,,,Move,Moved messages to another folder,,A message was moved to another folder.
+,,,MovedFormIntoCollection,Moved a form into collection,,Form owner moved a form into a collection.
+,,,MovedFormOutofCollection,Moved a form out of collection,,Form owner moved a form out of a collection.
+,,,MoveForm,Moved form,,Form owner moves a form.
+,,,NetworkAccessPolicyChanged,Changed network access policy,,"A SharePoint or global administrator changed the location-based access policy (also called a trusted network boundary) in the SharePoint admin center or by using SharePoint Online PowerShell. This type of policy controls who can access SharePoint and OneDrive resources in your organization based on authorized IP address ranges that you specify. For more information, see Control access to SharePoint Online and OneDrive data based on network location."
+,,,NetworkAdminUpdated,Updated role assignment for Network Admin,,A user is either promoted or demoted to the Network Admin role.
+,,,NetworkConfigurationUpdated,Changed network configuration,,Network or verified admin changes the Viva Engage network's configuration. This includes setting the interval for exporting data and enabling chat.
+,,,NetworkSecurityConfigurationUpdated,Changed security configuration,,Verified admin updates the Viva Engage network's security configuration. This includes setting password expiration policies and restrictions on IP addresses. Only verified admins can perform this operation.
+,,,NetworkUserSuspended,Suspended network user,,Network or verified admin suspends (deactivates) a user from Viva Engage.
+,,,NetworkVerifiedAdminUpdated,Updated role assignment for Verified Admin,,A user is either promoted or demoted to the Verified Admin role.
+,,,NewAdaptiveScope,Created adaptive scope,,Administrator created an adaptive scope.
+,,,NewBackupPolicyCreated,Created new Backup policy,,"A new Microsoft 365 Backup policy has been created by a Global Admin. By default, a backup policy is created in an inactive state."
+,,,NewComplianceTag,Created retention label,,Administrator created a new retention label.
+,,,NewRetentionCompliancePolicy,Created retention policy,,Administrator created a new retention policy.
+,,,NewRetentionComplianceRule,Configured settings for a retention policy,,"Administrator configured the retention settings for a new retention policy. Retention settings include how long items are retained, and what happens to items when the retention period expires (such as deleting items, retaining items, or retaining and then deleting them). This activity also corresponds to running the New-RetentionComplianceRule cmdlet."
+,,,NewsFeedEnabledSet,Enabled RSS feeds,,Site administrator or owner enables RSS feeds for a site. Global administrators can enable RSS feeds for the entire organization in the SharePoint admin center.
+,,,NotificationConfigurationUpdated,Updated security notification configuration,,The security alerts or health issues notifications configuration was modified.
+,,,OCE Run Commands on VM,OCE Run Commands on VM,,"Run commands by tenantID, deviceID list, and script."
+,,,OfficeOnDemandSet,Enabled Office on Demand,,"Site administrator enables Office on Demand, which lets users access the latest version of Office desktop applications. Office on Demand is enabled in the SharePoint admin center and requires a Microsoft 365 subscription that includes full, installed Office applications."
+,,,OffShiftDialogAccepted,Accepted off shift message,,A user acknowledges the off-shift message to access Teams after shift hours.
+,,,OKR or Project created,OKR or Project created,,User has created an OKR or Project on Viva Goals.
+,,,OKR or Project deleted,OKR or Project deleted,,User has deleted an OKR or Project.
+,,,OKR or Project updated,OKR or Project updated,,An OKR/Project has been modified or a check-in has been made by the user or an integration on Viva Goals.
+,,,OpenConversation,Conversation opened,,"The Viva Engage thread conversation has been opened which allows users to reply to the thread. This action can be performed by an admin, corporate communications, or a user delegate."
+,,,OpenShiftAdded,Added open shift,,A user successfully adds an open shift to a scheduling group.
+,,,OpenShiftDeleted,Deleted open shift,,A user successfully deletes an open shift from a scheduling group.
+,,,OpenShiftEdited,Edited open shift,,A user successfully edits an open shift in a scheduling group.
+,,,Organization created,Organization created,,Admin or the user has created a new organization on Viva Goals.
+,,,Organization integrations updated,Organization integrations updated,,The user (typically Organization owners or admins) has configured a third party integration or updated an existing third party integration for an organization on Viva Goals.
+,,,Organization settings updated,Organization settings updated,,The user (typically Organization owners or admins) has updated organization specific settings on Viva Goals.
+,,,PeopleResultsScopeSet,Enabled result source for People Searches,,Site administrator creates the result source for People Searches for a site.
+,,,PerformedCardAction,Performed action on card,,A user took action on an adaptive card within a chat. Adaptive cards are typically used by bots to allow the rich display of information and interaction in chats.
+,,,PermissionLevelAdded,Added permission level to site collection,,A permission level was added to a site collection.
+,,,PermissionLevelModified,Modified permission level on a site collection,,A permission level was changed on a site collection.
+,,,PermissionLevelRemoved,Removed permission level from site collection,,A permission level was removed from a site collection.
+,,,PermissionLevelsInheritanceBroken,Broke permission level inheritance,,An item was changed so that it no longer inherits permission levels from its parent.
+,,,PlanCopied,Copied a plan,,"A plan is copied by a user or an app. If the copy operation is a ResultStatus.Failure or ResultStatus.Failure, newPlanId indicates null, newContainerType indicates ContainerType.Invalid, and newContainerId indicates null."
+,,,PlanCreated,Created a plan,,"A plan is created by a user or an app. If the create operation is a ResultStatus.Failure or ResultStatus.AuthorizationFailure, ObjectId indicates null, ContainerType indicates ContainerType.Invalid and ContainerId indicates null."
+,,,PlanDeleted,Deleted a plan,,A plan is deleted by a user or an app.
+,,,PlanListRead,Read a list of plans,,"A list of plans is queried by a user or an app. If the query operation is a ResultStatus.Failure or ResultStatus.AuthorizationFailure, PlanList indicates an empty string."
+,,,PlanModified,Modified a plan,,A plan is modified by a user or an app.
+,,,PlanRead,Read a plan,,"A plan is read by a user or an app. If the read operation is a ResultStatus.Failure or ResultStatus.AuthorizationFailure, ContainerType indicates ContainerType.Invalid and ContainerId indicates null."
+,,,Post Remote Action Operation,Post Remote Action Operation,,"Post Remote Action, plus polling the result by GetActions operation."
+,,,PreviewForm,Previewed form,,Form owner previews a form using the Preview function.
+,,,PreviewModeEnabledSet,Enabled document preview,,Site administrator enables document preview for a site.
+,,,ProcessProfileFields,Changed network profile settings,,Network or verified admin changes the information that appears on member profiles for network users network.
+,,,ProInvitation,Sent Forms Pro invitation,,User selects to activate a Pro trial.
+,,,ProjectAccessed,Project accessed,,A project is read or app.
+,,,ProjectCreated,Created project,,A project is created by a user or app.
+,,,ProjectDeleted,Deleted project,,A project is deleted by a user or app.
+,,,ProjectForTheWebProjectSettings,Updated project settings,,Project settings are updated by an admin.
+,,,ProjectForTheWebRoadmaptSettings,Updated roadmap settings,,Roadmap or portfolio settings are updated by an admin.
+,,,ProjectListAccessed,Project home accessed,,A list of projects and/or roadmaps is queried by a user.
+,,,ProjectUpdated,Updated project,,A project is modified by a user or app.
+,,,PulseCancel,User canceled a Pulse survey,,User canceled a Pulse survey.
+,,,PulseCreate,User created a Pulse survey,,New Viva Pulse feedback request is created.
+,,,PulseCreateDraft,User created a Pulse draft,,User created a Pulse draft.
+,,,PulseDeleteDraft,User deleted a Pulse draft,,User deleted a Pulse draft.
+,,,PulseDeleteUserData,Admin deleted a user's data,,Admin deleted a user's data.
+,,,PulseExtendDeadline,User extended their pulse survey deadline,,The deadline for the existing Viva Pulse feedback request was extended.
+,,,PulseInvite,User invited additional users to Pulse survey,,Additional users were invited to an existing Viva Pulse feedback request.
+,,,PulseShareResults,User shared a pulse report,,Viva Pulse feedback result was shared with users.
+,,,PulseSubmit,User submitted response to a pulse survey,,Admin or user provided feedback for a Viva Pulse feedback request.
+,,,PulseTenantSettingsUpdate,Admin updated tenant's settings,,Admin updated an organization setting for Viva Pulse.
+,,,PurviewSearchAdded,Added Purview search,,"A new search was created. This audit activity includes the case name, case ID, and search name that was created."
+,,,PurviewSearchAddToReviewSetJobSubmitted,Submitted purview search add to review set job,,"User triggered a �add to review set� process from a search. This audit activity includes the search name, ID, and the specific data sources and query values that were associated to the search. It also includes relevant add to review set process settings used."
+,,,PurviewSearchDeleteFile,Deleted file for Purview search,,"User deleted a file from a search. This audit activity includes the case name, case ID, search name, search ID, and the ID of the file the user deleted."
+,,,PurviewSearchExportJobSubmitted,Submitted purview search export job,,"User triggered an �export� process from a search. This audit activity includes the search name, ID, and the specific data sources and query values that were associated to the search. It also includes relevant export process settings used and the export name."
+,,,PurviewSearchListViewed,Viewed Purview search list,,"User viewed the searches list inside a case. This audit activity includes the case name, case ID, and the list of searches name and ID the user viewed."
+,,,PurviewSearchSampleJobSubmitted,Submitted purview search sample job,,"User triggered a �generate sample� process from a search. This audit activity includes the search name, ID, and the specific data sources and query values that were associated to the search. It also includes relevant sample process settings used."
+,,,PurviewSearchStatisticsJobSubmitted,Submitted purview search statistics job,,"User triggered a �generate statistics� process from a search. This audit activity includes the search name, ID, and the specific data sources and query values that were associated to the search. It also includes relevant statistics process settings used."
+,,,PurviewSearchUpdated,Updated Purview search,,"Search was modified or edited. This audit activity includes the search name, ID, and the specific data sources and query values that were modified."
+,,,PurviewSearchUploadFile,Uploaded file for Purview search,,"User uploaded a file for search by file. This audit activity includes the case name, case ID, search name, search ID, and the name of the file the user uploaded."
+,,,PurviewSearchViewed,Viewed Purview search,,"User viewed a specific search. This audit activity includes the search name, ID, and the specific data sources and query values inside the search that was viewed by the user."
+,,,QuarantineDeleteMessage,Deleted quarantine message,,An admin or user deleted an email message that was deemed to be harmful.
+,,,QuarantineExport,Exported quarantine message,,An admin or user exported an email message that was deemed to be harmful.
+,,,QuarantinePreview,Previewed quarantine message,,An admin or user previewed an email message that was deemed to be harmful.
+,,,QuarantineRelease,Released quarantine message,,An admin or user released an email message from quarantine that was deemed to be harmful.
+,,,QuarantineReleaseRequest,Release request quarantine message,,A user requested the release of an email message that was deemed to be harmful.
+,,,QuarantineReleaseRequestDeny,Denied quarantine message release request,,An admin denial for a release request from a user for an email message that was deemed to be harmful.
+,,,QuarantineViewHeader,Viewed quarantine message's header,,An admin or user viewed the header an email message that was deemed to be harmful.
+,,,RecordDelete,Deleted file marked as a record,,A document or email that was marked as a record was deleted. An item is considered a record when a retention label that marks items as a record is applied to content.
+,,,RecordingExported,Exported recordings 1,,Chat recordings were exported.
+,,,RelabelItem,Relabeled item,,A disposition reviewer relabeled the retention label.
+,,,ReleaseFromIsolation,Released from isolation,,Added an isolated device back onto the network.
+,,,RemediationActionAdded,Added remediation action,,A remediation action was added to the queue.
+,,,RemediationActionConfigurationUpdated,Updated remediation action configuration,,The Manage action accounts set was modified.
+,,,RemediationActionUpdated,Updated remediation action,,A remediation action was completed.
+,,,Remove delegation entry.,Removed delegation entry,,An authentication permission was removed from an application in Microsoft Entra ID.
+,,,Remove domain from company.,Removed domain from company,,Removed a domain from your organization.
+,,,Remove member from group.,Removed member from group,,A member was removed from a group.
+,,,Remove partner from company.,Removed a partner from the directory,,Removed a partner (delegated administrator) from your organization.
+,,,Remove service principal credentials.,Removed credentials from a service principal,,Credentials were removed from a service principal in Microsoft Entra ID. A service principle represents an application in the directory.
+,,,Remove service principal.,Removed a service principal from the directory,,An application was deleted/unregistered from Microsoft Entra ID. An application is represented by a service principal in the directory.
+,,,RemoveAdaptiveScope,Deleted adaptive scope,,Administrator deleted an adaptive scope.
+,,,RemoveAppRestrictions,Removed app restrictions,,Allow an app to run.
+,,,RemoveComplianceTag,Deleted retention label,,Administrator deleted a retention label.
+,,,RemoveCuratedTopic,Remove curated topic*,,User removes a curated topic.
+,,,RemoveDelegates,Removed delegate access,,A user removed delegate access for organization insights or Copilot dashboard.
+,,,RemovedFromGroup,Removed user or group from SharePoint group,,"User removed a member or guest from a SharePoint group. This might have been an intentional action or the result of another activity, such as an unsharing event."
+,,,RemovedFromSecureLink,User removed from secure link,,A user was removed from the list of entities who can use a secure sharing link.
+,,,RemoveFolderPermissions,Removed permissions from folder,,A folder permission was removed. Folder permissions control which users in your organization can access folders in a mailbox and the messages located in those folders.
+,,,RemoveFormCoauthor,Removed form coauthor,,Form owner deletes a collaboration link.
+,,,Remove-MailboxPermission,Removed delegate mailbox permissions,,"An administrator removed the FullAccess permission (that was assigned to a delegate) from a person's mailbox. After the FullAccess permission is removed, the delegate can't open the other person's mailbox or access any content in it."
+,,,RemoveRetentionCompliancePolicy,Deleted retention policy,,Administrator deleted a retention policy.
+,,,RemoveRetentionComplianceRule,Deleted settings from a retention policy,,"Administrator deleted the configuration settings of a retention policy. Most likely, this activity is logged when an administrator deletes a retention policy or runs the Remove-RetentionComplianceRule cmdlet."
+,,,RemoveSpecificResponder,Removed specific responder,,Form owner removes a user or group from the specific responders list.
+,,,RemoveTagsFromIncident,Removed tags from incident,,Removed tags from incident.
+,,,RemoveUserRole,Removed Corporate Communicator,,A user is removed from the Corporate Communicator role.
+,,,ReportDownloaded,Downloaded report,,A report was downloaded.
+,,,ReporterConfigurationUpdated,Updated reporter configuration,,A report's scheduling was modified.
+,,,RequestAdded,Added shift request,,A user added a shift request.
+,,,RequestCancelled,Canceled shift request,,A user canceled a shift request.
+,,,RequestRespondedTo,Responded to shift request,,A user responded to a shift request.
+,,,Reset user password.,Reset user password,,Administrator resets the password for a user.
+,,,RestoreTaskActivated,Activated Draft Restore Task,,A draft restore task for Microsoft 365 Backup is activated. It is a long running operation.
+,,,RestoreTaskCompleted,Completed Restore Task,,A restore task is completed in Microsoft 365 Backup.
+,,,RestrictAppExecution,Restricted app execution,,Prevent a malicious app from running.
+,,,ReviewSetAdded,Added review set,,User created a review set.
+,,,ReviewSetAnnotationsUpdated,Updated review set annotation,,User annotated a document in a review set. This audit activity includes the review set name and other information such as the annotated document ID.
+,,,ReviewSetCopied,Copied review set,,User triggers the �Add to another review set� process.
+,,,ReviewSetDataProcessingErrorViewed,Viewed data processing errors for a review set,,User viewed processing errors in a review set.
+,,,ReviewSetDocumentsTaggedById,Tagged documents by ID for a review set,,"User applied tags to specific documents in a review set. The audit activity includes the case name, review set name and the list of items being tagged."
+,,,ReviewSetDocumentsTaggedByQuery,Tagged documents by query for a review set,,"User applied tags to specific documents in a review set after filtering by query. The audit activity includes the case name, review set name and the list of items being tagged."
+,,,ReviewSetDocumentViewed,Viewed review set document,,"User viewed a document inside a review set. This audit activity includes the case name, case ID, review set name, review set ID and other information such as the ID of the document viewed."
+,,,ReviewSetExportJobSubmitted,Submitted review set export job,,"Exported documents from review set. This audit activity includes the review set name, list of documents IDs being exported and relevant export process settings."
+,,,ReviewSetListViewed,Viewed review set list,,User viewed the list of review sets in a case.
+,,,ReviewSetNotesUpdated,Updated notes for a review set,,User updated note for a review set document.
+,,,ReviewSetQueryReportViewed,Viewed query report for a review set,,User viewed query repot inside a review set.
+,,,ReviewSetSavedSearchAdded,Added saved search for a review set,,"User created a saved filters in a review set. The audit activity includes the review set name, saved filters name and the query used."
+,,,ReviewSetSavedSearchListViewed,Viewed saved search list for a review set,,User viewed a list of saved filters in a review set. The audit activity includes the review set name and the name of the list of saved filters viewed.
+,,,ReviewSetSavedSearchRemoved,Removed saved search for a review set,,User deleted a saved filters in a review set.
+,,,ReviewSetSavedSearchUpdated,Updated saved search for a review set,,"User modified a saved filters in a review set. The audit activity includes the review set name, saved filters name and the query used."
+,,,ReviewSetSearchCountViewed,Viewed search count for a review set,,"User ran a search within a review set and viewed the count returned. The audit activity includes the case name, review set name and the count of items returned in the search results."
+,,,ReviewSetSearchOptionsViewed,Viewed search options for a review set,,User viewed the settings of an add to review set. The audit activity includes the case name and review set name.
+,,,ReviewSetSearchRun,Viewed search results for a review set,,"User ran a search within a review set. The audit activity includes the case name, review set name and the list of items returned in the search results."
+,,,ReviewSetSummaryViewed,Viewed review set summary,,User viewed the Overview of a Review set.
+,,,ReviewSetUpdated,Updated review set,,User updated the review set such as review set name and description.
+,,,RoadmapAccessed,Roadmap accessed,,A roadmap or portfolio is read by a user or app.
+,,,RoadmapCreated,Created roadmap,,A roadmap or portfolio is created by a user or app.
+,,,RoadmapDeleted,Deleted roadmap,,A roadmap or portfolio is deleted by a user or app.
+,,,RoadmapItemAccessed,Roadmap item accessed,,A roadmap or portfolio item is read by a user or app.
+,,,RoadmapItemCreated,Created roadmap item,,A roadmap or portfolio item is created by a user or app.
+,,,RoadmapItemDeleted,Deleted roadmap item,,A roadmap or portfolio item is deleted by a user or app.
+,,,RoadmapItemUpdated,Updated roadmap item,,A roadmap or portfolio item is modified by a user or app.
+,,,RoadmapUpdated,Updated roadmap,,A roadmap or portfolio is modified by a user or app.
+,,,RosterCreated,Created a roster,,"A roster is created by a user or an app. If the create operation is a ResultStatus.Failure or ResultStatus.AuthorizationFailure, ObjectId indicates null, MemberIds indicates an empty string."
+,,,RosterDeleted,Deleted a roster,,A roster is deleted by a user or an app.
+,,,RosterMemberAdded,Added a member to a roster,,"A member is added to a roster. If the add operation is a ResultStatus.Failure or ResultStatus.AuthorizationFailure, MemberIds indicates the list of member IDs attempted."
+,,,RosterMemberDeleted,Removed a member to a roster,,"A member is removed from a roster. If the remove operation is a ResultStatus.Failure or ResultStatus.AuthorizationFailure, MemberIds indicates the list of member IDs attempted."
+,,,RosterSensitivityLabelUpdated,Updated a roster's sensitivity label,,A user or an app updates a roster's sensitivity label.
+,,,Run hybrid AADJ extension,Run hybrid AADJ extension,,Run hybrid AADJ extension on the device of the user.
+,,,RunAntiVirusScan,Ran Antivirus scan,,Ran Microsoft Defender Antivirus scan on a device.
+,,,RunCustomDetection,Ran custom detection rule,,A custom detection rule was manually run.
+,,,RunLiveResponseApi,Ran Live response API,,"Opened a Live response session via an API call, opening a remote shell into a device."
+,,,RunLiveResponseSession,Ran Live response session,,"Ran a Live response session, opening a remote shell into a device."
+,,,SampleResultsViewed,Viewed sample results,,User viewed search sample results view.
+,,,SampleStatusViewed,Viewed sample status,,"User viewed search sample view�s status. The audit activity includes search�s name, ID, query, and associated settings."
+,,,SampleViewCancelled,Cancelled sample view,,"User canceled sample view. The audit activity includes the canceled search�s name, ID, query, and associated settings."
+,,,ScheduleGroupAdded,Added scheduling group,,A user successfully adds a new scheduling group to the schedule.
+,,,ScheduleGroupDeleted,Deleted scheduling group,,A user successfully deletes a scheduling group from the schedule.
+,,,ScheduleGroupEdited,Edited scheduling group,,A user successfully edits a scheduling group.
+,,,ScheduleSettingChanged,Changed schedule setting,,A user changes a setting in Shifts settings.
+,,,ScheduleShared,Shared schedule,,A user successfully shared a team schedule for a date range.
+,,,ScheduleWithdrawn,Withdrew schedule,,A user successfully withdraws a published schedule.
+,,,SearchQueryPerformed,Performed search query,,"User or system account performs a search in SharePoint or OneDrive for Business. Some common scenarios where a service account performs a search query include applying an eDiscovery holds and retention policy to sites and OneDrive accounts, and autoapplying retention or sensitivity labels to site content. To enable logging for this activity, see Get started with auditing solutions."
+,,,SecureLinkCreated,Created secure link,,A secure sharing link was created to this item.
+,,,SecureLinkDeleted,Deleted secure link,,A secure sharing link was deleted.
+,,,SecureLinkUsed,Used secure link,,A user used a secure link.
+,,,SendAs,Sent message using Send As permissions,,A message was sent using the SendAs permission. This means that another user sent the message as though it came from the mailbox owner.
+,,,SendToConnectionAdded,Created Sent To connection,,"A SharePoint or global administrator creates a new Send To connection on the Records management page in the SharePoint admin center. A Send To connection specifies settings for a document repository or a records center. When you create a Send To connection, a Content Organizer can submit documents to the specified location."
+,,,SendToConnectionRemoved,Deleted Sent To connection,,A SharePoint or global administrator deletes a Send To connection on the Records management page in the SharePoint admin center.
+,,,SensitivityLabelApplied,Applied sensitivity label,,A user or meeting organizer applied a sensitivity label to a Teams meeting.
+,,,SensitivityLabelApplied,,,The operations for this activity are different depending on how the label was applied:
+,,,SensitivityLabelChanged,Sensitivity label changed,,Sensitivity label is added/updated/deleted.
+,,,SensitivityLabelChanged,Changed sensitivity label,,A user changed a sensitivity label on a Teams meeting.
+,,,SensitivityLabelRemoved,Removed sensitivity label,,A user removed a sensitivity label from a Teams meeting.
+,,,SensitivityLabelRemoved,,,The operations for this activity are different depending on how the label was removed:
+,,,SensitivityLabelUpdated,,,The operations for this activity are different depending on how the label was changed:
+,,,SensorActivationMethodConfigurationUpdated,Updated sensors activation mode,,The sensors activation mode was modified.
+,,,SensorConfigurationUpdated,Updated sensor configuration,,A sensor's configuration was updated.
+,,,SensorCreated,Added sensor,,A new sensor was added.
+,,,SensorDeleted,Removed sensor,,A sensor was deleted.
+,,,SensorDeploymentAccessKeyReceived,Retrieved sensor deployment key,,The sensors access key was retrieved.
+,,,SensorDeploymentAccessKeyUpdated,Regenerated sensor deployment key,,The sensors access key was regenerated.
+,,,Set company contact information.,Set company contact information,,"Updated the company-level contact preferences for your organization. This includes email addresses for subscription-related email sent by Microsoft 365, and technical notifications about services."
+,,,Set delegation entry.,Set delegation entry,,An authentication permission was updated for an application in Microsoft Entra ID.
+,,,Set DirSyncEnabled flag.,Turned on Azure AD Sync,,Set the property that enables a directory for Azure AD Sync.
+,,,Set domain authentication.,Set domain authentication,,Changed the domain authentication setting for your organization.
+,,,Set federation settings on domain.,Updated the federation settings for a domain,,Changed the federation (external sharing) settings for your organization.
+,,,Set force change user password.,Set property that forces user to change password,,Administrator set the property that forces a user to change their password the next time the user signs in to Microsoft 365.
+,,,Set license properties.,Set license properties,,Administrator modifies the properties of a licensed assigned to a user.
+,,,Set password policy.,Set password policy,,Changed the length and character constraints for user passwords in your organization.
+,,,SetAdaptiveScope,Updated adaptive scope,,Administrator changed the description or query for an existing adaptive scope.
+,,,SetAdvancedFeatures,Set advanced features,,"Changed advanced features in Defender for Endpoint, enabling more precise controls during an incident. Only settings for advanced features that are generally available are logged in the Microsoft 365 audit log."
+,,,SetComplianceTag,Updated retention label,,Administrator updated an existing retention label.
+,,,SetRestrictiveRetentionUI,Enabled regulatory record option for retention labels,,Administrator ran the Set-RegulatoryComplianceUI cmdlet so that an administrator can then select the UI configuration option for a retention label to mark content as a regulatory record.
+,,,SetRetentionCompliancePolicy,Updated retention policy,,Administrator updated an existing a retention policy. Updates that trigger this event include adding or excluding content locations that the retention policy is applied to.
+,,,SetRetentionComplianceRule,Updated settings for a retention policy,,"Administrator changed the retention settings for an existing retention policy. Retention settings include how long items are retained, and what happens to items when the retention period expires (such as deleting items, retaining items, or retaining and then deleting them). This activity also corresponds to running the Set-RetentionComplianceRule cmdlet."
+,,,SharePointDataProactivelyPreserved,Retained file proactively,,Adaptive protection automatically applied a retention label to retain an item in SharePoint or OneDrive.
+,,,SharingInheritanceBroken,Broke sharing inheritance,,An item was changed so that it no longer inherits sharing permissions from its parent.
+,,,SharingInheritanceReset,Restored sharing inheritance,,A change was made so that an item inherits sharing permissions from its parent.
+,,,SharingInvitationAccepted,Accepted sharing invitation,,"User (member or guest) accepted a sharing invitation and was granted access to a resource. This event includes information about the user who was invited and the email address that was used to accept the invitation (they could be different). This activity is often accompanied by a second event that describes how the user was granted access to the resource, for example, adding the user to a group that has access to the resource."
+,,,SharingInvitationBlocked,Blocked sharing invitation,,"A sharing invitation sent by a user in your organization is blocked because of an external sharing policy that either allows or denies external sharing based on the domain of the target user. In this case, the sharing invitation was blocked because:"
+,,,SharingInvitationCreated,Created sharing invitation,,User shared a resource in SharePoint Online or OneDrive for Business with a user who isn't in your organization's directory.
+,,,SharingInvitationRevoked,Withdrew sharing invitation,,User withdrew a sharing invitation to a resource.
+,,,SharingInvitationUpdated,Updated sharing invitation,,An external sharing invitation was updated.
+,,,SharingPolicyChanged,Changed a sharing policy,,"A SharePoint or global administrator changed a SharePoint sharing policy by using the Microsoft 365 admin center, SharePoint admin center, or SharePoint Online Management Shell. Any change to the settings in the sharing policy in your organization are logged. The policy that was changed is identified in the ModifiedProperties field in the detailed properties of the event record."
+,,,SharingRestored,Restored sharing of team channel 3,,A team or channel owner re-enabled sharing for a shared channel.
+,,,SharingRevoked,"Unshared file, folder, or site",,"User (member or guest) unshared a file, folder, or site that was previously shared with another user."
+,,,SharingSet,"Shared file, folder, or site",,"User (member or guest) shared a file, folder, or site in SharePoint or OneDrive for Business with a user in your organization's directory. The value in the Detail column for this activity identifies the name of the user the resource was shared with and whether this user is a member or a guest."
+,,,ShiftAdded,Added shift,,A user successfully adds a shift.
+,,,ShiftDeleted,Deleted shift,,A user successfully deletes a shift.
+,,,ShiftEdited,Edited shift,,A user successfully edits a shift.
+,,,Site ContentType Created,Created site content type,,A user created a site content type. A site content type is a content type that's attached to the parent site.
+,,,SiteAdminChangeRequest,Requested site admin permissions,,User requests to be added as a site collection administrator for a site collection. Site collection administrators have full control permissions for the site collection and all subsites.
+,,,SiteCollectionAdminAdded,Added site collection admin,,Site collection administrator or owner adds a person as a site collection administrator for a site. Site collection administrators have full control permissions for the site collection and all subsites. This activity is also logged when an admin gives themselves access to a user's OneDrive account (by editing the user profile in the SharePoint admin center or by using the Microsoft 365 admin center).
+,,,SiteCollectionAdminRemoved,Removed site collection admin,,"Site collection administrator or owner removes a person as a site collection administrator for a site. This activity is also logged when an admin removes themselves from the list of site collection administrators for a user's OneDrive account (by editing the user profile in the SharePoint admin center). To return this activity in the audit log search results, you have to search for all activities."
+,,,SiteCollectionCreated,Created site collection,,A SharePoint or global administrator creates a site collection in your SharePoint Online organization or a user provisions their OneDrive for Business site.
+,,,SiteCollectionQuotaModified,Modified site collection quota,,Site administrator modifies the quota for a site collection.
+,,,SiteColumnCreated,Created site column,,A user created a SharePoint site column. A site column is a column that isn't attached to a list. A site column is also a metadata structure that can be used by any list in a given web.
+,,,SiteColumnDeleted,Deleted site column,,A user deleted a SharePoint site column.
+,,,SiteColumnUpdated,Updated site column,,A user updated a SharePoint site column by modifying one or more properties.
+,,,SiteContentTypeDeleted,Deleted site content type,,A user deleted a site content type.
+,,,SiteContentTypeUpdated,Updated site content type,,A user updated a site content type by modifying one or more properties.
+,,,SiteDeleted,Deleted site,,Site administrator deletes a site.
+,,,SiteGeoMoveCancelled,Canceled site geo move,,"A SharePoint or global administrator successfully cancels a SharePoint or OneDrive site geo move. The Multi-Geo capability lets an organization span multiple Microsoft datacenter geographies, which are called geos. For more information, see Multi-Geo Capabilities in OneDrive and SharePoint Online."
+,,,SiteGeoMoveCompleted,Completed site geo move,,"A site geo move that was scheduled by a global administrator in your organization was successfully completed. The Multi-Geo capability lets an organization span multiple Microsoft datacenter geographies, which are called geos. For more information, see Multi-Geo Capabilities in OneDrive and SharePoint Online."
+,,,SiteGeoMoveScheduled,Scheduled site geo move,,"A SharePoint or global administrator successfully schedules a SharePoint or OneDrive site geo move. The Multi-Geo capability lets an organization span multiple Microsoft datacenter geographies, which are called geos. For more information, see Multi-Geo Capabilities in OneDrive and SharePoint Online."
+,,,SiteIBModeChanged,Changed information barrier mode of site,,A SharePoint or global administrator has updated the mode of the site.
+,,,SiteIBModeSet,Applied information barrier mode to site,,A SharePoint or global administrator has applied a mode to the site.
+,,,SiteIBSegmentsChanged,Changed segments of site,,A SharePoint or global administrator changed one or more information barriers segments for a site.
+,,,SiteIBSegmentsRemoved,Removed segment from site,,A SharePoint or global administrator removed one or more information barriers segments from a site.
+,,,SiteIBSegmentsSet,Applied segments to site,,"A SharePoint, global administrator, or site owner added one or more information barriers segments to a site."
+,,,SitePermissionsModified,Modified site permissions,,Site administrator or owner (or system account) changes the permission level that is assigned to a group on a site. This activity is also logged if all permissions are removed from a group.
+,,,SiteRenamed,Renamed site,,Site administrator or owner renames a site
+,,,SiteSensitivityLabelApplied,Applied sensitivity label to site,,A sensitivity label was applied to a SharePoint site or Teams site that isn't group-connected.
+,,,SiteSensitivityLabelChanged,Changed sensitivity label on a site,,A different sensitivity label was applied to a SharePoint site or Teams site that isn't group-connected.
+,,,SiteSensitivityLabelRemoved,Removed sensitivity label from site,,A sensitivity label was removed from a SharePoint site or Teams site that isn't group-connected.
+,,,SoftDeleteSettingsUpdated,Changed data retention policy,,Verified admin updates the setting for the network data retention policy to either Hard Delete or Soft Delete. Only verified admins can perform this operation.
+,,,SPOIBIsDisabled,Disabled information barriers for SharePoint and OneDrive,,A SharePoint or global administrator has disabled information barriers for SharePoint and OneDrive in the organization.
+,,,SPOIBIsEnabled,Enabled information barriers for SharePoint and OneDrive,,A SharePoint or global administrator has disabled information barriers for SharePoint and OneDrive in the organization.
+,,,StatisticsResultsViewed,Viewed statistics results,,User viewed search statistics results.
+,,,StatisticsStatusViewed,Viewed statistics status,,"User viewed search statistics view�s status. The audit activity includes search�s name, ID, query, and associated settings."
+,,,StatisticsViewCancelled,Cancelled statistics view,,"User canceled statistics view. The audit activity includes the canceled search�s name, ID, query, and associated settings."
+,,,StopAndQuarantineFile,Stopped and quarantined file,,Quarantined a suspicious file for further analysis.
+,,,SubmitResponse,Submitted response,,A user submits a response to a form.
+,,,SubmitUpdate,Submit an update,,A user successfully submits an update.
+,,,SubscribedToMessages,Subscribed to message change notifications 1,,A subscription was created by a listener application to receive change notifications for messages.
+,,,SubTaskCreated,SubTask created,,A subtask was created.
+,,,SubTaskDeleted,SubTask deleted,,A subtask was deleted.
+,,,SubTaskUpdated,SubTask updated,,A subtask was updated.
+,,,SupervisionPolicyCreated,Policy update,,A communication compliance administrator has performed a policy update.
+,,,SupervisionRuleMatch,Policy match,,A user has sent a message that matches a policy's condition.
+,,,SupervisorAdminToggled,Changed private content mode,,Verified admin turns Private Content Mode on or off. This mode lets an admin view the posts in private groups and view private messages between individual users (or groups of users). Only verified admins only can perform this operation.
+,,,SupervisoryReviewTag,Tag applied to message(s),,Tags are applied to messages or messages are resolved.
+,,,SyslogServiceConfigurationUpdated,Updated syslog forwarding configuration,,The syslog forwarding configuration was modified.
+,,,TabAdded,Added tab,,A user adds a tab to a channel.
+,,,TabRemoved,Removed tab,,A user removes a tab from a channel.
+,,,TabUpdated,Updated tab,,A user modified a tab in a channel.
+,,,TaggingConfigurationUpdated,Updated entity tags,,A tag was added or removed from an entity.
+,,,TagsUpdated,Updated tags,,User updated review set tags in a case.
+,,,TagsViewed,Viewed tags,,User viewed review set tags in a case.
+,,,TagTemplateAdded,Added tag template,,User created tag template in eDiscovery settings.
+,,,TagTemplateListViewed,Viewed tag template list,,User viewed the list of tag template in eDiscovery settings. The audit activity includes the list of tag templates viewed.
+,,,TagTemplateRemoved,Removed tag template,,User removed a tag template in eDiscovery settings. The audit activity includes the name and object ID of the tag template removed.
+,,,TagTemplateTagsUpdated,Updated tags for a tag template,,User updated tags for a tag template. The audit activity includes the name and ID of the tag template tags updated.
+,,,TagTemplateTagsViewed,Viewed tags for a tag template,,User viewed tags for a tag template. The audit activity includes the name and ID of the tag template tags viewed.
+,,,TagTemplateUpdated,Updated tag template,,User updated a tag template in eDiscovery settings. The audit activity includes the name and object ID of the tag template updated.
+,,,TaskAccessed,Task accessed,,A task is read by a user or app.
+,,,TaskAssigned,Assigned a task,,A task's assignee is modified by a user or an app. This can be an unassigned task getting assigned or an assigned task has a new assignee.
+,,,TaskCompleted,Completed a task,,A task is marked completed by a user or an app.
+,,,TaskCreated,Created a task,,"A task is created by a user or an app. If the create operation is a ResultStatus.Failure or ResultStatus.AuthorizationFailure, ObjectId indicates null and PlanId indicates null."
+,,,TaskCreated,Created task,,A task is created by a user or app.
+,,,TaskCreated,Task created,,A task was created.
+,,,TaskDeleted,Deleted a task,,A task is deleted by a user or an app.
+,,,TaskDeleted,Deleted task,,A task is deleted by a user or app.
+,,,TaskDeleted,Task deleted,,A task was deleted.
+,,,TaskListCreated,TaskList created,,A task list was created.
+,,,TaskListRead,Read a list of tasks,,"A list of tasks is queried by a user or an app. If the query operation is a ResultStatus.Failure or ResultStatus.AuthorizationFailure, TaskList indicates an empty string."
+,,,TaskListRead,TaskList read,,A task list was read.
+,,,TaskListUpdated,TaskList updated,,A task list was updated.
+,,,TaskModified,Modified a task,,A task is modified by a user or an app.
+,,,TaskRead,Read a task,,"A task is read by a user or an app. If the read operation is a ResultStatus.Failure or ResultStatus.AuthorizationFailure, PlanId indicates null."
+,,,TaskRead,Task read,,A task was read.
+,,,TaskUpdated,Updated task,,A task is modified by a user or app.
+,,,TaskUpdated,Task updated,,A task was updated.
+,,,Team added,Team added,,A new team has been created within an organization on Viva Goals.
+,,,Team deleted,Team deleted,,A team within an organization on Viva Goals has been deleted by the user.
+,,,Team updated,Team updated,,A team within an organization on Viva Goals has been modified or updated.
+,,,TeamCreated,Created team,,A user creates a team.
+,,,TeamDeleted,Deleted team,,A team owner deletes a team.
+,,,TeamSettingChanged,Changed team setting,,"The TeamSettingChanged operation is logged when the following activities are performed by a team owner. For each of these activities, a description of the setting that was changed (shown in parentheses) is displayed in the Item column in the audit log search results."
+,,,TeamsImpersonationDetected,Detected impersonation attempt,,An external message sender is detected to have potential impersonation activity.
+,,,TeamsSessionStarted,User signed in to Teams,,A user signs in to a Microsoft Teams client. This event doesn't capture token refresh activities.
+,,,TeamsTenantSettingChanged,Changed organization setting,,"The TeamsTenantSettingChanged operation is logged when the following activities are performed by a global admin in the Microsoft 365 admin center. These activities affect org-wide Teams settings. To learn more, see Manage Teams settings for your organization."
+,,,TenantSettingsUpdated,Updated tenant settings,,User updated eDiscovery�s tenant settings.
+,,,TenantSettingsUpdated,Updated tenant settings,,"Tenant settings are updated by a tenant admin. If the update operation is a ResultStatus.Failure or ResultStatus.AuthorizationFailure, ObjectId indicates the original settings, and TenantSettings indicates the tenant settings attempted."
+,,,TenantSettingsViewed,Viewed tenant settings,,User viewed eDiscovery�s tenant settings. The audit activity contains information on the setting values.
+,,,TerminatedSharing,Removed sharing of team channel 3,,A team or channel owner disabled sharing for a shared channel.
+,,,ThreadAccessFailure,Failed to access thread,,User failed to access a message thread.
+,,,ThreadViewed,Viewed thread,,User views a message thread.
+,,,TimeClockEntryAdded,Added Time clock entry,,A user successfully adds a new manual Time clock entry on Time Sheet.
+,,,TimeClockEntryDeleted,Deleted Time clock entry,,A user successfully deletes a Time clock entry on Time Sheet.
+,,,TimeClockEntryEdited,Edited Time clock entry,,A user successfully edits a Time clock entry on Time Sheet.
+,,,TimeOffAdded,Added time off,,A user successfully adds time off on the schedule.
+,,,TimeOffDeleted,Deleted time off,,A user successfully deletes time off.
+,,,TimeOffEdited,Edited time off,,A user successfully edits time off.
+,,,TranscriptsExported,Exported transcripts 1,,Chat transcripts were exported.
+,,,Trigger CMD Agent Canary check.,Trigger CMD Agent Canary check.,,Trigger CMD Agent Canary check on specific device.
+,,,Trigger device remediation,Trigger device remediation,,Trigger device remediation.
+,,,Trigger generic action,Trigger generic action,,Trigger device action for user.
+,,,Trigger generic action by SaaF,Trigger generic action by SaaF,,"Trigger device action (Retargeting, EnableRdpAccessForCitrix, DisableRdpAccessFprCitrix) for user."
+,,,Trigger generic action with options,Trigger generic action with options,,"Trigger device action with option parameters, more powerful than that of trigger generic action."
+,,,Trigger orchestrator,Trigger orchestrator,,Trigger orchestrator for the user.
+,,,TriggerClientAgentCheckBulkAction Operation,Bulk reinstall CMD Agent,,Bulk reinstall CMD agent on demand.
+,,,UnAssignUserFromIncident,Unassigned user to incident,,Unassigned user to incident.
+,,,UnlockRecord,Changed record status to unlocked,,The record status of a retention label that classifies a document as a record was unlocked. This means that the document can be modified or deleted. Only users assigned at least the contributor permission for a site can change the record status of a document.
+,,,UnmanagedSyncClientBlocked,Blocked computer from syncing files,,"User tries to establish a sync relationship with a site from a computer that isn't a member of your organization's domain or is a member of a domain that hasn't been added to the list of domains (called the safe recipients list) that can access document libraries in your organization. The sync relationship isn't allowed, and the user's computer is blocked from syncing, downloading, or uploading files on a document library."
+,,,Update domain.,Updated domain,,Updated the settings of a domain in your organization.
+,,,Update group.,Updated group,,A property of a group was changed.
+,,,UpdateCalendarDelegation,Added or removed user with delegate access to calendar folder,,A user was added or removed as a delegate to the calendar of another user's mailbox. Calendar delegation gives someone else in the same organization permissions to manage the mailbox owner's calendar.
+,,,UpdateCopilotPlugin,Updated a Copilot plugin setting,,A user (or admin or system on behalf of a user) updated a Copilot plugin setting.
+,,,UpdateCopilotPromptBook,Updated a Copilot promptbook setting,,A user (or admin or system on behalf of a user) updated a Copilot promptbook setting.
+,,,UpdateCopilotSettings,Updated a Copilot setting,,An admin (or system on behalf of an admin) updated a Copilot setting.
+,,,UpdatedDataAccessSetting,Updated data access setting,,Admin updated data access settings.
+,,,updateddeviceconfiguration,Device configuration updated,,"An action for a device managed by Cloud Update has been triggered. This includes triggering a rollback, resuming a rolled back device, or changing the update channel."
+,,,UpdatedOrganizationBriefingSettings,Updated organization privacy settings,,Admin updates the organization privacy settings for Briefing email.
+,,,UpdatedOrganizationMyAnalyticsSettings,Updated organization MyAnalytics settings,,Admin updates organization-level settings for personal insights.
+,,,UpdatedPolicyConfig,Updated policy configuration,,"An existing policy configuration was updated, for example by adding, changing, or removing policy settings, or by changing the policy configuration's name, description, or scope."
+,,,UpdatedPolicyConfigPriority,Updated policy configuration priority,,The priority of a policy configuration was changed.
+,,,UpdatedPrivacySetting,Updated privacy setting,,"Admin updated privacy settings; for example, minimum group size."
+,,,updatedprofileconfiguration,Profile configuration updated,,"A Cloud Update profile's configuration has changed. This includes changes to the profile's state, set deadline, Update Validation enablement, and configured waves and wave delay."
+,,,updatedtenantconfiguration,Tenant configuration updated,,"The Cloud Update's tenant-wide configuration has changed. This includes changing exclusions, exclusion windows, and generating a new Tenant Association Key (TAK)."
+,,,UpdatedUserBriefingSettings,Updated user privacy settings,,Admin updates the user privacy settings for Briefing email.
+,,,UpdatedUserMyAnalyticsSettings,Updated user MyAnalytics settings,,Admin updates user settings for personal insights.
+,,,UpdateFolderPermissions,Modified folder permission,,A folder permission was changed. Folder permissions control which users in your organization can access mailbox folders and the messages in the folder.
+,,,UpdateFormSetting,Updated form setting,,Form owner updates one or multiple form settings.
+,,,UpdateIncidentStatus,Updated incidents status,,Updated incidents status.
+,,,UpdatePhishingStatus,Updated form phishing status,,"This event is logged whenever the detailed value for the internal security status was changed, regardless of whether this changed the final security state (for example, form is now Closed or Opened). This means you might see duplicate events without a final security state change. The possible status values for this event are: -Take Down, -Take Down by Admin, -Admin Unblocked, -Auto Blocked, -Auto Unblocked, -Customer Reported, -Reset Customer Reported"
+,,,UpdateResponse,Updated response,,Form owner has updated a comment or score on a quiz.
+,,,UpdateUsageReportsPrivacySetting,Updated usage report privacy settings,,Admin updated privacy settings for usage reports.
+,,,UpdateUserPhishingStatus,Updated user phishing status,,"This event is logged whenever the value for the user security status was changed. The value of the user status in the audit record is Confirmed as Phisher when the user created a phishing form that was taken down by the Microsoft Online safety team. If an admin unblocks the user, the value of the user's status is set to Reset as Normal User."
+,,,UpdateUserSetting,Updated user setting,,Form owner updates a user setting.
+,,,Upload folder to blob,Upload folder to blob,,Compress and upload customer device's folder to blob.
+,,,UploadedOrgData,Uploaded organization data,,Admin uploaded organizational data file.
+,,,URbacAuthorizationStatusChanged,Updated Unified RBAC configuration,,The Unified Role Based Access Control configuration was modified.
+,,,UsagePolicyAcceptance,Tenant Usage Policy Acceptance,,A user accepts a tenant-specific usage policy.
+,,,UsagePolicyUpdated,Changed custom usage policy,,A tenant admin updates a custom usage policy.
+,,,User added,User added,,A new user has been added to an organization on Viva Goals.
+,,,User deactivated,User deactivated,,A user has been deactivated in an organization.
+,,,User deleted,User deleted,,A user has been deleted from an organization on Viva Goals.
+,,,User logged in,User logged in,,User has logged into Viva Goals.
+,,,UserInvited,User invited,,Invited user to a folder.
+,,,UserSuspension,Suspended user,,User account is suspended (deactivated).
+,,,Verify domain.,Verified domain,,Verified that your organization is the owner of a domain.
+,,,Verify email verified domain.,Verified email verified domain,,Used email verification to verify that your organization is the owner of a domain.
+,,,ViewBackupPolicyDetails,Programmatically got Details of Backup Policy,,Details of a Microsoft 365 Backup policy are accessed programmatically.
+,,,ViewedExplore,Viewed Explore,,Analyst viewed visualizations in one or more Explore page tabs.
+,,,ViewForm,Viewed form (design time),,Form owner opens an existing form for editing.
+,,,ViewResponse,Viewed response,,Form owner views a particular response.
+,,,ViewResponses,Viewed responses,,Form owner views the aggregated list of responses.
+,,,ViewRuntimeForm,Viewed response page,,User has opened a response page to view. This event is logged regardless of whether the user submits a response or not.
+,,,ViewUpdate,View the details of one update,,A user views the details of the update.
+,,,VpnConfigurationUpdated,Updated VPN configuration,,The VPN (radius accounting) configuration was modified.
+,,,WebMembersCanShareModified,Modified 'Members Can Share' setting,,The Members Can Share setting was modified on a site.
+,,,WebRequestAccessModified,Modified access request setting,,The access request settings were modified on a site.
+,,,WorkforceIntegrationAdded,Added workforce integration,,The Shifts app is integrated with a third-party system.
+,,,WorkspaceAlertThresholdLevelUpdated,Updated alert threshold configuration,,The alerts thresholds configuration was updated.
+,,,WorkspaceCreated,Created workspace,,The workspace was created.
+,,,WorkspaceDeleted,Deleted workspace,,The workspace was deleted.
