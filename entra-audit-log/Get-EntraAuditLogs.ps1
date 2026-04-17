@@ -21,7 +21,7 @@ function Get-EntraAuditLogs {
         [switch] $AllUsers,
         [switch] $Beta,
         [boolean] $Open = $true,
-        [boolean] $Xml = $false,
+        [boolean] $Xml = $Global:IRT_Config.ExportXml,
         [switch] $Test,
         [switch] $Cached
     )

@@ -15,7 +15,8 @@ function Show-IRTMessageTrace {
         [Parameter(Position = 0, Mandatory, ParameterSetName = 'Xml')]
         [string] $XmlPath,
 
-        [string] $TableStyle = 'Dark8',
+        [string] $TableStyle = $Global:IRT_Config.ExcelTableStyle,
+        [string] $Font = $Global:IRT_Config.ExcelFont,
 
         [switch] $Test
     )
@@ -319,7 +320,7 @@ function Show-IRTMessageTrace {
         $SetParams = @{
             Worksheet = $Worksheet
             Range     = "${SheetStartColumn}${SheetStartRow}:${EndColumn}${EndRow}"
-            FontName  = 'Consolas'
+            FontName  = $Font
         }
         Set-ExcelRange @SetParams
 

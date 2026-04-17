@@ -15,7 +15,7 @@ function Open-MailboxInOWA {
         [psobject[]] $UserObjects,
 
         [ValidateSet( 'msedge','chrome','firefox','brave','default' )]
-        [string] $Browser = 'default',
+        [string] $Browser = $Global:IRT_Config.Browser,
         [switch] $Private,
 
         [switch] $Clipboard

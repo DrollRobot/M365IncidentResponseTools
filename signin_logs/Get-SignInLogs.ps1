@@ -39,7 +39,7 @@ function Get-SignInLogs {
         [boolean] $IpInfo = $true,
         [boolean] $Open = $true,
         [switch] $Test,
-        [boolean] $Xml = $false
+        [boolean] $Xml = $Global:IRT_Config.ExportXml
     )
 
     begin {

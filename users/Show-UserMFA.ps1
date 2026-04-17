@@ -15,8 +15,9 @@ function Show-UserMFA {
         [Alias( 'UserObject' )]
         [psobject[]] $UserObjects,
 
-        [string] $TableStyle = 'Dark8',
-        [boolean] $Xml = $false,
+        [string] $TableStyle = $Global:IRT_Config.ExcelTableStyle,
+        [string] $Font = $Global:IRT_Config.ExcelFont,
+        [boolean] $Xml = $Global:IRT_Config.ExportXml,
         [boolean] $Open = $true
     )
      
@@ -413,7 +414,7 @@ function Show-UserMFA {
             $SetParams = @{
                 Worksheet = $Worksheet
                 Range     = "${SheetStartColumn}${SheetStartRow}:${EndColumn}${EndRow}"
-                FontName  = 'Consolas'
+                FontName  = $Font
             }
             Set-ExcelRange @SetParams
 

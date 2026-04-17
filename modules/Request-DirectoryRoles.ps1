@@ -10,7 +10,7 @@ function Request-DirectoryRoles {
     param (
         [switch] $Cached,
         [switch] $Test,
-        [boolean] $Xml = $false,
+        [boolean] $Xml = $Global:IRT_Config.ExportXml,
         [ValidateSet('objects','tablebyid','none')]
         [string] $Return = 'objects'
     )

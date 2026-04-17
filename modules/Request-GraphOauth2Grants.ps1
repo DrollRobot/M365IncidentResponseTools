@@ -10,7 +10,7 @@ function Request-GraphOauth2Grants {
     param (
         [switch] $Cached,
         [switch] $Test,
-        [boolean] $Xml = $false,
+        [boolean] $Xml = $Global:IRT_Config.ExportXml,
         [ValidateSet('objects','tablebyclientid','none')]
         [string] $Return = 'objects'
     )

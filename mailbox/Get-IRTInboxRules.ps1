@@ -18,9 +18,10 @@ function Get-IRTInboxRules {
         [Alias( 'UserObject' )]
         [psobject[]] $UserObjects,
 
-        [string] $TableStyle = 'Dark8',
+        [string] $TableStyle = $Global:IRT_Config.ExcelTableStyle,
+        [string] $Font = $Global:IRT_Config.ExcelFont,
         [boolean] $Open = $true,
-        [boolean] $Xml = $false,
+        [boolean] $Xml = $Global:IRT_Config.ExportXml,
         [switch] $Test
     )
 
@@ -252,7 +253,7 @@ function Get-IRTInboxRules {
             $SetParams = @{
                 Worksheet = $Worksheet
                 Range     = "${SheetStartColumn}${SheetStartRow}:${EndColumn}${EndRow}"
-                FontName  = 'Consolas'
+                FontName  = $Font
             }
             Set-ExcelRange @SetParams
 

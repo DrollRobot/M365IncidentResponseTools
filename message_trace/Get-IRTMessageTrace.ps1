@@ -29,12 +29,12 @@ function Get-IRTMessageTrace {
         # [string] $End,
 
         [int] $ResultLimit = 50000,
-        [string] $TableStyle = 'Dark8',
+        [string] $TableStyle = $Global:IRT_Config.ExcelTableStyle,
         [boolean] $Variable = $true,
         [boolean] $Excel = $true,
         [switch] $Quiet,
         [switch] $Test,
-        [boolean] $Xml = $false
+        [boolean] $Xml = $Global:IRT_Config.ExportXml
     )
 
     begin {

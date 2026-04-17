@@ -77,7 +77,7 @@
     # Runs in caller scope (not module scope), so functions defined here are NOT tracked by
     # the module and survive Import-Module -Force reimports.
     ScriptsToProcess  = @(
-        'Initialize-IRTSession.ps1'
+        'module_init\Initialize-IRTSession.ps1'
     )
 
     # Type files (.ps1xml) to be loaded when importing this module
@@ -123,6 +123,7 @@
         'modules\Format-PhoneNumber.ps1'
         'modules\Format-Tree.ps1'
         'modules\Get-IRT_UserObjects.ps1'
+        'modules\Import-IRTConfig.ps1'
         'modules\Get-RandomPassword.ps1'
         'modules\Import-LogFile.ps1'
         'modules\Initialize-Modules.ps1'
@@ -214,6 +215,8 @@
 
         ### modules
         'Find-GraphDirectoryObjects'
+        'Import-IRTConfig'
+        'Open-IRTConfig'
         'Get-IRTUserObjects'
         'Import-LogFile'
         'Request-DirectoryRoles'
@@ -222,6 +225,7 @@
         'Request-GraphOauth2Grants'
         'Request-GraphServicePrincipals'
         'Request-GraphUsers'
+        'Set-IRTConfig'
 
         ### roles
         'Get-AdminRoles'
@@ -317,6 +321,11 @@
         'MessageTrace'
 
         ### modules
+        # Import-IRTConfig / Open-IRTConfig / Set-IRTConfig
+        'ImportConfig'
+        'OpenConfig'
+        'SetConfig'
+        'IRTConfig'
         # Import-LogFile
         'ImportLog'
         'ImportLogs'

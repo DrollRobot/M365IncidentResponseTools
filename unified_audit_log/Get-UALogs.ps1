@@ -42,7 +42,7 @@ function Get-UALogs {
         [boolean] $Excel = $true,
         [switch] $Test,
         [boolean] $WaitOnMessageTrace = $false,
-        [boolean] $Xml = $false,
+        [boolean] $Xml = $Global:IRT_Config.ExportXml,
         [switch] $Cached
     )
 

@@ -7,7 +7,8 @@ function Get-AdminRoles {
         [switch] $Script,
         [switch] $Excel,
         [string[]] $Highlight,
-        [string] $TableStyle = 'Dark8',
+        [string] $TableStyle = $Global:IRT_Config.ExcelTableStyle,
+        [string] $Font = $Global:IRT_Config.ExcelFont,
         [boolean] $Open = $true,
         [string] $TenantId
     )
@@ -210,7 +211,7 @@ function Get-AdminRoles {
             # font across entire used range
             $Worksheet = $Workbook.Workbook.Worksheets[$WorksheetName]
             $SheetEnd  = $Worksheet.Dimension.End.Address
-            Set-ExcelRange -Worksheet $Worksheet -Range "A1:${SheetEnd}" -FontName 'Consolas'
+            Set-ExcelRange -Worksheet $Worksheet -Range "A1:${SheetEnd}" -FontName $Font
 
             # sheet title (written last so font override sticks)
             $Worksheet.Cells[1, 1].Value           = "Admin roles for ${DomainName} as of ${TitleDateString}"

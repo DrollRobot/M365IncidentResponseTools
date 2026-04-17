@@ -10,7 +10,7 @@ function Request-GraphServicePrincipals {
     param (
         [switch] $Cached,
         [switch] $Test,
-        [boolean] $Xml = $false,
+        [boolean] $Xml = $Global:IRT_Config.ExportXml,
         [ValidateSet('objects','tablebyappid','tablebyid','none')]
         [string] $Return = 'objects'
     )

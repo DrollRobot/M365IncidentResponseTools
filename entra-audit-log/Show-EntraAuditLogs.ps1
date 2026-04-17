@@ -16,7 +16,8 @@ function Show-EntraAuditLogs {
         [Parameter(Mandatory, ParameterSetName='Xml')]
         [string] $XmlPath,
 
-        [string] $TableStyle = 'Dark8',
+        [string] $TableStyle = $Global:IRT_Config.ExcelTableStyle,
+        [string] $Font = $Global:IRT_Config.ExcelFont,
         [boolean] $Open = $true,
         [switch] $Cached
     )
@@ -545,7 +546,7 @@ function Show-EntraAuditLogs {
         $SetParams = @{
             Worksheet = $Worksheet
             Range     = "${SheetStartColumn}${SheetStartRow}:${EndColumn}${EndRow}"
-            FontName  = 'Consolas'
+            FontName  = $Font
         }
         try {
             Set-ExcelRange @SetParams

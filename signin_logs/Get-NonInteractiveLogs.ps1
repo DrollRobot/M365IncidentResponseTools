@@ -19,7 +19,7 @@ function Get-NonInteractiveLogs {
 
         [int] $Days,
         [boolean] $Beta = $true,
-        [boolean] $Xml = $false,
+        [boolean] $Xml = $Global:IRT_Config.ExportXml,
         [boolean] $Script = $false,
         [boolean] $Open = $true
     )

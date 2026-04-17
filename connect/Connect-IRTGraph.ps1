@@ -35,7 +35,7 @@ function Connect-IRTGraph {
         [string[]] $AdditionalScopes,
 
         [ValidateSet('msedge','chrome','firefox','brave','default')]
-        [string] $Browser = 'default',
+        [string] $Browser = $Global:IRT_Config.Browser,
         [switch] $Private,
 
         [switch] $Force

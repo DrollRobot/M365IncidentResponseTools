@@ -20,7 +20,8 @@ function Show-TenantServicePrincipals {
         [string] $Search,
         [switch] $Cached,
         [switch] $Excel,
-        [string] $TableStyle = 'Dark8',
+        [string] $TableStyle = $Global:IRT_Config.ExcelTableStyle,
+        [string] $Font = $Global:IRT_Config.ExcelFont,
         [boolean] $Open = $true
     )
 
@@ -157,7 +158,7 @@ function Show-TenantServicePrincipals {
             $Worksheet = $Workbook.Workbook.Worksheets[$WorksheetName]
             $SheetEnd  = $Worksheet.Dimension.End.Address
 
-            Set-ExcelRange -Worksheet $Worksheet -Range "A1:${SheetEnd}" -FontName 'Consolas'
+            Set-ExcelRange -Worksheet $Worksheet -Range "A1:${SheetEnd}" -FontName $Font
 
             $TitleText = if ($Search) {
                 "Service principals matching '${Search}' for ${DomainName} as of ${TitleDateString}"

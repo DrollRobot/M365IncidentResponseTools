@@ -12,7 +12,7 @@ function Connect-IRTTenant {
     to Connect-IncidentResponseTools and opens any configured URLs in the browser.
 
     The CSV file should be stored at $env:APPDATA\IncidentResponseTools\tenants.csv.
-    A template file (tenants_template.csv) is included in the module root for reference.
+    A template file (tenants_TEMPLATE.csv) is included in the module_init folder for reference.
 
     .PARAMETER Alias
     A string to match against tenant alias patterns. Matched as a regex against the
@@ -70,7 +70,9 @@ function Connect-IRTTenant {
         [System.Nullable[bool]] $DeviceCode,
 
         [ValidateSet('msedge','chrome','firefox','brave','default')]
-        [string] $Browser = 'default',
+        [string] $PasswordBrowser = $IRT_Config.PasswordBrowser,
+
+         [ValidateSet('msedge','chrome','firefox','brave','default')]
         [switch] $Private
     )
 
@@ -133,16 +135,15 @@ function Connect-IRTTenant {
             $ConnectParams['AdditionalScopes'] = $AdditionalScopes
         }
 
-        $ConnectParams['Browser'] = $Browser
         if ($Private) { $ConnectParams['Private'] = $true }
 
         # open configured URLs
-        if ($MatchedTenant.URLsToOpen) {
-            $URLs = $MatchedTenant.URLsToOpen -split ';'
+        if ($MatchedTenant.PasswordURLs) {
+            $URLs = $MatchedTenant.PasswordURLs -split ';'
             foreach ($URL in $URLs) {
                 $URL = $URL.Trim()
                 if ($URL) {
-                    Open-Browser -Browser $Browser -Url $URL -Private:$Private
+                    Open-Browser -Browser $PasswordBrowser -Url $URL -Private:$Private
                 }
             }
         }
@@ -173,7 +174,8 @@ function Open-IRTTenantsCSV {
         if (-not ( Test-Path $TenantFile )) {
 
             $ConfigDir    = Split-Path $TenantFile
-            $TemplateFile = Join-Path $PSScriptRoot 'tenants_TEMPLATE.csv'
+            $ModuleRoot   = $MyInvocation.MyCommand.Module.ModuleBase
+            $TemplateFile = Join-Path $ModuleRoot 'module_init' 'tenants_TEMPLATE.csv'
 
             if (-not (Test-Path $ConfigDir)) {
                 New-Item -ItemType Directory -Path $ConfigDir -Force | Out-Null
