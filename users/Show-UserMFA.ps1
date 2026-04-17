@@ -35,12 +35,7 @@ function Show-UserMFA {
             'Raw'
             'CreatedDateTime'
             'MethodType'
-            'DisplayName'
-            'PhoneNumber'
-            'PhoneType'
-            'SmsSignInState'
-            'EmailAddress'
-            'DeviceTag'
+            'Summary'
             'Id'
             'DeleteCommand'
         )
@@ -117,6 +112,8 @@ function Show-UserMFA {
                     Value      = $Raw
                 }
                 $CustomObject | Add-Member @AddParams
+
+                $SummaryParts = [System.Collections.Generic.List[string]]::new()
 
                 foreach ( $Key in $Method.AdditionalProperties.Keys ) {
 
@@ -285,7 +282,7 @@ function Show-UserMFA {
                         $CustomObject | Add-Member @AddParams
                     }
 
-                    # for other properties, add to table
+                    # for other properties, add to summary list
                     else {
 
                         # capitalize propertyname
@@ -297,14 +294,17 @@ function Show-UserMFA {
                             $Value = Format-PhoneNumber $Value
                         }
 
-                        # add to object
-                        $AddParams = @{
-                            MemberType = 'NoteProperty'
-                            Name       = $CapPropertyName
-                            Value      = $Value
+                        # add to summary list
+                        if ( $null -ne $Value -and $Value -ne '' ) {
+                            $SummaryParts.Add( "${CapPropertyName}: ${Value}" )
                         }
-                        $CustomObject | Add-Member @AddParams
                     }
+                }
+
+                # add summary column
+                if ( $SummaryParts.Count -gt 0 ) {
+                    $SummaryString = $SummaryParts -join "`n"
+                    $CustomObject | Add-Member -MemberType NoteProperty -Name 'Summary' -Value $SummaryString
                 }
     
                 # add loop object to table
@@ -386,7 +386,14 @@ function Show-UserMFA {
             # resize DateTime column
             $Column = ( $Worksheet.Tables[0].Columns | Where-Object { $_.Name -eq 'CreatedDateTime' } ).Id 
             $Worksheet.Column($Column).Width = 26
-            
+
+            # resize Summary column and enable text wrapping
+            $SummaryCol = ( $Worksheet.Tables[0].Columns | Where-Object { $_.Name -eq 'Summary' } ).Id
+            $Worksheet.Column($SummaryCol).Width = 70
+            $TableStartRow = ( $Worksheet.Tables.Address | Select-Object -First 1 ).Start.Row
+            $SummaryColLetter = $SummaryCol | Convert-DecimalToExcelColumn
+            Set-ExcelRange -Worksheet $Worksheet -Range "${SummaryColLetter}${TableStartRow}:${SummaryColLetter}${EndRow}" -WrapText
+
             # resize Id column
             $Column = ( $Worksheet.Tables[0].Columns | Where-Object { $_.Name -eq 'Id' } ).Id
             $Worksheet.Column($Column).Width = 20

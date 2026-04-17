@@ -325,83 +325,13 @@ function Show-SignInLogs {
         $EndColumn = $WorkSheet.Dimension.End.Column | Convert-DecimalToExcelColumn
         $EndRow = $WorkSheet.Dimension.End.Row
 
-        $IpAddressColumn = ($Worksheet.Tables[0].Columns | Where-Object {$_.Name -eq 'IpAddress'}).Id | Convert-DecimalToExcelColumn
         $ApplicationColumn = ($Worksheet.Tables[0].Columns | Where-Object {$_.Name -eq 'Application'}).Id | Convert-DecimalToExcelColumn
         $UserAgentColumn = ($Worksheet.Tables[0].Columns | Where-Object {$_.Name -eq 'UserAgent'}).Id | Convert-DecimalToExcelColumn
 
         #region CELL COLORING
 
         # ip addresses
-        # microsoft
-        $CFParams = @{
-            Worksheet       = $WorkSheet
-            Address         = "${IpAddressColumn}:${IpAddressColumn}"
-            RuleType        = 'ContainsText'
-            ConditionValue  = 'microsoft'
-            BackgroundColor = 'LightBlue'
-            StopIfTrue = $true
-        }
-        Add-ConditionalFormatting @CFParams
-        # vpn
-        $CFParams = @{
-            Worksheet       = $WorkSheet
-            Address         = "${IpAddressColumn}:${IpAddressColumn}"
-            RuleType        = 'ContainsText'
-            ConditionValue  = ' vpn'
-            BackgroundColor = 'LightPink'
-            StopIfTrue = $true
-        }
-        Add-ConditionalFormatting @CFParams
-        # tor
-        $CFParams = @{
-            Worksheet       = $WorkSheet
-            Address         = "${IpAddressColumn}:${IpAddressColumn}"
-            RuleType        = 'ContainsText'
-            ConditionValue = ' tor'
-            BackgroundColor = 'LightPink'
-            StopIfTrue = $true
-        }
-        Add-ConditionalFormatting @CFParams
-        # proxy
-        $CFParams = @{
-            Worksheet       = $WorkSheet
-            Address         = "${IpAddressColumn}:${IpAddressColumn}"
-            RuleType        = 'ContainsText'
-            ConditionValue = ' proxy'
-            BackgroundColor = 'LightPink'
-            StopIfTrue = $true
-        }
-        Add-ConditionalFormatting @CFParams
-        # hosting
-        $CFParams = @{
-            Worksheet       = $WorkSheet
-            Address         = "${IpAddressColumn}:${IpAddressColumn}"
-            RuleType        = 'ContainsText'
-            ConditionValue  = ' hosting'
-            BackgroundColor = [System.Drawing.ColorTranslator]::FromHtml('#FACD90') 
-            StopIfTrue = $true
-        }
-        Add-ConditionalFormatting @CFParams
-        # cloud
-        $CFParams = @{
-            Worksheet       = $WorkSheet
-            Address         = "${IpAddressColumn}:${IpAddressColumn}"
-            RuleType        = 'ContainsText'
-            ConditionValue  = ' cloud'
-            BackgroundColor = [System.Drawing.ColorTranslator]::FromHtml('#FACD90') 
-            StopIfTrue = $true
-        }
-        Add-ConditionalFormatting @CFParams
-        # mobile
-        $CFParams = @{
-            Worksheet       = $WorkSheet
-            Address         = "${IpAddressColumn}:${IpAddressColumn}"
-            RuleType        = 'ContainsText'
-            ConditionValue  = 'mobile'
-            BackgroundColor = [System.Drawing.ColorTranslator]::FromHtml('#F2CEEF') 
-            StopIfTrue = $true
-        }
-        Add-ConditionalFormatting @CFParams
+        Add-IpAddressConditionalFormatting -Worksheet $WorkSheet -ColumnName 'IpAddress'
 
         # applications
         $Strings = @(

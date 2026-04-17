@@ -134,6 +134,7 @@
         'modules\Request-GraphOauth2Grants.ps1'
         'modules\Request-GraphServicePrincipals.ps1'
         'modules\Request-GraphUsers.ps1'
+        'modules\Add-IpAddressConditionalFormatting.ps1'
         'modules\Test-PythonPackage.ps1'
         'modules\Test-TokenExpired.ps1'
 
