@@ -4,7 +4,10 @@ function Resolve-ExchangeItemGroupDelete {
     Parses ExchangeItemGroup HardDelete events from UAL.
 	
 	.NOTES
-	Version: 1.1.0
+	Version: 2.1.0
+    2.1.0 - Moved wait logic to Show-UALogs. Now receives resolved MessageTraceTable directly.
+    2.0.0 - Replaced per-user variable with single IRT_MessageTraceTable. Added SharedState
+            support for cross-runspace communication. Added timeout and -Test diagnostics.
     1.1.0 - Removed Auditdata param, added parsing for email subjects.
 	#>
     [CmdletBinding()]
@@ -12,43 +15,11 @@ function Resolve-ExchangeItemGroupDelete {
         [Parameter( Mandatory )]
         [psobject] $Log,
 
-        [Parameter( Mandatory )]
-        [boolean] $WaitOnMessageTrace,
-
-        [Parameter( Mandatory )]
-        [string] $UserName
+        [hashtable] $MessageTraceTable
     )
 
     begin {
-        $Function = $MyInvocation.MyCommand.Name
-        $VariableName = "IRT_MessageTraceTable_${UserName}"
-
-        # colors
-        # $Blue = @{ ForegroundColor = 'Blue' }
-        # $Red = @{ ForegroundColor = 'Red' }
-        # $Cyan = @{ ForegroundColor = 'Cyan' }
-        # $Green = @{ ForegroundColor = 'Green' }
-        # $Magenta = @{ ForegroundColor = 'Magenta' }
-        $Yellow = @{ ForegroundColor = 'Yellow' }
-
         $SummaryLines = [System.Collections.Generic.List[string]]::new()
-
-        # check for message trace table
-
-        if ($WaitOnMessageTrace) {
-            while (-not (Test-Path "variable:global:${VariableName}")) {
-                Write-Host @Yellow "${Function}: Waiting on `$Global:${VariableName}..."
-                Start-Sleep -Seconds 15
-            }
-        }
-
-        if (Test-Path "variable:global:${VariableName}") {
-            $Params = @{
-                Name = $VariableName
-                Scope = 'Global'
-            }
-            $MessageTraceTable = Get-Variable @Params
-        }
     }
 
     process {
@@ -79,17 +50,17 @@ function Resolve-ExchangeItemGroupDelete {
             # loop through items
             foreach ($Item in $Folder.Value) {
 
+                $Subject = $null
+
                 # if item has subject property, use it
                 if ($Item.Subject) {
                     $Subject = $Item.Subject
                 }
-                elseif ($Item.InternetMessageId) {
+                elseif ($Item.InternetMessageId -and $MessageTraceTable) {
                     # if not, try to retrieve from message trace table.
-                    $InternetMessageId = $Item.InternetMessageId
-                    if ($MessageTraceTable.Value) {
-                        if ($MessageTraceTable.Value.ContainsKey($InternetMessageId)) {
-                            $Subject = $MessageTraceTable.Value[$InternetMessageId].Subject
-                        }
+                    $NormalizedId = ($Item.InternetMessageId -replace '[<>]','').Trim()
+                    if ($MessageTraceTable.ContainsKey($NormalizedId)) {
+                        $Subject = $MessageTraceTable[$NormalizedId].Subject
                     }
                 }
 
@@ -97,8 +68,8 @@ function Resolve-ExchangeItemGroupDelete {
                 if ($Subject) {
                     $SummaryLines.Add( "    Subject: ${Subject}" )            
                 }
-                elseif ($InternetMessageId) {
-                    $SummaryLines.Add( "    Item: ${InternetMessageId}" )
+                elseif ($Item.InternetMessageId) {
+                    $SummaryLines.Add( "    Item: $($Item.InternetMessageId)" )
                 }
                 else {
                     $SummaryLines.Add( "    Item: $($Item.Id)" )

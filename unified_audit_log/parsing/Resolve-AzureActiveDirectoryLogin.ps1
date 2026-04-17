@@ -9,7 +9,9 @@ function Resolve-AzureActiveDirectoryLogin {
     [CmdletBinding()]
     param (
         [Parameter(Mandatory)]
-        [psobject] $Log
+        [psobject] $Log,
+
+        [switch] $Cached
     )
 
     begin {
@@ -28,7 +30,7 @@ function Resolve-AzureActiveDirectoryLogin {
         $TargetId = $Log.AuditData.Target.ID
         if ($TargetId) {
             # ensure global variable exists
-            Request-GraphServicePrincipals -Return 'none'
+            Request-GraphServicePrincipals -Return 'none' -Cached:$Cached
 
             # fetch name from table
             $TargetName = $Global:IRT_ServicePrincipalsByAppId["$TargetId"].DisplayName

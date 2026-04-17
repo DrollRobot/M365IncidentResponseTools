@@ -20,6 +20,7 @@ function Get-IRTInboxRules {
 
         [string] $TableStyle = 'Dark8',
         [boolean] $Open = $true,
+        [boolean] $Xml = $false,
         [switch] $Test
     )
 
@@ -106,7 +107,7 @@ function Get-IRTInboxRules {
             $OutputTable = Get-InboxRule -Mailbox $UserEmail
             if ( @( $OutputTable ).Count -eq 0 ) {
                 Write-Host @Red "No inbox rules found. Exiting."
-                return
+                continue
             }
 
             #region ROW LOOP
@@ -139,8 +140,10 @@ function Get-IRTInboxRules {
             $OutputTable = $OutputTable | Select-Object $DisplayProperties
 
             # export raw data
-            Write-Host @Blue "Exporting raw data to: ${XmlOutputPath}"
-            $RawOutputTable | Export-CliXml -Depth 10 -Path $XmlOutputPath
+            if ($Xml) {
+                Write-Host @Blue "Exporting raw data to: ${XmlOutputPath}"
+                $RawOutputTable | Export-CliXml -Depth 10 -Path $XmlOutputPath
+            }
 
             #region EXPORT SHEET
             $ExcelParams = @{

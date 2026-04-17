@@ -3,6 +3,7 @@ New-Alias -Name 'GetAdmins' -Value 'Get-AdminRoles' -Force
 function Get-AdminRoles {
     [CmdletBinding()]
     param(
+        [switch] $Cached,
         [switch] $Script,
         [switch] $Excel,
         [string[]] $Highlight,
@@ -19,11 +20,17 @@ function Get-AdminRoles {
         $FileDateString     = Get-Date -Format $FileNameDateFormat
 
         $Blue = @{ ForegroundColor = 'Blue' }
+
+        # ensure ById caches are populated for Get-UnknownObject lookups
+        Request-GraphUsers -Return 'none' -Cached:$Cached
+        Request-GraphGroups -Return 'none' -Cached:$Cached
+        Request-GraphServicePrincipals -Return 'none' -Cached:$Cached
+        Request-DirectoryRoles -Return 'none' -Cached:$Cached
     }
 
     process {
 
-        $RoleObjects = Get-MgDirectoryRole -ExpandProperty Members
+        $RoleObjects = Request-DirectoryRoles -Cached:$Cached
         $MemberIds   = $RoleObjects.Members.Id | Sort-Object -Unique
 
         foreach ( $MemberId in $MemberIds ) {
@@ -153,7 +160,14 @@ function Get-AdminRoles {
                         $MatchColId = ( $Worksheet.Tables["Table${TypeKey}"].Columns | Where-Object { $_.Name -eq 'Match' } ).Id
                         if ( $MatchColId ) {
                             $MatchCol = $MatchColId | Convert-DecimalToExcelColumn
-                            Add-ConditionalFormatting -Worksheet $Worksheet -Address "${MatchCol}${TableStartRow}:${MatchCol}${TableEndRow}" -RuleType 'ContainsText' -ConditionValue '>>>' -BackgroundColor 'LightYellow'
+                            $MatchFmtParams = @{
+                                Worksheet       = $Worksheet
+                                Address         = "${MatchCol}${TableStartRow}:${MatchCol}${TableEndRow}"
+                                RuleType        = 'ContainsText'
+                                ConditionValue  = '>>>'
+                                BackgroundColor = 'LightPink'
+                            }
+                            Add-ConditionalFormatting @MatchFmtParams
                         }
                     }
 
@@ -161,7 +175,14 @@ function Get-AdminRoles {
                     $AEColId = ( $Worksheet.Tables["Table${TypeKey}"].Columns | Where-Object { $_.Name -eq 'AccountEnabled' } ).Id
                     if ( $AEColId ) {
                         $AECol = $AEColId | Convert-DecimalToExcelColumn
-                        Add-ConditionalFormatting -Worksheet $Worksheet -Address "${AECol}${TableStartRow}:${AECol}${TableEndRow}" -RuleType 'ContainsText' -ConditionValue 'FALSE' -BackgroundColor 'LightBlue'
+                        $AEFmtParams = @{
+                            Worksheet       = $Worksheet
+                            Address         = "${AECol}${TableStartRow}:${AECol}${TableEndRow}"
+                            RuleType        = 'ContainsText'
+                            ConditionValue  = 'FALSE'
+                            BackgroundColor = 'LightBlue'
+                        }
+                        Add-ConditionalFormatting @AEFmtParams
                     }
 
                     $LabelRow = $TableEndRow + 2
@@ -216,8 +237,8 @@ function New-RoleMemberObject {
         $GraphObject
     )
 
-    switch ( $GraphObject.GetType().Name ) {
-        'MicrosoftGraphUser' {
+    switch ( $GraphObject.ObjectType ) {
+        'User' {
             return [pscustomobject]@{
                 ObjectType        = 'User'
                 Id                = $Id
@@ -228,7 +249,7 @@ function New-RoleMemberObject {
                 Roles             = $Roles
             }
         }
-        'MicrosoftGraphServicePrincipal' {
+        'ServicePrincipal' {
             return [pscustomobject]@{
                 ObjectType           = 'ServicePrincipal'
                 Id                   = $Id
@@ -240,7 +261,7 @@ function New-RoleMemberObject {
                 Roles                = $Roles
             }
         }
-        'MicrosoftGraphGroup' {
+        'Group' {
             return [pscustomobject]@{
                 ObjectType  = 'Group'
                 Id          = $Id
@@ -251,7 +272,7 @@ function New-RoleMemberObject {
             }
         }
         default {
-            Write-Error "Unknown object type: $($GraphObject.GetType().Name)"
+            Write-Error "Unknown object type '$($GraphObject.ObjectType)' for Id: ${Id}"
         }
     }
 }
@@ -260,58 +281,48 @@ function New-RoleMemberObject {
 function Get-UnknownObject {
     <#
 	.SYNOPSIS
-	Uses Get-MgDirectoryObject to find object type, then uses dedicated command for that type to return object.	
+	Looks up an object by Id using cached ById hashtables. Falls back to Get-MgDirectoryObject if not found in cache.
 	
 	.NOTES
-	Version: 1.0.0
+	Version: 2.0.0
+    2.0.0 - Rewrote to use Request-* cached ById hashtables instead of direct Graph calls.
 	#>
     [CmdletBinding()]
     param(
         [string] $Id
     )
 
-    begin {
-        # variables
-        $DirectoryObject = Get-MgDirectoryObject -DirectoryObjectId $Id
-        $ObjectType = $DirectoryObject.AdditionalProperties.'@odata.type' -replace '#microsoft\.graph\.', ''
-        $UserGetProperties = @(
-            'AccountEnabled'
-            'DisplayName'
-            'Id'
-            'UserPrincipalName'
-        )
-        $ServicePrincipalGetProperties = @(
-            'AccountEnabled'
-            'Description'
-            'DisplayName'
-            'Id'
-            'ServicePrincipalType'
-        )
-        $GroupGetProperties = @(
-            'Description'
-            'DisplayName'
-            'Id'
-        )
-    }
-
     process {
 
-        switch ( $ObjectType ) {
-            'group' {
-                $Object = Get-MgGroup -GroupId $Id -Property $GroupGetProperties
-                return $Object
-            }
-            'servicePrincipal' {
-                $Object = Get-MgServicePrincipal -ServicePrincipalId $Id -Property $ServicePrincipalGetProperties
-                return $Object
-            }
-            'user' {
-                $Object = Get-MgUser -UserId $Id -Property $UserGetProperties
-                return $Object
-            }
-            default {
-                Write-Error "Unknown object type: ${ObjectType}"
-            }
+        # try cached lookups first
+        if ( $Global:IRT_UsersById -and $Global:IRT_UsersById.ContainsKey($Id) ) {
+            $Obj = $Global:IRT_UsersById[$Id]
+            $Obj | Add-Member -NotePropertyName 'ObjectType' -NotePropertyValue 'User' -Force
+            return $Obj
+        }
+        if ( $Global:IRT_GroupsById -and $Global:IRT_GroupsById.ContainsKey($Id) ) {
+            $Obj = $Global:IRT_GroupsById[$Id]
+            $Obj | Add-Member -NotePropertyName 'ObjectType' -NotePropertyValue 'Group' -Force
+            return $Obj
+        }
+        if ( $Global:IRT_ServicePrincipalsById -and $Global:IRT_ServicePrincipalsById.ContainsKey($Id) ) {
+            $Obj = $Global:IRT_ServicePrincipalsById[$Id]
+            $Obj | Add-Member -NotePropertyName 'ObjectType' -NotePropertyValue 'ServicePrincipal' -Force
+            return $Obj
+        }
+
+        # fallback to direct Graph lookup
+        try {
+            $DirectoryObject = Get-MgDirectoryObject -DirectoryObjectId $Id -ErrorAction Stop
+            $DirectoryObject | Add-Member -NotePropertyName 'ObjectType' -NotePropertyValue 'Unknown' -Force
+            return $DirectoryObject
+        }
+        catch {
+            Write-Error "Unable to find object with Id: ${Id}"
         }
     }
 }
+
+
+# TESTING
+# Get-AdminRoles

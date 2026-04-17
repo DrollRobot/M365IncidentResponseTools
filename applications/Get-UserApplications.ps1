@@ -14,9 +14,10 @@ function Get-UserApplications {
         [psobject[]] $UserObjects,
 
         [string] $TableStyle = 'Dark8',
-        [boolean] $Xml = $true,
+        [boolean] $Xml = $false,
         [boolean] $Open = $true,
-        [switch] $Test
+        [switch] $Test,
+        [switch] $Cached
     )
 
     begin {
@@ -65,8 +66,8 @@ function Get-UserApplications {
         $DomainName = $DefaultDomain.Id -split '\.' | Select-Object -First 1
 
         # prefetch graph data once
-        $Grants = Request-GraphOauth2Grants
-        $ServicePrincipals = Request-GraphServicePrincipals
+        $Grants = Request-GraphOauth2Grants -Cached:$Cached
+        $ServicePrincipals = Request-GraphServicePrincipals -Cached:$Cached
     }
 
     process {
@@ -123,7 +124,7 @@ function Get-UserApplications {
 
             if (($OutputTable | Measure-Object).Count -eq 0) {
                 Write-Host @Red "No user consent applications."
-                return
+                continue
             }
 
             if ($Xml) {

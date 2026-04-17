@@ -17,9 +17,9 @@ function Get-NonInteractiveLogs {
         [Alias( 'UserObject' )]
         [psobject[]] $UserObjects,
 
-        [int] $Days = 30,
+        [int] $Days,
         [boolean] $Beta = $true,
-        [boolean] $Xml = $true,
+        [boolean] $Xml = $false,
         [boolean] $Script = $false,
         [boolean] $Open = $true
     )

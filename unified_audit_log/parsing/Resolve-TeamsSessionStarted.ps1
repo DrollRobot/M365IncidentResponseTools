@@ -14,7 +14,9 @@ function Resolve-TeamsSessionStarted {
         [Parameter( Mandatory )]
         [pscustomobject] $CustomObject,
 
-        [psobject[]] $Users
+        [psobject[]] $Users,
+
+        [switch] $Cached
     )
 
     begin {
@@ -22,7 +24,7 @@ function Resolve-TeamsSessionStarted {
         # variables
         $ModuleRoot = $MyInvocation.MyCommand.Module.ModuleBase
         $AuditData = $Log.AuditData | ConvertFrom-Json
-        $Users = Request-GraphUsers
+        $Users = Request-GraphUsers -Cached:$Cached
 
         # import user type csv
         $UserTypePath = Join-Path -Path $ModuleRoot -ChildPath 'data\unified_audit_log-user_type.csv'

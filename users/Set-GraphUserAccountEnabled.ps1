@@ -1,13 +1,92 @@
-New-Alias -Name 'LockUser' -Value 'Lock-GraphUsers' -Force
-New-Alias -Name 'LockUsers' -Value 'Lock-GraphUsers' -Force
-New-Alias -Name 'Lock-GraphUser' -Value 'Lock-GraphUsers' -Force
-function Lock-GraphUsers {
+###############################################################################
+#region Disable-GraphUsers
+
+# new aliases
+New-Alias -Name 'DisableUser' -Value 'Disable-GraphUsers' -Force
+New-Alias -Name 'DisableUsers' -Value 'Disable-GraphUsers' -Force
+New-Alias -Name 'Disable-GraphUser' -Value 'Disable-GraphUsers' -Force
+
+# old aliases
+New-Alias -Name 'Lock-GraphUsers' -Value 'Disable-GraphUsers' -Force
+New-Alias -Name 'LockUser' -Value 'Disable-GraphUsers' -Force
+New-Alias -Name 'LockUsers' -Value 'Disable-GraphUsers' -Force
+New-Alias -Name 'Lock-GraphUser' -Value 'Disable-GraphUsers' -Force
+
+function Disable-GraphUsers {
     <#
 	.SYNOPSIS
-	Lock/Unlock graph user.	
+	Disable graph user account(s).
 	
 	.NOTES
-	Version: 1.0.3
+	Version: 2.0.0
+	#>
+    [CmdletBinding()]
+    param(
+        [Parameter( Position = 0 )]
+        [Alias( 'UserObject' )]
+        [psobject[]] $UserObjects
+    )
+
+    $Params = @{
+        Enabled = $false
+    }
+    if ( $UserObjects ) {
+        $Params['UserObjects'] = $UserObjects
+    }
+
+    Set-GraphUserAccountEnabled @Params
+}
+
+
+###############################################################################
+#region Enable-GraphUsers
+
+# new aliases
+New-Alias -Name 'EnableUser' -Value 'Enable-GraphUsers' -Force
+New-Alias -Name 'EnableUsers' -Value 'Enable-GraphUsers' -Force
+New-Alias -Name 'Enable-GraphUser' -Value 'Enable-GraphUsers' -Force
+
+# old aliases
+New-Alias -Name 'Unlock-GraphUsers' -Value 'Enable-GraphUsers' -Force
+New-Alias -Name 'UnlockUser' -Value 'Enable-GraphUsers' -Force
+New-Alias -Name 'UnlockUsers' -Value 'Enable-GraphUsers' -Force
+New-Alias -Name 'Unlock-GraphUser' -Value 'Enable-GraphUsers' -Force
+
+function Enable-GraphUsers {
+    <#
+	.SYNOPSIS
+	Enable graph user account(s).
+	
+	.NOTES
+	Version: 2.0.0
+	#>
+    [CmdletBinding()]
+    param(
+        [Parameter( Position = 0 )]
+        [Alias( 'UserObject' )]
+        [psobject[]] $UserObjects
+    )
+
+    $Params = @{
+        Enabled = $true
+    }
+    if ( $UserObjects ) {
+        $Params['UserObjects'] = $UserObjects
+    }
+
+    Set-GraphUserAccountEnabled @Params
+}
+
+###############################################################################
+#region Set-GraphUserAccountEnabled
+
+function Set-GraphUserAccountEnabled {
+    <#
+	.SYNOPSIS
+	Set AccountEnabled property on graph user(s). Called by Disable-GraphUsers and Enable-GraphUsers.
+	
+	.NOTES
+	Version: 1.0.0
 	#>
     [CmdletBinding()]
     param(
@@ -15,7 +94,8 @@ function Lock-GraphUsers {
         [Alias( 'UserObject' )]
         [psobject[]] $UserObjects,
 
-        [switch] $Unlock
+        [Parameter( Mandatory )]
+        [bool] $Enabled
     )
 
     begin {
@@ -55,19 +135,14 @@ function Lock-GraphUsers {
 
         # colors
         $Blue = @{ ForegroundColor = 'Blue' }
-        # $Cyan = @{ ForegroundColor = 'Cyan' }
-        # $Green = @{ ForegroundColor = 'Green' }
-        # $Magenta = @{ ForegroundColor = 'Magenta' }
         $Red = @{ ForegroundColor = 'Red' }
 
         # set action string
-        if ( $Unlock ) {
-            $Action = 'Unlock'
-            $BooleanAction = $true
+        if ( $Enabled ) {
+            $Action = 'Enable'
         }
         else {
-            $Action = 'Lock'
-            $BooleanAction = $false
+            $Action = 'Disable'
         }
     }
 
@@ -75,15 +150,15 @@ function Lock-GraphUsers {
 
         foreach ( $ScriptUserObject in $ScriptUserObjects ) {
 
-            # if locking, force sign outs
-            if ( -not $Unlock ) {
+            # if disabling, force sign outs
+            if ( -not $Enabled ) {
                 Write-Host @Blue "`nRevoking user sessions."
                 Revoke-MgUserSignInSession -UserId $ScriptUserObject.Id | Out-Null
             }
 
-            # lock/unlock account
-            Write-Host @Blue "`n${Action}ing user account."
-            Update-MgUser -UserId $ScriptUserObject.Id -AccountEnabled:$BooleanAction
+            # disable/enable account
+            Write-Host @Blue "`n${Action}ing user account... (set AccountEnabled=$Enabled)"
+            Update-MgUser -UserId $ScriptUserObject.Id -AccountEnabled:$Enabled
 
             # get new user object
             Write-Host @Blue "`nGetting updated user properties."
@@ -128,5 +203,4 @@ function Lock-GraphUsers {
         }
     }
 }
-
 

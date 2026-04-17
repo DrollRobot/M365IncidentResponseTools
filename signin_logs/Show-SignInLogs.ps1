@@ -119,6 +119,12 @@ function Show-SignInLogs {
             # check for presence of ip_info package
             $IpInfoPackage = Test-PythonPackage -Name 'ip_info'
         }
+
+        # resolve ip info table
+        if ($Global:IRT_IpInfo -isnot [hashtable]) {
+            $Global:IRT_IpInfo = [hashtable]::Synchronized(@{})
+        }
+        $IpInfoTable = $Global:IRT_IpInfo
     }
 
     process {
@@ -146,19 +152,21 @@ function Show-SignInLogs {
             ($IpInfoAddresses | Measure-Object).Count -gt 0
         ) {
 
-            # query information for all IP addresses
+            # start timer for ip query
             if ($Script:Test) {
                 $TestText = "Querying ip info"
                 $TimerStart = $Stopwatch.Elapsed
                 Write-Host @Yellow "${Function}: ${TestText} started at $(Get-Date -Format 'hh:mm:sstt')" | Out-Host
             }
 
-            $Code = 'import sys; from ip_info.main import cli; sys.exit(cli())'
-            & $IpInfoPackage.Python '-c' $Code --apis bulk --output_format none --ip_addresses $IpInfoAddresses
+            # query information for all IP addresses
+            $env:PYTHONUTF8 = '1'
+            & ip_info --apis bulk --output_format none --ip_addresses $IpInfoAddresses
             if ($LASTEXITCODE -ne 0) {
                 Write-Host @Red "${Function}: ip_info query failed." | Out-Host
             }
 
+            # end timer for ip query
             if ($Script:Test) {
                 $ElapsedString = ($StopWatch.Elapsed - $TimerStart).ToString('mm\:ss')
                 Write-Host @Yellow "${Function}: ${TestText} took ${ElapsedString}" | Out-Host
@@ -171,22 +179,17 @@ function Show-SignInLogs {
                 Write-Host @Yellow "${Function}: ${TestText} started at $(Get-Date -Format 'hh:mm:sstt')" | Out-Host
             }
 
-            if (($Global:IRT_IpInfo.Keys | Measure-Object).Count -eq 0) {
-                $Global:IRT_IpInfo = @{}
-            }
             foreach ($Ip in $IpInfoAddresses) {
                 # if ip doesn't exist in table, add it.
-                if (-not $Global:IRT_IpInfo.ContainsKey($Ip)) {
-                    $Code = 'import sys; from ip_info.main import cli; sys.exit(cli())'
+                if (-not $IpInfoTable.ContainsKey($Ip)) {
                     $Params = @(
-                        '-c', $Code,
                         '--apis','none',
                         '--output_format','table',
                         '--ip_addresses', $Ip.ToString()
                     )
                     $NewLine = [Environment]::NewLine
-                    $Output = ((& $IpInfoPackage.Python @Params) -join $NewLine).Trim()
-                    $Global:IRT_IpInfo[$Ip] = $Output
+                    $Output = ((& ip_info @Params) -join $NewLine).Trim()
+                    $IpInfoTable[$Ip] = $Output
                 }
             }
 
@@ -220,8 +223,8 @@ function Show-SignInLogs {
             }
 
             # IpAddress
-            $IpText = if ($Global:IRT_IpInfo.ContainsKey($Log.IpAddress)) {
-                $Global:IRT_IpInfo[$Log.IpAddress]
+            $IpText = if ($IpInfoTable -and $IpInfoTable.ContainsKey($Log.IpAddress)) {
+                $IpInfoTable[$Log.IpAddress]
             }
             else {
                 $Log.IpAddress

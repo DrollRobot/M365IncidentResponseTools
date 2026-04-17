@@ -7,7 +7,10 @@ function Connect-IRTExchange {
     The TenantId GUID for the environment you want to connect to.
 
     .PARAMETER UserPrincipalName
-    The UserPrincipalName (Email) for the user account to connect with.
+    Optional. The UserPrincipalName (Email) for the user account. When provided
+    with -AccessToken (e.g. in runspace re-connections), this value is passed to
+    Connect-ExchangeOnline. For interactive flows the UPN is derived from the
+    MSAL token result automatically.
 
     .PARAMETER GCCHigh
     Connect to a GCC High tenant environment.
@@ -34,7 +37,6 @@ function Connect-IRTExchange {
     param (
         [Parameter( Mandatory )]
         [string] $TenantId,
-        [Parameter( Mandatory )]
         [string] $UserPrincipalName,
         [switch] $GCCHigh,
         [switch] $DeviceCode,
@@ -206,7 +208,6 @@ namespace IRT {
                 # --- Interactive browser flow ---
                 try {
                     $TokenResult = $App.AcquireTokenInteractive($Scopes).
-                        WithLoginHint($UserPrincipalName).
                         ExecuteAsync().GetAwaiter().GetResult()
                 } catch {
                     throw "Interactive token acquisition failed: $_"
@@ -221,7 +222,7 @@ namespace IRT {
 
             $ExchangeToken = [pscustomobject]@{
                 Token                   = $Token
-                UserPrincipalName       = $UserPrincipalName
+                UserPrincipalName       = $TokenResult.Account.Username
                 TenantId                = $TenantId
                 PublicClientApplication = $App
             }
@@ -242,7 +243,6 @@ namespace IRT {
             }
         } else {
             $ConnectParams = @{
-                UserPrincipalName = $UserPrincipalName
                 ShowBanner        = $false
                 DisableWAM        = $true
             }

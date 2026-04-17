@@ -12,7 +12,7 @@
     RootModule = 'M365IncidentResponseTools.psm1'
 
     # Version number of this module.
-    ModuleVersion     = '2.6.0.0'
+    ModuleVersion     = '2.6.1.0'
 
     # Supported PSEditions
     # CompatiblePSEditions = @()
@@ -33,7 +33,7 @@
     # Description = ''
 
     # Minimum version of the PowerShell engine required by this module
-    # PowerShellVersion = ''
+    PowerShellVersion = '7.5'
 
     # Name of the PowerShell host required by this module
     # PowerShellHostName = ''
@@ -89,8 +89,9 @@
     # Modules to import as nested modules of the module specified in RootModule/ModuleToProcess
     NestedModules     = @(
         'applications\Find-RiskyApplications.ps1'
+        'applications\Get-IRTTenantInfo.ps1'
         'applications\Get-UserApplications.ps1'
-        'applications\Show-Applications.ps1'
+        'applications\Show-TenantServicePrincipals.ps1'
 
         'connect\Connect-IncidentResponseTools.ps1'
         'connect\Connect-IRTExchange.ps1'
@@ -119,6 +120,7 @@
         'modules\Build-Menu.ps1'
         'modules\Convert-DecimalToExcelColumn.ps1'
         'modules\Find-GraphDirectoryObjects.ps1'
+        'modules\Format-PhoneNumber.ps1'
         'modules\Format-Tree.ps1'
         'modules\Get-IRT_UserObjects.ps1'
         'modules\Get-RandomPassword.ps1'
@@ -163,14 +165,13 @@
 
         'users\Find-Users.ps1'
         'users\Get-FullUserObject.ps1'
-        'users\Lock-GraphUsers.ps1'
+        'users\Set-GraphUserAccountEnabled.ps1'
         'users\Reset-GraphUserPasswords.ps1'
         'users\Revoke-UsersSessions.ps1'
         'users\Set-UsageLocation.ps1'
         'users\Show-GraphUserTree.ps1'
         'users\Show-UserInfo.ps1'
         'users\Show-UserMFA.ps1'
-        'users\Unlock-GraphUsers.ps1'
 
         'Compress-InvestigationFolders.ps1'
         'New-InvestigationFolder.ps1'
@@ -181,8 +182,9 @@
     FunctionsToExport = @(
         ### applications
         'Find-RiskyApplications'
+        'Get-IRTTenantInfo'
         'Get-UserApplications'
-        'Show-Applications'
+        'Show-TenantServicePrincipals'
 
         ### connect
         'Connect-IncidentResponseTools'
@@ -234,16 +236,16 @@
         'Show-UALogs'
 
         ### users
+        'Disable-GraphUsers'
+        'Enable-GraphUsers'
         'Find-Users'
         'Get-FullUserObject'
-        'Lock-GraphUsers'
         'Reset-GraphUserPasswords'
         'Revoke-UsersSessions'
         'Set-UsageLocation'
         'Show-GraphUserTree'
         'Show-UserInfo'
         'Show-UserMFA'
-        'Unlock-GraphUsers'
 
         ### root
         'Compress-InvestigationFolders'
@@ -265,8 +267,14 @@
         'RiskyApps'
         # Get-UserApplications
         'UserApps'
-        # Show-Applications
+        # Show-TenantServicePrincipals
         'ShowApps'
+        'ShowServicePrincipals'
+        'ShowEnterpriseApps'
+        'Show-Apps'
+        'Show-ServicePrincipals'
+        'Show-EnterpriseApps'
+        'Show-Applications'
 
         ### connect
         # Connect-IRTTenant
@@ -344,7 +352,11 @@
         'Find-User'
         'FindUser'
         'FindUsers'
-        # Lock-GraphUsers
+        # Disable-GraphUsers
+        'Disable-GraphUser'
+        'DisableUser'
+        'DisableUsers'
+        'Lock-GraphUsers'
         'Lock-GraphUser'
         'LockUser'
         'LockUsers'
@@ -364,7 +376,11 @@
         # Show-UserMFA
         'ShowMFA'
         'UserMFA'
-        # Unlock-GraphUsers
+        # Enable-GraphUsers
+        'Enable-GraphUser'
+        'EnableUser'
+        'EnableUsers'
+        'Unlock-GraphUsers'
         'Unlock-GraphUser'
         'UnlockUser'
         'UnlockUsers'

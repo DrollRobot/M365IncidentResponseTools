@@ -6,9 +6,6 @@ function Connect-IRTGraph {
     .PARAMETER TenantId
     The TenantId GUID for the environment you want to connect to.
 
-    .PARAMETER UserPrincipalName
-    Optional UPN used as a login hint for interactive authentication.
-
     .PARAMETER GCCHigh
     Connect to a GCC High tenant environment.
 
@@ -33,7 +30,6 @@ function Connect-IRTGraph {
     param (
         [Parameter( Mandatory )]
         [string] $TenantId,
-        [string] $UserPrincipalName,
         [switch] $GCCHigh,
         [switch] $DeviceCode,
         [string[]] $AdditionalScopes,
@@ -52,6 +48,7 @@ function Connect-IRTGraph {
             'AuditLog.Read.All'
             'AuditLogsQuery.Read.All'
             'BitLockerKey.Read.All'
+            'CrossTenantInformation.ReadBasic.All'
             'DelegatedPermissionGrant.ReadWrite.All'
             'Device.ReadWrite.All'
             'DeviceLocalCredential.Read.All'
@@ -115,9 +112,11 @@ function Connect-IRTGraph {
             Disconnect-MgGraph -ErrorAction SilentlyContinue | Out-Null
         }
 
-        $Authority = "https://login.microsoftonline.com/$TenantId"
+        $GraphBaseUrl = 'https://graph.microsoft.com'
+        $Authority    = "https://login.microsoftonline.com/$TenantId"
         if ( $GCCHigh ) {
-            $Authority = "https://login.microsoftonline.us/$TenantId"
+            $GraphBaseUrl = 'https://graph.microsoft.us'
+            $Authority    = "https://login.microsoftonline.us/$TenantId"
         }
 
         # Ensure the MSAL assembly is loaded from Microsoft.Graph.Authentication.
@@ -137,11 +136,6 @@ function Connect-IRTGraph {
         $GraphClientId = '14d82eec-204b-4c2f-b7e8-296a70dab67e'
 
         # MSAL requires fully-qualified scope URIs for Graph delegated permissions
-        $GraphBaseUrl = if ($GCCHigh) { 
-            'https://graph.microsoft.us'
-        } else { 
-            'https://graph.microsoft.com' 
-        }
         $MsalScopes = [string[]]($Scopes | ForEach-Object {"$GraphBaseUrl/$_"})
 
         # Reuse the cached MSAL app instance to preserve its token cache (which holds the refresh token)
@@ -167,6 +161,13 @@ function Connect-IRTGraph {
                 $TokenResult = $null
             }
         }
+
+        # Request admin consent so scopes are granted tenant-wide rather than per-user.
+        # 'consent' (not 'admin_consent') is the valid prompt value for the /authorize endpoint.
+        # When the signing-in user is a Global Admin, Entra shows the
+        # "Consent on behalf of your organization" checkbox.
+        $AdminConsentParams = [System.Collections.Generic.Dictionary[string,string]]::new()
+        $AdminConsentParams['prompt'] = 'consent'
 
         if ($TokenResult) {
             # Token acquired via silent refresh — no additional steps needed
@@ -200,7 +201,7 @@ namespace IRT {
             }
 
             $Helper    = [IRT.DeviceCodeHelper]::new()
-            $TokenTask = $App.AcquireTokenWithDeviceCode($MsalScopes, $Helper.Callback).ExecuteAsync()
+            $TokenTask = $App.AcquireTokenWithDeviceCode($MsalScopes, $Helper.Callback).WithExtraQueryParameters($AdminConsentParams).ExecuteAsync()
 
             # Block the PS thread until MSAL fires the device-code callback.
             $CodeResult = $Helper.WaitForResult(30000)
@@ -224,10 +225,9 @@ namespace IRT {
             }
         } else {
             try {
-                $AcquireBuilder = $App.AcquireTokenInteractive($MsalScopes)
-                if ($UserPrincipalName) {
-                    $AcquireBuilder = $AcquireBuilder.WithLoginHint($UserPrincipalName)
-                }
+                $AcquireBuilder = $App.AcquireTokenInteractive($MsalScopes).
+                    WithPrompt([Microsoft.Identity.Client.Prompt]::NoPrompt)
+                $AcquireBuilder = $AcquireBuilder.WithExtraQueryParameters($AdminConsentParams)
                 $TokenResult = $AcquireBuilder.ExecuteAsync().GetAwaiter().GetResult()
             } catch {
                 throw "Interactive token acquisition failed: $_"

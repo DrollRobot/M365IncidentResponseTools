@@ -55,8 +55,8 @@ function Find-Users {
         $Red = @{ ForegroundColor = 'Red' }
         # $Magenta = @{ ForegroundColor = 'Magenta' }
 
-        # get all users
-        $GraphUsers = Get-MgUser -All -Property $GetProperties
+        # get all users from cache
+        $GraphUsers = Request-GraphUsers -Cached
     }
 
     process {

@@ -20,9 +20,10 @@ function Get-EntraAuditLogs {
         [int] $Days = 30,
         [switch] $AllUsers,
         [switch] $Beta,
-        [switch] $Script,
         [boolean] $Open = $true,
-        [switch] $Test
+        [boolean] $Xml = $false,
+        [switch] $Test,
+        [switch] $Cached
     )
 
     begin {
@@ -33,14 +34,17 @@ function Get-EntraAuditLogs {
         # $Function = $MyInvocation.MyCommand.Name
         # $ParameterSet = $PSCmdlet.ParameterSetName
         $FilterStrings = [System.Collections.Generic.List[string]]::new()
-        $XmlPaths = [System.Collections.Generic.List[string]]::new()
-        $DateString = Get-Date -Format "yy-MM-dd_HH-mm"
-        $QueryStart = ( Get-Date ).AddDays( $Days * -1 ).ToString( "yyyy-MM-ddTHH:mm:ssZ" )
+        $FileNameDateFormat = "yy-MM-dd_HH-mm"
+        $FileNameDateString = Get-Date -Format $FileNameDateFormat
+        $FileNamePrefix = 'EntraAuditLogs'
+        $StartDateUtc = ( Get-Date ).AddDays( $Days * -1 ).ToUniversalTime()
+        $EndDateUtc = ( Get-Date ).ToUniversalTime()
+        $QueryStart = $StartDateUtc.ToString( "yyyy-MM-ddTHH:mm:ssZ" )
 
         # colors
         $Blue = @{ ForegroundColor = 'Blue' }
         # $Green = @{ ForegroundColor = 'Green' }
-        # $Red = @{ ForegroundColor = 'Red' }
+        $Red = @{ ForegroundColor = 'Red' }
         # $Magenta = @{ ForegroundColor = 'Magenta' }
 
         # if -AllUsers wasn't user, find user objects
@@ -72,13 +76,13 @@ function Get-EntraAuditLogs {
         }
 
         # get client domain name
-        $DefaultDomain = Get-MgDomain | Where-Object { $_.IsDefault -eq $true }
+        $DefaultDomain = Get-MgDomain | Where-Object {$_.IsDefault -eq $true}
         $DomainName = $DefaultDomain.Id -split '\.' | Select-Object -First 1
     }
 
     process {
 
-        foreach ( $ScriptUserObject in $ScriptUserObjects ) {
+        foreach ($ScriptUserObject in $ScriptUserObjects) {
 
             # variables
             $UserEmail = $ScriptUserObject.UserPrincipalName
@@ -86,10 +90,10 @@ function Get-EntraAuditLogs {
             $UserId = $ScriptUserObject.Id 
 
             # build file names
-            $XmlOutputPath = "EntraAuditLogs_${Days}Days_${DomainName}_${UserName}_${DateString}.xml"
+            $XmlOutputPath = "${FileNamePrefix}_${Days}Days_${DomainName}_${UserName}_${FileNameDateString}.xml"
 
             # build filter string
-            if ( -not $AllUsers ) {
+            if (-not $AllUsers) {
                 $FilterStrings.Add( "targetResources/any(t:t/Id eq '${UserId}')" )
             }
             if ($Days -ne 30) {
@@ -108,44 +112,50 @@ function Get-EntraAuditLogs {
                 All    = $true
                 Filter = $FilterString
             }
-            if ( $Beta ) {
-                $Logs = Get-MgBetaAuditLogDirectoryAudit @GetParams
+            if ($Beta) {
+                [System.Collections.Generic.List[PSObject]]$Logs = Get-MgBetaAuditLogDirectoryAudit @GetParams
             }
             else {
-                $Logs = Get-MgAuditLogDirectoryAudit @GetParams
+                [System.Collections.Generic.List[PSObject]]$Logs = Get-MgAuditLogDirectoryAudit @GetParams
             }
 
             # show count
-            $Count = @( $Logs ).Count
-            if ( $Count -gt 0 ) {
+            $Count = @($Logs).Count
+            if ($Count -gt 0) {
                 Write-Host @Blue "Retrieved ${Count} logs."
             }
             else {
                 Write-Host @Red "Retrieved 0 logs."
-                return
+                continue
             }
+
+            # add metadata to results
+            $Logs.Insert(0,
+                [pscustomobject]@{
+                    Metadata       = $true
+                    UserObject     = $ScriptUserObject
+                    UserEmail      = $UserEmail
+                    UserName       = $UserName
+                    StartDate      = $StartDateUtc.ToLocalTime()
+                    EndDate        = $EndDateUtc.ToLocalTime()
+                    Days           = $Days
+                    DomainName     = $DomainName
+                    FileNamePrefix = $FileNamePrefix
+                }
+            )
 
             # export to xml
-            Write-Host @Blue "`nSaving logs to: ${XmlOutputPath}"
-            $Logs | Export-Clixml -Depth 10 -Path $XmlOutputPath
+            if ($Xml) {
+                Write-Host @Blue "`nSaving logs to: ${XmlOutputPath}"
+                $Logs | Export-Clixml -Depth 10 -Path $XmlOutputPath
+            }
             
-            if ( $Script -or $Open ) {
-                $XmlPaths.Add( $XmlOutputPath )
+            $ShowParams = @{
+                Logs   = $Logs
+                Open   = $Open
+                Cached = $Cached
             }
-        }
-
-        if ( $Script ) {
-            return $XmlPaths
-        }
-
-        if ( $Open ) {
-            foreach ( $XmlPath in $XmlPaths ) {
-                $ShowParams = @{
-                    XmlPath = $XmlPath
-                    Open = $Open
-                }
-                Show-EntraAuditLogs @ShowParams
-            }
+            Show-EntraAuditLogs @ShowParams
         }
     }
 }

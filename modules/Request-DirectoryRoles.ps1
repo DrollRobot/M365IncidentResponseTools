@@ -1,13 +1,18 @@
 function Request-DirectoryRoles {
     <#
 	.SYNOPSIS
-    Gets group information from local file, or from graph if local file doesn't exist
+    Requests directory roles from Microsoft Graph. Caches in global variable.
 	
 	.NOTES
-	Version: 1.0.0
+	Version: 2.0.0
 	#>
     [CmdletBinding()]
     param (
+        [switch] $Cached,
+        [switch] $Test,
+        [boolean] $Xml = $false,
+        [ValidateSet('objects','tablebyid','none')]
+        [string] $Return = 'objects'
     )
 
     begin {
@@ -21,28 +26,55 @@ function Request-DirectoryRoles {
             'Id'
             'RoleTemplateId'
         )
-
-        # get client domain name
-        $DefaultDomain = Get-MgDomain | Where-Object { $_.IsDefault -eq $true }
-        $DomainName = $DefaultDomain.Id -split '\.' | Select-Object -First 1
+        $ExpandProperties = @( 'Members' )
     }
 
     process {
 
-        # get files in current directory that match pattern
-        $FilterString = "DirectoryRoles_Raw_${DomainName}_*.xml"
-        $Files = Get-ChildItem -Filter $FilterString
-        if ( $Files ) {
-            $File = $Files | Sort-Object 'LastWriteTime' -Descending | Select-Object -First 1
-            $DirectoryRoles = Import-CliXml -Path $File.FullName
-        }
-        else {
-            $DirectoryRoles = Get-MgDirectoryRole -All -Property $GetProperties | Select-Object $GetProperties
-            $FileName = "DirectoryRoles_Raw_${DomainName}_${FileNameDate}.xml"
-            $XmlOutputPath = Join-Path -Path $CurrentPath -ChildPath $FileName
-            $DirectoryRoles | Export-Clixml -Depth 5 -Path $XmlOutputPath
+        # return cached data if available
+        if ( $Cached ) {
+            $Variable = Get-Variable -Scope Global -Name 'IRT_DirectoryRoles' -ErrorAction SilentlyContinue
+            if ( $Variable ) {
+                switch ( $Return ) {
+                    'objects'   { return $Global:IRT_DirectoryRoles }
+                    'tablebyid' { return $Global:IRT_DirectoryRolesById }
+                    'none'      { return }
+                }
+            }
         }
 
-        return $DirectoryRoles
+        # get client domain name
+        $DefaultDomain = Get-MgDomain | Where-Object { $_.IsDefault -eq $true }
+        $DomainName = $DefaultDomain.Id -split '\.' | Select-Object -First 1
+
+        # query graph
+        $Objects = Get-MgDirectoryRole -All -Property $GetProperties -ExpandProperty $ExpandProperties | Select-Object ( $GetProperties + $ExpandProperties )
+
+        # store in global variables
+        $Global:IRT_DirectoryRoles = $Objects
+        $Global:IRT_DirectoryRolesById = @{}
+        foreach ( $o in $Objects ) {
+            if ( $o.Id ) { $Global:IRT_DirectoryRolesById[$o.Id] = $o }
+        }
+
+        # export to file
+        if ($Xml) {
+            $FileName = "DirectoryRoles_Raw_${DomainName}_${FileNameDate}.xml"
+            $XmlOutputPath = Join-Path -Path $CurrentPath -ChildPath $FileName
+            if ( $Test ) {
+                $ExportTime = Measure-Command { $Objects | Export-Clixml -Depth 5 -Path $XmlOutputPath }
+                Write-Host "Export-Clixml took $( $ExportTime.TotalSeconds ) seconds" -ForegroundColor Cyan
+            }
+            else {
+                $Objects | Export-Clixml -Depth 5 -Path $XmlOutputPath
+            }
+        }
+
+        # return
+        switch ( $Return ) {
+            'objects'   { return $Global:IRT_DirectoryRoles }
+            'tablebyid' { return $Global:IRT_DirectoryRolesById }
+            'none'      { return }
+        }
     }
 }

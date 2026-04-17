@@ -11,10 +11,6 @@ function Connect-IncidentResponseTools {
     .PARAMETER TenantId
     The TenantId GUID for the environment you want to connect to.
 
-    .PARAMETER UserPrincipalName
-    The UserPrincipalName (Email) for the user account to connect with.
-    Required when connecting to Exchange.
-
     .PARAMETER GCCHigh
     Connect to a GCC High tenant environment.
 
@@ -37,7 +33,7 @@ function Connect-IncidentResponseTools {
     Open the browser in private/incognito mode.
 
     .EXAMPLE
-    Connect-IncidentResponseTools -TenantId $tid -UserPrincipalName admin@contoso.com
+    Connect-IncidentResponseTools -TenantId $tid
     Connects to Graph and Exchange Online.
 
     .EXAMPLE
@@ -45,7 +41,7 @@ function Connect-IncidentResponseTools {
     Connects to Graph only using device code auth.
 
     .EXAMPLE
-    Connect-IncidentResponseTools -TenantId $tid -UserPrincipalName admin@contoso.com -Exchange -GCCHigh
+    Connect-IncidentResponseTools -TenantId $tid -Exchange -GCCHigh
     Connects to Exchange in a GCC High environment.
 
     .NOTES
@@ -55,7 +51,6 @@ function Connect-IncidentResponseTools {
     param (
         [Parameter( Mandatory )]
         [string] $TenantId,
-        [string] $UserPrincipalName,
         [switch] $GCCHigh,
         [switch] $DeviceCode,
         [string[]] $AdditionalScopes,
@@ -76,11 +71,6 @@ function Connect-IncidentResponseTools {
         $ConnectAll = -not ($Graph -or $Exchange)
         $ConnectGraph    = $ConnectAll -or $Graph
         $ConnectExchange = $ConnectAll -or $Exchange
-
-        # validate UPN is provided when Exchange is requested
-        if ($ConnectExchange -and -not $UserPrincipalName) {
-            throw 'UserPrincipalName is required when connecting to Exchange.'
-        }
 
         # --- Initialize session global before attempting connections ---
         if ($Global:IRT_Session -and $Global:IRT_Session.TenantId -ne $TenantId) {
@@ -104,7 +94,6 @@ function Connect-IncidentResponseTools {
             }
             if ($GCCHigh)          { $GraphParams['GCCHigh']            = $true }
             if ($DeviceCode)       { $GraphParams['DeviceCode']         = $true }
-            if ($UserPrincipalName) { $GraphParams['UserPrincipalName'] = $UserPrincipalName }
             if ($Force)            { $GraphParams['Force']              = $true }
             $GraphParams['Browser'] = $Browser
             if ($Private) { $GraphParams['Private'] = $true }
@@ -121,7 +110,6 @@ function Connect-IncidentResponseTools {
 
             $ExchangeParams = @{
                 TenantId          = $TenantId
-                UserPrincipalName = $UserPrincipalName
             }
             if ($GCCHigh)    { $ExchangeParams['GCCHigh']    = $true }
             if ($DeviceCode) { $ExchangeParams['DeviceCode'] = $true }

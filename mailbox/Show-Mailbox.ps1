@@ -13,7 +13,8 @@ function Show-Mailbox {
         [Alias( 'UserObject' )]
         [psobject[]] $UserObjects,
         
-        [switch] $Test
+        [switch] $Test,
+        [switch] $Cached
     )
 
     begin {
@@ -124,7 +125,7 @@ function Show-Mailbox {
                 $UserGuid = $Mailbox.ForwardingAddress
 
                 # get user object
-                $Users = Request-GraphUsers
+                $Users = Request-GraphUsers -Cached:$Cached
                 $MatchingUser = $Users | Where-Object { $_.Id -eq $UserGuid }
 
                 $ForwardingAddress = $MatchingUser.Mail

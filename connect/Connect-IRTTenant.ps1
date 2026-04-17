@@ -30,9 +30,6 @@ function Connect-IRTTenant {
     .PARAMETER AdditionalScopes
     Additional Graph scopes to request beyond the default set.
 
-    .PARAMETER UserPrincipalName
-    Override the AdminEmail value from the tenant CSV.
-
     .PARAMETER DeviceCode
     Use device code authentication. Requires the tenant's DeviceAuthAllowed column to be set to 'yes'.
     Interactive authentication is used by default. An error is thrown if device code is requested
@@ -70,7 +67,6 @@ function Connect-IRTTenant {
         [switch] $Exchange,
 
         [string[]] $AdditionalScopes,
-        [string] $UserPrincipalName,
         [System.Nullable[bool]] $DeviceCode,
 
         [ValidateSet('msedge','chrome','firefox','brave','default')]
@@ -117,12 +113,6 @@ function Connect-IRTTenant {
         # build connection parameters
         $ConnectParams = @{
             TenantId = $MatchedTenant.TenantId
-        }
-
-        if ($UserPrincipalName) {
-            $ConnectParams['UserPrincipalName'] = $UserPrincipalName
-        } elseif ($MatchedTenant.AdminEmail) {
-            $ConnectParams['UserPrincipalName'] = $MatchedTenant.AdminEmail
         }
 
         if ($MatchedTenant.GCCHigh -imatch 'yes|^y$') {

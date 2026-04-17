@@ -8,26 +8,30 @@ function Show-EntraAuditLogs {
     1.2.1 - Updates to use new get-graphobject functions.
     1.2.0 - Many small updates to standardize across IR functions. Updated to readable date format.
 	#>
-    [CmdletBinding()]
+    [CmdletBinding(DefaultParameterSetName='Objects')]
     param (
-        [Parameter( Position = 0 )]
+        [Parameter(Position=0, Mandatory, ParameterSetName='Objects')]
+        [System.Collections.Generic.List[PSObject]] $Logs,
+
+        [Parameter(Mandatory, ParameterSetName='Xml')]
         [string] $XmlPath,
 
         [string] $TableStyle = 'Dark8',
-        [boolean] $Open = $true
+        [boolean] $Open = $true,
+        [switch] $Cached
     )
 
     begin {
 
         #region BEGIN
         
-        # get file path
+        # get logs from file if xml path used
         if ( $XmlPath ) {
 
             $ResolvedXmlPath = Resolve-ScriptPath -Path $XmlPath -File -FileExtension 'xml'
-            $Logs = Import-Clixml -Path $ResolvedXmlPath
+            [System.Collections.Generic.List[PSObject]]$Logs = Import-Clixml -Path $ResolvedXmlPath
         }
-        else {
+        elseif ( -not $Logs ) {
 
             # run import-logs to get file name
             $ImportParams = @{
@@ -37,21 +41,53 @@ function Show-EntraAuditLogs {
             $ResolvedXmlPath = Import-LogFile @ImportParams
 
             # use path to import logs
-            $Logs = Import-Clixml -Path $ResolvedXmlPath
+            [System.Collections.Generic.List[PSObject]]$Logs = Import-Clixml -Path $ResolvedXmlPath
         }
+
+        #region METADATA
+        if ($Logs[0].Metadata) {
+
+            # remove metadata from beginning of list
+            $Metadata = $Logs[0]
+            $Logs.RemoveAt(0)
+
+            # $UserEmail = $Metadata.UserEmail
+            $UserName = $Metadata.UserName
+            $StartDate = $Metadata.StartDate
+            $EndDate = $Metadata.EndDate
+            $Days = $Metadata.Days
+            $DomainName = $Metadata.DomainName
+            $FileNamePrefix = $Metadata.FileNamePrefix
+        }
+        else {
+            Write-Host @Red "${Function}: No Metadata found."
+        }
+
+        # build file name
+        $FileNameDateFormat = "yy-MM-dd_HH-mm"
+        $FileDateString = $EndDate.ToLocalTime().ToString($FileNameDateFormat)
+        $ExcelOutputPath = "${FileNamePrefix}_${Days}Days_${UserName}_${FileDateString}.xlsx"
+
+        # build worksheet title
+        $TitleDateFormat = "M/d/yy h:mmtt"
+        $TitleStartDate = $StartDate.ToLocalTime().ToString($TitleDateFormat)
+        $TitleEndDate = $EndDate.ToLocalTime().ToString($TitleDateFormat)
+        # if allusers, use domain as username
+        if ( $UserName -eq 'AllUsers' ) {
+            $UserName = $DomainName
+        }
+        $WorksheetTitle = "Entra audit logs for ${UserName}. Covers ${Days} days, ${TitleStartDate} to ${TitleEndDate}."
 
         #region CONSTANTS
 
+        $Function = $MyInvocation.MyCommand.Name
         $ModuleRoot = $MyInvocation.MyCommand.Module.ModuleBase
         $WorksheetName = 'EntraAudit'
-        $FileNameDateFormat = "yy-MM-dd_HH-mm"
-        $FileNameDatePattern = "\d{2}-\d{2}-\d{2}_\d{2}-\d{2}"
-        $TitleDateFormat = "M/d/yy h:mmtt"
-        $Groups = Request-GraphGroups
-        $Roles = Request-DirectoryRoles
-        $RoleTemplates = Request-DirectoryRoleTemplates
-        $ServicePrincipals = Request-GraphServicePrincipals
-        $Users = Request-GraphUsers
+        $Groups = Request-GraphGroups -Cached:$Cached
+        $Roles = Request-DirectoryRoles -Cached:$Cached
+        $RoleTemplates = Request-DirectoryRoleTemplates -Cached:$Cached
+        $ServicePrincipals = Request-GraphServicePrincipals -Cached:$Cached
+        $Users = Request-GraphUsers -Cached:$Cached
 
         # event date formatting
         $RawDateProperty = 'ActivityDateTime'
@@ -73,7 +109,7 @@ function Show-EntraAuditLogs {
         # colors
         $Blue = @{ ForegroundColor = 'Blue' }
         # $Green = @{ ForegroundColor = 'Green' }
-        # $Red = @{ ForegroundColor = 'Red' }
+        $Red = @{ ForegroundColor = 'Red' }
         # $Magenta = @{ ForegroundColor = 'Magenta' }
 
         # import AppOwnerOrganizationId information
@@ -84,31 +120,6 @@ function Show-EntraAuditLogs {
         else {
             throw "Unable to find: ${CsvPath}. Exiting."
         }
-
-        # build new file name out of old one
-        $OldFileName = Split-Path -Path $ResolvedXmlPath -Leaf
-        $SplitFileName = $OldFileName -split '_'
-        $SplitFileName = $SplitFileName | Where-Object { $_ -ne 'Raw' }
-        $UserString = $SplitFileName[3]
-        $SplitFileName = $SplitFileName -replace '\.xml', '.xlsx'
-        $ExcelOutputPath = $SplitFileName -join '_'
-
-        ### build worksheet title
-        # get number of days
-        $ExcelOutputPath -match "(\d{1,3})Days" | Out-Null
-        $Days = $Matches[1]
-        # get date range
-        $QueryDateString = $ExcelOutputPath | Select-String -Pattern $FileNameDatePattern -AllMatches | ForEach-Object { $_.Matches.Value }
-        $ParsedDate = [DateTime]::ParseExact( $QueryDateString, $FileNameDateFormat, $null )
-        $StartString = $ParsedDate.AddDays([int]$Days * -1).ToString( $TitleDateFormat ).ToLower()
-        $EndString = $ParsedDate.ToString( $TitleDateFormat ).ToLower()
-        # get username
-        if ( $UserString -eq 'AllUsers' ) {
-            # if all users, use domain as username
-            $UserString = $SplitFileName[2]
-        }
-        # build title
-        $WorksheetTitle = "Entra audit logs for ${UserString}. Covers ${Days} days, ${StartString} to ${EndString}."
     }
 
     process {
@@ -426,10 +437,13 @@ function Show-EntraAuditLogs {
         # get table ranges
         $SheetStartColumn = $WorkSheet.Dimension.Start.Column | Convert-DecimalToExcelColumn
         $SheetStartRow = $WorkSheet.Dimension.Start.Row
-        $TableStartColumn = ( $workSheet.Tables.Address | Select-Object -First 1 ).Start.Column | Convert-DecimalToExcelColumn
-        $TableStartRow = ( $workSheet.Tables.Address | Select-Object -First 1 ).Start.Row
         $EndColumn = $WorkSheet.Dimension.End.Column | Convert-DecimalToExcelColumn
         $EndRow = $WorkSheet.Dimension.End.Row
+
+        if ($Worksheet.Tables.Count -gt 0) {
+
+        $TableStartColumn = ( $workSheet.Tables.Address | Select-Object -First 1 ).Start.Column | Convert-DecimalToExcelColumn
+        $TableStartRow = ( $workSheet.Tables.Address | Select-Object -First 1 ).Start.Row
 
         #region CELL COLORING
 
@@ -545,6 +559,8 @@ function Show-EntraAuditLogs {
             BorderColor = 'Black'
         }
         Set-Format @BorderParams
+
+        } # end if ($Worksheet.Tables.Count -gt 0)
 
         #region OUTPUT
                     

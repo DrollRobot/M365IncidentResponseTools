@@ -16,7 +16,7 @@ function Show-UserMFA {
         [psobject[]] $UserObjects,
 
         [string] $TableStyle = 'Dark8',
-        [boolean] $Xml = $true,
+        [boolean] $Xml = $false,
         [boolean] $Open = $true
     )
      
@@ -290,11 +290,17 @@ function Show-UserMFA {
                         # capitalize propertyname
                         $CapPropertyName = $Key.Substring(0, 1).ToUpper() + $Key.Substring(1)
 
+                        # format phone numbers for Excel compatibility
+                        $Value = $Method.AdditionalProperties[$Key]
+                        if ( $CapPropertyName -eq 'PhoneNumber' ) {
+                            $Value = Format-PhoneNumber $Value
+                        }
+
                         # add to object
                         $AddParams = @{
                             MemberType = 'NoteProperty'
                             Name       = $CapPropertyName
-                            Value      = $Method.AdditionalProperties[$Key]
+                            Value      = $Value
                         }
                         $CustomObject | Add-Member @AddParams
                     }

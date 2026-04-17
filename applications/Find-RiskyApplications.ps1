@@ -21,6 +21,9 @@ function Find-RiskyApplications {
         Requires an active Graph connection with appropriate permissions.
         Threat intelligence feeds are fetched live from GitHub at runtime.
     #>
+    param (
+        [switch] $Cached
+    )
 
     begin {
         # variables
@@ -50,9 +53,9 @@ function Find-RiskyApplications {
         )
         $FoundApps = $false
 
-        $ServicePrincipals = Request-GraphServicePrincipals
-        $PermissionGrants = Request-GraphOauth2Grants
-        $Users = Request-GraphUsers
+        $ServicePrincipals = Request-GraphServicePrincipals -Cached:$Cached
+        $PermissionGrants = Request-GraphOauth2Grants -Cached:$Cached
+        $Users = Request-GraphUsers -Cached:$Cached
 
         # colors
         $Blue = @{ForegroundColor = 'Blue'}

@@ -20,7 +20,8 @@ function Show-UALogs {
         [boolean] $IpInfo = $true,
         [boolean] $Open = $true,
         [boolean] $WaitOnMessageTrace = $false,
-        [switch] $Test
+        [switch] $Test,
+        [switch] $Cached
     )
 
     begin {
@@ -128,6 +129,12 @@ function Show-UALogs {
             # check for presence of ip_info package
             $IpInfoPackage = Test-PythonPackage -Name 'ip_info'
         }
+
+        # resolve ip info table
+        if ($Global:IRT_IpInfo -isnot [hashtable]) {
+            $Global:IRT_IpInfo = [hashtable]::Synchronized(@{})
+        }
+        $IpInfoTable = $Global:IRT_IpInfo
     }
 
     process {
@@ -182,8 +189,8 @@ function Show-UALogs {
                 Write-Host @Yellow "${Function}: ${TestText} started at $(Get-Date -Format 'hh:mm:sstt')" | Out-Host
             }
 
-            $Code = 'import sys; from ip_info.main import cli; sys.exit(cli())'
-            & $IpInfoPackage.Python '-c' $Code --apis bulk --output_format none --ip_addresses $IpInfoAddresses
+            $env:PYTHONUTF8 = '1'
+            & ip_info --apis bulk --output_format none --ip_addresses $IpInfoAddresses
             if ($LASTEXITCODE -ne 0) {
                 Write-Host @Red "${Function}: ip_info query failed." | Out-Host
             }
@@ -200,28 +207,70 @@ function Show-UALogs {
                 Write-Host @Yellow "${Function}: ${TestText} started at $(Get-Date -Format 'hh:mm:sstt')" | Out-Host
             }
 
-            if (($Global:IRT_IpInfo.Keys | Measure-Object).Count -eq 0) {
-                $Global:IRT_IpInfo = @{}
-            }
             foreach ($Ip in $IpInfoAddresses) {
                 # if ip doesn't exist in table, add it.
-                if (-not $Global:IRT_IpInfo.ContainsKey($Ip)) {
-                    $Code = 'import sys; from ip_info.main import cli; sys.exit(cli())'
+                if (-not $IpInfoTable.ContainsKey($Ip)) {
                     $Params = @(
-                        '-c', $Code,
                         '--apis','none',
                         '--output_format','table',
                         '--ip_addresses', $Ip.ToString()
                     )
                     $NewLine = [Environment]::NewLine
-                    $Output = ((& $IpInfoPackage.Python @Params) -join $NewLine).Trim()
-                    $Global:IRT_IpInfo[$Ip] = $Output
+                    $Output = ((& ip_info @Params) -join $NewLine).Trim()
+                    $IpInfoTable[$Ip] = $Output
                 }
             }
 
             if ($Script:Test) {
                 $ElapsedString = ($StopWatch.Elapsed - $TimerStart).ToString('mm\:ss')
                 Write-Host @Yellow "${Function}: ${TestText} took ${ElapsedString}" | Out-Host
+            }
+        }
+
+        #region WAIT ON MESSAGE TRACE
+        # resolve message trace table once before the row loop
+        $MessageTraceTable = $null
+        if ($WaitOnMessageTrace) {
+            $MaxWaitMinutes = 10
+            $WaitInterval = 15
+            $WaitStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+
+            # wait for both user and AllUsers message traces to complete via WaitFlags
+            if ($Global:IRT_WaitFlags) {
+                while (-not ($Global:IRT_WaitFlags.MessageTraceUserDone -and $Global:IRT_WaitFlags.MessageTraceAllUsersDone)) {
+                    if ($WaitStopwatch.Elapsed.TotalMinutes -ge $MaxWaitMinutes) {
+                        Write-Host @Red "${Function}: Timed out after ${MaxWaitMinutes} minutes waiting on message trace. Continuing without subjects."
+                        if ($Script:Test) {
+                            Write-Host @Yellow "${Function}: WaitFlags.MessageTraceUserDone = $($Global:IRT_WaitFlags.MessageTraceUserDone), WaitFlags.MessageTraceAllUsersDone = $($Global:IRT_WaitFlags.MessageTraceAllUsersDone)"
+                        }
+                        break
+                    }
+                    if ($Script:Test) {
+                        $Elapsed = $WaitStopwatch.Elapsed.ToString('mm\:ss')
+                        Write-Host @Yellow "${Function}: Waiting on message trace (${Elapsed} elapsed). UserDone=$($Global:IRT_WaitFlags.MessageTraceUserDone), AllUsersDone=$($Global:IRT_WaitFlags.MessageTraceAllUsersDone)"
+                    }
+                    else {
+                        Write-Host @Yellow "${Function}: Waiting on message trace..."
+                    }
+                    Start-Sleep -Seconds $WaitInterval
+                }
+            }
+        }
+
+        # load message trace table from global
+        if ($Global:IRT_MessageTraceTable -is [hashtable] -and $Global:IRT_MessageTraceTable.Count -gt 0) {
+            $MessageTraceTable = $Global:IRT_MessageTraceTable
+            if ($Script:Test) {
+                Write-Host @Yellow "${Function}: Using `$Global:IRT_MessageTraceTable ($($MessageTraceTable.Count) entries)"
+            }
+        }
+
+        if ($Script:Test) {
+            if ($MessageTraceTable) {
+                Write-Host @Yellow "${Function}: MessageTraceTable resolved with $($MessageTraceTable.Count) entries"
+            }
+            else {
+                Write-Host @Yellow "${Function}: No MessageTraceTable available — subjects will not be resolved"
             }
         }
 
@@ -261,6 +310,7 @@ function Show-UALogs {
 
             #region IPADDRESSES
             # collect ips
+            $CellLines = $null
             $IpAddresses = [System.Collections.Generic.Hashset[string]]::new()
                 if ( $Log.AuditData.ClientIP ) {
                     try {
@@ -297,7 +347,7 @@ function Show-UALogs {
 
                 # add info from table
                 foreach ($Ipaddress in $IpAddresses) {
-                    $CellLines.Add($Global:IRT_IpInfo[$Ipaddress]) 
+                    $CellLines.Add($IpInfoTable[$Ipaddress]) 
                 }
             }
             $IpText = $CellLines -join "`n`n"
@@ -308,9 +358,8 @@ function Show-UALogs {
             $OperationString = $RecordType + ' ' + $Operations
             $EmailParams = @{
                 Log = $Log
-                WaitOnMessageTrace = $WaitOnMessageTrace
-                UserName = $UserName
             }
+            if ($MessageTraceTable) { $EmailParams['MessageTraceTable'] = $MessageTraceTable }
             switch ( $OperationString ) {
                 'AzureActiveDirectory Add member to role.' {
                     $EventObject = Resolve-AzureActiveDirectoryAddRemoveRole -Log $Log
@@ -322,13 +371,13 @@ function Show-UALogs {
                     $EventObject = Resolve-AzureActiveDirectoryUpdateUser -Log $Log
                 }
                 'AzureActiveDirectoryStsLogon UserLoggedIn' {
-                    $EventObject = Resolve-AzureActiveDirectoryLogin -Log $Log
+                    $EventObject = Resolve-AzureActiveDirectoryLogin -Log $Log -Cached:$Cached
                 }
                 'AzureActiveDirectoryStsLogon UserLoggedOff' {
-                    $EventObject = Resolve-AzureActiveDirectoryLogin -Log $Log
+                    $EventObject = Resolve-AzureActiveDirectoryLogin -Log $Log -Cached:$Cached
                 }
                 'AzureActiveDirectoryStsLogon UserLoginFailed' {
-                    $EventObject = Resolve-AzureActiveDirectoryLogin -Log $Log
+                    $EventObject = Resolve-AzureActiveDirectoryLogin -Log $Log -Cached:$Cached
                 }
                 'ExchangeAdmin New-InboxRule' {
                     $EventObject = Resolve-ExchangeAdminInboxRule -Log $Log
@@ -367,7 +416,7 @@ function Show-UALogs {
                     $EventObject = Resolve-SharePointPageViewed -Log $Log
                 }
                 'SharePoint PIMRoleAssigned' {
-                    $EventObject = Resolve-SharePointPIMRoleAssigned -Log $Log
+                    $EventObject = Resolve-SharePointPIMRoleAssigned -Log $Log -Cached:$Cached
                 }
                 'SharePoint SearchQueryPerformed' {
                     $EventObject = Resolve-SharePointSearchQueryPerformed -Log $Log
@@ -481,10 +530,13 @@ function Show-UALogs {
         # get table ranges
         $SheetStartColumn = $WorkSheet.Dimension.Start.Column | Convert-DecimalToExcelColumn
         $SheetStartRow = $WorkSheet.Dimension.Start.Row
-        $TableStartColumn = ( $workSheet.Tables.Address | Select-Object -First 1 ).Start.Column | Convert-DecimalToExcelColumn
-        $TableStartRow = ( $workSheet.Tables.Address | Select-Object -First 1 ).Start.Row
         $EndColumn = $WorkSheet.Dimension.End.Column | Convert-DecimalToExcelColumn
         $EndRow = $WorkSheet.Dimension.End.Row
+
+        if ($Worksheet.Tables.Count -gt 0) {
+
+        $TableStartColumn = ( $workSheet.Tables.Address | Select-Object -First 1 ).Start.Column | Convert-DecimalToExcelColumn
+        $TableStartRow = ( $workSheet.Tables.Address | Select-Object -First 1 ).Start.Row
 
         $IpAddressColumn = ($Worksheet.Tables[0].Columns | Where-Object {$_.Name -eq 'IpAddresses'}).Id | Convert-DecimalToExcelColumn
         $SummaryColumn = ($Worksheet.Tables[0].Columns | Where-Object {$_.Name -eq 'Summary'}).Id | Convert-DecimalToExcelColumn
@@ -669,6 +721,8 @@ function Show-UALogs {
             BorderColor = 'Black'
         }
         Set-Format @BorderParams
+
+        } # end if ($Worksheet.Tables.Count -gt 0)
 
         #region OUTPUT
 

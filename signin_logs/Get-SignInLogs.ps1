@@ -39,7 +39,7 @@ function Get-SignInLogs {
         [boolean] $IpInfo = $true,
         [boolean] $Open = $true,
         [switch] $Test,
-        [boolean] $Xml = $true
+        [boolean] $Xml = $false
     )
 
     begin {
@@ -180,13 +180,14 @@ function Get-SignInLogs {
         else {
             $DateRangeType = 'Relative'
             # set default value for days ### must be done after checking for relative/absolute arguments
-            if (-not $Days) {
-                $Days = 30 #DEFAULTDAYS
+            if (-not $Days -and $NonInteractive) {
+                $Days = 3 # DEFAULTDAYS default value for non interactive
+                # FIXME API bug with filters may be fixed? Going to try 3 days
                 # FIXME defaulting to 30 days because of api bug related to filters
                 # https://github.com/microsoftgraph/msgraph-sdk-powershell/issues/3146#issuecomment-2752675332
-                # if ( $NonInteractive -and $Days -eq 30) { # if script default, change to 3 days
-                #     $Days = 3 # FIXME temporarily commending out until api issue is fixed
-                # }
+            }
+            elseif (-not $Days) {
+                $Days = 30 # DEFAULTDAYSdefault value for interactive
             }
 
             $StartDateUtc = (Get-Date).AddDays($Days * -1).ToUniversalTime()
@@ -327,7 +328,7 @@ function Get-SignInLogs {
 
             if (($Logs | Measure-Object).Count -eq 0 ) {
                 Write-Host @Red "${Function}: No logs found for ${UserEmail} for past ${Days} days. Exiting." | Out-Host
-                return
+                continue
             }
 
             # add metadata to results
@@ -372,9 +373,9 @@ function Get-SignInLogs {
                 # export excel spreadsheet
                 if ($Excel) {
                     $Params = @{
-                        Logs = $Logs
+                        Logs   = $Logs
                         IpInfo = $IpInfo
-                        Open = $Open
+                        Open   = $Open
                     }
                     Show-SignInLogs @Params
                 }

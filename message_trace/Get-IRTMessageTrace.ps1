@@ -34,7 +34,7 @@ function Get-IRTMessageTrace {
         [boolean] $Excel = $true,
         [switch] $Quiet,
         [switch] $Test,
-        [boolean] $Xml = $true
+        [boolean] $Xml = $false
     )
 
     begin {
@@ -51,7 +51,7 @@ function Get-IRTMessageTrace {
         $Blue = @{ForegroundColor = 'Blue' }
         # $Green = @{ForegroundColor = 'Green'}
         # $Magenta = @{ForegroundColor = 'Magenta'}
-        # $Red = @{ForegroundColor = 'Red'}
+        $Red = @{ForegroundColor = 'Red'}
         # $Yellow = @{ForegroundColor = 'Yellow'}
 
         # create user objects depending on parameters used
@@ -265,14 +265,10 @@ function Get-IRTMessageTrace {
                 catch {}
                 if (-not $Mailbox) {
                     Write-Host @Red "${Function}: $($ScriptUserObject.UserPrincipalName) does not have a mailbox. Exiting"
-                    $VariableParams = @{
-                        Name  = "IRT_MessageTraceTable_${UserName}"
-                        Value = $Null
-                        Scope = 'Global'
-                        Force = $True
+                    if ($Global:IRT_WaitFlags) {
+                        $Global:IRT_WaitFlags.MessageTraceUserDone = $true
                     }
-                    New-Variable @VariableParams
-                    return
+                    continue
                 }
 
                 $UserName = $ScriptUserObject.UserPrincipalName -split '@' | Select-Object -First 1
@@ -380,14 +376,10 @@ function Get-IRTMessageTrace {
                 if ($ListOfLists.Count -eq 0) {
                     # exit if no messages returned
                     Write-Host @Red "0 total messages retrieved. Exiting."
-                    $VariableParams = @{
-                        Name  = "IRT_MessageTraceTable_${UserName}"
-                        Value = $Null
-                        Scope = 'Global'
-                        Force = $True
+                    if ($Global:IRT_WaitFlags) {
+                        $Global:IRT_WaitFlags.MessageTraceUserDone = $true
                     }
-                    New-Variable @VariableParams
-                    return
+                    continue
                 }
                 elseif ($ListOfLists.Count -eq 1) {
                     $AllMessages = $ListOfLists[0]
@@ -406,14 +398,11 @@ function Get-IRTMessageTrace {
             # exit if no messages found
             if (($AllMessages | Measure-Object).Count -eq 0) {
                 Write-Host @Red "${Function}: No messages found. Exiting."
-                $VariableParams = @{
-                    Name  = "IRT_MessageTraceTable_${UserName}"
-                    Value = $Null
-                    Scope = 'Global'
-                    Force = $True
+                if ($Global:IRT_WaitFlags) {
+                    if ($AllUsers) { $Global:IRT_WaitFlags.MessageTraceAllUsersDone = $true }
+                    else           { $Global:IRT_WaitFlags.MessageTraceUserDone = $true }
                 }
-                New-Variable @VariableParams
-                return
+                continue
             }
 
             #region METADATA
@@ -439,27 +428,31 @@ function Get-IRTMessageTrace {
 
             # export to variables
             if ($Variable) {
-                if ($AllUsers) {
-                    # do nothing
-                }
-                else {
-                    # export table by internetmessageid
-                    $Table = @{}
-                    foreach ($Message in $AllMessages) {
-                        if (-not $Message.Metadata) {
-                            $InternetMessageId = $Message.MessageId
-                            $Table[$InternetMessageId] = $Message
+                # build table by normalized InternetMessageId
+                $Table = @{}
+                foreach ($Message in $AllMessages) {
+                    if (-not $Message.Metadata) {
+                        $NormalizedId = ($Message.MessageId -replace '[<>]','').Trim()
+                        if ($NormalizedId) {
+                            $Table[$NormalizedId] = $Message
                         }
                     }
-                    $VariableName = "IRT_MessageTraceTable_${UserName}"
-                    Write-Host @Blue "Exporting message trace to `$Global:${VariableName}"
-                    $VariableParams = @{
-                        Name  = $VariableName
-                        Value = $Table
-                        Scope = 'Global'
-                        Force = $True
-                    }
-                    New-Variable @VariableParams
+                }
+
+                # merge into global synchronized hashtable
+                if ($Global:IRT_MessageTraceTable -isnot [hashtable]) {
+                    $Global:IRT_MessageTraceTable = [hashtable]::Synchronized(@{})
+                }
+                foreach ($Key in $Table.Keys) {
+                    $Global:IRT_MessageTraceTable[$Key] = $Table[$Key]
+                }
+                if ($Global:IRT_WaitFlags) {
+                    if ($AllUsers) { $Global:IRT_WaitFlags.MessageTraceAllUsersDone = $true }
+                    else           { $Global:IRT_WaitFlags.MessageTraceUserDone = $true }
+                }
+                Write-Host @Blue "${Function}: Exporting message trace to `$Global:IRT_MessageTraceTable ($($Global:IRT_MessageTraceTable.Count) entries, source: $(if ($AllUsers) {'AllUsers'} else {$UserName}))"
+                if ($Test) {
+                    Write-Host @Blue "${Function}: Table key count: $($Table.Count)"
                 }
             }
 

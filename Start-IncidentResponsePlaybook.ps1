@@ -96,19 +96,68 @@ function Start-IncidentResponsePlaybook {
 
         $WorkingPath = Get-Location
 
+        # ensure global caches exist before runspaces start so they all share the same reference
+        if ($Global:IRT_IpInfo -isnot [hashtable]) {
+            $Global:IRT_IpInfo = [hashtable]::Synchronized(@{})
+        }
+        if ($Global:IRT_MessageTraceTable -isnot [hashtable]) {
+            $Global:IRT_MessageTraceTable = [hashtable]::Synchronized(@{})
+        }
+        if ($Global:IRT_WaitFlags -isnot [hashtable]) {
+            $Global:IRT_WaitFlags = [hashtable]::Synchronized(@{
+                MessageTraceUserDone     = $false
+                MessageTraceAllUsersDone = $false
+            })
+        }
+
+        # pre-populate caches in main thread
+        Request-DirectoryRoles -Return 'none'
+        Request-DirectoryRoleTemplates -Return 'none'
+        Request-GraphGroups -Return 'none'
+        Request-GraphOauth2Grants -Return 'none'
+        Request-GraphUsers -Return 'none'
+        Request-GraphServicePrincipals -Return 'none'
+        $null = ConvertTo-HumanErrorDescription -ErrorCode 0  # trigger lazy-load of error table
+
+        # pack references for injection into child runspace globals
+        $SharedRefs = @{
+            IRT_IpInfo                     = $Global:IRT_IpInfo
+            IRT_MessageTraceTable          = $Global:IRT_MessageTraceTable
+            IRT_WaitFlags                  = $Global:IRT_WaitFlags
+            IRT_DirectoryRoles             = $Global:IRT_DirectoryRoles
+            IRT_DirectoryRolesById         = $Global:IRT_DirectoryRolesById
+            IRT_DirectoryRoleTemplates     = $Global:IRT_DirectoryRoleTemplates
+            IRT_DirectoryRoleTemplatesById = $Global:IRT_DirectoryRoleTemplatesById
+            IRT_Groups                     = $Global:IRT_Groups
+            IRT_GroupsById                 = $Global:IRT_GroupsById
+            IRT_Oauth2Grants               = $Global:IRT_Oauth2Grants
+            IRT_Oauth2GrantsByClientId     = $Global:IRT_Oauth2GrantsByClientId
+            IRT_Users                      = $Global:IRT_Users
+            IRT_UsersById                  = $Global:IRT_UsersById
+            IRT_ServicePrincipals          = $Global:IRT_ServicePrincipals
+            IRT_ServicePrincipalsByAppId   = $Global:IRT_ServicePrincipalsByAppId
+            IRT_ServicePrincipalsById      = $Global:IRT_ServicePrincipalsById
+            IRT_EntraErrorTable            = $Global:IRT_EntraErrorTable
+            IRT_Session                    = $Global:IRT_Session
+            IRT_UserObjects                = $ScriptUserObjects
+        }
+
         #region playbook steps
         $Steps = @(
 
             @{  Name   = 'Get-LicenseReport'
                 Script = {
                     param( 
-                        $WorkingPath
+                        $WorkingPath,
+                        $SharedRefs
                     )
+                    foreach ($k in $SharedRefs.Keys) { Set-Variable -Scope Global -Name $k -Value $SharedRefs[$k] }
                     Set-Location -Path $WorkingPath
                     Get-LicenseReport
                 }
                 Args  = @(
-                    $WorkingPath
+                    $WorkingPath,
+                    $SharedRefs
                 )
             }
 
@@ -116,14 +165,15 @@ function Start-IncidentResponsePlaybook {
                 Script = {
                     param( 
                         $WorkingPath,
-                        $RunspaceUserObjects
+                        $SharedRefs
                     )
+                    foreach ($k in $SharedRefs.Keys) { Set-Variable -Scope Global -Name $k -Value $SharedRefs[$k] }
                     Set-Location -Path $WorkingPath
-                    Show-UserInfo -UserObjects $RunspaceUserObjects 
+                    Show-UserInfo
                 }
                 Args  = @(
                     $WorkingPath,
-                    $ScriptUserObjects
+                    $SharedRefs
                 )
             }
 
@@ -131,14 +181,15 @@ function Start-IncidentResponsePlaybook {
                 Script = {
                     param( 
                         $WorkingPath,
-                        $RunspaceUserObjects
+                        $SharedRefs
                     )
+                    foreach ($k in $SharedRefs.Keys) { Set-Variable -Scope Global -Name $k -Value $SharedRefs[$k] }
                     Set-Location -Path $WorkingPath
-                    Get-UserApplications -UserObjects $RunspaceUserObjects 
+                    Get-UserApplications -Cached
                 }
                 Args  = @(
                     $WorkingPath,
-                    $ScriptUserObjects
+                    $SharedRefs
                 )
             }
 
@@ -146,14 +197,15 @@ function Start-IncidentResponsePlaybook {
                 Script = {
                     param( 
                         $WorkingPath,
-                        $RunspaceUserObjects
+                        $SharedRefs
                     )
+                    foreach ($k in $SharedRefs.Keys) { Set-Variable -Scope Global -Name $k -Value $SharedRefs[$k] }
                     Set-Location -Path $WorkingPath
-                    Show-Mailbox -UserObjects $RunspaceUserObjects 
+                    Show-Mailbox -Cached
                 }
                 Args  = @(
                     $WorkingPath,
-                    $ScriptUserObjects
+                    $SharedRefs
                 )
             }
 
@@ -161,27 +213,31 @@ function Start-IncidentResponsePlaybook {
                 Script = { 
                     param( 
                         $WorkingPath,
-                        $RunspaceUserObjects
+                        $SharedRefs
                     )
+                    foreach ($k in $SharedRefs.Keys) { Set-Variable -Scope Global -Name $k -Value $SharedRefs[$k] }
                     Set-Location -Path $WorkingPath
-                    Get-AdminRoles -Excel -Highlight $RunspaceUserObjects.UserPrincipalName
+                    Get-AdminRoles -Excel -Highlight $Global:IRT_UserObjects.UserPrincipalName -Cached
                 }
                 Args  = @(
                     $WorkingPath,
-                    $ScriptUserObjects
+                    $SharedRefs
                 )
             }
 
             @{  Name   = 'Find-RiskyApplications'
                 Script = { 
                     param( 
-                        $WorkingPath
+                        $WorkingPath,
+                        $SharedRefs
                     )
+                    foreach ($k in $SharedRefs.Keys) { Set-Variable -Scope Global -Name $k -Value $SharedRefs[$k] }
                     Set-Location -Path $WorkingPath
-                    Find-RiskyApplications
+                    Find-RiskyApplications -Cached
                 }
                 Args  = @(
-                    $WorkingPath
+                    $WorkingPath,
+                    $SharedRefs
                 )
             }
 
@@ -189,14 +245,15 @@ function Start-IncidentResponsePlaybook {
                 Script = { 
                     param( 
                         $WorkingPath,
-                        $RunspaceUserObjects
+                        $SharedRefs
                     )
+                    foreach ($k in $SharedRefs.Keys) { Set-Variable -Scope Global -Name $k -Value $SharedRefs[$k] }
                     Set-Location -Path $WorkingPath
-                    Show-UserMFA -UserObjects $RunspaceUserObjects
+                    Show-UserMFA
                 }
                 Args  = @(
                     $WorkingPath,
-                    $ScriptUserObjects
+                    $SharedRefs
                 )
             }
 
@@ -204,20 +261,18 @@ function Start-IncidentResponsePlaybook {
                 Script = { 
                     param( 
                         $WorkingPath,
-                        $Exchange,
-                        $RunspaceUserObjects
+                        $SharedRefs
                     )
-                    # set working path
+                    foreach ($k in $SharedRefs.Keys) { Set-Variable -Scope Global -Name $k -Value $SharedRefs[$k] }
                     Set-Location -Path $WorkingPath
-                    # connect to exchange
                     $ConnectParams = @{
-                        AccessToken = $Exchange.Token
-                        UserPrincipalName = $Exchange.UserPrincipalName
+                        AccessToken = $Global:IRT_Session.Exchange.Token
+                        UserPrincipalName = $Global:IRT_Session.Exchange.UserPrincipalName
                         ShowBanner = $false
                     }
                     Connect-ExchangeOnline @ConnectParams
                     $Params = @{
-                        UserObjects = $RunspaceUserObjects
+                        UserObjects = $Global:IRT_UserObjects
                         Days = 90
                         Quiet = $true
                     }
@@ -225,8 +280,7 @@ function Start-IncidentResponsePlaybook {
                 }
                 Args  = @(
                     $WorkingPath,
-                    $Global:IRT_Session.Exchange,
-                    $ScriptUserObjects
+                    $SharedRefs
                 )
             }
 
@@ -234,23 +288,21 @@ function Start-IncidentResponsePlaybook {
                 Script = { 
                     param( 
                         $WorkingPath,
-                        $Exchange,
-                        $RunspaceUserObjects
+                        $SharedRefs
                     )
-                    Set-Location -Path $WorkingPath
+                    foreach ($k in $SharedRefs.Keys) { Set-Variable -Scope Global -Name $k -Value $SharedRefs[$k] }
                     Set-Location -Path $WorkingPath
                     $ConnectParams = @{
-                        AccessToken = $Exchange.Token
-                        UserPrincipalName = $Exchange.UserPrincipalName
+                        AccessToken = $Global:IRT_Session.Exchange.Token
+                        UserPrincipalName = $Global:IRT_Session.Exchange.UserPrincipalName
                         ShowBanner = $false
                     }
                     Connect-ExchangeOnline @ConnectParams
-                    Get-IRTInboxRules -UserObjects $RunspaceUserObjects
+                    Get-IRTInboxRules
                 }
                 Args  = @(
                     $WorkingPath,
-                    $Global:IRT_Session.Exchange,
-                    $ScriptUserObjects
+                    $SharedRefs
                 )
             }
 
@@ -258,14 +310,15 @@ function Start-IncidentResponsePlaybook {
                 Script = { 
                     param( 
                         $WorkingPath,
-                        $RunspaceUserObjects
+                        $SharedRefs
                     )
+                    foreach ($k in $SharedRefs.Keys) { Set-Variable -Scope Global -Name $k -Value $SharedRefs[$k] }
                     Set-Location -Path $WorkingPath
-                    Get-EntraAuditLogs -UserObjects $RunspaceUserObjects
+                    Get-EntraAuditLogs -Cached
                 }
                 Args  = @(
                     $WorkingPath,
-                    $ScriptUserObjects
+                    $SharedRefs
                 )
             }
 
@@ -273,14 +326,15 @@ function Start-IncidentResponsePlaybook {
                 Script = { 
                     param( 
                         $WorkingPath,
-                        $RunspaceUserObjects
+                        $SharedRefs
                     )
+                    foreach ($k in $SharedRefs.Keys) { Set-Variable -Scope Global -Name $k -Value $SharedRefs[$k] }
                     Set-Location -Path $WorkingPath
-                    Get-SignInLogs -UserObjects $RunspaceUserObjects
+                    Get-SignInLogs
                 }
                 Args  = @(
                     $WorkingPath,
-                    $ScriptUserObjects
+                    $SharedRefs
                 )
             }
 
@@ -288,26 +342,26 @@ function Start-IncidentResponsePlaybook {
                 Script = {
                     param( 
                         $WorkingPath,
-                        $Exchange,
-                        $RunspaceUserObjects
+                        $SharedRefs
                     )
+                    foreach ($k in $SharedRefs.Keys) { Set-Variable -Scope Global -Name $k -Value $SharedRefs[$k] }
                     Set-Location -Path $WorkingPath
                     $ConnectParams = @{
-                        AccessToken = $Exchange.Token
-                        UserPrincipalName = $Exchange.UserPrincipalName
+                        AccessToken = $Global:IRT_Session.Exchange.Token
+                        UserPrincipalName = $Global:IRT_Session.Exchange.UserPrincipalName
                         ShowBanner = $false
                     }
                     Connect-ExchangeOnline @ConnectParams
                     $UAParams = @{
-                        UserObjects = $RunspaceUserObjects
+                        UserObjects = $Global:IRT_UserObjects
                         WaitOnMessageTrace = $true
+                        Cached = $true
                     }
                     Get-UALogs @UAParams
                 }
                 Args  = @(
                     $WorkingPath,
-                    $Global:IRT_Session.Exchange,
-                    $ScriptUserObjects
+                    $SharedRefs
                 )
             }
 
@@ -315,26 +369,27 @@ function Start-IncidentResponsePlaybook {
                 Script = {
                     param( 
                         $WorkingPath,
-                        $Exchange,
-                        $RunspaceUserObjects
+                        $SharedRefs
                     )
+                    foreach ($k in $SharedRefs.Keys) { Set-Variable -Scope Global -Name $k -Value $SharedRefs[$k] }
                     Set-Location -Path $WorkingPath
                     $ConnectParams = @{
-                        AccessToken = $Exchange.Token
-                        UserPrincipalName = $Exchange.UserPrincipalName
+                        AccessToken = $Global:IRT_Session.Exchange.Token
+                        UserPrincipalName = $Global:IRT_Session.Exchange.UserPrincipalName
                         ShowBanner = $false
                     }
                     Connect-ExchangeOnline @ConnectParams
                     $UAParams = @{
-                        UserObjects = $RunspaceUserObjects
+                        UserObjects = $Global:IRT_UserObjects
                         RiskyOperations = $true
+                        Days = 180
+                        Cached = $true
                     }
                     Get-UALogs @UAParams
                 }
                 Args  = @(
                     $WorkingPath,
-                    $Global:IRT_Session.Exchange,
-                    $ScriptUserObjects
+                    $SharedRefs
                 )
             }
 
@@ -342,26 +397,26 @@ function Start-IncidentResponsePlaybook {
                 Script = {
                     param( 
                         $WorkingPath,
-                        $Exchange,
-                        $RunspaceUserObjects
+                        $SharedRefs
                     )
+                    foreach ($k in $SharedRefs.Keys) { Set-Variable -Scope Global -Name $k -Value $SharedRefs[$k] }
                     Set-Location -Path $WorkingPath
                     $ConnectParams = @{
-                        AccessToken = $Exchange.Token
-                        UserPrincipalName = $Exchange.UserPrincipalName
+                        AccessToken = $Global:IRT_Session.Exchange.Token
+                        UserPrincipalName = $Global:IRT_Session.Exchange.UserPrincipalName
                         ShowBanner = $false
                     }
                     Connect-ExchangeOnline @ConnectParams
                     $UAParams = @{
-                        UserObjects = $RunspaceUserObjects
+                        UserObjects = $Global:IRT_UserObjects
                         SignInLogs = $true
+                        Cached = $true
                     }
                     Get-UALogs @UAParams
                 }
                 Args  = @(
                     $WorkingPath,
-                    $Global:IRT_Session.Exchange,
-                    $ScriptUserObjects
+                    $SharedRefs
                 )
             }
 
@@ -369,14 +424,15 @@ function Start-IncidentResponsePlaybook {
                 Script = {
                     param( 
                         $WorkingPath,
-                        $RunspaceUserObjects
+                        $SharedRefs
                     )
+                    foreach ($k in $SharedRefs.Keys) { Set-Variable -Scope Global -Name $k -Value $SharedRefs[$k] }
                     Set-Location -Path $WorkingPath
-                    Get-NonInteractiveLogs -UserObjects $RunspaceUserObjects
+                    Get-NonInteractiveLogs
                 }
                 Args  = @(
                     $WorkingPath,
-                    $ScriptUserObjects
+                    $SharedRefs
                 )
             }
 
@@ -384,14 +440,13 @@ function Start-IncidentResponsePlaybook {
                 Script = {
                     param( 
                         $WorkingPath,
-                        $Exchange
+                        $SharedRefs
                     )
-                    # set path
+                    foreach ($k in $SharedRefs.Keys) { Set-Variable -Scope Global -Name $k -Value $SharedRefs[$k] }
                     Set-Location -Path $WorkingPath
-                    # connect to exchange
                     $ConnectParams = @{
-                        AccessToken = $Exchange.Token
-                        UserPrincipalName = $Exchange.UserPrincipalName
+                        AccessToken = $Global:IRT_Session.Exchange.Token
+                        UserPrincipalName = $Global:IRT_Session.Exchange.UserPrincipalName
                         ShowBanner = $false
                     }
                     Connect-ExchangeOnline @ConnectParams
@@ -404,12 +459,13 @@ function Start-IncidentResponsePlaybook {
                 } 
                 Args  = @(
                     $WorkingPath,
-                    $Global:IRT_Session.Exchange
+                    $SharedRefs
                 )
             }
         )
 
         #region open runspaces
+
         try {
 
             $Global:IRT_Playbook_JobList = @()
@@ -419,7 +475,7 @@ function Start-IncidentResponsePlaybook {
             $InitialSessionState = [System.Management.Automation.Runspaces.InitialSessionState]::CreateDefault()
                 $InitialSessionState.ImportPSModule(
                     'ExchangeOnlineManagement',
-                    'IncidentResponseTools',
+                    'M365IncidentResponseTools',
                     'Microsoft.Graph.Authentication',
                     'Microsoft.Graph.Applications',
                     'Microsoft.Graph.Beta.Reports',

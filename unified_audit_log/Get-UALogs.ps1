@@ -42,7 +42,8 @@ function Get-UALogs {
         [boolean] $Excel = $true,
         [switch] $Test,
         [boolean] $WaitOnMessageTrace = $false,
-        [boolean] $Xml = $true
+        [boolean] $Xml = $false,
+        [switch] $Cached
     )
 
     begin {
@@ -572,6 +573,7 @@ function Get-UALogs {
                     $Params = @{
                         Logs = $Logs
                         WaitOnMessageTrace = $WaitOnMessageTrace
+                        Cached = $Cached
                     }
                     & $ActiveProfile.ShowFunction @Params
                 }

@@ -80,14 +80,29 @@ function Find-GraphDirectoryObjects {
 
             switch ( $ObjectType ) {
                 'microsoft.graph.user' {
-                    $Object = Get-MgUser -UserId $Guid
+                    $Object = if ( $Global:IRT_UsersById -and $Global:IRT_UsersById.ContainsKey($Guid) ) {
+                        $Global:IRT_UsersById[$Guid]
+                    } else {
+                        Get-MgUser -UserId $Guid
+                    }
                     $Object | Format-Table
                 }
                 'microsoft.graph.group' {
-                    $Object = Get-MgGroup -GroupId $Guid
+                    $Object = if ( $Global:IRT_GroupsById -and $Global:IRT_GroupsById.ContainsKey($Guid) ) {
+                        $Global:IRT_GroupsById[$Guid]
+                    } else {
+                        Get-MgGroup -GroupId $Guid
+                    }
                     $Object | Format-Table
                 }
-                # microsoft.graph.serviceprincipal?
+                'microsoft.graph.servicePrincipal' {
+                    $Object = if ( $Global:IRT_ServicePrincipalsById -and $Global:IRT_ServicePrincipalsById.ContainsKey($Guid) ) {
+                        $Global:IRT_ServicePrincipalsById[$Guid]
+                    } else {
+                        Get-MgServicePrincipal -ServicePrincipalId $Guid
+                    }
+                    $Object | Format-Table
+                }
             }
         }
     }

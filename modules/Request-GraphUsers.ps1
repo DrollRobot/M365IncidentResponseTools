@@ -1,13 +1,18 @@
 function Request-GraphUsers {
     <#
 	.SYNOPSIS
-    Gets user information from local file, or from graph if local file doesn't exist
+    Requests users from Microsoft Graph. Caches in global variable.
 	
 	.NOTES
-	Version: 1.0.0
+	Version: 2.0.0
 	#>
     [CmdletBinding()]
     param (
+        [switch] $Cached,
+        [switch] $Test,
+        [boolean] $Xml = $false,
+        [ValidateSet('objects','tablebyid','none')]
+        [string] $Return = 'objects'
     )
 
     begin {
@@ -27,28 +32,54 @@ function Request-GraphUsers {
             'ProxyAddresses'
             'UserPrincipalName'
         )
-
-        # get client domain name
-        $DefaultDomain = Get-MgDomain | Where-Object { $_.IsDefault -eq $true }
-        $DomainName = $DefaultDomain.Id -split '\.' | Select-Object -First 1
     }
 
     process {
 
-        # get files in current directory that match pattern
-        $FilterString = "Users_Raw_${DomainName}_*.xml"
-        $Files = Get-ChildItem -Filter $FilterString
-        if ( $Files ) {
-            $File = $Files | Sort-Object 'LastWriteTime' -Descending | Select-Object -First 1
-            $Users = Import-CliXml -Path $File.FullName
-        }
-        else {
-            $Users = Get-MgUser -All -Property $GetProperties | Select-Object $GetProperties
-            $FileName = "Users_Raw_${DomainName}_${FileNameDate}.xml"
-            $XmlOutputPath = Join-Path -Path $CurrentPath -ChildPath $FileName
-            $Users | Export-Clixml -Depth 5 -Path $XmlOutputPath
+        # return cached data if available
+        if ( $Cached ) {
+            $Variable = Get-Variable -Scope Global -Name 'IRT_Users' -ErrorAction SilentlyContinue
+            if ( $Variable ) {
+                switch ( $Return ) {
+                    'objects'   { return $Global:IRT_Users }
+                    'tablebyid' { return $Global:IRT_UsersById }
+                    'none'      { return }
+                }
+            }
         }
 
-        return $Users
+        # get client domain name
+        $DefaultDomain = Get-MgDomain | Where-Object { $_.IsDefault -eq $true }
+        $DomainName = $DefaultDomain.Id -split '\.' | Select-Object -First 1
+
+        # query graph
+        $Objects = Get-MgUser -All -Property $GetProperties | Select-Object $GetProperties
+
+        # store in global variables
+        $Global:IRT_Users = $Objects
+        $Global:IRT_UsersById = @{}
+        foreach ( $o in $Objects ) {
+            if ( $o.Id ) { $Global:IRT_UsersById[$o.Id] = $o }
+        }
+
+        # export to file
+        if ($Xml) {
+            $FileName = "Users_Raw_${DomainName}_${FileNameDate}.xml"
+            $XmlOutputPath = Join-Path -Path $CurrentPath -ChildPath $FileName
+            if ( $Test ) {
+                $ExportTime = Measure-Command { $Objects | Export-Clixml -Depth 5 -Path $XmlOutputPath }
+                Write-Host "Export-Clixml took $( $ExportTime.TotalSeconds ) seconds" -ForegroundColor Cyan
+            }
+            else {
+                $Objects | Export-Clixml -Depth 5 -Path $XmlOutputPath
+            }
+        }
+
+        # return
+        switch ( $Return ) {
+            'objects'   { return $Global:IRT_Users }
+            'tablebyid' { return $Global:IRT_UsersById }
+            'none'      { return }
+        }
     }
 }

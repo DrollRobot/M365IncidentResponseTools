@@ -9,7 +9,9 @@ function Resolve-SharePointPIMRoleAssigned {
     [CmdletBinding()]
     param (
         [Parameter(Mandatory)]
-        [psobject] $Log
+        [psobject] $Log,
+
+        [switch] $Cached
     )
 
     begin {
@@ -17,7 +19,7 @@ function Resolve-SharePointPIMRoleAssigned {
         # variables
         $SummaryLines = [System.Collections.Generic.List[string]]::new()
 
-        $Users = Request-GraphUsers
+        $Users = Request-GraphUsers -Cached:$Cached
     }
 
     process {
