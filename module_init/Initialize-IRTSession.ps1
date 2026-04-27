@@ -18,9 +18,14 @@ if ($env:TERM_PROGRAM -ne 'vscode') {
         $GraphCtx = Get-MgContext -ErrorAction SilentlyContinue
         $graphDomain = if ($GraphCtx -and $GraphCtx.Account) { ($GraphCtx.Account -split '@')[-1] } else { 'none' }
 
-        $ExoConn = Get-ConnectionInformation -ErrorAction SilentlyContinue |
-            Where-Object { $_.State -eq 'Connected' } | Select-Object -First 1
+        $AllExoConns = Get-ConnectionInformation -ErrorAction SilentlyContinue |
+            Where-Object { $_.State -eq 'Connected' }
+        $ExoConn = $AllExoConns |
+            Where-Object { $_.ConnectionUri -notmatch 'compliance\.protection\.(outlook\.com|office365\.us)' } |
+            Select-Object -First 1
         $exoDomain = if ($ExoConn -and $ExoConn.UserPrincipalName) { ($ExoConn.UserPrincipalName -split '@')[-1] } else { 'none' }
+        $ippsConnected = [bool]($AllExoConns |
+            Where-Object { $_.ConnectionUri -match 'compliance\.protection\.(outlook\.com|office365\.us)' })
 
         Write-Host ''
         Write-Host '[IRT] ' -NoNewline -ForegroundColor Cyan
@@ -28,6 +33,8 @@ if ($env:TERM_PROGRAM -ne 'vscode') {
         Write-Host $graphDomain -NoNewline
         Write-Host ' Exchange:' -NoNewline -ForegroundColor Cyan
         Write-Host $exoDomain -NoNewline
+        Write-Host ' IPPS:' -NoNewline -ForegroundColor Cyan
+        Write-Host $ippsConnected -NoNewline
 
         if ($Global:IRT_UserObjects) {
             $userList = ($Global:IRT_UserObjects.UserPrincipalName) -join ','

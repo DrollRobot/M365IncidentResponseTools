@@ -23,7 +23,7 @@ function Get-SignInLogs {
         [switch] $AllUsers,
 
         [Parameter(ParameterSetName='IpAddresses')]
-        [string[]] $IpAddresses, # FIXME works, but need to fix metadata. no username means incorrect title in spreadsheet
+        [string[]] $IpAddresses,
 
         # relative date range
         [int] $Days, # default value set at #DEFAULTDAYS
@@ -32,7 +32,6 @@ function Get-SignInLogs {
         [string] $End,
 
         [switch] $NonInteractive,
-        [switch] $DeviceCode, # FIXME not working? might relate to api bug? 
 
         [boolean] $Beta = $true,
         [boolean] $Excel = $true,
@@ -182,12 +181,11 @@ function Get-SignInLogs {
             # set default value for days ### must be done after checking for relative/absolute arguments
             if (-not $Days -and $NonInteractive) {
                 $Days = 3 # DEFAULTDAYS default value for non interactive
-                # FIXME API bug with filters may be fixed? Going to try 3 days
-                # FIXME defaulting to 30 days because of api bug related to filters
+                # API bug with filters may be fixed?
                 # https://github.com/microsoftgraph/msgraph-sdk-powershell/issues/3146#issuecomment-2752675332
             }
             elseif (-not $Days) {
-                $Days = 30 # DEFAULTDAYSdefault value for interactive
+                $Days = 30 # DEFAULTDAYS default value for interactive
             }
 
             $StartDateUtc = (Get-Date).AddDays($Days * -1).ToUniversalTime()
@@ -206,20 +204,20 @@ function Get-SignInLogs {
             # users
             switch ( $ParameterSet ) {
                 'UserObjects' {
-                    $UserEmail = $ScriptUserObject.UserPrincipalName
-                    $UserName = $UserEmail -split '@' | Select-Object -First 1
+                    $Target = $ScriptUserObject.UserPrincipalName -split '@' | Select-Object -First 1
                     $FilterStrings.Add( "UserId eq '$($ScriptUserObject.Id)'" )
                 }
                 'IpAddresses' {
+                    $Target = $ScriptUserObject.UserPrincipalName
                     $FilterStrings.Add( "ipAddress eq '$($ScriptUserObject.UserPrincipalName)'" )
                 }
                 'AllUsers' {
-                    $UserName = 'AllUsers'
+                    $Target = $DomainName
                     # don't add a user filter
                 }
             }
 
-            # build file names # must be after username is set
+            # build file names # must be after target is set
             if ( $NonInteractive ) {
                 $FileNamePrefix = 'NonInteractiveLogs'
             }
@@ -228,12 +226,15 @@ function Get-SignInLogs {
             }
             $FileNameDateFormat = "yy-MM-dd_HH-mm"
             $FileNameDateString = Get-Date -Format $FileNameDateFormat
-            $XmlOutputPath = "${FileNamePrefix}_${Days}Days_${DomainName}_${UserName}_${FileNameDateString}.xml"
+            $FileNameBase = "${FileNamePrefix}_${Days}Days_${DomainName}_${Target}_${FileNameDateString}"
+            $XmlOutputPath = "${FileNameBase}.xml"
 
-            # device code
-            if ( $DeviceCode ) {
-                $FilterStrings.Add( "AuthenticationProtocol eq 'devicecode'" )
-            }
+            # build spreadsheet title
+            $TitleDateFormat = "M/d/yy h:mmtt"
+            $TitleStartDate = $StartDateUtc.ToLocalTime().ToString($TitleDateFormat)
+            $TitleEndDate = $EndDateUtc.ToLocalTime().ToString($TitleDateFormat)
+            $TitleType = if ($FileNamePrefix -eq 'NonInteractiveLogs') { 'Non-Interactive' } else { 'Interactive' }
+            $SheetTitle = "${TitleType} sign-in logs for ${Target}. Covers ${Days} days, ${TitleStartDate} to ${TitleEndDate}."
 
             # time range
             if ($DateRangeType -eq 'Relative') {
@@ -245,7 +246,7 @@ function Get-SignInLogs {
             elseif ($DateRangeType -eq 'Absolute') {
                 $StartDateString = $StartDateUtc.ToString( "yyyy-MM-ddTHH:mm:ssZ" )
                 $FilterStrings.Add( "createdDateTime ge ${StartDateString}" )
-                $EndDateString = $EndtDateUtc.ToString( "yyyy-MM-ddTHH:mm:ssZ" )
+                $EndDateString = $EndDateUtc.ToString( "yyyy-MM-ddTHH:mm:ssZ" )
                 $FilterStrings.Add( "createdDateTime le ${EndDateString}" )
             }
 
@@ -258,10 +259,10 @@ function Get-SignInLogs {
             #region QUERY LOGS
             # user messages
             if ( $NonInteractive ) {
-                Write-Host @Blue "`nRetrieving ${Days} days of noninteractive sign-in logs for ${UserName}." | Out-Host
+                Write-Host @Blue "`nRetrieving ${Days} days of noninteractive sign-in logs for ${Target}." | Out-Host
             }
             else {
-                Write-Host @Blue "`nRetrieving ${Days} days of sign-in logs for ${UserName}." | Out-Host
+                Write-Host @Blue "`nRetrieving ${Days} days of sign-in logs for ${Target}." | Out-Host
             }
             if ($Script:Test) {
                 Write-Host @Yellow "${Function}: Filter string: '${FilterString}'" | Out-Host
@@ -327,7 +328,7 @@ function Get-SignInLogs {
             }
 
             if (($Logs | Measure-Object).Count -eq 0 ) {
-                Write-Host @Red "${Function}: No logs found for ${UserEmail} for past ${Days} days. Exiting." | Out-Host
+                Write-Host @Red "${Function}: No logs found for ${Target} for past ${Days} days. Exiting." | Out-Host
                 continue
             }
 
@@ -336,13 +337,13 @@ function Get-SignInLogs {
                 [pscustomobject]@{
                     Metadata = $true
                     UserObject = $ScriptUserObject
-                    UserEmail = $UserEmail
-                    UserName = $UserName
                     StartDate = $StartDateUtc.ToLocalTime()
                     EndDate = $EndDateUtc.ToLocalTime()
                     Days = $Days
                     DomainName = $DomainName
                     FileNamePrefix = $FileNamePrefix
+                    FileName = $FileNameBase
+                    Title = $SheetTitle
                 }
             )
 

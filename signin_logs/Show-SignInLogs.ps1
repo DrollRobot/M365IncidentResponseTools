@@ -79,39 +79,16 @@ function Show-SignInLogs {
             # remove metadata from beginning of list
             $Metadata = $Logs[0]
             $Logs.RemoveAt(0)
-
-            # $UserEmail = $Metadata.UserEmail
-            $UserName = $Metadata.UserName
-            $StartDate = $Metadata.StartDate
-            $EndDate = $Metadata.EndDate
-            $Days = $Metadata.Days
-            $DomainName = $Metadata.DomainName
-            $FileNamePrefix = $Metadata.FileNamePrefix
         }
         else {
             Write-Host @Red "${Function}: No Metadata found."
         }
 
         # build file name
-        $FileNameDateFormat = "yy-MM-dd_HH-mm"
-        $FileDateString = $EndDate.ToLocalTime().ToString($FileNameDateFormat)
-        $ExcelOutputPath =  "${FileNamePrefix}_${Days}Days_${UserName}_${FileDateString}.xlsx"
+        $ExcelOutputPath = $Metadata.FileName + ".xlsx"
 
-        # build worksheet title
-        $TitleDateFormat = "M/d/yy h:mmtt"
-        $TitleEndDate = $EndDate.ToLocalTime().ToString($TitleDateFormat)
-        $TitleStartDate = $StartDate.ToLocalTime().ToString($TitleDateFormat)
-        # if allusers, use domain as username
-        if ( $UserName -eq 'AllUsers' ) {
-            $UserName = $DomainName
-        }
-        # build title
-        if ( $FileNamePrefix -eq 'SignInLogs' ) {
-            $WorksheetTitle = "Interactive sign-in logs for ${UserName}. Covers ${Days} days, ${TitleStartDate} to ${TitleEndDate}."
-        }
-        elseif ( $FileNamePrefix -eq 'NonInteractiveLogs' ) {
-            $WorksheetTitle = "Non-Interactive sign-in logs for ${UserName}. Covers ${Days} days, ${TitleStartDate} to ${TitleEndDate}."
-        }
+        # get worksheet title from metadata
+        $WorksheetTitle = $Metadata.Title
 
         # ipinfo
         if ($IpInfo) {
@@ -289,7 +266,7 @@ function Show-SignInLogs {
 
         $ExcelParams = @{
             Path          = $ExcelOutputPath
-            WorkSheetname = $FileNamePrefix
+            WorkSheetname = $Metadata.FileNamePrefix
             Title         = $WorksheetTitle
             TableStyle    = $TableStyle
             # AutoSize      = $true # apparently very slow?
@@ -325,6 +302,7 @@ function Show-SignInLogs {
         $EndColumn = $WorkSheet.Dimension.End.Column | Convert-DecimalToExcelColumn
         $EndRow = $WorkSheet.Dimension.End.Row
 
+        $IpAddressColumn = ($Worksheet.Tables[0].Columns | Where-Object {$_.Name -eq 'IpAddress'}).Id | Convert-DecimalToExcelColumn
         $ApplicationColumn = ($Worksheet.Tables[0].Columns | Where-Object {$_.Name -eq 'Application'}).Id | Convert-DecimalToExcelColumn
         $UserAgentColumn = ($Worksheet.Tables[0].Columns | Where-Object {$_.Name -eq 'UserAgent'}).Id | Convert-DecimalToExcelColumn
 
@@ -369,50 +347,27 @@ function Show-SignInLogs {
 
         #region COLUMN WIDTH
 
-        $Column = ( $Worksheet.Tables[0].Columns | Where-Object { $_.Name -eq 'Raw' } ).Id 
-        $Worksheet.Column($Column).Width = 8
-
-        $Column = ( $Worksheet.Tables[0].Columns | Where-Object { $_.Name -eq $DateColumnHeader } ).Id
-        $Worksheet.Column($Column).Width = 26
-
-        $Column = ( $Worksheet.Tables[0].Columns | Where-Object { $_.Name -eq 'UserPrincipalName' } ).Id 
-        $Worksheet.Column($Column).Width = 30
-
-        $Column = ( $Worksheet.Tables[0].Columns | Where-Object { $_.Name -eq 'Error' } ).Id 
-        $Worksheet.Column($Column).Width = 25
-        
-        $Column = ( $Worksheet.Tables[0].Columns | Where-Object { $_.Name -eq 'IpAddress' } ).Id
-        $Worksheet.Column($Column).Width = 20
-
-        $Column = ( $Worksheet.Tables[0].Columns | Where-Object { $_.Name -eq 'City' } ).Id
-        $Worksheet.Column($Column).Width = 10
-
-        $Column = ( $Worksheet.Tables[0].Columns | Where-Object { $_.Name -eq 'State' } ).Id
-        $Worksheet.Column($Column).Width = 10
-
-        $Column = ( $Worksheet.Tables[0].Columns | Where-Object { $_.Name -eq 'Co' } ).Id
-        $Worksheet.Column($Column).Width = 6
-
-        $Column = ( $Worksheet.Tables[0].Columns | Where-Object { $_.Name -eq 'Application' } ).Id
-        $Worksheet.Column($Column).Width = 25
-
-        $Column = ( $Worksheet.Tables[0].Columns | Where-Object { $_.Name -eq 'Browser' } ).Id
-        $Worksheet.Column($Column).Width = 20
-
-        $Column = ( $Worksheet.Tables[0].Columns | Where-Object { $_.Name -eq 'OS' } ).Id
-        $Worksheet.Column($Column).Width = 12
-
-        $Column = ( $Worksheet.Tables[0].Columns | Where-Object { $_.Name -eq 'Trust' } ).Id
-        $Worksheet.Column($Column).Width = 12
-
-        $Column = ( $Worksheet.Tables[0].Columns | Where-Object { $_.Name -eq 'UserAgent' } ).Id
-        $Worksheet.Column($Column).Width = 150
-
-        $Column = ( $Worksheet.Tables[0].Columns | Where-Object { $_.Name -eq 'Session' } ).Id
-        $Worksheet.Column($Column).Width = 10
-
-        $Column = ( $Worksheet.Tables[0].Columns | Where-Object { $_.Name -eq 'Token' } ).Id
-        $Worksheet.Column($Column).Width = 10
+        $ColumnWidths = @{
+            'Raw'               = 8
+            $DateColumnHeader   = 26
+            'UserPrincipalName' = 30
+            'Error'             = 25
+            'IpAddress'         = 20
+            'City'              = 10
+            'State'             = 10
+            'Co'                = 6
+            'Application'       = 25
+            'Browser'           = 20
+            'OS'                = 12
+            'Trust'             = 12
+            'UserAgent'         = 150
+            'Session'           = 10
+            'Token'             = 10
+        }
+        foreach ($ColName in $ColumnWidths.Keys) {
+            $Col = ($Worksheet.Tables[0].Columns | Where-Object { $_.Name -eq $ColName }).Id
+            if ($Col) { $Worksheet.Column($Col).Width = $ColumnWidths[$ColName] }
+        }
 
         #region FORMATTING
 

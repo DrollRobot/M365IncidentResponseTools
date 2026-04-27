@@ -31,7 +31,7 @@ function Grant-MailboxFullAccess {
         $Blue = @{ ForegroundColor = 'Blue' }
         # $Cyan = @{ ForegroundColor = 'Cyan' }
         # $Green = @{ ForegroundColor = 'Green' }
-        # $Red = @{ ForegroundColor = 'Red' }
+        $Red = @{ ForegroundColor = 'Red' }
         # $Magenta = @{ ForegroundColor = 'Magenta' }
 
         # if users passed via script argument:
@@ -141,6 +141,14 @@ function Grant-MailboxFullAccess {
         foreach ( $ScriptUserObject in $ScriptUserObjects ) {
 
             $UserEmail = $ScriptUserObject.UserPrincipalName
+
+            # verify user has mailbox
+            try { $Mailbox = Get-EXOMailbox -UserPrincipalName $UserEmail -ErrorAction Stop }
+            catch { $Mailbox = $null }
+            if (-not $Mailbox) {
+                Write-Host @Red "${Function}: No mailbox for ${UserEmail}"
+                continue
+            }
 
             if ($Remove) {
                 # remove access

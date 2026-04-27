@@ -10,9 +10,7 @@ function Connect-IRTGraph {
     Connect to a GCC High tenant environment.
 
     .PARAMETER DeviceCode
-    Use device code authentication flow. An access token is acquired using
-    the Microsoft.Identity.Client assembly (loaded by Microsoft.Graph.Authentication)
-    and returned for storage by the caller.
+    Use device code authentication flow.
 
     .PARAMETER AdditionalScopes
     Additional Graph scopes to request beyond the default set.
@@ -24,11 +22,11 @@ function Connect-IRTGraph {
     Open the browser in private/incognito mode.
 
     .NOTES
-    Version: 2.0.0
+    Version: 3.0.0
     #>
     [CmdletBinding()]
     param (
-        [Parameter( Mandatory )]
+        [Parameter(Mandatory)]
         [string] $TenantId,
         [switch] $GCCHigh,
         [switch] $DeviceCode,
@@ -41,7 +39,8 @@ function Connect-IRTGraph {
         [switch] $Force
     )
 
-    process {
+    begin {
+        $Yellow = @{ ForegroundColor = 'Yellow' }
 
         $DefaultScopes = @(
             'Application.ReadWrite.All'
@@ -83,183 +82,345 @@ function Connect-IRTGraph {
             'UserAuthenticationMethod.ReadWrite.All'
             'UserAuthMethod-Passkey.ReadWrite.All'
         )
-
-        $Scopes = $DefaultScopes
-        if ( $AdditionalScopes ) {
-            $Scopes = $DefaultScopes + $AdditionalScopes | Select-Object -Unique
-        }
-
-        # Check if already connected to the right tenant with all required scopes and a valid token
-        $ExistingContext = Get-MgContext -ErrorAction SilentlyContinue
-        if ( -not $Force -and $ExistingContext -and $ExistingContext.TenantId -eq $TenantId ) {
-            $MissingScopes = $Scopes | Where-Object { $ExistingContext.Scopes -notcontains $_ }
-            if ( -not $MissingScopes ) {
-                if ( $Global:IRT_Session -and $Global:IRT_Session.Graph -and $Global:IRT_Session.TenantId -eq $TenantId ) {
-                    if ( -not (Test-TokenExpired -Token $Global:IRT_Session.Graph.Token) ) {
-                        Write-Host "Already connected to Microsoft Graph for tenant $TenantId." -ForegroundColor Yellow
-                        return $Global:IRT_Session.Graph
-                    }
-                    Write-Verbose 'Graph token expired, re-authenticating.'
-                    $Global:IRT_Session.Graph = $null
-                    Disconnect-MgGraph -ErrorAction SilentlyContinue | Out-Null
-                }
-            } else {
-                Write-Verbose "Graph session missing scopes, re-authenticating: $($MissingScopes -join ', ')"
-            }
-        } elseif ( $Force -and $Global:IRT_Session -and $Global:IRT_Session.Graph -and $Global:IRT_Session.TenantId -eq $TenantId ) {
-            Write-Verbose '-Force specified, re-acquiring Graph token.'
-            $Global:IRT_Session.Graph = $null
-            Disconnect-MgGraph -ErrorAction SilentlyContinue | Out-Null
+        $Scopes = if ($AdditionalScopes) {
+            $DefaultScopes + $AdditionalScopes | Select-Object -Unique
+        } else {
+            $DefaultScopes
         }
 
         $GraphBaseUrl = 'https://graph.microsoft.com'
         $Authority    = "https://login.microsoftonline.com/$TenantId"
-        if ( $GCCHigh ) {
+        if ($GCCHigh) {
             $GraphBaseUrl = 'https://graph.microsoft.us'
             $Authority    = "https://login.microsoftonline.us/$TenantId"
         }
+    }
 
-        # Ensure the MSAL assembly is loaded from Microsoft.Graph.Authentication.
+    process {
+
+        # ---------- Setup: MSAL app, token-acquisition helper ----------
+
         $GraphModule = Get-Module Microsoft.Graph.Authentication -ErrorAction SilentlyContinue
-        if ( -not $GraphModule ) {
+        if (-not $GraphModule) {
             throw 'Microsoft.Graph.Authentication must be imported before connecting to Graph.'
         }
         $MsalDll = Join-Path $GraphModule.ModuleBase 'Dependencies' 'Core' 'Microsoft.Identity.Client.dll'
-
-        if ( -not ([System.AppDomain]::CurrentDomain.GetAssemblies() |
-            Where-Object { $_.FullName -like 'Microsoft.Identity.Client,*' }) ) {
+        if (-not ([System.AppDomain]::CurrentDomain.GetAssemblies() |
+            Where-Object { $_.FullName -like 'Microsoft.Identity.Client,*' })) {
             Add-Type -Path $MsalDll
         }
 
-        # Microsoft Graph Command Line Tools — Microsoft first-party app pre-consented for
-        # Graph delegated permissions. No app registration needed.
-        $GraphClientId = '14d82eec-204b-4c2f-b7e8-296a70dab67e'
+        $GraphClientId = '14d82eec-204b-4c2f-b7e8-296a70dab67e'  # Microsoft Graph CLI Tools
+        $MsalScopes    = [string[]]($Scopes | ForEach-Object { "$GraphBaseUrl/$_" })
 
-        # MSAL requires fully-qualified scope URIs for Graph delegated permissions
-        $MsalScopes = [string[]]($Scopes | ForEach-Object {"$GraphBaseUrl/$_"})
-
-        # Reuse the cached MSAL app instance to preserve its token cache (which holds the refresh token)
-        if ( $Global:IRT_Session -and $Global:IRT_Session.Graph -and $Global:IRT_Session.Graph.PublicClientApplication -and $Global:IRT_Session.TenantId -eq $TenantId ) {
-            $App = $Global:IRT_Session.Graph.PublicClientApplication
+        # Reuse the cached MSAL app instance to preserve its token cache (refresh token).
+        $App = if ($Global:IRT_Session -and
+                   $Global:IRT_Session.Graph -and
+                   $Global:IRT_Session.Graph.PublicClientApplication -and
+                   $Global:IRT_Session.TenantId -eq $TenantId
+        ) {
+            $Global:IRT_Session.Graph.PublicClientApplication
         } else {
-            $App = [Microsoft.Identity.Client.PublicClientApplicationBuilder]::Create($GraphClientId).
+            [Microsoft.Identity.Client.PublicClientApplicationBuilder]::Create($GraphClientId).
                 WithAuthority($Authority).
                 WithRedirectUri('http://localhost').
                 Build()
         }
 
-        # Try silent refresh first using MSAL's cached refresh token before prompting the user
-        $TokenResult = $null
-        $CachedAccounts = $App.GetAccountsAsync().GetAwaiter().GetResult()
-        if ($CachedAccounts) {
-            $CachedAccount = $CachedAccounts | Select-Object -First 1
-            try {
-                $TokenResult = $App.AcquireTokenSilent($MsalScopes, $CachedAccount).ExecuteAsync().GetAwaiter().GetResult()
-                Write-Verbose 'Graph token silently refreshed.'
-            } catch {
-                Write-Verbose "Silent Graph token refresh failed, falling back to interactive: $_"
-                $TokenResult = $null
-            }
-        }
-
-        # Request admin consent so scopes are granted tenant-wide rather than per-user.
-        # 'consent' (not 'admin_consent') is the valid prompt value for the /authorize endpoint.
-        # When the signing-in user is a Global Admin, Entra shows the
-        # "Consent on behalf of your organization" checkbox.
-        $AdminConsentParams = [System.Collections.Generic.Dictionary[string,string]]::new()
-        $AdminConsentParams['prompt'] = 'consent'
-
-        if ($TokenResult) {
-            # Token acquired via silent refresh — no additional steps needed
-        } elseif ($DeviceCode) {
-            # PS-based delegates still require a runspace and will silently fail when
-            # MSAL calls them on a .NET thread pool thread.  Compile a tiny C# helper
-            # whose Callback is a pure .NET lambda so it can run on any thread.
-            # We use Func<object,Task> (no MSAL reference) so we can skip
-            # -ReferencedAssemblies and keep the default BCL refs. Contravariance
-            # on Func<in T, out TResult> lets Func<object,Task> satisfy
-            # MSAL's Func<DeviceCodeResult,Task> parameter.
-            if (-not ([System.Management.Automation.PSTypeName]'IRT.DeviceCodeHelper').Type) {
-                Add-Type -TypeDefinition @'
-using System;
-using System.Threading;
-using System.Threading.Tasks;
-namespace IRT {
-    public sealed class DeviceCodeHelper {
-        private object _result;
-        private readonly SemaphoreSlim _signal = new SemaphoreSlim(0, 1);
-        public Func<object, Task> Callback { get; }
-        public DeviceCodeHelper() {
-            Callback = result => { _result = result; _signal.Release(); return Task.CompletedTask; };
-        }
-        public object WaitForResult(int timeoutMs) {
-            return _signal.Wait(timeoutMs) ? _result : null;
-        }
-    }
-}
-'@
+        # Inline helper — closes over $App, $MsalScopes, $DeviceCode, $Browser, $Private.
+        # Tries silent refresh first, then interactive or device code.
+        # -RequireConsent skips the silent path and forces a consent prompt.
+        $AcquireToken = {
+            param(
+                [switch] $RequireConsent,
+                $Account
+            )
+            if (-not $RequireConsent) {
+                $Cached = $App.GetAccountsAsync().GetAwaiter().GetResult()
+                if ($Cached) {
+                    try {
+                        return $App.AcquireTokenSilent($MsalScopes, ($Cached | Select-Object -First 1)).
+                            ExecuteAsync().GetAwaiter().GetResult()
+                    } catch {
+                        Write-Verbose "Silent Graph token refresh failed: $_"
+                    }
+                }
             }
 
-            $Helper    = [IRT.DeviceCodeHelper]::new()
-            $TokenTask = $App.AcquireTokenWithDeviceCode($MsalScopes, $Helper.Callback).WithExtraQueryParameters($AdminConsentParams).ExecuteAsync()
-
-            # Block the PS thread until MSAL fires the device-code callback.
-            $CodeResult = $Helper.WaitForResult(30000)
-            if ($null -eq $CodeResult) {
-                throw 'Timed out waiting for device code response from MSAL.'
-            }
-
-            # All PS work happens here on the main runspace thread.
-            if ($CodeResult.Message -match 'enter the code\s+(\S+)') {
-                $Matches[1] | Set-Clipboard
-                Write-Host "Device code '$($Matches[1])' copied to clipboard." -ForegroundColor Green
-                Open-Browser -Browser $Browser -Url $CodeResult.VerificationUrl -Private:$Private
-            } else {
-                Write-Host $CodeResult.Message
+            if ($DeviceCode) {
+                $Extra = if ($RequireConsent) { @{ prompt = 'consent' } } else { $null }
+                return Invoke-IRTDeviceCodeAuth -App $App -Scopes $MsalScopes `
+                    -ExtraQueryParameters $Extra -Browser $Browser -Private:$Private
             }
 
             try {
-                $TokenResult = $TokenTask.GetAwaiter().GetResult()
-            } catch {
-                throw "Device code token acquisition failed: $_"
-            }
-        } else {
-            try {
-                $AcquireBuilder = $App.AcquireTokenInteractive($MsalScopes).
-                    WithPrompt([Microsoft.Identity.Client.Prompt]::NoPrompt)
-                $AcquireBuilder = $AcquireBuilder.WithExtraQueryParameters($AdminConsentParams)
-                $TokenResult = $AcquireBuilder.ExecuteAsync().GetAwaiter().GetResult()
+                $Builder = $App.AcquireTokenInteractive($MsalScopes)
+                if ($RequireConsent) {
+                    $Builder = $Builder.WithPrompt([Microsoft.Identity.Client.Prompt]::Consent)
+                }
+                if ($Account) {
+                    $Builder = $Builder.WithAccount($Account)
+                }
+                return $Builder.ExecuteAsync().GetAwaiter().GetResult()
             } catch {
                 throw "Interactive token acquisition failed: $_"
             }
         }
 
-        $Token = $TokenResult.AccessToken
+        # ---------- Phase 1: token ----------
+        # Use cached if: not forced, same tenant, not expired, has all requested scopes.
+        # Otherwise acquire a new one (silent refresh inside the helper if possible).
 
-        if (-not $Token) {
-            throw 'Failed to acquire Graph access token.'
-        }
+        $NeedNewToken = $true
 
-        # Only call Connect-MgGraph if not already connected to this tenant with the right scopes.
-        $ExistingContext = Get-MgContext -ErrorAction SilentlyContinue
-        $MissingScopes   = $Scopes | Where-Object {$ExistingContext.Scopes -notcontains $_}
-        if (-not $ExistingContext -or $ExistingContext.TenantId -ne $TenantId -or $MissingScopes) {
-            $SecureToken = ConvertTo-SecureString -String $Token -AsPlainText -Force
+        if (-not $Force -and
+            $Global:IRT_Session -and
+            $Global:IRT_Session.Graph -and
+            $Global:IRT_Session.TenantId -eq $TenantId -and
+            $Global:IRT_Session.Graph.Token -and
+            -not (Test-TokenExpired -Token $Global:IRT_Session.Graph.Token)) {
 
-            $MgConnectParams = @{
-                AccessToken = $SecureToken
-                NoWelcome   = $true
+            # Verify cached token covers all requested scopes via MgContext.
+            $Ctx = Get-MgContext -ErrorAction SilentlyContinue
+            $TokenScopeMissing = if ($Ctx -and $Ctx.TenantId -eq $TenantId) {
+                $Scopes | Where-Object { $Ctx.Scopes -notcontains $_ }
+            } else {
+                $Scopes
             }
-            if ($GCCHigh) {$MgConnectParams['Environment'] = 'USGov'}
 
-            Connect-MgGraph @MgConnectParams
+            if (-not $TokenScopeMissing) {
+                $NeedNewToken = $false
+                $Token   = $Global:IRT_Session.Graph.Token
+                $Account = $Global:IRT_Session.Graph.Account
+                Write-Verbose 'Using cached Graph token.'
+            } else {
+                Write-Verbose "Cached token missing scopes: $($TokenScopeMissing -join ', ')"
+            }
         }
 
-        return [pscustomobject]@{
-            Token                 = $Token
-            Account               = $TokenResult.Account.Username
-            TenantId              = $TenantId
-            PublicClientApplication = $App
+        if ($NeedNewToken) {
+            $TokenResult = & $AcquireToken
+            if (-not $TokenResult.AccessToken) {
+                throw 'Failed to acquire Graph access token.'
+            }
+            $Token   = $TokenResult.AccessToken
+            $Account = $TokenResult.Account.Username
         }
-    36}
+
+        # ---------- Phase 2: Connect-MgGraph ----------
+        # Connect if no context, wrong tenant, or missing scopes.
+
+        $Ctx = Get-MgContext -ErrorAction SilentlyContinue
+        $NeedConnect = (-not $Ctx) -or
+                       ($Ctx.TenantId -ne $TenantId) -or
+                       [bool]($Scopes | Where-Object { $Ctx.Scopes -notcontains $_ })
+
+        if ($NeedConnect) {
+            $Secure = ConvertTo-SecureString -String $Token -AsPlainText -Force
+            $Params = @{ AccessToken = $Secure; NoWelcome = $true }
+            if ($GCCHigh) { $Params['Environment'] = 'USGov' }
+            Connect-MgGraph @Params
+        }
+
+        # ---------- Phase 3: admin consent ----------
+        # Verify tenant-wide consent. The token may have all scopes via per-user
+        # consent while admin consent is missing, so this is independent of
+        # MgContext.Scopes. Drive the dedicated /adminconsent endpoint if anything
+        # is missing — that flow has no checkbox to miss, so consent persists
+        # tenant-wide reliably.
+
+        try {
+            $MissingAdminScopes = Test-IRTGraphAdminConsent -RequestedScopes $Scopes
+        } catch {
+            Write-Verbose "Admin consent check failed, assuming consent required: $_"
+            $MissingAdminScopes = $Scopes
+        }
+
+        if ($MissingAdminScopes) {
+            Write-Host @Yellow ("Admin consent missing tenant-wide for {0} scope(s):" -f $MissingAdminScopes.Count)
+            Write-Host @Yellow ("  {0}" -f ($MissingAdminScopes -join ', '))
+
+            $ConsentParams = @{
+                TenantId    = $TenantId
+                ClientId    = $GraphClientId
+                Scopes      = $MissingAdminScopes  # only request what's actually missing
+                ResourceUri = $GraphBaseUrl
+                Browser     = $Browser
+            }
+            if ($GCCHigh) { $ConsentParams['GCCHigh'] = $true }
+            if ($Private) { $ConsentParams['Private'] = $true }
+
+            $null = Invoke-IRTAdminConsent @ConsentParams
+
+            # Verify the grant landed. Brief retry window for replication.
+            $StillMissing = $Scopes
+            for ($Attempt = 1; $Attempt -le 5 -and $StillMissing; $Attempt++) {
+                Start-Sleep -Seconds 2
+                try {
+                    $StillMissing = Test-IRTGraphAdminConsent -RequestedScopes $Scopes
+                } catch {
+                    $StillMissing = $Scopes
+                }
+            }
+
+            if ($StillMissing) {
+                Write-Warning ('Tenant-wide grant not yet visible for: {0}' -f ($StillMissing -join ', '))
+                Write-Warning 'Replication may still be in flight; re-run Connect-IRT shortly to confirm.'
+            } else {
+                Write-Host 'Admin consent granted tenant-wide.' -ForegroundColor Green
+            }
+        }
+    }
+}
+
+
+
+#region Test-IRTGraphAdminConsent
+function Test-IRTGraphAdminConsent {
+    <#
+    .SYNOPSIS
+    Returns the set of requested scopes that are NOT already admin-consented
+    tenant-wide for the Microsoft Graph Command Line Tools app.
+
+    .DESCRIPTION
+    Queries oauth2PermissionGrants for AllPrincipals (admin) grants and
+    compares the consented scopes against the requested set. Returns an
+    empty array if all scopes are admin-consented.
+
+    Requires an existing Graph connection with at least
+    DelegatedPermissionGrant.Read.All or Directory.Read.All.
+    #>
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory)]
+        [string[]] $RequestedScopes,
+
+        [string] $ClientAppId = '14d82eec-204b-4c2f-b7e8-296a70dab67e',  # Graph CLI Tools
+        [string] $ResourceAppId = '00000003-0000-0000-c000-000000000000' # Microsoft Graph
+    )
+
+    # Resolve SPs (these are tenant-scoped object IDs, not the app IDs)
+    $ClientSp = Invoke-MgGraphRequest -Method GET `
+        -Uri "/v1.0/servicePrincipals(appId='$ClientAppId')" -ErrorAction Stop
+    $ResourceSp = Invoke-MgGraphRequest -Method GET `
+        -Uri "/v1.0/servicePrincipals(appId='$ResourceAppId')" -ErrorAction Stop
+
+    # Pull all AllPrincipals grants for this client/resource pair.
+    # In practice there's usually one, but multiple are possible if
+    # admins consented in batches.
+    $Filter = "clientId eq '$($ClientSp.id)' and " +
+              "resourceId eq '$($ResourceSp.id)' and " +
+              "consentType eq 'AllPrincipals'"
+    $Encoded = [uri]::EscapeDataString($Filter)
+    $Grants  = Invoke-MgGraphRequest -Method GET `
+        -Uri "/v1.0/oauth2PermissionGrants?`$filter=$Encoded" -ErrorAction Stop
+
+    # scope is a space-delimited string per grant; flatten across grants
+    $Granted = @($Grants.value | ForEach-Object { $_.scope -split '\s+' } |
+                 Where-Object { $_ } | Select-Object -Unique)
+
+    # Return the missing ones (case-insensitive compare)
+    $RequestedScopes | Where-Object { $Granted -notcontains $_ }
+}
+
+
+#region Invoke-IRTAdminConsent
+function Invoke-IRTAdminConsent {
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory)] [string]   $TenantId,
+        [Parameter(Mandatory)] [string]   $ClientId,
+        [Parameter(Mandatory)] [string[]] $Scopes,
+        [string] $ResourceUri = 'https://graph.microsoft.com',
+        [switch] $GCCHigh,
+
+        [ValidateSet('msedge','chrome','firefox','brave','default')]
+        [string] $Browser = 'default',
+        [switch] $Private,
+
+        [int] $TimeoutSeconds = 300
+    )
+
+    $Listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, 0)
+    $Listener.Start()
+    $Port        = ([System.Net.IPEndPoint]$Listener.LocalEndpoint).Port
+    $RedirectUri = "http://localhost:$Port/"
+
+    try {
+        $LoginHost = if ($GCCHigh) { 'login.microsoftonline.us' } else { 'login.microsoftonline.com' }
+        $State     = [guid]::NewGuid().ToString('N')
+
+        # Fully-qualify each scope with the resource URI, then space-delimit.
+        # This is what makes /v2.0/adminconsent work for dynamic-consent apps
+        # like Microsoft Graph Command Line Tools, where /.default would only
+        # consent to statically configured permissions (User.Read in this case).
+        $ScopeQuery = ($Scopes | ForEach-Object { "$ResourceUri/$_" }) -join ' '
+
+        $ConsentUrl = "https://$LoginHost/$TenantId/v2.0/adminconsent" +
+                      "?client_id=$ClientId" +
+                      "&redirect_uri=$([uri]::EscapeDataString($RedirectUri))" +
+                      "&state=$State" +
+                      "&scope=$([uri]::EscapeDataString($ScopeQuery))"
+
+        Write-Host 'Opening admin consent page in browser...' -ForegroundColor Yellow
+        Write-Host ("  Granting tenant-wide consent for {0} scope(s)." -f $Scopes.Count) -ForegroundColor Yellow
+        Write-Host '  Sign in as a Global Administrator and click Accept.' -ForegroundColor Yellow
+        Open-Browser -Browser $Browser -Url $ConsentUrl -Private:$Private
+
+        $AcceptTask = $Listener.AcceptTcpClientAsync()
+        if (-not $AcceptTask.Wait($TimeoutSeconds * 1000)) {
+            throw "Timed out after $TimeoutSeconds seconds waiting for admin consent response."
+        }
+        $Client = $AcceptTask.Result
+
+        try {
+            $Stream      = $Client.GetStream()
+            $Reader      = [System.IO.StreamReader]::new($Stream)
+            $RequestLine = $Reader.ReadLine()
+
+            $Body = '<html><body style="font-family:sans-serif;text-align:center;padding-top:4em">' +
+                    '<h2>Admin consent received.</h2>' +
+                    '<p>You may close this window and return to PowerShell.</p>' +
+                    '</body></html>'
+            $Bytes = [System.Text.Encoding]::UTF8.GetBytes($Body)
+            $Header = "HTTP/1.1 200 OK`r`n" +
+                      "Content-Type: text/html; charset=utf-8`r`n" +
+                      "Content-Length: $($Bytes.Length)`r`n" +
+                      "Connection: close`r`n`r`n"
+            $HeaderBytes = [System.Text.Encoding]::ASCII.GetBytes($Header)
+            $Stream.Write($HeaderBytes, 0, $HeaderBytes.Length)
+            $Stream.Write($Bytes, 0, $Bytes.Length)
+            $Stream.Flush()
+        } finally {
+            $Client.Close()
+        }
+
+        if ($RequestLine -notmatch '^GET\s+(\S+)\s+HTTP') {
+            throw "Malformed redirect request: $RequestLine"
+        }
+        $Path  = $Matches[1]
+        $Query = if ($Path -match '\?(.+)$') { $Matches[1] } else { '' }
+
+        $Params = @{}
+        foreach ($Pair in $Query -split '&') {
+            $Kv = $Pair -split '=', 2
+            if ($Kv.Count -eq 2) {
+                $Params[[uri]::UnescapeDataString($Kv[0])] = [uri]::UnescapeDataString($Kv[1])
+            }
+        }
+
+        if ($Params['state'] -ne $State) {
+            throw 'Admin consent response state mismatch — possible CSRF or stale request.'
+        }
+        if ($Params['error']) {
+            throw "Admin consent denied or failed: $($Params['error']) — $($Params['error_description'])"
+        }
+        if ($Params['admin_consent'] -eq 'True') {
+            return $true
+        }
+        throw "Unexpected admin consent response: $Query"
+    }
+    finally {
+        $Listener.Stop()
+    }
 }

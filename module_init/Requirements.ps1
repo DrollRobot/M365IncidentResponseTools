@@ -1,9 +1,9 @@
 <#
 .SYNOPSIS
-    Installs required modules for IncidentResponseTools.
+    Installs required modules for M365IncidentResponseTools.
 
 .DESCRIPTION
-    Reads RequiredModules from IncidentResponseTools.psd1 and installs each one.
+    Reads RequiredModules from M365IncidentResponseTools.psd1 and installs each one.
     Version constraints (ModuleVersion, RequiredVersion, MaximumVersion) are read
     directly from the manifest and passed through to Install-Module.
 
@@ -33,7 +33,7 @@ $ErrorActionPreference = 'Stop'
 # ---------------------------------------------------------------------------
 # Read manifest
 # ---------------------------------------------------------------------------
-$ManifestPath = Join-Path $PSScriptRoot 'IncidentResponseTools.psd1'
+$ManifestPath = Join-Path $PSScriptRoot '..\M365IncidentResponseTools.psd1'
 
 if (-not (Test-Path $ManifestPath)) {
     throw "Module manifest not found at: $ManifestPath"
@@ -88,7 +88,7 @@ foreach ($Entry in $RequiredModules) {
     }
 
     $Color = if ($VersionLabel -eq '(latest)') { 'Green' } else { 'Yellow' }
-    Write-Host "  $ModuleName  $VersionLabel" -ForegroundColor $Color
+    Write-Host "Installing $ModuleName $VersionLabel" -ForegroundColor $Color
 
     if ($PSCmdlet.ShouldProcess($ModuleName, 'Install-Module')) {
         Install-Module @InstallParams

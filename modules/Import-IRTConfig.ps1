@@ -1,8 +1,6 @@
+#region Import-IRTConfig
 New-Alias -Name 'ImportConfig' -Value 'Import-IRTConfig' -Force
 New-Alias -Name 'IRTConfig'    -Value 'Import-IRTConfig' -Force
-New-Alias -Name 'OpenConfig'   -Value 'Open-IRTConfig' -Force
-New-Alias -Name 'SetConfig'    -Value 'Set-IRTConfig' -Force
-
 function Import-IRTConfig {
     <#
     .SYNOPSIS
@@ -51,11 +49,11 @@ function Import-IRTConfig {
     if ($Updated) {
         $Global:IRT_Config | ConvertTo-Json -Depth 10 | Set-Content -Path $ConfigPath -Encoding utf8
     }
-
-    return $Global:IRT_Config
 }
 
 
+#region Open-IRTConfig
+New-Alias -Name 'OpenConfig'   -Value 'Open-IRTConfig' -Force
 function Open-IRTConfig {
     <#
     .SYNOPSIS
@@ -68,13 +66,15 @@ function Open-IRTConfig {
     $ConfigPath = Join-Path $env:APPDATA $ModuleName 'config.json'
 
     if (-not (Test-Path $ConfigPath)) {
-        Import-IRTConfig | Out-Null
+        Import-IRTConfig
     }
 
     Invoke-Item $ConfigPath
 }
 
 
+#region Set-IRTConfig
+New-Alias -Name 'SetConfig'    -Value 'Set-IRTConfig' -Force
 function Set-IRTConfig {
     <#
     .SYNOPSIS
@@ -106,12 +106,13 @@ function Set-IRTConfig {
             Copy-Item -Path $TemplatePath -Destination $ConfigPath -Force
             $Global:IRT_Config = Get-Content -Path $ConfigPath -Raw | ConvertFrom-Json
             Write-Host "Config reset to defaults." -ForegroundColor Cyan
-            return $Global:IRT_Config
+            return
         }
         return
     }
 
-    $Config = Import-IRTConfig
+    Import-IRTConfig
+    $Config = $Global:IRT_Config
 
     # Define settings metadata
     $Settings = [ordered]@{
@@ -148,6 +149,20 @@ function Set-IRTConfig {
             Description = 'When enabled, log commands (sign-in logs, UAL, message trace) will save ' +
                           'the raw XML response alongside the parsed Excel output.'
             Options     = @('true', 'false')
+        }
+        AllOperationsSheetPath = @{
+            Summary     = 'All Operations sheet path'
+            Description = 'Path to the unified_audit_log-all_operations.xlsx file used for operation lookups. ' +
+                          'Leave blank (null) to use the default file bundled with the module. ' +
+                          'Set to an absolute path to use a custom file outside the module.'
+            Options     = $null  # free text / file path
+        }
+        TenantsSheetPath = @{
+            Summary     = 'Tenants worksheet path'
+            Description = 'Path to the tenants.xlsx file used by Connect-IRTTenant. ' +
+                          'Leave blank (null) to use the default location: $env:APPDATA\M365IncidentResponseTools\tenants.xlsx. ' +
+                          'Set to an absolute path to use a custom file.'
+            Options     = $null  # free text / file path
         }
     }
 
@@ -206,12 +221,22 @@ function Set-IRTConfig {
             $NewValue = Build-Menu -Options $Setting.Options -Title 'Select a value:' -List
         }
         else {
-            # Free text input
-            $NewValue = Read-Host "Enter new value (blank to keep current)"
-            if ([string]::IsNullOrWhiteSpace($NewValue)) {
-                Write-Host "Keeping current value: $CurrentVal" -ForegroundColor DarkGray
-                continue
+            # Free text input; for path settings blank clears back to null (restores default)
+            if ($SelectedKey -in 'AllOperationsSheetPath', 'TenantsSheetPath') {
+                $NewValue = Read-Host "Enter new value (blank to clear and use module default)"
             }
+            else {
+                $NewValue = Read-Host "Enter new value (blank to keep current)"
+                if ([string]::IsNullOrWhiteSpace($NewValue)) {
+                    Write-Host "Keeping current value: $CurrentVal" -ForegroundColor DarkGray
+                    continue
+                }
+            }
+        }
+
+        # Convert blank/null path settings back to null
+        if ($SelectedKey -in 'AllOperationsSheetPath', 'TenantsSheetPath') {
+            if ([string]::IsNullOrWhiteSpace($NewValue)) { $NewValue = $null }
         }
 
         # Convert string to bool for ExportXml
@@ -227,7 +252,5 @@ function Set-IRTConfig {
             Write-Host "$SelectedKey updated to: $NewValue" -ForegroundColor Green
         }
     }
-
-    return $Config
 }
 

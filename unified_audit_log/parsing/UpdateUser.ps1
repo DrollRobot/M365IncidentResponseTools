@@ -1,4 +1,4 @@
-function Resolve-AzureActiveDirectoryUpdateUser {
+function Get-UpdateUserSummary {
     <#
 	.SYNOPSIS
     Parses AzureActiveDirectory "Update user." events from UAL.

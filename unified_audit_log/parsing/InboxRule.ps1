@@ -1,4 +1,4 @@
-function Resolve-ExchangeAdminInboxRule {
+function Get-InboxRuleSummary {
     <#
 	.SYNOPSIS
     Parses ExchangeAdmin ???-InboxRule events from UAL.

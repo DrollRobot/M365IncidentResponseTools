@@ -1,4 +1,4 @@
-function Resolve-ExchangeItemGroupDelete {
+function Get-ExchangeItemDeleteSummary {
     <#
 	.SYNOPSIS
     Parses ExchangeItemGroup HardDelete events from UAL.

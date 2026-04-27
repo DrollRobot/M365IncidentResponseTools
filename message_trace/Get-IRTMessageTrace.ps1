@@ -255,6 +255,7 @@ function Get-IRTMessageTrace {
             else {
 
                 # verify user has mailbox. if not, exit.
+                $Mailbox = $null
                 try {
                     $Params = @{
                         UserPrincipalName = $ScriptUserObject.UserPrincipalName
@@ -264,7 +265,7 @@ function Get-IRTMessageTrace {
                 }
                 catch {}
                 if (-not $Mailbox) {
-                    Write-Host @Red "${Function}: $($ScriptUserObject.UserPrincipalName) does not have a mailbox. Exiting"
+                    Write-Host @Red "${Function}: No mailbox for $($ScriptUserObject.UserPrincipalName)"
                     if ($Global:IRT_WaitFlags) {
                         $Global:IRT_WaitFlags.MessageTraceUserDone = $true
                     }

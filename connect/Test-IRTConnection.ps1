@@ -1,4 +1,4 @@
-function Get-IRTConnectionStatus {
+function Test-IRTConnection {
     <#
     .SYNOPSIS
     Shows which IRT services are connected and to which tenant.
@@ -13,11 +13,11 @@ function Get-IRTConnectionStatus {
     tenant (matched by TenantId), $false otherwise. Suppresses all output.
 
     .EXAMPLE
-    Get-IRTConnectionStatus
+    Test-IRTConnection
     Displays connection status for Graph and Exchange.
 
     .EXAMPLE
-    if (-not (Get-IRTConnectionStatus -Quiet)) { throw 'Not fully connected.' }
+    if (-not (Test-IRTConnection -Quiet)) { throw 'Not fully connected.' }
     Silently asserts that both services are connected to the same tenant.
 
     .NOTES
@@ -31,20 +31,25 @@ function Get-IRTConnectionStatus {
     process {
 
         $GraphCtx  = Get-MgContext -ErrorAction SilentlyContinue
-        $ExoConns  = Get-ConnectionInformation -ErrorAction SilentlyContinue |
+        $AllExoConns = Get-ConnectionInformation -ErrorAction SilentlyContinue |
                          Where-Object { $_.State -eq 'Connected' }
-        $ExoConn   = $ExoConns | Select-Object -First 1
+        $ExoConn   = $AllExoConns |
+            Where-Object { $_.ConnectionUri -notmatch 'compliance\.protection\.(outlook\.com|office365\.us)' } |
+            Select-Object -First 1
+        $IppsConn  = $AllExoConns |
+            Where-Object { $_.ConnectionUri -match 'compliance\.protection\.(outlook\.com|office365\.us)' } |
+            Select-Object -First 1
 
         $GraphConnected = $GraphCtx -and $GraphCtx.Account
         $ExoConnected   = $null -ne $ExoConn
+        $IppsConnected  = $null -ne $IppsConn
 
         if ($Quiet) {
             if (-not $GraphConnected -or -not $ExoConnected) {
                 return $false
             }
-            # Compare by TenantId so multi-domain tenants still match correctly
             $GraphTenantId = $GraphCtx.TenantId
-            $ExoTenantId   = $ExoConn.TenantID          # GUID string
+            $ExoTenantId   = $ExoConn.TenantID
             return ($GraphTenantId -and $ExoTenantId -and
                     $GraphTenantId -eq $ExoTenantId)
         }
@@ -56,6 +61,10 @@ function Get-IRTConnectionStatus {
 
         $exoDomain = if ($ExoConnected) {
             ($ExoConn.UserPrincipalName -split '@')[-1]
+        } else { $null }
+
+        $ippsDomain = if ($IppsConnected) {
+            ($IppsConn.UserPrincipalName -split '@')[-1]
         } else { $null }
 
         $rows = @(
@@ -71,11 +80,17 @@ function Get-IRTConnectionStatus {
                 Domain    = if ($exoDomain) { $exoDomain } else { '—' }
                 Account   = if ($ExoConnected) { $ExoConn.UserPrincipalName } else { '—' }
             }
+            [pscustomobject]@{
+                Service   = 'IPPS'
+                Connected = $IppsConnected
+                Domain    = if ($ippsDomain) { $ippsDomain } else { '—' }
+                Account   = if ($IppsConnected) { $IppsConn.UserPrincipalName } else { '—' }
+            }
         )
 
         $rows | Format-Table -AutoSize
 
-        # Warn if both are connected but to different tenants
+        # warn if both are connected but to different tenants
         if ($GraphConnected -and $ExoConnected) {
             $GraphTenantId = $GraphCtx.TenantId
             $ExoTenantId   = $ExoConn.TenantID

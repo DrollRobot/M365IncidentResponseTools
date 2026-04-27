@@ -276,35 +276,21 @@ function Show-IRTMessageTrace {
 
         #region COLUMN WIDTH
 
-        $Column = ( $Worksheet.Tables[0].Columns | Where-Object { $_.Name -eq 'Raw' } ).Id 
-        $Worksheet.Column($Column).Width = 8
-
-        $Column = ( $Worksheet.Tables[0].Columns | Where-Object { $_.Name -eq $DateColumnHeader } ).Id 
-        $Worksheet.Column($Column).Width = 26
-
-        $Column = ( $Worksheet.Tables[0].Columns | Where-Object { $_.Name -eq 'Status' } ).Id 
-        $Worksheet.Column($Column).Width = 15
-
-        $Column = ( $Worksheet.Tables[0].Columns | Where-Object { $_.Name -eq 'SenderAddress' } ).Id 
-        $Worksheet.Column($Column).Width = 30
-
-        $Column = ( $Worksheet.Tables[0].Columns | Where-Object { $_.Name -eq 'RecipientAddress' } ).Id 
-        $Worksheet.Column($Column).Width = 30
-
-        $Column = ( $Worksheet.Tables[0].Columns | Where-Object { $_.Name -eq 'Subject' } ).Id 
-        $Worksheet.Column($Column).Width = 100
-
-        $Column = ( $Worksheet.Tables[0].Columns | Where-Object { $_.Name -eq 'FromIp' } ).Id 
-        $Worksheet.Column($Column).Width = 20
-
-        $Column = ( $Worksheet.Tables[0].Columns | Where-Object { $_.Name -eq 'ToIp' } ).Id 
-        $Worksheet.Column($Column).Width = 20
-
-        $Column = ( $Worksheet.Tables[0].Columns | Where-Object { $_.Name -eq 'MessageTraceId' } ).Id
-        $Worksheet.Column($Column).Width = 20
-
-        $Column = ( $Worksheet.Tables[0].Columns | Where-Object { $_.Name -eq 'MessageTraceId' } ).Id
-        $Worksheet.Column($Column).Width = 200
+        $ColumnWidths = @{
+            'Raw'              = 8
+            $DateColumnHeader  = 26
+            'Status'           = 15
+            'SenderAddress'    = 30
+            'RecipientAddress' = 30
+            'Subject'          = 100
+            'FromIp'           = 20
+            'ToIp'             = 20
+            'MessageTraceId'   = 200
+        }
+        foreach ($ColName in $ColumnWidths.Keys) {
+            $Col = ($Worksheet.Tables[0].Columns | Where-Object { $_.Name -eq $ColName }).Id
+            if ($Col) { $Worksheet.Column($Col).Width = $ColumnWidths[$ColName] }
+        }
 
         #region FORMATTING
 

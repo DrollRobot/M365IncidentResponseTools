@@ -59,8 +59,8 @@ function Get-IRTTenantInfo {
     [CmdletBinding()]
     param (
         [Parameter( Mandatory, Position = 0, ValueFromPipeline, ValueFromPipelineByPropertyName )]
-        [Alias('Tenant')]
-        [string[]] $TenantId,
+        [Alias('Tenant', 'Tenants', 'TenantId')]
+        [string[]] $TenantIds,
 
         [switch] $SkipGraph,
 
@@ -116,7 +116,7 @@ function Get-IRTTenantInfo {
 
     process {
 
-        foreach ($tid in $TenantId) {
+        foreach ($tid in $TenantIds) {
 
             # --- Validate GUID ---
             $guidParsed = [guid]::Empty

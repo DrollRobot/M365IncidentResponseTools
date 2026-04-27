@@ -5,9 +5,9 @@ test.xml
 Get-MailboxesUserHasFullAccessTo.ps1
 
 # investigation files
-*.xml
-*.xlsx
-*Investigation/
+/*.xml
+/*.xlsx
+/*Investigation/
 
 # mkdocs documentation
 /site

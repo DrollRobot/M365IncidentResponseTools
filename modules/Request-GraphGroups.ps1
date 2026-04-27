@@ -29,13 +29,7 @@ function Request-GraphGroups {
             'OnPremisesSamAccountName'
             'OnPremisesSyncEnabled'
         )
-        # $ExpandProperty = @( # FIXME expand property only retrieves up to 20 members. Need to switch to Get-MgGroupMember.
-        #     'Members'
-        # )
-        # $SelectProperties = @(
-        #     $GetProperties
-        #     $ExpandProperty
-        # )
+
     }
 
     process {
@@ -60,9 +54,14 @@ function Request-GraphGroups {
         $Params = @{
             All = $true
             Property = $GetProperties
-            ExpandProperty = $ExpandProperty
         }
         $Objects = Get-MgGroup @Params | Select-Object $GetProperties
+
+        # fetch all members for each group (ExpandProperty is limited to 20)
+        foreach ( $o in $Objects ) {
+            $Members = Get-MgGroupMember -GroupId $o.Id -All
+            $o | Add-Member -NotePropertyName 'Members' -NotePropertyValue $Members
+        }
 
         # store in global variables
         $Global:IRT_Groups = $Objects

@@ -91,37 +91,46 @@ function Show-UALogs {
             $Days = $Metadata.Days
             # $Domain = $Metadata.Domain
             $FileNamePrefix = $Metadata.FileNamePrefix
+            $SheetTitle = $Metadata.SheetTitle
+            $ProfileTag = $Metadata.ProfileTag
         }
         else {
             Write-Host @Red "${Function}: No Metadata found."
         }
 
+        # sheet registry — maps operation types to their dedicated sheet builders
+        $SheetRegistry = [ordered]@{
+            'AllOperations' = @{
+                Operations    = @()   # empty = matches all logs
+                BuildFunction = 'Build-AllOperationsSheet'
+                SheetName     = $FileNamePrefix
+                SheetTitle    = $SheetTitle
+            }
+            'SignInLogs' = @{
+                Operations    = @('UserLoggedIn', 'UserLoginFailed', 'UserLoggedOff')
+                BuildFunction = 'Build-UserLoginOperationsSheet'
+                SheetName     = 'SignInLogs'
+                SheetTitle    = 'UAL sign-in logs'
+            }
+        }
+
         # build file name
         $FileNameDateFormat = "yy-MM-dd_HH-mm"
         $FileDateString = $EndDate.ToLocalTime().ToString($FileNameDateFormat)
-        $ExcelOutputPath =  "${FileNamePrefix}_${Days}Days_${UserName}_${FileDateString}.xlsx"
+        $ExcelOutputPath = "${FileNamePrefix}_${Days}Days_${UserName}_${FileDateString}.xlsx"
 
         # build worksheet title
         $TitleDateFormat = "M/d/yy h:mmtt"
         $TitleEndDate = $EndDate.ToLocalTime().ToString($TitleDateFormat)
         $TitleStartDate = $StartDate.ToLocalTime().ToString($TitleDateFormat)
-        $SheetTitle = $Metadata.SheetTitle
-        $WorksheetTitle = "${SheetTitle} for ${Username}. Covers ${Days} days, ${TitleStartDate} to ${TitleEndDate}."
+        $WorksheetTitle = "${SheetTitle} for ${UserName}. Covers ${Days} days, ${TitleStartDate} to ${TitleEndDate}."
 
-        # import alloperations csv
+        # import alloperations sheet
         $ModuleRoot = $MyInvocation.MyCommand.Module.ModuleBase
-        $AllOperationsFileName = 'unified_audit_log-all_operations.csv' # FIXME convert to using xlsx
-        $OperationsCsvPath = Join-Path -Path $ModuleRoot -ChildPath "data\${AllOperationsFileName}"
-        $OperationsCsvData = Import-Csv -Path $OperationsCsvPath
-
-        if ($Script:Test) {
-            # build set of operations from csv to later output missing operations
-            $OperationsFromCsv = [System.Collections.Generic.Hashset[string]]::new() 
-            foreach ($Row in $OperationsCsvData) {
-                [void]$OperationsFromCsv.Add("$($Row.Workload)|$($Row.RecordType)|$($Row.Operation)")
-            }
-            $OperationsFromLog = [System.Collections.Generic.Hashset[string]]::new()
-        }
+        $AllOperationsFileName = 'unified_audit_log-all_operations.xlsx'
+        $AllOperationsConfig = $Global:IRT_Config.AllOperationsSheetPath
+        $OperationsSheetPath = if ($AllOperationsConfig) { $AllOperationsConfig } else { Join-Path -Path $ModuleRoot -ChildPath "data\${AllOperationsFileName}" }
+        $OperationsSheetData = Import-Excel -Path $OperationsSheetPath -WorksheetName 'Operations'
 
         # ipinfo
         if ($IpInfo) {
@@ -275,413 +284,76 @@ function Show-UALogs {
             }
         }
 
-        #region Row Loop
-        if ($Script:Test) {
-            $TestText = "Row loop"
-            $TimerStart = $Stopwatch.Elapsed
-            Write-Host @Yellow "${Function}: ${TestText} started at $(Get-Date -Format 'hh:mm:sstt')" | Out-Host
+        #region AUTO-DETECT SHEETS
+        # build set of operations present in the logs
+        $LogOperations = [System.Collections.Generic.HashSet[string]]::new()
+        foreach ($Log in $Logs) {
+            if ($Log.AuditData.Operation) {
+                [void]$LogOperations.Add($Log.AuditData.Operation)
+            }
         }
 
-        $RowCount = ($Logs | Measure-Object).Count
-        $Rows = [System.Collections.Generic.List[PSCustomObject]]::new()
-        for ($i = 0; $i -lt $RowCount; $i++) { 
-        
-            $Log = $Logs[$i]
+        $MatchedSheets = [System.Collections.Generic.List[hashtable]]::new()
 
-            # save operations to create complete list
-            if ($Script:Test) {
-                [void]$OperationsFromLog.Add(
-                    "$($Log.AuditData.Workload)|$($Log.AuditData.RecordType)|$($Log.AuditData.Operation)"
-                )
+        if ($ProfileTag -and $SheetRegistry.Contains($ProfileTag)) {
+            # profile-driven: only the tagged sheet
+            $MatchedSheets.Add($SheetRegistry[$ProfileTag])
+        }
+        else {
+            # default: always include AllOperations, then add any specialized
+            # sheets whose operations are present in the logs
+            $MatchedSheets.Add($SheetRegistry['AllOperations'])
+            foreach ($Key in $SheetRegistry.Keys) {
+                if ($Key -eq 'AllOperations') { continue }
+                $SheetEntry = $SheetRegistry[$Key]
+                foreach ($Op in $SheetEntry.Operations) {
+                    if ($LogOperations.Contains($Op)) {
+                        $MatchedSheets.Add($SheetEntry)
+                        break
+                    }
+                }
             }
+        }
 
-            # Raw
-            $Raw = $Log | ConvertTo-Json -Depth 10
+        #region BUILD WORKBOOK
+        $Workbook = Open-ExcelPackage -Path $ExcelOutputPath -Create
 
-            #region USERIDS
-            # need to see if this works consistently across multiple log types
-            if ( $Log.UserIds -match '^ServicePrincipal_.*$' ) {
-                $SpName = $Log.AuditData.Actor[0].ID
-                $UserIds = "SP: ${SpName}"
+        foreach ($SheetEntry in $MatchedSheets) {
+            # filter logs — empty Operations array means all logs
+            if ($SheetEntry.Operations.Count -gt 0) {
+                $FilteredLogs = [System.Collections.Generic.List[PSObject]]::new()
+                foreach ($Log in $Logs) {
+                    if ($Log.AuditData.Operation -in $SheetEntry.Operations) {
+                        $FilteredLogs.Add($Log)
+                    }
+                }
             }
-            # there's another userid format that needs to be added
             else {
-                $UserIds = $Log.UserIds
+                $FilteredLogs = $Logs
             }
 
-            #region IPADDRESSES
-            # collect ips
-            $CellLines = $null
-            $IpAddresses = [System.Collections.Generic.Hashset[string]]::new()
-                if ( $Log.AuditData.ClientIP ) {
-                    try {
-                        $IpObject = [System.Net.IPAddress]$Log.AuditData.ClientIP
-                    }
-                    catch {}
-                    if ($IpObject) {
-                        [void]$IpAddresses.Add($IpObject.ToString())
-                    }
+            if (($FilteredLogs | Measure-Object).Count -gt 0) {
+                $BuildTitle = "$($SheetEntry.SheetTitle) for ${UserName}. Covers ${Days} days, ${TitleStartDate} to ${TitleEndDate}."
+                $SheetParams = @{
+                    Logs          = $FilteredLogs
+                    ExcelPackage  = $Workbook
+                    IpInfoTable   = $IpInfoTable
+                    WorksheetName = $SheetEntry.SheetName
+                    Title         = $BuildTitle
+                    TableStyle    = $TableStyle
+                    Font          = $Font
+                    Cached        = $Cached
                 }
-                if ( $Log.AuditData.ActorIpAddress ) {
-                    try {
-                        $IpObject = [System.Net.IPAddress]$Log.AuditData.ActorIpAddress
-                    }
-                    catch {}
-                    if ($IpObject) {
-                        [void]$IpAddresses.Add($IpObject.ToString())
-                    }                }
-                if ( $Log.AuditData.ClientIPAddress ) {
-                    try {
-                        $IpObject = [System.Net.IPAddress]$Log.AuditData.ClientIPAddress
-                    }
-                    catch {}
-                    if ($IpObject) {
-                        [void]$IpAddresses.Add($IpObject.ToString())
-                    }
-                } 
-            # loop through rows, replace with ip info
-            if (($IpAddresses | Measure-Object).Count -gt 0) {
-
-                # build cell text
-                $CellLines = [System.Collections.Generic.List[string]]::new()
-                $CellLines.Add((($IpAddresses | Sort-Object) -join ', ') + (' ' * 20))
-
-                # add info from table
-                foreach ($Ipaddress in $IpAddresses) {
-                    $CellLines.Add($IpInfoTable[$Ipaddress]) 
+                # AllOperations needs extra parameters
+                if ($SheetEntry.BuildFunction -eq 'Build-AllOperationsSheet') {
+                    if ($MessageTraceTable) { $SheetParams['MessageTraceTable'] = $MessageTraceTable }
+                    if ($OperationsSheetData)  { $SheetParams['OperationsSheetData'] = $OperationsSheetData }
                 }
-            }
-            $IpText = $CellLines -join "`n`n"
-
-            #region Summary
-            $RecordType = $Log.RecordType
-            $Operations = $Log.Operations
-            $OperationString = $RecordType + ' ' + $Operations
-            $EmailParams = @{
-                Log = $Log
-            }
-            if ($MessageTraceTable) { $EmailParams['MessageTraceTable'] = $MessageTraceTable }
-            switch ( $OperationString ) {
-                'AzureActiveDirectory Add member to role.' {
-                    $EventObject = Resolve-AzureActiveDirectoryAddRemoveRole -Log $Log
-                }
-                'AzureActiveDirectory Remove member from role.' {
-                    $EventObject = Resolve-AzureActiveDirectoryAddRemoveRole -Log $Log
-                }
-                'AzureActiveDirectory Update user.' {
-                    $EventObject = Resolve-AzureActiveDirectoryUpdateUser -Log $Log
-                }
-                'AzureActiveDirectoryStsLogon UserLoggedIn' {
-                    $EventObject = Resolve-AzureActiveDirectoryLogin -Log $Log -Cached:$Cached
-                }
-                'AzureActiveDirectoryStsLogon UserLoggedOff' {
-                    $EventObject = Resolve-AzureActiveDirectoryLogin -Log $Log -Cached:$Cached
-                }
-                'AzureActiveDirectoryStsLogon UserLoginFailed' {
-                    $EventObject = Resolve-AzureActiveDirectoryLogin -Log $Log -Cached:$Cached
-                }
-                'ExchangeAdmin New-InboxRule' {
-                    $EventObject = Resolve-ExchangeAdminInboxRule -Log $Log
-                }
-                'ExchangeAdmin Set-ConditionalAccessPolicy' {
-                    $EventObject = Resolve-ExchangeAdminSetConditionalAccessPolicy -Log $Log
-                }
-                'ExchangeAdmin Set-InboxRule' {
-                    $EventObject = Resolve-ExchangeAdminInboxRule -Log $Log
-                }
-                'ExchangeItemAggregated AttachmentAccess' {
-                    $EventObject = Resolve-ExchangeItemAggregatedAttachmentAccess -Log $Log
-                }
-                'ExchangeItemAggregated MailItemsAccessed' {
-                    $EventObject = Resolve-ExchangeItemAggregatedMailItemsAccessed @EmailParams
-                }
-                'ExchangeItem Create' {
-                    $EventObject = Resolve-ExchangeItemSubject -Log $Log
-                }
-                'ExchangeItem Send' {
-                    $EventObject = Resolve-ExchangeItemSubject -Log $Log
-                }
-                'ExchangeItem Update' {
-                    $EventObject = Resolve-ExchangeItemUpdate -Log $Log
-                }
-                'ExchangeItemGroup HardDelete' {
-                    $EventObject = Resolve-ExchangeItemGroupDelete @EmailParams
-                }
-                'ExchangeItemGroup MoveToDeletedItems' {
-                    $EventObject = Resolve-ExchangeItemGroupDelete @EmailParams
-                }
-                'ExchangeItemGroup SoftDelete' {
-                    $EventObject = Resolve-ExchangeItemGroupDelete @EmailParams
-                }
-                'SharePoint PageViewed' {
-                    $EventObject = Resolve-SharePointPageViewed -Log $Log
-                }
-                'SharePoint PIMRoleAssigned' {
-                    $EventObject = Resolve-SharePointPIMRoleAssigned -Log $Log -Cached:$Cached
-                }
-                'SharePoint SearchQueryPerformed' {
-                    $EventObject = Resolve-SharePointSearchQueryPerformed -Log $Log
-                }
-                'SharePointFileOperation FileAccessed' {
-                    $EventObject = Resolve-SharePointFileOperation -Log $Log
-                }
-                'SharePointFileOperation FileDownloaded' {
-                    $EventObject = Resolve-SharePointFileOperation -Log $Log
-                }
-                'SharePointFileOperation FileModified' {
-                    $EventObject = Resolve-SharePointFileOperation -Log $Log
-                }
-                'SharePointFileOperation FileModifiedExtended' {
-                    $EventObject = Resolve-SharePointFileOperation -Log $Log
-                }
-                'SharePointFileOperation FilePreviewed' {
-                    $EventObject = Resolve-SharePointFileOperation -Log $Log
-                }
-                'SharePointFileOperation FileSyncDownloadedFull' {
-                    $EventObject = Resolve-SharePointFileOperation -Log $Log
-                }
-                'SharePointFileOperation FileSyncUploadedFull' {
-                    $EventObject = Resolve-SharePointFileOperation -Log $Log
-                }
-                'SharePointFileOperation FileUploaded' {
-                    $EventObject = Resolve-SharePointFileOperation -Log $Log
-                }
-                default {
-                    $EventObject = [pscustomobject]@{
-                        Summary = ''
-                    }
-                }
-            }
-
-            # Date/Time
-            $DateTime = $null
-            if ($Log.$RawDateProperty) {
-                $DateTime = $Log.$RawDateProperty.ToLocalTime()
-            }
-
-            # add to list
-            [void]$Rows.Add([PSCustomObject]@{
-                Raw = $Raw
-                # Tree = $Log | Format-Tree -Depth 10 | Out-String # need to figure out how to output to pipeline, not host
-                $DateColumnHeader = $DateTime
-                UserIds = $UserIds
-                Workload = $Log.AuditData.Workload
-                RecordType = $Log.RecordType
-                Operation = $Log.AuditData.Operation
-                IpAddresses = $IpText
-                Summary = $EventObject.Summary
-            })
-
-            if ($Script:Test -and ($i % 100 -eq 0)) {
-                $Percent = [int]( ($i / $RowCount ) * 100 )
-                $ProgressParams = @{
-                    Id              = 1
-                    Activity        = 'Row loop'
-                    Status          = "Completed ${i} of ${RowCount}"
-                    PercentComplete = $Percent
-                }
-                Write-Progress @ProgressParams
+                $Workbook = & $SheetEntry.BuildFunction @SheetParams
             }
         }
-
-        if ($Script:Test) {
-            Write-Progress -Id 1 -Activity 'Row loop' -Completed
-
-            $ElapsedString = ($StopWatch.Elapsed - $TimerStart).ToString('mm\:ss')
-            Write-Host @Yellow "${Function}: ${TestText} took ${ElapsedString}" | Out-Host
-        }
-
-        #region EXPORT SPREADSHEET
-        if ($Script:Test) {
-            $TestText = "Exporting to excel"
-            $TimerStart = $Stopwatch.Elapsed
-            Write-Host @Yellow "${Function}: ${TestText} started at $(Get-Date -Format 'hh:mm:sstt')" | Out-Host
-        }
-
-        $ExcelParams = @{
-            Path          = $ExcelOutputPath
-            WorkSheetname = $FileNamePrefix
-            Title         = $WorksheetTitle
-            TableStyle    = $TableStyle
-            # AutoSize      = $true # apparently very slow?
-            FreezeTopRow  = $true
-            Passthru      = $true
-        }
-        try {
-            $Workbook = $Rows | Export-Excel @ExcelParams
-        }
-        catch {
-            Write-Error "${Function}: Unable to open new Excel document."
-            if ( Get-YesNo "Try closing open files." ) {
-                try {
-                    $Workbook = $Rows | Export-Excel @ExcelParams
-                }
-                catch {
-                    throw "${Function}: Unable to open new Excel document. Exiting."
-                }
-            }
-        }
-        $Worksheet = $Workbook.Workbook.Worksheets[$ExcelParams.WorksheetName]
-
-        if ($Script:Test) {
-            $ElapsedString = ($StopWatch.Elapsed - $TimerStart).ToString('mm\:ss')
-            Write-Host @Yellow "${Function}: ${TestText} took ${ElapsedString}" | Out-Host
-        }
-
-        # get table ranges
-        $SheetStartColumn = $WorkSheet.Dimension.Start.Column | Convert-DecimalToExcelColumn
-        $SheetStartRow = $WorkSheet.Dimension.Start.Row
-        $EndColumn = $WorkSheet.Dimension.End.Column | Convert-DecimalToExcelColumn
-        $EndRow = $WorkSheet.Dimension.End.Row
-
-        if ($Worksheet.Tables.Count -gt 0) {
-
-        $TableStartColumn = ( $workSheet.Tables.Address | Select-Object -First 1 ).Start.Column | Convert-DecimalToExcelColumn
-        $TableStartRow = ( $workSheet.Tables.Address | Select-Object -First 1 ).Start.Row
-
-        $SummaryColumn = ($Worksheet.Tables[0].Columns | Where-Object {$_.Name -eq 'Summary'}).Id | Convert-DecimalToExcelColumn
-        $OperationColumn = ($Worksheet.Tables[0].Columns | Where-Object {$_.Name -eq 'Operation'}).Id | Convert-DecimalToExcelColumn
-
-        #region CELL COLORING
-
-        # ip addresses
-        Add-IpAddressConditionalFormatting -Worksheet $WorkSheet -ColumnName 'IpAddresses'
-
-        # operations
-        foreach ($Row in $OperationsCsvData) {
-
-            # color high risk operations red
-            if ($Row.Risk -eq 'High') {
-                $CFParams = @{
-                    Worksheet       = $WorkSheet
-                    Address         = "${OperationColumn}${TableStartRow}:${OperationColumn}${EndRow}"
-                    RuleType        = 'ContainsText'
-                    ConditionValue  = $Row.Operation
-                    BackgroundColor = 'LightPink'
-                }
-                Add-ConditionalFormatting @CFParams
-            }
-
-            # color medium risk operations orange
-            if ($Row.Risk -eq 'Medium') {
-                $CFParams = @{
-                    Worksheet       = $WorkSheet
-                    Address         = "${OperationColumn}${TableStartRow}:${OperationColumn}${EndRow}"
-                    RuleType        = 'ContainsText'
-                    ConditionValue  = $Row.Operation
-                    BackgroundColor = 'LightGoldenrodYellow'
-                }
-                Add-ConditionalFormatting @CFParams
-            }
-        }        
-        
-        # if cell CONTAINS text anywhere, make background BLUE
-        $Strings = @(
-            # 'AppOwnerOrganizationId: Microsoft'
-        )
-        foreach ( $String in $Strings ) {
-            $CFParams = @{
-                Worksheet       = $WorkSheet
-                Address         = "${TableStartColumn}${TableStartRow}:${EndColumn}${EndRow}"
-                RuleType        = 'ContainsText'
-                ConditionValue  = $String
-                BackgroundColor = 'LightBlue'
-            }
-            Add-ConditionalFormatting @CFParams
-        }
-
-        #region COLUMN WIDTH
-
-        $Column = ( $Worksheet.Tables[0].Columns | Where-Object { $_.Name -eq 'Raw' } ).Id 
-        $Worksheet.Column($Column).Width = 8
-
-        $Column = ( $Worksheet.Tables[0].Columns | Where-Object { $_.Name -eq $DateColumnHeader } ).Id 
-        $Worksheet.Column($Column).Width = 26
-
-        $Column = ( $Worksheet.Tables[0].Columns | Where-Object { $_.Name -eq 'UserIds' } ).Id 
-        $Worksheet.Column($Column).Width = 30
-
-        $Column = ( $Worksheet.Tables[0].Columns | Where-Object { $_.Name -eq 'Workload' } ).Id 
-        $Worksheet.Column($Column).Width = 25
-
-        $Column = ( $Worksheet.Tables[0].Columns | Where-Object { $_.Name -eq 'RecordType' } ).Id 
-        $Worksheet.Column($Column).Width = 25
-
-        $Column = ( $Worksheet.Tables[0].Columns | Where-Object { $_.Name -eq 'Operation' } ).Id 
-        $Worksheet.Column($Column).Width = 25
-
-        $Column = ( $Worksheet.Tables[0].Columns | Where-Object { $_.Name -eq 'IpAddresses' } ).Id 
-        $Worksheet.Column($Column).Width = 25
-
-        $Column = ( $Worksheet.Tables[0].Columns | Where-Object { $_.Name -eq 'Summary' } ).Id 
-        $Worksheet.Column($Column).Width = 200
-
-        #region FORMATTING
-
-        # set date format 
-        $FmtParams = @{
-            Worksheet = $Worksheet
-            Range = "B:B"
-            NumberFormat  = 'm/d/yyyy h:mm:ss AM/PM'
-        }
-        Set-Format @FmtParams
-
-        # set text wrapping on specific columns
-        $WrappingParams = @{
-            Worksheet = $Worksheet
-            Range     = "${SummaryColumn}${TableStartRow}:${SummaryColumn}${EndRow}"
-            WrapText  = $true
-        }
-        Set-ExcelRange @WrappingParams
-
-        # set font and size
-        $SetParams = @{
-            Worksheet = $Worksheet
-            Range     = "${SheetStartColumn}${SheetStartRow}:${EndColumn}${EndRow}"
-            FontName  = $Font
-        }
-        try {
-            Set-ExcelRange @SetParams
-        } catch {}
-
-        # add left side border
-        $BorderParams = @{
-            Worksheet = $Worksheet
-            Range = "${TableStartColumn}${TableStartRow}:${EndColumn}${EndRow}"
-            BorderLeft = 'Thin'
-            BorderColor = 'Black'
-        }
-        Set-Format @BorderParams
-
-        } # end if ($Worksheet.Tables.Count -gt 0)
 
         #region OUTPUT
-
-        # find operations from log that are missing in csv
-        if ($Script:Test) {
-            $OperationsToAdd = [System.Collections.Generic.HashSet[PSCustomObject]]::new() 
-            foreach ($o in $OperationsFromLog) {
-                if ($OperationsFromCsv.Add($o)) {
-                    $Split = $o.Split('|')
-                    [void]$OperationsToAdd.Add(
-                        [PSCustomObject]@{
-                            Workload = $Split[0]
-                            RecordType = $Split[1]
-                            Operation = $Split[2]
-                        }
-                    )
-                }
-            }
-            # output for user
-            if (($OperationsToAdd | Measure-Object).Count -gt 0) {
-                Write-Host @Yellow "${Function}: Add to ${AllOperationsFileName}:" | Out-Host
-                $OperationsToAdd | Format-Table | Out-Host
-                Write-Host @Yellow "${Function}: Exporting to: operations_to_add.csv" | Out-Host
-                $OperationsToAdd | Export-Csv -Path "operations_to_add.csv" -NoTypeInformation
-            }
-        }
-                    
-        # save and close
         Write-Host @Blue "${Function}: Exporting to: ${ExcelOutputPath}"
         if ($Open) {
             Write-Host @Blue "Opening Excel."

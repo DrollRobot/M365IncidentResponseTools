@@ -30,7 +30,7 @@ function Show-MailboxAccess {
         $Blue = @{ ForegroundColor = 'Blue' }
         # $Cyan = @{ ForegroundColor = 'Cyan' }
         # $Green = @{ ForegroundColor = 'Green' }
-        # $Red = @{ ForegroundColor = 'Red' }
+        $Red = @{ ForegroundColor = 'Red' }
         # $Magenta = @{ ForegroundColor = 'Magenta' }
         # $Yellow = @{ ForegroundColor = 'Yellow' }
 
@@ -79,6 +79,14 @@ function Show-MailboxAccess {
         foreach ( $ScriptUserObject in $ScriptUserObjects ) {
 
             $UserEmail = $ScriptUserObject.UserPrincipalName
+
+            # verify user has mailbox
+            try { $Mailbox = Get-EXOMailbox -UserPrincipalName $UserEmail -ErrorAction Stop }
+            catch { $Mailbox = $null }
+            if (-not $Mailbox) {
+                Write-Host @Red "${Function}: No mailbox for ${UserEmail}"
+                continue
+            }
 
             # show users who have access to target mailbox
             Write-Host @Blue "Showing users who have access to ${UserEmail}" | Out-Host

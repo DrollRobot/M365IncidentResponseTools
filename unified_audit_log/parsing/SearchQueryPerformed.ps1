@@ -1,7 +1,7 @@
-function Resolve-SharePointPageViewed {
+function Get-SearchQueryPerformedSummary {
     <#
 	.SYNOPSIS
-    Parses PageViewed events from UAL.
+    Parses SearchQueryPerformed events from UAL.
 	
 	.NOTES
 	Version: 1.0.0
@@ -20,10 +20,9 @@ function Resolve-SharePointPageViewed {
 
     process {
 
-        # ObjectId
-        $ObjectId = $Log.AuditData.ObjectId
-        $SummaryLines.Add( "ObjectId: ${ObjectId}" )
-
+        # SearchQueryText
+        $SearchQueryText = $Log.AuditData.SearchQueryText
+        $SummaryLines.Add( "SearchQueryText: ${SearchQueryText}" )
 
         # join strings, create return object
         $Summary = $SummaryLines -join ', '

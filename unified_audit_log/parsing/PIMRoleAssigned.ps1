@@ -1,4 +1,4 @@
-function Resolve-SharePointPIMRoleAssigned {
+function Get-PIMRoleAssignedSummary {
     <#
 	.SYNOPSIS
     Parses Sharepoint "PIMRoleAssigned" events from UAL.

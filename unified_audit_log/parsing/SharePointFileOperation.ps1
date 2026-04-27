@@ -1,4 +1,4 @@
-function Resolve-SharePointFileOperation {
+function Get-SharePointFileOperationSummary {
     <#
 	.SYNOPSIS
     Parses Sharepoint FileAccessed events from UAL.

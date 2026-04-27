@@ -1,7 +1,7 @@
-function Resolve-ExchangeItemUpdate {
+function Get-ExchangeItemCreateSendSummary {
     <#
 	.SYNOPSIS
-    Parses ExchangeItem Update events from UAL.
+    Parses ExchangeItem events from UAL.
 	
 	.NOTES
 	Version: 1.0.0
@@ -20,15 +20,11 @@ function Resolve-ExchangeItemUpdate {
 
     process {
 
-        # ModifiedProperties
-        foreach ( $Item in $Log.AuditData.ModifiedProperties ) {
-            $SummaryLines.Add( "Modified: ${Item}" )
-        }
-
         # Items
         foreach ( $Item in $Log.AuditData.Item ) {
+
             $Subject = $Item.Subject
-            $SummaryLines.Add( "Item: ${Subject}" )
+            $SummaryLines.Add( "Subject: ${Subject}" )
         }
 
         # join strings, create return object

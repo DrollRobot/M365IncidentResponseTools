@@ -1,4 +1,4 @@
-function Resolve-TeamsSessionStarted {
+function Get-TeamsSessionStartedSummary {
     <#
 	.SYNOPSIS
 

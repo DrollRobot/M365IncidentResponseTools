@@ -112,15 +112,6 @@ function Show-EntraAuditLogs {
         # $Green = @{ ForegroundColor = 'Green' }
         $Red = @{ ForegroundColor = 'Red' }
         # $Magenta = @{ ForegroundColor = 'Magenta' }
-
-        # import AppOwnerOrganizationId information
-        $CsvPath = Join-Path -Path $ModuleRoot -ChildPath 'data\AppOwnerOrganizationId.csv'
-        if ( Test-Path -Path $CsvPath ) {
-            $AppOwnerTable = Import-Csv -Path $CsvPath
-        }
-        else {
-            throw "Unable to find: ${CsvPath}. Exiting."
-        }
     }
 
     process {
@@ -357,14 +348,17 @@ function Show-EntraAuditLogs {
                         $Value = ( $ServicePrincipals | Where-Object { $_.AppId -eq $AppId } ).DisplayName
                     }
                     'AppOwnerOrganizationId' {
-                        # if one of the common microsoft ids, change to microsoft
                         $AppOwnerOrganizationId = $Detail.Value
-                        $CsvRow = $AppOwnerTable | Where-Object { $_.AppOwnerOrganizationId -eq $AppOwnerOrganizationId }
-                        if ( $CsvRow ) {
-                            $Value = $CsvRow.DisplayName
+                        try {
+                            $TenantInfo = Get-IRTTenantInfo -TenantId $AppOwnerOrganizationId
+                            if ( $TenantInfo.DisplayName ) {
+                                $Value = $TenantInfo.DisplayName
+                            }
+                            else {
+                                $Value = $Detail.Value
+                            }
                         }
-                        # otherwise, leave as id number
-                        else {
+                        catch {
                             $Value = $Detail.Value
                         }
                     }
@@ -500,37 +494,20 @@ function Show-EntraAuditLogs {
 
         #region COLUMN WIDTH
 
-        # resize Raw column
-        $Column = ( $Worksheet.Tables[0].Columns | Where-Object { $_.Name -eq 'Raw' } ).Id 
-        $Worksheet.Column($Column).Width = 8
-
-        # resize DateTime column
-        $Column = ( $Worksheet.Tables[0].Columns | Where-Object { $_.Name -eq $DateColumnHeader } ).Id 
-        $Worksheet.Column($Column).Width = 26
-
-        # resize ActivityDisplayName column
-        $Column = ( $Worksheet.Tables[0].Columns | Where-Object { $_.Name -eq 'ActivityDisplayName' } ).Id
-        $Worksheet.Column($Column).Width = 25
-
-        # resize InitiatedBy column
-        $Column = ( $Worksheet.Tables[0].Columns | Where-Object { $_.Name -eq 'InitiatedBy' } ).Id
-        $Worksheet.Column($Column).Width = 45
-
-        # resize InitiatedByIp column
-        $Column = ( $Worksheet.Tables[0].Columns | Where-Object { $_.Name -eq 'InitiatedByIp' } ).Id
-        $Worksheet.Column($Column).Width = 17
-                
-        # resize Target column
-        $Column = ( $Worksheet.Tables[0].Columns | Where-Object { $_.Name -eq 'Target' } ).Id
-        $Worksheet.Column($Column).Width = 45
-
-        # resize ModifiedProperties column
-        $Column = ( $Worksheet.Tables[0].Columns | Where-Object { $_.Name -eq 'ModifiedProperties' } ).Id
-        $Worksheet.Column($Column).Width = 25
-
-        # resize Details column
-        $Column = ( $Worksheet.Tables[0].Columns | Where-Object { $_.Name -eq 'Details' } ).Id
-        $Worksheet.Column($Column).Width = 25
+        $ColumnWidths = @{
+            'Raw'                = 8
+            $DateColumnHeader    = 26
+            'ActivityDisplayName' = 25
+            'InitiatedBy'        = 45
+            'InitiatedByIp'      = 17
+            'Target'             = 45
+            'ModifiedProperties' = 25
+            'Details'            = 25
+        }
+        foreach ($ColName in $ColumnWidths.Keys) {
+            $Col = ($Worksheet.Tables[0].Columns | Where-Object { $_.Name -eq $ColName }).Id
+            if ($Col) { $Worksheet.Column($Col).Width = $ColumnWidths[$ColName] }
+        }
 
         #region FORMATTING
 

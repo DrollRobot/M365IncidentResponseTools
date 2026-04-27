@@ -33,7 +33,6 @@ function Show-UserMFA {
         $Properties = [System.Collections.Generic.Hashset[string]]::new()
         $PropertySortOrder = @(
             'Raw'
-            'CreatedDateTime'
             'MethodType'
             'Summary'
             'Id'
@@ -244,14 +243,8 @@ function Show-UserMFA {
                         }
                     }
 
-                    # convert created date string to datetime object # FIXME use new function for date string
+                    # convert created date string to datetime object and add to summary
                     elseif ( $Key -eq 'createdDateTime' ) {
-
-                        # start params table
-                        $AddParams = @{
-                            MemberType = 'NoteProperty'
-                            Name       = 'CreatedDateTime'
-                        }
 
                         # cast string to datetime object
                         $DateTime = [datetime]( $Method.AdditionalProperties[$Key] )
@@ -277,9 +270,8 @@ function Show-UserMFA {
                             $EventDateString = $EventDateString.Substring(0, 9) + " " + $EventDateString.Substring(10)
                         }
 
-                        # add object to table
-                        $AddParams['Value'] = $EventDateString
-                        $CustomObject | Add-Member @AddParams
+                        # add to summary list
+                        $SummaryParts.Add( "CreatedDateTime: ${EventDateString}" )
                     }
 
                     # for other properties, add to summary list
@@ -373,49 +365,36 @@ function Show-UserMFA {
             $SheetStartColumn = $WorkSheet.Dimension.Start.Column | Convert-DecimalToExcelColumn
             $SheetStartRow = $WorkSheet.Dimension.Start.Row
             # $TableStartColumn = ( $workSheet.Tables.Address | Select-Object -First 1 ).Start.Column | Convert-DecimalToExcelColumn
-            # $TableStartRow = ( $workSheet.Tables.Address | Select-Object -First 1 ).Start.Row
+            $TableStartRow = ( $workSheet.Tables.Address | Select-Object -First 1 ).Start.Row
             $EndColumn = $WorkSheet.Dimension.End.Column | Convert-DecimalToExcelColumn
             $EndRow = $WorkSheet.Dimension.End.Row
 
+            $SummaryColumn = ($Worksheet.Tables[0].Columns | Where-Object {$_.Name -eq 'Summary'}).Id | Convert-DecimalToExcelColumn
+
             #region COLUMN WIDTH
 
-            # resize Raw column
-            $Column = ( $Worksheet.Tables[0].Columns | Where-Object { $_.Name -eq 'Raw' } ).Id 
-            $Worksheet.Column($Column).Width = 8
-
-            # resize DateTime column
-            $Column = ( $Worksheet.Tables[0].Columns | Where-Object { $_.Name -eq 'CreatedDateTime' } ).Id 
-            $Worksheet.Column($Column).Width = 26
-
-            # resize Summary column and enable text wrapping
-            $SummaryCol = ( $Worksheet.Tables[0].Columns | Where-Object { $_.Name -eq 'Summary' } ).Id
-            $Worksheet.Column($SummaryCol).Width = 70
-            $TableStartRow = ( $Worksheet.Tables.Address | Select-Object -First 1 ).Start.Row
-            $SummaryColLetter = $SummaryCol | Convert-DecimalToExcelColumn
-            Set-ExcelRange -Worksheet $Worksheet -Range "${SummaryColLetter}${TableStartRow}:${SummaryColLetter}${EndRow}" -WrapText
-
-            # resize Id column
-            $Column = ( $Worksheet.Tables[0].Columns | Where-Object { $_.Name -eq 'Id' } ).Id
-            $Worksheet.Column($Column).Width = 20
-
-            # resize DeleteCommand column
-            $Column = ( $Worksheet.Tables[0].Columns | Where-Object { $_.Name -eq 'DeleteCommand' } ).Id
-            $Worksheet.Column($Column).Width = 100
+            # column widths
+            $ColumnWidths = @{
+                'Raw'           = 8
+                'MethodType'    = 20
+                'Summary'       = 70
+                'Id'            = 42
+                'DeleteCommand' = 200
+            }
+            foreach ($ColName in $ColumnWidths.Keys) {
+                $Col = ($Worksheet.Tables[0].Columns | Where-Object { $_.Name -eq $ColName }).Id
+                if ($Col) { $Worksheet.Column($Col).Width = $ColumnWidths[$ColName] }
+            }
 
             #region FORMATTING
 
-            # # set text wrapping in description column
-            # $WrappingParams = @{
-            #     Worksheet = $Worksheet
-            #     Range     = "${TableStartColumn}${TableStartRow}:${EndColumn}${EndRow}"
-            #     WrapText  = $true
-            # }
-            # Set-ExcelRange @WrappingParams
-
-            # # set row height
-            # for ( $i = $TableStartRow; $i -le $EndRow; $i++ ) {  
-            #     $workSheet.Row($i).CustomHeight = 15
-            # }
+            # enable text wrapping on Summary column
+            $WrapParams = @{
+                Worksheet = $Worksheet
+                Range     = "${SummaryColumn}${TableStartRow}:${SummaryColumn}${EndRow}"
+                WrapText  = $true
+            }
+            Set-ExcelRange @WrapParams
             
             # set font and size
             $SetParams = @{

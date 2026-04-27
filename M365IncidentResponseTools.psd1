@@ -55,6 +55,7 @@
         # Microsoft.Graph pinned to 2.33.0 due to auth changes in 2.34.0
         @{ModuleName = 'Microsoft.Graph.Applications'; RequiredVersion = '2.33.0'}
         @{ModuleName = 'Microsoft.Graph.Authentication'; RequiredVersion = '2.33.0'}
+        @{ModuleName = 'Microsoft.Graph.DeviceManagement'; RequiredVersion = '2.33.0'}
         @{ModuleName = 'Microsoft.Graph.Beta.Identity.Signins'; RequiredVersion = '2.33.0'}
         @{ModuleName = 'Microsoft.Graph.Beta.Reports'; RequiredVersion = '2.33.0'}
         @{ModuleName = 'Microsoft.Graph.DirectoryObjects'; RequiredVersion = '2.33.0'}
@@ -93,12 +94,17 @@
         'applications\Get-UserApplications.ps1'
         'applications\Show-TenantServicePrincipals.ps1'
 
-        'connect\Connect-IncidentResponseTools.ps1'
+        'devices\Find-Devices.ps1'
+        'devices\Show-DeviceInfo.ps1'
+
+        'connect\Connect-IRT.ps1'
         'connect\Connect-IRTExchange.ps1'
         'connect\Connect-IRTGraph.ps1'
+        'connect\Connect-IRTIPPS.ps1'
         'connect\Connect-IRTTenant.ps1'
-        'connect\Disconnect-IncidentResponseTools.ps1'
-        'connect\Get-IRTConnectionStatus.ps1'
+        'connect\Disconnect-IRT.ps1'
+        'connect\Invoke-IRTDeviceCodeAuth.ps1'
+        'connect\Test-IRTConnection.ps1'
 
         'entra-audit-log\Get-EntraAuditLogs.ps1'
         'entra-audit-log\Show-EntraAuditLogs.ps1'
@@ -118,6 +124,7 @@
         'message_trace\Show-IRTMessageTrace.ps1'
 
         'modules\Build-Menu.ps1'
+        'modules\Compress-InvestigationFolders.ps1'
         'modules\Convert-DecimalToExcelColumn.ps1'
         'modules\Find-GraphDirectoryObjects.ps1'
         'modules\Format-PhoneNumber.ps1'
@@ -127,6 +134,7 @@
         'modules\Get-RandomPassword.ps1'
         'modules\Import-LogFile.ps1'
         'modules\Initialize-Modules.ps1'
+        'modules\New-InvestigationFolder.ps1'
         'modules\Open-Browser.ps1'
         'modules\Request-DirectoryRoles.ps1'
         'modules\Request-DirectoryRoleTemplates.ps1'
@@ -135,8 +143,8 @@
         'modules\Request-GraphServicePrincipals.ps1'
         'modules\Request-GraphUsers.ps1'
         'modules\Add-IpAddressConditionalFormatting.ps1'
+        'modules\Request-GraphDevices.ps1'
         'modules\Test-PythonPackage.ps1'
-        'modules\Test-TokenExpired.ps1'
 
         'roles\Get-AdminRoles.ps1'
 
@@ -146,22 +154,22 @@
         'signin_logs\Get-SignInLogs.ps1'
         'signin_logs\Show-SignInLogs.ps1'
 
-        'unified_audit_log\parsing\Resolve-AzureActiveDirectoryAddRemoveRole.ps1'
-        'unified_audit_log\parsing\Resolve-AzureActiveDirectoryLogin.ps1'
-        'unified_audit_log\parsing\Resolve-AzureActiveDirectoryUpdateUser.ps1'
-        'unified_audit_log\parsing\Resolve-ExchangeAdminInboxRule.ps1'
-        'unified_audit_log\parsing\Resolve-ExchangeAdminSetConditionalAccessPolicy.ps1'
-        'unified_audit_log\parsing\Resolve-ExchangeItemAggregatedAttachmentAccess.ps1'
-        'unified_audit_log\parsing\Resolve-ExchangeItemAggregatedMailItemsAccessed.ps1'
-        'unified_audit_log\parsing\Resolve-ExchangeItemGroupDelete.ps1'
-        'unified_audit_log\parsing\Resolve-ExchangeItemSubject.ps1'
-        'unified_audit_log\parsing\Resolve-ExchangeItemUpdate.ps1'
-        'unified_audit_log\parsing\Resolve-SharePointFileOperation.ps1'
-        'unified_audit_log\parsing\Resolve-SharePointPageViewed.ps1'
-        'unified_audit_log\parsing\Resolve-SharePointPIMRoleAssigned.ps1'
-        'unified_audit_log\parsing\Resolve-SharePointSearchQueryPerformed.ps1'
-        'unified_audit_log\parsing\Resolve-TeamsSessionStarted.ps1'
-        'unified_audit_log\parsing\Resolve-UserLoginFailed.ps1'
+        'unified_audit_log\parsing\AddRemoveRole.ps1'
+        'unified_audit_log\parsing\AllOperations.ps1'
+        'unified_audit_log\parsing\UserLoginOperations.ps1'
+        'unified_audit_log\parsing\UpdateUser.ps1'
+        'unified_audit_log\parsing\InboxRule.ps1'
+        'unified_audit_log\parsing\SetConditionalAccessPolicy.ps1'
+        'unified_audit_log\parsing\AttachmentAccess.ps1'
+        'unified_audit_log\parsing\MailItemsAccessed.ps1'
+        'unified_audit_log\parsing\ExchangeItemCreateSend.ps1'
+        'unified_audit_log\parsing\ExchangeItemUpdate.ps1'
+        'unified_audit_log\parsing\ExchangeItemDelete.ps1'
+        'unified_audit_log\parsing\SharePointFileOperation.ps1'
+        'unified_audit_log\parsing\PageViewed.ps1'
+        'unified_audit_log\parsing\PIMRoleAssigned.ps1'
+        'unified_audit_log\parsing\SearchQueryPerformed.ps1'
+        'unified_audit_log\parsing\TeamsSessionStarted.ps1'
         'unified_audit_log\Get-UALogs.ps1'
         'unified_audit_log\Show-UALogs.ps1'
 
@@ -175,8 +183,6 @@
         'users\Show-UserInfo.ps1'
         'users\Show-UserMFA.ps1'
 
-        'Compress-InvestigationFolders.ps1'
-        'New-InvestigationFolder.ps1'
         'Start-IncidentResponsePlaybook.ps1'
     )
 
@@ -188,14 +194,19 @@
         'Get-UserApplications'
         'Show-TenantServicePrincipals'
 
+        ### devices
+        'Find-Devices'
+        'Show-DeviceInfo'
+
         ### connect
-        'Connect-IncidentResponseTools'
+        'Connect-IRT'
         'Connect-IRTExchange'
         'Connect-IRTGraph'
+        'Connect-IRTIPPS'
         'Connect-IRTTenant'
-        'Disconnect-IncidentResponseTools'
-        'Get-IRTConnectionStatus'
-        'Open-IRTTenantsCSV'
+        'Disconnect-IRT'
+        'Test-IRTConnection'
+        'Open-IRTTenantsWorksheet'
 
         ### entra-audit-log
         'Get-EntraAuditLogs'
@@ -215,15 +226,18 @@
         'Show-IRTMessageTrace'
 
         ### modules
+        'Compress-InvestigationFolders'
         'Find-GraphDirectoryObjects'
         'Import-IRTConfig'
         'Open-IRTConfig'
         'Get-IRTUserObjects'
         'Import-LogFile'
+        'New-InvestigationFolder'
         'Request-DirectoryRoles'
         'Request-DirectoryRoleTemplates'
         'Request-GraphGroups'
         'Request-GraphOauth2Grants'
+        'Request-GraphDevices'
         'Request-GraphServicePrincipals'
         'Request-GraphUsers'
         'Set-IRTConfig'
@@ -248,13 +262,10 @@
         'Reset-GraphUserPasswords'
         'Revoke-UsersSessions'
         'Set-UsageLocation'
-        'Show-GraphUserTree'
         'Show-UserInfo'
         'Show-UserMFA'
 
         ### root
-        'Compress-InvestigationFolders'
-        'New-InvestigationFolder'
         'Start-IncidentResponsePlaybook'
     )
 
@@ -281,14 +292,22 @@
         'Show-EnterpriseApps'
         'Show-Applications'
 
+        ### devices
+        # Find-Devices
+        'Find-Device'
+        'FindDevice'
+        'FindDevices'
+        # Show-DeviceInfo
+        'ShowDevice'
+        'ShowDevices'
+
         ### connect
-        # Connect-IRTTenant
+        # Connect-IRT
         'ConnectIRT'
-        'IRTConnect'
-        # Disconnect-IncidentResponseTools
+        # Connect-IRTTenant
+        'IRTTenant'
+        # Disconnect-IRT
         'DisconnectIRT'
-        'DisconnectIncidentResponseTools'
-        'Disconnect-IRT'
         'IRTDisconnect'
 
         ### entra-audit-log

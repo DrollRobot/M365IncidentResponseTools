@@ -9,4 +9,4 @@ $MyInvocation.MyCommand.ScriptBlock.Module.OnRemove = {
 }
 
 # Load user config on module import
-Import-IRTConfig | Out-Null
+Import-IRTConfig

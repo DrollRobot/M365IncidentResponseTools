@@ -142,7 +142,18 @@ function Start-IncidentResponsePlaybook {
             IRT_UserObjects                = $ScriptUserObjects
         }
 
+        # build Exchange connection params once for all runspaces
+        $ExoConnectParams = @{
+            AccessToken       = $Global:IRT_Session.Exchange.Token
+            UserPrincipalName = $Global:IRT_Session.Exchange.UserPrincipalName
+            ShowBanner        = $false
+        }
+        if ($Global:IRT_Session.GCCHigh) {
+            $ExoConnectParams['ExchangeEnvironmentName'] = 'O365USGovGCCHigh'
+        }
+
         #region playbook steps
+
         $Steps = @(
 
             @{  Name   = 'Get-LicenseReport'
@@ -261,16 +272,12 @@ function Start-IncidentResponsePlaybook {
                 Script = { 
                     param( 
                         $WorkingPath,
-                        $SharedRefs
+                        $SharedRefs,
+                        $ExoConnectParams
                     )
                     foreach ($k in $SharedRefs.Keys) { Set-Variable -Scope Global -Name $k -Value $SharedRefs[$k] }
                     Set-Location -Path $WorkingPath
-                    $ConnectParams = @{
-                        AccessToken = $Global:IRT_Session.Exchange.Token
-                        UserPrincipalName = $Global:IRT_Session.Exchange.UserPrincipalName
-                        ShowBanner = $false
-                    }
-                    Connect-ExchangeOnline @ConnectParams
+                    Connect-ExchangeOnline @ExoConnectParams
                     $Params = @{
                         UserObjects = $Global:IRT_UserObjects
                         Days = 90
@@ -280,7 +287,8 @@ function Start-IncidentResponsePlaybook {
                 }
                 Args  = @(
                     $WorkingPath,
-                    $SharedRefs
+                    $SharedRefs,
+                    $ExoConnectParams
                 )
             }
 
@@ -288,21 +296,18 @@ function Start-IncidentResponsePlaybook {
                 Script = { 
                     param( 
                         $WorkingPath,
-                        $SharedRefs
+                        $SharedRefs,
+                        $ExoConnectParams
                     )
                     foreach ($k in $SharedRefs.Keys) { Set-Variable -Scope Global -Name $k -Value $SharedRefs[$k] }
                     Set-Location -Path $WorkingPath
-                    $ConnectParams = @{
-                        AccessToken = $Global:IRT_Session.Exchange.Token
-                        UserPrincipalName = $Global:IRT_Session.Exchange.UserPrincipalName
-                        ShowBanner = $false
-                    }
-                    Connect-ExchangeOnline @ConnectParams
+                    Connect-ExchangeOnline @ExoConnectParams
                     Get-IRTInboxRules
                 }
                 Args  = @(
                     $WorkingPath,
-                    $SharedRefs
+                    $SharedRefs,
+                    $ExoConnectParams
                 )
             }
 
@@ -342,16 +347,12 @@ function Start-IncidentResponsePlaybook {
                 Script = {
                     param( 
                         $WorkingPath,
-                        $SharedRefs
+                        $SharedRefs,
+                        $ExoConnectParams
                     )
                     foreach ($k in $SharedRefs.Keys) { Set-Variable -Scope Global -Name $k -Value $SharedRefs[$k] }
                     Set-Location -Path $WorkingPath
-                    $ConnectParams = @{
-                        AccessToken = $Global:IRT_Session.Exchange.Token
-                        UserPrincipalName = $Global:IRT_Session.Exchange.UserPrincipalName
-                        ShowBanner = $false
-                    }
-                    Connect-ExchangeOnline @ConnectParams
+                    Connect-ExchangeOnline @ExoConnectParams
                     $UAParams = @{
                         UserObjects = $Global:IRT_UserObjects
                         WaitOnMessageTrace = $true
@@ -361,7 +362,8 @@ function Start-IncidentResponsePlaybook {
                 }
                 Args  = @(
                     $WorkingPath,
-                    $SharedRefs
+                    $SharedRefs,
+                    $ExoConnectParams
                 )
             }
 
@@ -369,16 +371,12 @@ function Start-IncidentResponsePlaybook {
                 Script = {
                     param( 
                         $WorkingPath,
-                        $SharedRefs
+                        $SharedRefs,
+                        $ExoConnectParams
                     )
                     foreach ($k in $SharedRefs.Keys) { Set-Variable -Scope Global -Name $k -Value $SharedRefs[$k] }
                     Set-Location -Path $WorkingPath
-                    $ConnectParams = @{
-                        AccessToken = $Global:IRT_Session.Exchange.Token
-                        UserPrincipalName = $Global:IRT_Session.Exchange.UserPrincipalName
-                        ShowBanner = $false
-                    }
-                    Connect-ExchangeOnline @ConnectParams
+                    Connect-ExchangeOnline @ExoConnectParams
                     $UAParams = @{
                         UserObjects = $Global:IRT_UserObjects
                         RiskyOperations = $true
@@ -389,7 +387,8 @@ function Start-IncidentResponsePlaybook {
                 }
                 Args  = @(
                     $WorkingPath,
-                    $SharedRefs
+                    $SharedRefs,
+                    $ExoConnectParams
                 )
             }
 
@@ -397,16 +396,12 @@ function Start-IncidentResponsePlaybook {
                 Script = {
                     param( 
                         $WorkingPath,
-                        $SharedRefs
+                        $SharedRefs,
+                        $ExoConnectParams
                     )
                     foreach ($k in $SharedRefs.Keys) { Set-Variable -Scope Global -Name $k -Value $SharedRefs[$k] }
                     Set-Location -Path $WorkingPath
-                    $ConnectParams = @{
-                        AccessToken = $Global:IRT_Session.Exchange.Token
-                        UserPrincipalName = $Global:IRT_Session.Exchange.UserPrincipalName
-                        ShowBanner = $false
-                    }
-                    Connect-ExchangeOnline @ConnectParams
+                    Connect-ExchangeOnline @ExoConnectParams
                     $UAParams = @{
                         UserObjects = $Global:IRT_UserObjects
                         SignInLogs = $true
@@ -416,7 +411,8 @@ function Start-IncidentResponsePlaybook {
                 }
                 Args  = @(
                     $WorkingPath,
-                    $SharedRefs
+                    $SharedRefs,
+                    $ExoConnectParams
                 )
             }
 
@@ -440,16 +436,12 @@ function Start-IncidentResponsePlaybook {
                 Script = {
                     param( 
                         $WorkingPath,
-                        $SharedRefs
+                        $SharedRefs,
+                        $ExoConnectParams
                     )
                     foreach ($k in $SharedRefs.Keys) { Set-Variable -Scope Global -Name $k -Value $SharedRefs[$k] }
                     Set-Location -Path $WorkingPath
-                    $ConnectParams = @{
-                        AccessToken = $Global:IRT_Session.Exchange.Token
-                        UserPrincipalName = $Global:IRT_Session.Exchange.UserPrincipalName
-                        ShowBanner = $false
-                    }
-                    Connect-ExchangeOnline @ConnectParams
+                    Connect-ExchangeOnline @ExoConnectParams
                     $Params = @{
                         AllUsers = $true
                         Days = 2
@@ -459,7 +451,8 @@ function Start-IncidentResponsePlaybook {
                 } 
                 Args  = @(
                     $WorkingPath,
-                    $SharedRefs
+                    $SharedRefs,
+                    $ExoConnectParams
                 )
             }
         )

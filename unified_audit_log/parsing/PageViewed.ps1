@@ -1,7 +1,7 @@
-function Resolve-ExchangeItemSubject {
+function Get-PageViewedSummary {
     <#
 	.SYNOPSIS
-    Parses ExchangeItem events from UAL.
+    Parses PageViewed events from UAL.
 	
 	.NOTES
 	Version: 1.0.0
@@ -20,12 +20,10 @@ function Resolve-ExchangeItemSubject {
 
     process {
 
-        # Items
-        foreach ( $Item in $Log.AuditData.Item ) {
+        # ObjectId
+        $ObjectId = $Log.AuditData.ObjectId
+        $SummaryLines.Add( "ObjectId: ${ObjectId}" )
 
-            $Subject = $Item.Subject
-            $SummaryLines.Add( "Subject: ${Subject}" )
-        }
 
         # join strings, create return object
         $Summary = $SummaryLines -join ', '

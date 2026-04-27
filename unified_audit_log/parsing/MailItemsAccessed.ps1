@@ -1,4 +1,4 @@
-function Resolve-ExchangeItemAggregatedMailItemsAccessed {
+function Get-MailItemsAccessedSummary {
     <#
 	.SYNOPSIS
     Parses ExchangeItemAggregated MailItemsAccessed events from UAL.

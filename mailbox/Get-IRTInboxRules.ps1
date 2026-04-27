@@ -30,7 +30,7 @@ function Get-IRTInboxRules {
         #region BEGIN
 
         # constants
-        # $Function = $MyInvocation.MyCommand.Name
+        $Function = $MyInvocation.MyCommand.Name
         # $ParameterSet = $PSCmdlet.ParameterSetName
         $WorksheetName = 'InboxRules'
         $FileNameDateFormat = "yy-MM-dd_HH-mm"
@@ -92,6 +92,14 @@ function Get-IRTInboxRules {
 
             # variables
             $UserEmail = $ScriptUserObject.UserPrincipalName
+
+            # verify user has mailbox
+            try { $Mailbox = Get-EXOMailbox -UserPrincipalName $UserEmail -ErrorAction Stop }
+            catch { $Mailbox = $null }
+            if (-not $Mailbox) {
+                Write-Host @Red "${Function}: No mailbox for ${UserEmail}"
+                continue
+            }
             
             # get username
             $UserName = $UserEmail -split '@' | Select-Object -First 1
@@ -235,9 +243,13 @@ function Get-IRTInboxRules {
 
             #region COLUMN WIDTH
 
-            # resize Raw column
-            $Column = ( $Worksheet.Tables[0].Columns | Where-Object { $_.Name -eq 'Raw' } ).Id 
-            $Worksheet.Column($Column).Width = 8
+            $ColumnWidths = @{
+                'Raw' = 8
+            }
+            foreach ($ColName in $ColumnWidths.Keys) {
+                $Col = ($Worksheet.Tables[0].Columns | Where-Object { $_.Name -eq $ColName }).Id
+                if ($Col) { $Worksheet.Column($Col).Width = $ColumnWidths[$ColName] }
+            }
 
             #region FORMATTING
 

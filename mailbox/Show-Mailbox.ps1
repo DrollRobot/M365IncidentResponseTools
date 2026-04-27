@@ -92,7 +92,7 @@ function Show-Mailbox {
             }
             catch {}
             if ( -not $Mailbox ) {
-                Write-Host @Red "`nNo mailbox for: ${UserPrincipalName}"
+                Write-Host @Red "${Function}: No mailbox for ${UserPrincipalName}"
                 continue
             }
             $Permissions = Get-EXOMailboxPermission -Identity $UserPrincipalName

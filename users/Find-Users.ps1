@@ -33,14 +33,6 @@ function Find-Users {
 
         # variables
         $ScriptUserObjects = [System.Collections.Generic.List[PsObject]]::new()
-        $GetProperties = @(
-            'AccountEnabled'
-            'DisplayName'
-            'Id'
-            'OnPremisesSamAccountName'
-            'ProxyAddresses'
-            'UserPrincipalName'
-        )
         $DisplayProperties = @(
             'AccountEnabled'
             'DisplayName'

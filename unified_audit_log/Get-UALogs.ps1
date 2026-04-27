@@ -9,7 +9,8 @@ function Get-UALogs {
     Runs multiple queries to pull all unified audit logs records related to a specific user.
     
 	.NOTES
-	Version: 1.5.1
+	Version: 1.6.0
+    1.6.0 - Added profile tags to allow generating specific sheets in Show-UALogs
     1.5.1 - Added function name to all output.
     1.5.0 - Added -AllUsers option, added test timers.
     1.4.0 - Updating to add metadata object, use shorter file names.
@@ -75,6 +76,7 @@ function Get-UALogs {
                 DefaultDays  = 1
                 Operations   = [string[]]@()
                 ShowFunction = 'Show-UALogs'
+                ProfileTag   = $null
             }
             RiskyOperations = [pscustomobject]@{
                 FilePrefix   = 'UALRiskyOperations'
@@ -82,13 +84,15 @@ function Get-UALogs {
                 DefaultDays  = 180
                 Operations   = [string[]]@()
                 ShowFunction = 'Show-UALogs'
+                ProfileTag   = $null
             }
             SignInLogs = [pscustomobject]@{
                 FilePrefix   = 'UALSignInLogs'
                 SheetTitle   = 'UAL sign-in logs'
                 DefaultDays  = 180
-                Operations   = [string[]]@('UserLoggedIn')
+                Operations   = [string[]]@('UserLoggedIn','UserLoggedOff','UserLoginFailed')
                 ShowFunction = 'Show-UALogs'
+                ProfileTag   = 'SignInLogs'
             }
         }
         $ActiveProfile = switch ($true) {
@@ -240,14 +244,15 @@ function Get-UALogs {
         foreach ($o in $Operations) {[void]$OperationsSet.Add($o)}
         # populate profile operations
         if ($RiskyOperations) {
-            # import alloperations csv
+            # import alloperations sheet
             $ModuleRoot = $MyInvocation.MyCommand.Module.ModuleBase
-            $AllOperationsFileName = 'unified_audit_log-all_operations.csv' # FIXME convert to using xlsx
-            $OperationsCsvPath = Join-Path -Path $ModuleRoot -ChildPath "data\${AllOperationsFileName}"
-            $OperationsCsvData = Import-Csv -Path $OperationsCsvPath
+            $AllOperationsFileName = 'unified_audit_log-all_operations.xlsx'
+            $AllOperationsConfig = $Global:IRT_Config.AllOperationsSheetPath
+            $OperationsSheetPath = if ($AllOperationsConfig) { $AllOperationsConfig } else { Join-Path -Path $ModuleRoot -ChildPath "data\${AllOperationsFileName}" }
+            $OperationsSheetData = Import-Excel -Path $OperationsSheetPath -WorksheetName 'Operations'
 
             # get high risk operations and store in active profile
-            $ActiveProfile.Operations = ($OperationsCsvData | Where-Object {$_.Risk -eq 'High'}).Operation
+            $ActiveProfile.Operations = ($OperationsSheetData | Where-Object {$_.Risk -eq 'High'}).Operation
 
             # FIXME get these properly tagged in spreadsheet.
             # app consent
@@ -541,6 +546,7 @@ function Get-UALogs {
                     DomainName = $DomainName
                     FileNamePrefix = $FileNamePrefix
                     SheetTitle = $ActiveProfile.SheetTitle
+                    ProfileTag = $ActiveProfile.ProfileTag
                 }
             )
 

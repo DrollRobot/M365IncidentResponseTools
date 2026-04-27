@@ -15,10 +15,10 @@ function Get-AdminRoles {
 
     begin {
 
-        $CustomObjects      = [System.Collections.Generic.List[pscustomobject]]::new()
-        $WorksheetName      = 'AdminRoles'
+        $CustomObjects = [System.Collections.Generic.List[pscustomobject]]::new()
+        $WorksheetName = 'AdminRoles'
         $FileNameDateFormat = "yy-MM-dd_HH-mm"
-        $FileDateString     = Get-Date -Format $FileNameDateFormat
+        $FileDateString = Get-Date -Format $FileNameDateFormat
 
         $Blue = @{ ForegroundColor = 'Blue' }
 
@@ -32,12 +32,12 @@ function Get-AdminRoles {
     process {
 
         $RoleObjects = Request-DirectoryRoles -Cached:$Cached
-        $MemberIds   = $RoleObjects.Members.Id | Sort-Object -Unique
+        $MemberIds = $RoleObjects.Members.Id | Sort-Object -Unique
 
         foreach ( $MemberId in $MemberIds ) {
 
-            $MemberRoles  = ( $RoleObjects | Where-Object { $MemberId -in $_.Members.Id } ).DisplayName -join ', '
-            $Object       = Get-UnknownObject -Id $MemberId
+            $MemberRoles = ( $RoleObjects | Where-Object { $MemberId -in $_.Members.Id } ).DisplayName -join ', '
+            $Object = Get-UnknownObject -Id $MemberId
             $CustomObject = New-RoleMemberObject -Id $MemberId -Roles $MemberRoles -RoleSource 'Direct Assignment' -GraphObject $Object
             $CustomObjects.Add( $CustomObject )
 
@@ -76,7 +76,7 @@ function Get-AdminRoles {
         # display properties per object type
         $DisplayProperties = [ordered]@{
             'User'             = @( 'AccountEnabled', 'DisplayName', 'UserPrincipalName', 'RoleSource', 'Roles' )
-            'ServicePrincipal' = @( 'AccountEnabled', 'ServicePrincipalType', 'DisplayName', 'RoleSource', 'Roles' )
+            'ServicePrincipal' = @( 'AccountEnabled', 'DisplayName', 'ServicePrincipalType', 'RoleSource', 'Roles' )
             'Group'            = @( 'DisplayName', 'RoleSource', 'Roles' )
         }
         $TypeLabels = @{
@@ -106,8 +106,8 @@ function Get-AdminRoles {
 
         if ( $Excel ) {
 
-            $DefaultDomain   = Get-MgDomain | Where-Object { $_.IsDefault -eq $true }
-            $DomainName      = $DefaultDomain.Id -split '\.' | Select-Object -First 1
+            $DefaultDomain = Get-MgDomain | Where-Object { $_.IsDefault -eq $true }
+            $DomainName = $DefaultDomain.Id -split '\.' | Select-Object -First 1
             $ExcelOutputPath = "AdminRoles_${DomainName}_${FileDateString}.xlsx"
             $TitleDateString = Get-Date -Format 'MM/dd/yy HH:mm'
 
@@ -119,7 +119,7 @@ function Get-AdminRoles {
             foreach ( $TypeKey in $DisplayProperties.Keys ) {
 
                 $TypeObjects = @( $CustomObjects | Where-Object { $_.ObjectType -eq $TypeKey } )
-                $Columns     = $DisplayProperties[$TypeKey]
+                $Columns = $DisplayProperties[$TypeKey]
 
                 if ( $TypeObjects.Count -gt 0 ) {
 
@@ -147,12 +147,12 @@ function Get-AdminRoles {
                         return
                     }
 
-                    $Worksheet     = $Workbook.Workbook.Worksheets[$WorksheetName]
+                    $Worksheet = $Workbook.Workbook.Worksheets[$WorksheetName]
                     $TableStartRow = $LabelRow + 1
-                    $TableEndRow   = $LabelRow + 1 + $TypeObjects.Count
+                    $TableEndRow = $LabelRow + 1 + $TypeObjects.Count
 
                     # section label (written after export so worksheet exists)
-                    $Worksheet.Cells[$LabelRow, 1].Value           = $TypeLabels[$TypeKey]
+                    $Worksheet.Cells[$LabelRow, 1].Value = $TypeLabels[$TypeKey]
                     $Worksheet.Cells[$LabelRow, 1].Style.Font.Bold = $true
                     $Worksheet.Cells[$LabelRow, 1].Style.Font.Size = 12
 
@@ -194,10 +194,10 @@ function Get-AdminRoles {
                     # write label and (none) directly if workbook already exists
                     if ( $null -ne $Workbook ) {
                         $Worksheet = $Workbook.Workbook.Worksheets[$WorksheetName]
-                        $Worksheet.Cells[$LabelRow, 1].Value           = $TypeLabels[$TypeKey]
+                        $Worksheet.Cells[$LabelRow, 1].Value = $TypeLabels[$TypeKey]
                         $Worksheet.Cells[$LabelRow, 1].Style.Font.Bold = $true
                         $Worksheet.Cells[$LabelRow, 1].Style.Font.Size = 12
-                        $Worksheet.Cells[$LabelRow + 1, 1].Value       = '(none)'
+                        $Worksheet.Cells[$LabelRow + 1, 1].Value = '(none)'
                     }
                     $LabelRow += 3
                 }
@@ -208,13 +208,27 @@ function Get-AdminRoles {
                 return
             }
 
+            # column widths
+            $ColumnWidths = @{
+                'Match'             = 8
+                'Enabled'           = 12
+                'DisplayName'       = 30
+                'UserPrincipalName' = 40
+                'RoleSource'        = 30
+                'Roles'             = 80
+            }
+            foreach ($ColName in $ColumnWidths.Keys) {
+                $Col = ($Worksheet.Tables[0].Columns | Where-Object { $_.Name -eq $ColName }).Id
+                if ($Col) { $Worksheet.Column($Col).Width = $ColumnWidths[$ColName] }
+            }
+
             # font across entire used range
             $Worksheet = $Workbook.Workbook.Worksheets[$WorksheetName]
-            $SheetEnd  = $Worksheet.Dimension.End.Address
+            $SheetEnd = $Worksheet.Dimension.End.Address
             Set-ExcelRange -Worksheet $Worksheet -Range "A1:${SheetEnd}" -FontName $Font
 
             # sheet title (written last so font override sticks)
-            $Worksheet.Cells[1, 1].Value           = "Admin roles for ${DomainName} as of ${TitleDateString}"
+            $Worksheet.Cells[1, 1].Value = "Admin roles for ${DomainName} as of ${TitleDateString}"
             $Worksheet.Cells[1, 1].Style.Font.Bold = $true
             $Worksheet.Cells[1, 1].Style.Font.Size = 16
 
@@ -243,7 +257,7 @@ function New-RoleMemberObject {
             return [pscustomobject]@{
                 ObjectType        = 'User'
                 Id                = $Id
-                AccountEnabled    = $GraphObject.AccountEnabled
+                Enabled           = $GraphObject.AccountEnabled
                 DisplayName       = $GraphObject.DisplayName
                 UserPrincipalName = $GraphObject.UserPrincipalName
                 RoleSource        = $RoleSource
@@ -254,9 +268,9 @@ function New-RoleMemberObject {
             return [pscustomobject]@{
                 ObjectType           = 'ServicePrincipal'
                 Id                   = $Id
-                AccountEnabled       = $GraphObject.AccountEnabled
-                ServicePrincipalType = $GraphObject.ServicePrincipalType
+                Enabled              = $GraphObject.AccountEnabled
                 DisplayName          = $GraphObject.DisplayName
+                ServicePrincipalType = $GraphObject.ServicePrincipalType
                 Description          = $GraphObject.Description
                 RoleSource           = $RoleSource
                 Roles                = $Roles

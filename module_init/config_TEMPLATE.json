@@ -3,5 +3,7 @@
     "Browser": "default",
     "ExcelTableStyle": "Dark8",
     "ExcelFont": "Consolas",
-    "ExportXml": false
+    "ExportXml": false,
+    "AllOperationsSheetPath": null,
+    "TenantsSheetPath": null
 }

@@ -1,7 +1,7 @@
-function Resolve-SharePointSearchQueryPerformed {
+function Get-SetConditionalAccessPolicySummary {
     <#
 	.SYNOPSIS
-    Parses SearchQueryPerformed events from UAL.
+    Parses ExchangeAdmin Set-ConditionalAccessPolicy events from UAL.
 	
 	.NOTES
 	Version: 1.0.0
@@ -20,12 +20,12 @@ function Resolve-SharePointSearchQueryPerformed {
 
     process {
 
-        # SearchQueryText
-        $SearchQueryText = $Log.AuditData.SearchQueryText
-        $SummaryLines.Add( "SearchQueryText: ${SearchQueryText}" )
+        # DisplayName
+        $DisplayName = ($Log.AuditData.Parameters | Where-Object { $_.Name -eq 'DisplayName' } ).Value
+        $SummaryLines.Add("DisplayName: ${DisplayName}")
 
         # join strings, create return object
-        $Summary = $SummaryLines -join ', '
+        $Summary = $SummaryLines -join "`n"
         $EventObject = [pscustomobject]@{
             Summary = $Summary
         }
