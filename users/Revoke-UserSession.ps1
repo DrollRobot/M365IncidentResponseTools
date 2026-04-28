@@ -1,35 +1,35 @@
-New-Alias -Name 'RevokeSessions' -Value 'Revoke-UsersSessions' -Force
-New-Alias -Name 'Revoke-UserSessions' -Value 'Revoke-UsersSessions' -Force
-function Revoke-UsersSessions {
+New-Alias -Name 'RevokeSessions' -Value 'Revoke-UserSession' -Force
+New-Alias -Name 'Revoke-UserSessions' -Value 'Revoke-UserSession' -Force
+function Revoke-UserSession {
     <#
 	.SYNOPSI
 	Revoke sessions for selected user. (NOTE: There is currently no way to revoke MFA sessions through graph APIs. It must be done in the Entra/Azure web portal.)
-	
+
 	.NOTES
 	Version: 1.0.0
 	#>
     [CmdletBinding()]
     param(
         [Parameter( Position = 0 )]
-        [Alias( 'UserObject' )]
-        [psobject[]] $UserObjects
+        [Alias('UserObjects')]
+        [psobject[]] $UserObject
     )
 
     begin {
 
         # if not passed directly, find global
-        if ( -not $UserObjects -or $UserObjects.Count -eq 0 ) {
+        if ( -not $UserObject -or $UserObject.Count -eq 0 ) {
 
             # get from global variables
-            $ScriptUserObjects = Get-IRTUserObjects
-        
+            $ScriptUserObjects = Get-IRTUserObject
+
             # if none found, exit
             if ( -not $ScriptUserObjects -or $ScriptUserObjects.Count -eq 0 ) {
                 throw "No user objects passed or found in global variables."
             }
         }
         else {
-            $ScriptUserObjects = $UserObjects
+            $ScriptUserObjects = $UserObject
         }
 
         # variables

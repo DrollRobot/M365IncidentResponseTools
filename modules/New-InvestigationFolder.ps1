@@ -5,19 +5,17 @@ function New-InvestigationFolder {
 	<#
 	.SYNOPSIS
 	Makes a new directory based on client and user info
-	
+
 	.NOTES
 	Version: 1.0.2
 	#>
-	[CmdletBinding()]
+	[CmdletBinding(SupportsShouldProcess)]
 	param (
 		[Parameter( Position = 0 )]
-		[Alias( 'UserObject' )]
-		[psobject[]] $UserObjects,
+		[Alias('UserObjects')]
+		[psobject[]] $UserObject,
 
-		[string] $Ticket,
-
-		[switch] $Confirm
+		[string] $Ticket
 	)
 
 	begin {
@@ -25,15 +23,6 @@ function New-InvestigationFolder {
 		# script variables
 		$CurrentPath = Get-Location
 		$FileNameStrings = [System.Collections.Generic.List[string]]::new()
-
-		if ( $Confirm ) {
-			if ( Get-YesNo "Create new investigation directory?" ) {
-				# do nothing
-			}
-			else {
-				return
-			}
-		}
 
 		# get client domain
 		$Params = @{
@@ -43,7 +32,7 @@ function New-InvestigationFolder {
 			$DefaultDomain = Get-MgDomain @Params | Where-Object { $_.IsDefault -eq $true }
 		}
 		catch {}
-		
+
 		if ( $DefaultDomain ) {
 			$DomainName = $DefaultDomain.Id -split '\.' | Select-Object -First 1
 		}
@@ -55,14 +44,14 @@ function New-InvestigationFolder {
 		$DateString = Get-Date -Format "yy-MM-dd_HH-mm"
 
 		# if not passed directly, find global
-		if ( -not $UserObjects -or $UserObjects.Count -eq 0 ) {
-        
+		if ( -not $UserObject -or $UserObject.Count -eq 0 ) {
+
 			# get from global variables
-			$ScriptUserObjects = Get-IRTUserObjects
-			
+			$ScriptUserObjects = Get-IRTUserObject
+
 		}
 		else {
-			$ScriptUserObjects = $UserObjects
+			$ScriptUserObjects = $UserObject
 		}
 	}
 
@@ -100,15 +89,17 @@ function New-InvestigationFolder {
 
 		# investigation
 		$FileNameStrings.Add( 'Investigation' )
-		
+
 		# build folder name
 		$FolderName = $FileNameStrings -join '_'
-		
+
 		# create folder
 		$FolderPath = Join-Path -Path $CurrentPath -ChildPath $FolderName
-		New-Item -ItemType Container -Path $FolderPath | Out-Null
-		
-		# move to folder
-		Set-Location -Path $FolderPath
+		if ($PSCmdlet.ShouldProcess($FolderPath, 'Create directory')) {
+			New-Item -ItemType Container -Path $FolderPath -Confirm:$false | Out-Null
+
+			# move to folder
+			Set-Location -Path $FolderPath
+		}
 	}
 }

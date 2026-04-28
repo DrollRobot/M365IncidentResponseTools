@@ -1,8 +1,8 @@
-function Request-GraphServicePrincipals {
+function Request-GraphServicePrincipal {
     <#
 	.SYNOPSIS
     Requests service principals from Microsoft Graph. Caches in global variable.
-	
+
 	.NOTES
 	Version: 2.0.0
 	#>
@@ -100,4 +100,4 @@ function Request-GraphServicePrincipals {
 }
 
 # TESTING
-# Request-GraphServicePrincipals
+# Request-GraphServicePrincipal

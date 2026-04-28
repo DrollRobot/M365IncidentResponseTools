@@ -1,8 +1,8 @@
-function Request-GraphUsers {
+function Request-DirectoryRole {
     <#
 	.SYNOPSIS
-    Requests users from Microsoft Graph. Caches in global variable.
-	
+    Requests directory roles from Microsoft Graph. Caches in global variable.
+
 	.NOTES
 	Version: 2.0.0
 	#>
@@ -23,26 +23,21 @@ function Request-GraphUsers {
         $FileNameDate = ( Get-Date ).ToString( $FileNameDateFormat )
         $GetProperties = @(
             'DisplayName'
-            'AccountEnabled'
             'Id'
-            'Mail'
-            'OnPremisesLastSyncDateTime'
-            'OnPremisesSamAccountName'
-            'OnPremisesSyncEnabled'
-            'ProxyAddresses'
-            'UserPrincipalName'
+            'RoleTemplateId'
         )
+        $ExpandProperties = @( 'Members' )
     }
 
     process {
 
         # return cached data if available
         if ( $Cached ) {
-            $Variable = Get-Variable -Scope Global -Name 'IRT_Users' -ErrorAction SilentlyContinue
+            $Variable = Get-Variable -Scope Global -Name 'IRT_DirectoryRoles' -ErrorAction SilentlyContinue
             if ( $Variable ) {
                 switch ( $Return ) {
-                    'objects'   { return $Global:IRT_Users }
-                    'tablebyid' { return $Global:IRT_UsersById }
+                    'objects'   { return $Global:IRT_DirectoryRoles }
+                    'tablebyid' { return $Global:IRT_DirectoryRolesById }
                     'none'      { return }
                 }
             }
@@ -53,18 +48,18 @@ function Request-GraphUsers {
         $DomainName = $DefaultDomain.Id -split '\.' | Select-Object -First 1
 
         # query graph
-        $Objects = Get-MgUser -All -Property $GetProperties | Select-Object $GetProperties
+        $Objects = Get-MgDirectoryRole -All -Property $GetProperties -ExpandProperty $ExpandProperties | Select-Object ( $GetProperties + $ExpandProperties )
 
         # store in global variables
-        $Global:IRT_Users = $Objects
-        $Global:IRT_UsersById = @{}
+        $Global:IRT_DirectoryRoles = $Objects
+        $Global:IRT_DirectoryRolesById = @{}
         foreach ( $o in $Objects ) {
-            if ( $o.Id ) { $Global:IRT_UsersById[$o.Id] = $o }
+            if ( $o.Id ) { $Global:IRT_DirectoryRolesById[$o.Id] = $o }
         }
 
         # export to file
         if ($Xml) {
-            $FileName = "Users_Raw_${DomainName}_${FileNameDate}.xml"
+            $FileName = "DirectoryRoles_Raw_${DomainName}_${FileNameDate}.xml"
             $XmlOutputPath = Join-Path -Path $CurrentPath -ChildPath $FileName
             if ( $Test ) {
                 $ExportTime = Measure-Command { $Objects | Export-Clixml -Depth 5 -Path $XmlOutputPath }
@@ -77,8 +72,8 @@ function Request-GraphUsers {
 
         # return
         switch ( $Return ) {
-            'objects'   { return $Global:IRT_Users }
-            'tablebyid' { return $Global:IRT_UsersById }
+            'objects'   { return $Global:IRT_DirectoryRoles }
+            'tablebyid' { return $Global:IRT_DirectoryRolesById }
             'none'      { return }
         }
     }

@@ -34,7 +34,7 @@ function Get-IRTTenantInfo {
     Useful when you don't have a Graph session or lack the required scope.
 
     .PARAMETER NoCache
-    Bypass the local cache entirely — neither reads from it nor writes to it.
+    Bypass the local cache entirely - neither reads from it nor writes to it.
 
     .PARAMETER ForceRefresh
     Re-query even if the tenant is already cached, and overwrite the cached entry
@@ -60,7 +60,8 @@ function Get-IRTTenantInfo {
     param (
         [Parameter( Mandatory, Position = 0, ValueFromPipeline, ValueFromPipelineByPropertyName )]
         [Alias('Tenant', 'Tenants', 'TenantId')]
-        [string[]] $TenantIds,
+        [Alias('TenantIds')]
+        [string[]] $TenantId,
 
         [switch] $SkipGraph,
 
@@ -116,7 +117,7 @@ function Get-IRTTenantInfo {
 
     process {
 
-        foreach ($tid in $TenantIds) {
+        foreach ($tid in $TenantId) {
 
             # --- Validate GUID ---
             $guidParsed = [guid]::Empty

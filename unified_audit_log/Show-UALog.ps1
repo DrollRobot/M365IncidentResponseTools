@@ -1,8 +1,8 @@
-function Show-UALogs {
+function Show-UALog {
     <#
 	.SYNOPSIS
 	Parse and show unified audit logs.
-	
+
 	.NOTES
 	Version: 1.0.1
     1.0.1 - Added option pass raw log objects, not just import from file.
@@ -10,7 +10,8 @@ function Show-UALogs {
     [CmdletBinding(DefaultParameterSetName='Objects')]
     param (
 	    [Parameter(Position=0, Mandatory, ParameterSetName='Objects')]
-        [System.Collections.Generic.List[PSObject]] $Logs,
+        [Alias('Logs')]
+        [System.Collections.Generic.List[PSObject]] $Log,
 
         [Parameter(Position=0, Mandatory, ParameterSetName='Xml')]
         [string] $XmlPath,
@@ -37,16 +38,11 @@ function Show-UALogs {
             # start stopwatch
             $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
         }
-        $RawDateProperty = 'CreationDate'
-        $DateColumnHeader = 'DateTime'
 
-        # colors
         $Blue = @{ ForegroundColor = 'Blue' }
-        # $Green = @{ ForegroundColor = 'Green' }
-        # $Magenta = @{ ForegroundColor = 'Magenta' }
         $Red = @{ ForegroundColor = 'Red' }
         $Yellow = @{ ForegroundColor = 'Yellow' }
-        
+
         # import from xml
         if ($ParameterSet -eq 'Xml') {
             if ($Script:Test) {
@@ -57,7 +53,7 @@ function Show-UALogs {
 
             try {
                 $ResolvedXmlPath = Resolve-ScriptPath -Path $XmlPath -File -FileExtension 'xml'
-                [System.Collections.Generic.List[PSObject]]$Logs = Import-CliXml -Path $ResolvedXmlPath
+                [System.Collections.Generic.List[PSObject]]$Log = Import-CliXml -Path $ResolvedXmlPath
             }
             catch {
                 $_
@@ -68,43 +64,33 @@ function Show-UALogs {
             if ($Script:Test) {
                 $ElapsedString = ($StopWatch.Elapsed - $TimerStart).ToString('mm\:ss')
                 Write-Host @Yellow "${Function}: ${TestText} took ${ElapsedString}" | Out-Host
-            }    
+            }
         }
 
-        # $Groups = Request-GraphGroups
-        # $Roles = Request-DirectoryRoles
-        # $RoleTemplates = Request-DirectoryRoleTemplates
-        # $ServicePrincipals = Request-GraphServicePrincipals
-        # $Users = Request-GraphUsers
+        # $Groups = Request-GraphGroup
+        # $Roles = Request-DirectoryRole
+        # $RoleTemplates = Request-DirectoryRoleTemplate
+        # $ServicePrincipals = Request-GraphServicePrincipal
+        # $Users = Request-GraphUser
 
         #region METADATA
-        if ($Logs[0].Metadata) {
+        if ($Log[0].Metadata) {
 
             # remove metadata from beginning of list
-            $Metadata = $Logs[0]
-            $Logs.RemoveAt(0)
-
-            # $UserEmail = $Metadata.UserEmail
-            $UserName = $Metadata.UserName
-            $StartDate = $Metadata.StartDate
-            $EndDate = $Metadata.EndDate
-            $Days = $Metadata.Days
-            # $Domain = $Metadata.Domain
-            $FileNamePrefix = $Metadata.FileNamePrefix
-            $SheetTitle = $Metadata.SheetTitle
-            $ProfileTag = $Metadata.ProfileTag
+            $Metadata = $Log[0]
+            $Log.RemoveAt(0)
         }
         else {
             Write-Host @Red "${Function}: No Metadata found."
         }
 
-        # sheet registry — maps operation types to their dedicated sheet builders
+        # sheet registry - maps operation types to their dedicated sheet builders
         $SheetRegistry = [ordered]@{
             'AllOperations' = @{
                 Operations    = @()   # empty = matches all logs
-                BuildFunction = 'Build-AllOperationsSheet'
-                SheetName     = $FileNamePrefix
-                SheetTitle    = $SheetTitle
+                BuildFunction = 'Build-AllOperationSheet'
+                SheetName     = $Metadata.FileNamePrefix
+                SheetTitle    = $Metadata.SheetTitle
             }
             'SignInLogs' = @{
                 Operations    = @('UserLoggedIn', 'UserLoginFailed', 'UserLoggedOff')
@@ -115,15 +101,7 @@ function Show-UALogs {
         }
 
         # build file name
-        $FileNameDateFormat = "yy-MM-dd_HH-mm"
-        $FileDateString = $EndDate.ToLocalTime().ToString($FileNameDateFormat)
-        $ExcelOutputPath = "${FileNamePrefix}_${Days}Days_${UserName}_${FileDateString}.xlsx"
-
-        # build worksheet title
-        $TitleDateFormat = "M/d/yy h:mmtt"
-        $TitleEndDate = $EndDate.ToLocalTime().ToString($TitleDateFormat)
-        $TitleStartDate = $StartDate.ToLocalTime().ToString($TitleDateFormat)
-        $WorksheetTitle = "${SheetTitle} for ${UserName}. Covers ${Days} days, ${TitleStartDate} to ${TitleEndDate}."
+        $ExcelOutputPath = $Metadata.FileName + ".xlsx"
 
         # import alloperations sheet
         $ModuleRoot = $MyInvocation.MyCommand.Module.ModuleBase
@@ -151,43 +129,43 @@ function Show-UALogs {
 
         #region FIRST LOOP
 
-        foreach ($Log in $Logs) {
+        foreach ($LogEntry in $Log) {
             # convert audit data to powershell objects
-            $Log.AuditData = $Log.AuditData | ConvertFrom-Json -Depth 10
+            $LogEntry.AuditData = $LogEntry.AuditData | ConvertFrom-Json -Depth 10
 
             # collect ip addresses
             if ($IpInfo) {
-                if ( $Log.AuditData.ClientIP ) {
+                if ( $LogEntry.AuditData.ClientIP ) {
                     try {
-                        $IpObject = [System.Net.IPAddress]$Log.AuditData.ClientIP
+                        $IpObject = [System.Net.IPAddress]$LogEntry.AuditData.ClientIP
                     }
                     catch {}
                     if ($IpObject) {
                         [void]$IpInfoAddresses.Add($IpObject.ToString())
                     }
                 }
-                if ( $Log.AuditData.ActorIpAddress ) {
+                if ( $LogEntry.AuditData.ActorIpAddress ) {
                     try {
-                        $IpObject = [System.Net.IPAddress]$Log.AuditData.ActorIpAddress
+                        $IpObject = [System.Net.IPAddress]$LogEntry.AuditData.ActorIpAddress
                     }
                     catch {}
                     if ($IpObject) {
                         [void]$IpInfoAddresses.Add($IpObject.ToString())
                     }                }
-                if ( $Log.AuditData.ClientIPAddress ) {
+                if ( $LogEntry.AuditData.ClientIPAddress ) {
                     try {
-                        $IpObject = [System.Net.IPAddress]$Log.AuditData.ClientIPAddress
+                        $IpObject = [System.Net.IPAddress]$LogEntry.AuditData.ClientIPAddress
                     }
                     catch {}
                     if ($IpObject) {
                         [void]$IpInfoAddresses.Add($IpObject.ToString())
                     }
-                } 
+                }
             }
         }
 
         #region QUERY IPS
-        if ($IpInfo -and 
+        if ($IpInfo -and
             $IpInfoPackage.Present -and
             ($IpInfoAddresses | Measure-Object).Count -gt 0
         ) {
@@ -280,24 +258,24 @@ function Show-UALogs {
                 Write-Host @Yellow "${Function}: MessageTraceTable resolved with $($MessageTraceTable.Count) entries"
             }
             else {
-                Write-Host @Yellow "${Function}: No MessageTraceTable available — subjects will not be resolved"
+                Write-Host @Yellow "${Function}: No MessageTraceTable available - subjects will not be resolved"
             }
         }
 
         #region AUTO-DETECT SHEETS
         # build set of operations present in the logs
-        $LogOperations = [System.Collections.Generic.HashSet[string]]::new()
-        foreach ($Log in $Logs) {
-            if ($Log.AuditData.Operation) {
-                [void]$LogOperations.Add($Log.AuditData.Operation)
+        $LogEntryOperations = [System.Collections.Generic.HashSet[string]]::new()
+        foreach ($LogEntry in $Log) {
+            if ($LogEntry.AuditData.Operation) {
+                [void]$LogEntryOperations.Add($LogEntry.AuditData.Operation)
             }
         }
 
         $MatchedSheets = [System.Collections.Generic.List[hashtable]]::new()
 
-        if ($ProfileTag -and $SheetRegistry.Contains($ProfileTag)) {
+        if ($Metadata.ProfileTag -and $SheetRegistry.Contains($Metadata.ProfileTag)) {
             # profile-driven: only the tagged sheet
-            $MatchedSheets.Add($SheetRegistry[$ProfileTag])
+            $MatchedSheets.Add($SheetRegistry[$Metadata.ProfileTag])
         }
         else {
             # default: always include AllOperations, then add any specialized
@@ -307,7 +285,7 @@ function Show-UALogs {
                 if ($Key -eq 'AllOperations') { continue }
                 $SheetEntry = $SheetRegistry[$Key]
                 foreach ($Op in $SheetEntry.Operations) {
-                    if ($LogOperations.Contains($Op)) {
+                    if ($LogEntryOperations.Contains($Op)) {
                         $MatchedSheets.Add($SheetEntry)
                         break
                     }
@@ -315,25 +293,25 @@ function Show-UALogs {
             }
         }
 
-        #region BUILD WORKBOOK
+        #region build workbook
         $Workbook = Open-ExcelPackage -Path $ExcelOutputPath -Create
 
         foreach ($SheetEntry in $MatchedSheets) {
-            # filter logs — empty Operations array means all logs
+            # filter logs - empty Operations array means all logs
             if ($SheetEntry.Operations.Count -gt 0) {
                 $FilteredLogs = [System.Collections.Generic.List[PSObject]]::new()
-                foreach ($Log in $Logs) {
-                    if ($Log.AuditData.Operation -in $SheetEntry.Operations) {
-                        $FilteredLogs.Add($Log)
+                foreach ($LogEntry in $Log) {
+                    if ($LogEntry.AuditData.Operation -in $SheetEntry.Operations) {
+                        $FilteredLogs.Add($LogEntry)
                     }
                 }
             }
             else {
-                $FilteredLogs = $Logs
+                $FilteredLogs = $Log
             }
 
             if (($FilteredLogs | Measure-Object).Count -gt 0) {
-                $BuildTitle = "$($SheetEntry.SheetTitle) for ${UserName}. Covers ${Days} days, ${TitleStartDate} to ${TitleEndDate}."
+                $BuildTitle = $SheetEntry.SheetTitle + $Metadata.TitleSuffix
                 $SheetParams = @{
                     Logs          = $FilteredLogs
                     ExcelPackage  = $Workbook
@@ -345,7 +323,7 @@ function Show-UALogs {
                     Cached        = $Cached
                 }
                 # AllOperations needs extra parameters
-                if ($SheetEntry.BuildFunction -eq 'Build-AllOperationsSheet') {
+                if ($SheetEntry.BuildFunction -eq 'Build-AllOperationSheet') {
                     if ($MessageTraceTable) { $SheetParams['MessageTraceTable'] = $MessageTraceTable }
                     if ($OperationsSheetData)  { $SheetParams['OperationsSheetData'] = $OperationsSheetData }
                 }
@@ -353,7 +331,7 @@ function Show-UALogs {
             }
         }
 
-        #region OUTPUT
+        #region output
         Write-Host @Blue "${Function}: Exporting to: ${ExcelOutputPath}"
         if ($Open) {
             Write-Host @Blue "Opening Excel."

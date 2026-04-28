@@ -1,16 +1,13 @@
-New-Alias -Name 'FindObject' -Value 'Find-GraphDirectoryObjects' -Force
-New-Alias -Name 'FindObjects' -Value 'Find-GraphDirectoryObjects' -Force
-New-Alias -Name 'Find-GraphDirectoryObject' -Value 'Find-GraphDirectoryObjects' -Force
-function Find-GraphDirectoryObjects {
+New-Alias -Name 'FindObject' -Value 'Find-GraphDirectoryObject' -Force
+New-Alias -Name 'FindObjects' -Value 'Find-GraphDirectoryObject' -Force
+function Find-GraphDirectoryObject {
     param(
         [Parameter( Position = 0 )]
-        [string] $Content,
-
-        [string] $TenantId
+        [string] $Content
     )
 
     begin {
-        
+
         # variables
         $GuidPattern = "\b[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}\b"
         $Cyan = @{
@@ -33,14 +30,14 @@ function Find-GraphDirectoryObjects {
             $DisplayLines = $Content -split "`r`n" | Select-Object -First 3
             $TruncatedLines = $DisplayLines | ForEach-Object {
                 if ( $_.Length -gt 80 ) {
-                    $_.Substring(0, 77) + "..." 
+                    $_.Substring(0, 77) + "..."
                 }
-                else { 
+                else {
                     $_
                 }
             }
             Write-Host $TruncatedLines
-        }        
+        }
     }
 
     process {
@@ -49,24 +46,24 @@ function Find-GraphDirectoryObjects {
 
         # remove duplicates
         $Guids = $Guids | Sort-Object -Unique
-        
+
         Write-Host @Cyan "`nFound GUIDS:"
         $Guids
-        
+
         foreach ( $Guid in $Guids ) {
 
             # variables
             $DirectoryObject = $null
             $ObjectType = $null
-        
+
             Write-Host @Cyan "`nRunning Get-MgDirectoryObject for ${Guid}"
 
             try {
 
                 $DirectoryObject = Get-MgDirectoryObject -DirectoryObjectId $Guid -ErrorAction Stop
-        
+
                 $ObjectType = $DirectoryObject.AdditionalProperties.'@odata.type' -replace '#', ''
-                
+
                 Write-Host "`nObjectType: ${ObjectType}"
             }
             catch {

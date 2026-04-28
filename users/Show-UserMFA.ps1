@@ -3,7 +3,7 @@ New-Alias -Name 'UserMFA' -Value 'Show-UserMFA' -Force
 function Show-UserMFA {
     <#
     .SYNOPSIS
-    Shows a graph user's MFA methods.     
+    Shows a graph user's MFA methods.
 
     .NOTES
     Inspired by:
@@ -12,15 +12,15 @@ function Show-UserMFA {
     [CmdletBinding()]
     param(
         [Parameter(Position = 0, ValueFromPipeline = $true, ValueFromPipelineByPropertyName = $true)]
-        [Alias( 'UserObject' )]
-        [psobject[]] $UserObjects,
+        [Alias('UserObjects')]
+        [psobject[]] $UserObject,
 
         [string] $TableStyle = $Global:IRT_Config.ExcelTableStyle,
         [string] $Font = $Global:IRT_Config.ExcelFont,
         [boolean] $Xml = $Global:IRT_Config.ExportXml,
         [boolean] $Open = $true
     )
-     
+
     begin {
 
         #region BEGIN
@@ -51,18 +51,18 @@ function Show-UserMFA {
         # $Yellow = @{ ForegroundColor = 'Yellow' }
 
         # if user objects not passed directly, find global
-        if ( -not $UserObjects -or $UserObjects.Count -eq 0 ) {
+        if ( -not $UserObject -or $UserObject.Count -eq 0 ) {
 
             # get from global variables
-            $ScriptUserObjects = Get-IRTUserObjects
-        
+            $ScriptUserObjects = Get-IRTUserObject
+
             # if none found, exit
             if ( -not $ScriptUserObjects -or $ScriptUserObjects.Count -eq 0 ) {
                 throw "No user objects passed or found in global variables."
             }
         }
         else {
-            $ScriptUserObjects = $UserObjects
+            $ScriptUserObjects = $UserObject
         }
 
         # get client domain name for file output
@@ -72,7 +72,7 @@ function Show-UserMFA {
         # get date/time string for filename
         $DateString = Get-Date -Format $FileNameDateFormat
     }
-     
+
     process {
 
         foreach ( $ScriptUserObject in $ScriptUserObjects ) {
@@ -192,7 +192,7 @@ function Show-UserMFA {
                                 # add human friendly method name
                                 $NameParams['Value'] = 'Phone'
                                 $CustomObject | Add-Member @NameParams
-                                
+
                                 # add delete command
                                 $DeleteString = "Remove-MgUserAuthenticationPhoneMethod -UserId ${UserId} -PhoneAuthenticationMethodId ${MethodId}"
                                 $DeleteParams['Value'] = $DeleteString
@@ -238,7 +238,7 @@ function Show-UserMFA {
 
                                 # add human friendly method name
                                 $NameParams['Value'] = $Method.AdditionalProperties["@odata.type"]
-                                $CustomObject | Add-Member @NameParams                            
+                                $CustomObject | Add-Member @NameParams
                             }
                         }
                     }
@@ -298,7 +298,7 @@ function Show-UserMFA {
                     $SummaryString = $SummaryParts -join "`n"
                     $CustomObject | Add-Member -MemberType NoteProperty -Name 'Summary' -Value $SummaryString
                 }
-    
+
                 # add loop object to table
                 $OutputTable.Add( $CustomObject )
             }
@@ -395,7 +395,7 @@ function Show-UserMFA {
                 WrapText  = $true
             }
             Set-ExcelRange @WrapParams
-            
+
             # set font and size
             $SetParams = @{
                 Worksheet = $Worksheet
@@ -411,10 +411,10 @@ function Show-UserMFA {
                 BorderLeft = 'Thin'
                 BorderColor = 'Black'
             }
-            Set-Format @BorderParams
+            Set-ExcelRange @BorderParams
 
             #region OUTPUT
-                        
+
             # save and close
             Write-Host @Blue "Exporting to: ${ExcelOutputPath}"
             if ($Open) {

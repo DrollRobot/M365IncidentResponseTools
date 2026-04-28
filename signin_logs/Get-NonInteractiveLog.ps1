@@ -1,21 +1,20 @@
-New-Alias -Name 'NILog' -Value 'Get-NonInteractiveLogs' -Force
-New-Alias -Name 'NILogs' -Value 'Get-NonInteractiveLogs' -Force
-New-Alias -Name 'GetNILog' -Value 'Get-NonInteractiveLogs' -Force
-New-Alias -Name 'GetNILogs' -Value 'Get-NonInteractiveLogs' -Force
-New-Alias -Name 'Get-NonInteractiveLog' -Value 'Get-NonInteractiveLogs' -Force
-function Get-NonInteractiveLogs {
+New-Alias -Name 'NILog' -Value 'Get-NonInteractiveLog' -Force
+New-Alias -Name 'NILogs' -Value 'Get-NonInteractiveLog' -Force
+New-Alias -Name 'GetNILog' -Value 'Get-NonInteractiveLog' -Force
+New-Alias -Name 'GetNILogs' -Value 'Get-NonInteractiveLog' -Force
+function Get-NonInteractiveLog {
 	<#
 	.SYNOPSIS
-	A wrapper for Get-SignInLogs.
-	
+	A wrapper for Get-SignInLog.
+
 	.NOTES
 	Version: 1.0.0
 	#>
     [CmdletBinding()]
     param (
         [Parameter( Position = 0 )]
-        [Alias( 'UserObject' )]
-        [psobject[]] $UserObjects,
+        [Alias( 'UserObjects' )]
+        [psobject[]] $UserObject,
 
         [int] $Days,
         [boolean] $Beta = $true,
@@ -28,7 +27,7 @@ function Get-NonInteractiveLogs {
 
         # variables
         $Params = @{
-            UserObjects = $UserObjects
+            UserObjects = $UserObject
             NonInteractive = $true
             Days = $Days
             Xml = $Xml
@@ -43,6 +42,6 @@ function Get-NonInteractiveLogs {
     process {
 
         # run command
-        Get-SignInLogs @Params
+        Get-SignInLog @Params
     }
 }

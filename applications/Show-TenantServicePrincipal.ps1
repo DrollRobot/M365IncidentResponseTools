@@ -1,16 +1,16 @@
-New-Alias -Name 'ShowApps' -Value 'Show-TenantServicePrincipals' -Force
-New-Alias -Name 'ShowServicePrincipals' -Value 'Show-TenantServicePrincipals' -Force
-New-Alias -Name 'ShowEnterpriseApps' -Value 'Show-TenantServicePrincipals' -Force
-New-Alias -Name 'Show-Apps' -Value 'Show-TenantServicePrincipals' -Force
-New-Alias -Name 'Show-ServicePrincipals' -Value 'Show-TenantServicePrincipals' -Force
-New-Alias -Name 'Show-EnterpriseApps' -Value 'Show-TenantServicePrincipals' -Force
-New-Alias -Name 'Show-Applications' -Value 'Show-TenantServicePrincipals' -Force
+New-Alias -Name 'ShowApps' -Value 'Show-TenantServicePrincipal' -Force
+New-Alias -Name 'ShowServicePrincipals' -Value 'Show-TenantServicePrincipal' -Force
+New-Alias -Name 'ShowEnterpriseApps' -Value 'Show-TenantServicePrincipal' -Force
+New-Alias -Name 'Show-Apps' -Value 'Show-TenantServicePrincipal' -Force
+New-Alias -Name 'Show-ServicePrincipals' -Value 'Show-TenantServicePrincipal' -Force
+New-Alias -Name 'Show-EnterpriseApps' -Value 'Show-TenantServicePrincipal' -Force
+New-Alias -Name 'Show-Applications' -Value 'Show-TenantServicePrincipal' -Force
 
-function Show-TenantServicePrincipals {
+function Show-TenantServicePrincipal {
     <#
 	.SYNOPSIS
 	Displays all service principals in the tenant, or filters by a search term.
-	
+
 	.NOTES
 	Version: 1.3.0
 	1.3.0 - Added -Excel export option.
@@ -29,12 +29,12 @@ function Show-TenantServicePrincipals {
 
         # variables
         $TenantId = (Get-MgContext).TenantId
-        $ServicePrincipals = Request-GraphServicePrincipals -Cached:$Cached
+        $ServicePrincipals = Request-GraphServicePrincipal -Cached:$Cached
 
         # colors
         $Blue = @{ ForegroundColor = 'Blue' }
 
-        # custom default display view — no ps1xml needed
+        # custom default display view - no ps1xml needed
         $TypeDataParams = @{
             TypeName                  = 'IRT.TenantServicePrincipal'
             DefaultDisplayPropertySet = 'CreatedDateTime', 'AppDisplayName', 'AppOwner', 'AppId'
@@ -58,7 +58,7 @@ function Show-TenantServicePrincipals {
     }
 
     process {
-        
+
         if ( $Search ) {
             Write-Host @Blue "Service principals matching: ${Search}"
             $MatchingServicePrincipals = $ServicePrincipals | Where-Object { $_.DisplayName -match $Search }
@@ -183,4 +183,4 @@ function Show-TenantServicePrincipals {
 }
 
 # TESTING
-# Show-TenantServicePrincipals
+# Show-TenantServicePrincipal

@@ -2,7 +2,7 @@ function Get-TeamsSessionStartedSummary {
     <#
 	.SYNOPSIS
 
-	
+
 	.NOTES
 	Version: 1.0.0
 	#>
@@ -14,7 +14,8 @@ function Get-TeamsSessionStartedSummary {
         [Parameter( Mandatory )]
         [pscustomobject] $CustomObject,
 
-        [psobject[]] $Users,
+        [Alias('Users')]
+        [psobject[]] $User,
 
         [switch] $Cached
     )
@@ -24,7 +25,7 @@ function Get-TeamsSessionStartedSummary {
         # variables
         $ModuleRoot = $MyInvocation.MyCommand.Module.ModuleBase
         $AuditData = $Log.AuditData | ConvertFrom-Json
-        $Users = Request-GraphUsers -Cached:$Cached
+        $User = Request-GraphUser -Cached:$Cached
 
         # import user type csv
         $UserTypePath = Join-Path -Path $ModuleRoot -ChildPath 'data\unified_audit_log-user_type.csv'
@@ -46,9 +47,9 @@ function Get-TeamsSessionStartedSummary {
 
 
         # user?
-        
 
-        
+
+
         # summary?
 
 

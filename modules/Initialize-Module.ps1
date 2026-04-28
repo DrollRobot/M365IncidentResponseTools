@@ -1,4 +1,4 @@
-function Initialize-Modules {
+function Initialize-Module {
     <#
     .SYNOPSIS
     Ensures required modules are imported without Microsoft.Identity.Client
@@ -7,7 +7,7 @@ function Initialize-Modules {
     .DESCRIPTION
     Microsoft.Graph.Authentication and ExchangeOnlineManagement both ship
     their own version of Microsoft.Identity.Client.dll (MSAL). PowerShell
-    only allows one version of an assembly per session — whichever loads
+    only allows one version of an assembly per session - whichever loads
     first wins.
 
     This function scans all installed copies of both modules, finds the
@@ -23,7 +23,7 @@ function Initialize-Modules {
     [CmdletBinding()]
     param (
         [Parameter(Mandatory)]
-        [string[]] $ModuleNames
+        [Alias('ModuleNames')] [string[]] $ModuleName
     )
 
     process {
@@ -35,7 +35,7 @@ function Initialize-Modules {
         if ( -not $MsalLoaded ) {
 
             # scan all installed versions of each module for their bundled MSAL DLL
-            $MsalCandidates = foreach ( $Name in $ModuleNames ) {
+            $MsalCandidates = foreach ( $Name in $ModuleName ) {
                 $InstalledModules = Get-Module $Name -ListAvailable -ErrorAction SilentlyContinue
                 foreach ( $Mod in $InstalledModules ) {
                     $Dll = Get-ChildItem $Mod.ModuleBase -Recurse -Filter 'Microsoft.Identity.Client.dll' -ErrorAction SilentlyContinue |
@@ -66,7 +66,7 @@ function Initialize-Modules {
         }
 
         # --- 2. Import all modules in the order provided ---
-        foreach ( $Name in $ModuleNames ) {
+        foreach ( $Name in $ModuleName ) {
             if ( -not ( Get-Module $Name ) ) {
                 Import-Module $Name -ErrorAction Stop
             }

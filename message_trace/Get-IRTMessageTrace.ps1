@@ -3,38 +3,38 @@ function Get-IRTMessageTrace {
     <#
 	.SYNOPSIS
 	Downloads incoming and outgoing message trace for specified user, or all users.
-	
+
 	.NOTES
 	Version: 1.5.0
     1.5.0 - Integrated V1 and V2 into same function.
     1.4.0 - Switched to separate get/show functions. Updated to passing objects, not files. Added global variables.
 	#>
-    [CmdletBinding( DefaultParameterSetName = 'UserObjects' )]
+    [CmdletBinding( DefaultParameterSetName = 'UserObject' )]
     param (
-        [Parameter(ParameterSetName = 'UserObjects', Position = 0)]
-        [Alias( 'UserObject' )]
-        [psobject[]] $UserObjects,
+        [Parameter(ParameterSetName = 'UserObject', Position = 0)]
+        [Alias('UserObjects')]
+        [psobject[]] $UserObject,
 
-        [Parameter(ParameterSetName = 'UserEmails')]
-        [Alias( 'UserEmail' )]
-        [string[]] $UserEmails,
+        [Parameter(ParameterSetName = 'UserEmail')]
+        [Alias('UserEmails')]
+        [string[]] $UserEmail,
 
         [Parameter(ParameterSetName = 'AllUsers')]
         [switch] $AllUsers,
 
-        # relative date range
-        [int] $Days, # default value set at #DEFAULTDAYS
-        # absolute date range
-        # [string] $Start, #FIXME need to update request-irtmessagetrace
-        # [string] $End,
+        [int] $Days, # default set at DEFAULTDAYS
+        [string] $Start,
+        [string] $End,
 
         [int] $ResultLimit = 50000,
-        [string] $TableStyle = $Global:IRT_Config.ExcelTableStyle,
+
         [boolean] $Variable = $true,
         [boolean] $Excel = $true,
         [switch] $Quiet,
         [switch] $Test,
-        [boolean] $Xml = $Global:IRT_Config.ExportXml
+        [boolean] $Xml = $Global:IRT_Config.ExportXml,
+        [string] $TableStyle = $Global:IRT_Config.ExcelTableStyle,
+        [string] $Font = $Global:IRT_Config.ExcelFont
     )
 
     begin {
@@ -56,36 +56,36 @@ function Get-IRTMessageTrace {
 
         # create user objects depending on parameters used
         switch ( $ParameterSet ) {
-            'UserObjects' {
+            'UserObject' {
                 # if users passed via script argument:
-                if (($UserObjects | Measure-Object).Count -gt 0) {
-                    $ScriptUserObjects = $UserObjects
+                if (($UserObject | Measure-Object).Count -gt 0) {
+                    $ScriptUserObjects = $UserObject
                 }
                 # if not, look for global objects
                 else {
-                    
+
                     # get from global variables
-                    $ScriptUserObjects = Get-IRTUserObjects
-                    
+                    $ScriptUserObjects = Get-IRTUserObject
+
                     # if none found, exit
                     if (($ScriptUserObjects | Measure-Object).Count -eq 0) {
                         $ErrorParams = @{
                             Category    = 'InvalidArgument'
-                            Message     = "No -UserObjects argument used, no `$Global:IRT_UserObjects present."
+                            Message     = "No -UserObject argument used, no `$Global:IRT_UserObjects present."
                             ErrorAction = 'Stop'
                         }
                         Write-Error @ErrorParams
                     }
                 }
             }
-            'UserEmails' {
+            'UserEmail' {
                 # variables
                 $ScriptUserObjects = [System.Collections.Generic.list[psobject]]::new()
 
-                foreach ( $Email in $UserEmails ) {
+                foreach ( $Email in $UserEmail ) {
 
                     # create object with userprincipalname property
-                    $ScriptUserObjects.Add( 
+                    $ScriptUserObjects.Add(
                         [pscustomobject]@{
                             UserPrincipalName = $Email
                         }
@@ -103,91 +103,19 @@ function Get-IRTMessageTrace {
             }
         }
 
-        # verify connected to exchange
-        try {
-            [void](Get-AcceptedDomain)
-        }
-        catch {
-            $ErrorParams = @{
-                Category    = 'ConnectionError'
-                Message     = "Not connected to Exchange. Run Connect-ExchangeOnline."
-                ErrorAction = 'Stop'
-            }
-            Write-Error @ErrorParams
-        } 
 
-        #region DATE RANGE
-        # validate only days or (start and end)
-        if ($Days -and ($Start -or $End)) {
-            $ErrorParams = @{
-                Category    = 'InvalidArgument'
-                Message     = "Choose either relative range with -Days or absolute range with -Start and -End."
-                ErrorAction = 'Stop'
-            }
-            Write-Error @ErrorParams  
+        # parse date ranges
+        $DateRangeParams = @{
+            Days        = $Days
+            Start       = $Start
+            End         = $End
+            DefaultDays = 10 #DEFAULTDAYS
         }
-
-        # validate if start or end used, both were used.
-        if (($Start -and -not $End) -or
-            ($End -and -not $Start)
-        ) {
-            $ErrorParams = @{
-                Category    = 'InvalidArgument'
-                Message     = "Specify both -Start and -End"
-                ErrorAction = 'Stop'
-            }
-            Write-Error @ErrorParams  
-        }
-
-        # attempt to parse user input dates into datetime objects
-        if ($Start -and $End) {
-            $DateRangeType = 'Absolute'
-            # start - convert user string into object
-            try {
-                $StartDate = Get-Date -Date $Start -ErrorAction 'Stop'
-                $StartDateUtc = [DateTime]::SpecifyKind($StartDate, [DateTimeKind]::Local).ToUniversalTime()
-            }
-            catch {
-                $ErrorParams = @{
-                    Category    = 'InvalidArgument'
-                    Message     = "-Start invalid. Use format 'MM/dd/yy hh:mm(tt)"
-                    ErrorAction = 'Stop'
-                }
-                Write-Error @ErrorParams
-            }
-            # end - convert user string into object
-            try {
-                $EndDate = Get-Date -Date $End -ErrorAction 'Stop'
-                $EndDateUtc = [DateTime]::SpecifyKind($EndDate, [DateTimeKind]::Local).ToUniversalTime()
-            }
-            catch {
-                $ErrorParams = @{
-                    Category    = 'InvalidArgument'
-                    Message     = "-End invalid. Use format 'MM/dd/yy hh:mm(tt)"
-                    ErrorAction = 'Stop'
-                }
-                Write-Error @ErrorParams
-            }
-            # make sure earliest date is the start date
-            if ($StartDateUtc -gt $EndDateUtc) {
-                $Temp = $StartDateUtc
-                $StartDateUtc = $EndDateUtc
-                $EndDateUtc = $Temp
-            }
-            # set days to match range
-            $Days = [Int]([Math]::Ceiling( ($EndDate - $StartDate).TotalDays ))
-        }
-        # create objects based on days
-        else {
-            $DateRangeType = 'Relative'
-            # set default value for days ### must be done after checking for relative/absolute arguments
-            if (-not $Days) {
-                $Days = 10 #DEFAULTDAYS
-            }
-
-            $StartDateUtc = (Get-Date).AddDays($Days * -1).ToUniversalTime()
-            $EndDateUtc = (Get-Date).ToUniversalTime()
-        }
+        $DateRange = Resolve-IRTDateRange @DateRangeParams
+        $DateRangeType = $DateRange.RangeType
+        $Days          = $DateRange.Days
+        $StartDateUtc  = $DateRange.StartUtc
+        $EndDateUtc    = $DateRange.EndUtc
 
         #region VERIFY COMMAND
         # verify Get-MessageTraceV2 is available
@@ -219,7 +147,7 @@ function Get-IRTMessageTrace {
                         Message     = "-EndDate must be greater than -StartDate."
                         ErrorAction = 'Stop'
                     }
-                    Write-Error @ErrorParams 
+                    Write-Error @ErrorParams
                 }
                 # recalculate $Days to match the adjusted date range
                 $Days = [Int]([Math]::Ceiling(($EndDateUtc - $StartDateUtc).TotalDays))
@@ -392,7 +320,7 @@ function Get-IRTMessageTrace {
                         Lists        = $ListOfLists
                         Descending   = $true
                     }
-                    [System.Collections.Generic.List[psobject]]$AllMessages = Merge-ListsOnDate @MergeParams
+                    [System.Collections.Generic.List[psobject]]$AllMessages = Merge-ListOnDate @MergeParams
                 }
             }
 
@@ -470,7 +398,12 @@ function Get-IRTMessageTrace {
 
             # create excel sheet
             if ($Excel) {
-                Show-IRTMessageTrace -Messages $AllMessages
+                $Params = @{
+                    Messages   = $AllMessages
+                    TableStyle = $TableStyle
+                    Font       = $Font
+                }
+                Show-IRTMessageTrace @Params
             }
         }
     }

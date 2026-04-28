@@ -1,8 +1,8 @@
-function Show-SignInLogs {
+function Show-SignInLog {
 	<#
 	.SYNOPSIS
 	Processes Sign in log .XML file into Excel spreadsheet.
-	
+
 	.NOTES
 	Version: 1.1.3
     1.1.3 - Added timers/progress for testing.
@@ -10,7 +10,8 @@ function Show-SignInLogs {
     [CmdletBinding(DefaultParameterSetName='Objects')]
     param (
 	    [Parameter(Position=0, Mandatory, ParameterSetName='Objects')]
-        [System.Collections.Generic.List[PSObject]] $Logs,
+        [Alias('Logs')]
+        [System.Collections.Generic.List[PSObject]] $Log,
 
         [Parameter(Mandatory, ParameterSetName='Xml')]
         [string] $XmlPath,
@@ -55,7 +56,7 @@ function Show-SignInLogs {
 
             try {
                 $ResolvedXmlPath = Resolve-ScriptPath -Path $XmlPath -File -FileExtension 'xml'
-                [System.Collections.Generic.List[PSObject]]$Logs = Import-CliXml -Path $ResolvedXmlPath
+                [System.Collections.Generic.List[PSObject]]$Log = Import-CliXml -Path $ResolvedXmlPath
             }
             catch {
                 $_
@@ -74,11 +75,11 @@ function Show-SignInLogs {
         }
 
         #region Metadata
-        if ($Logs[0].Metadata) {
+        if ($Log[0].Metadata) {
 
             # remove metadata from beginning of list
-            $Metadata = $Logs[0]
-            $Logs.RemoveAt(0)
+            $Metadata = $Log[0]
+            $Log.RemoveAt(0)
         }
         else {
             Write-Host @Red "${Function}: No Metadata found."
@@ -106,15 +107,15 @@ function Show-SignInLogs {
     }
 
     process {
-        
+
         #region FIRST LOOP
-        
-        foreach ($Log in $Logs) {
+
+        foreach ($LogEntry in $Log) {
             # collect ip addresses
             if ($IpInfo) {
-                if ($Log.IpAddress) {
+                if ($LogEntry.IpAddress) {
                     try {
-                        $IpObject = [System.Net.IPAddress]$Log.IpAddress
+                        $IpObject = [System.Net.IPAddress]$LogEntry.IpAddress
                     }
                     catch {}
                     if ($IpObject) {
@@ -125,7 +126,7 @@ function Show-SignInLogs {
         }
 
         #region QUERY IPS
-        if ($IpInfo -and 
+        if ($IpInfo -and
             $IpInfoPackage.Present -and
             ($IpInfoAddresses | Measure-Object).Count -gt 0
         ) {
@@ -184,58 +185,58 @@ function Show-SignInLogs {
             $TimerStart = $Stopwatch.Elapsed
             Write-Host @Yellow "${Function}: ${TestText} started at $(Get-Date -Format 'hh:mm:sstt')" | Out-Host
         }
-    
-        $RowCount = ($Logs | Measure-Object).Count
+
+        $RowCount = ($Log | Measure-Object).Count
         $Rows = [System.Collections.Generic.List[PSCustomObject]]::new($RowCount)
-        for ($i = 0; $i -lt $RowCount; $i++) {  
-        
-            $Log = $Logs[$i]
+        for ($i = 0; $i -lt $RowCount; $i++) {
+
+            $LogEntry = $Log[$i]
 
             # Raw
-            $Raw = $Log | ConvertTo-Json -Depth 10
+            $Raw = $LogEntry | ConvertTo-Json -Depth 10
 
             # Date/Time
             $DateTime = $null
-            if ($Log.$RawDateProperty) {
-                $DateTime = $Log.$RawDateProperty.ToLocalTime()
+            if ($LogEntry.$RawDateProperty) {
+                $DateTime = $LogEntry.$RawDateProperty.ToLocalTime()
             }
 
             # IpAddress
-            $IpText = if ($IpInfoTable -and $IpInfoTable.ContainsKey($Log.IpAddress)) {
-                $IpInfoTable[$Log.IpAddress]
+            $IpText = if ($IpInfoTable -and $IpInfoTable.ContainsKey($LogEntry.IpAddress)) {
+                $IpInfoTable[$LogEntry.IpAddress]
             }
             else {
-                $Log.IpAddress
+                $LogEntry.IpAddress
             }
-            
+
             # application display name / resource id
-            if ( $Log.AppDisplayName ) {
-                $AppDisplayName = $Log.AppDisplayName
+            if ( $LogEntry.AppDisplayName ) {
+                $AppDisplayName = $LogEntry.AppDisplayName
             }
             else {
-                $AppDisplayName = $Log.ResourceId
+                $AppDisplayName = $LogEntry.ResourceId
             }
 
             # compress trust
-            $Trust = Convert-TrustType -TrustType $Log.DeviceDetail.TrustType
+            $Trust = Convert-TrustType -TrustType $LogEntry.DeviceDetail.TrustType
 
             # add to list
             [void]$Rows.Add([PSCustomObject]@{
                 Raw = $Raw
                 $DateColumnHeader = $DateTime
-                UserPrincipalName = $Log.UserPrincipalName
-                Error = ConvertTo-HumanErrorDescription -ErrorCode $Log.Status.ErrorCode
+                UserPrincipalName = $LogEntry.UserPrincipalName
+                Error = ConvertTo-HumanErrorDescription -ErrorCode $LogEntry.Status.ErrorCode
                 IpAddress = $IpText
-                City = $Log.Location.City
-                State = $Log.Location.State
-                Co = $Log.Location.CountryOrRegion
+                City = $LogEntry.Location.City
+                State = $LogEntry.Location.State
+                Co = $LogEntry.Location.CountryOrRegion
                 Application = $AppDisplayName
-                Browser = $Log.DeviceDetail.Browser
-                OS = $Log.DeviceDetail.OperatingSystem
+                Browser = $LogEntry.DeviceDetail.Browser
+                OS = $LogEntry.DeviceDetail.OperatingSystem
                 Trust = $Trust
-                UserAgent = $Log.UserAgent
-                Session = $Log.CorrelationId
-                Token = $Log.UniqueTokenIdentifier
+                UserAgent = $LogEntry.UserAgent
+                Session = $LogEntry.CorrelationId
+                Token = $LogEntry.UniqueTokenIdentifier
             })
 
             if ($Script:Test -and ($i % 100 -eq 0)) {
@@ -371,13 +372,13 @@ function Show-SignInLogs {
 
         #region FORMATTING
 
-        # set date format 
+        # set date format
         $FmtParams = @{
             Worksheet = $Worksheet
             Range = "B:B"
             NumberFormat  = 'm/d/yyyy h:mm:ss AM/PM'
         }
-        Set-Format @FmtParams
+        Set-ExcelRange @FmtParams
 
         # set text wrapping on ip address column
         $WrapParams = @{
@@ -385,7 +386,7 @@ function Show-SignInLogs {
             Range = "${IpAddressColumn}:${IpAddressColumn}"
             WrapText = $true
         }
-        Set-Format @WrapParams
+        Set-ExcelRange @WrapParams
 
         # set font and size
         $SetParams = @{
@@ -404,7 +405,7 @@ function Show-SignInLogs {
             BorderLeft = 'Thin'
             BorderColor = 'Black'
         }
-        Set-Format @BorderParams
+        Set-ExcelRange @BorderParams
 
         # set row height
         # $HeightParams = @{
@@ -420,7 +421,7 @@ function Show-SignInLogs {
         }
 
         #region OUTPUT
-                    
+
         # save and close
         Write-Host @Blue "Exporting to: ${ExcelOutputPath}"
         if ($Open) {

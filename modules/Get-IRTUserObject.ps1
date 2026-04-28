@@ -1,8 +1,8 @@
-function Get-IRTUserObjects {
+function Get-IRTUserObject {
 	<#
 	.SYNOPSIS
 	Gets user objects from global variables. Designed to be used by other scripts.
-	
+
 	.NOTES
 	Version: 1.0.3
 	#>
@@ -20,7 +20,7 @@ function Get-IRTUserObjects {
 
 		# add userobjects
 		if ( $Global:IRT_UserObjects ) {
-            $IterationList = @( $Global:IRT_UserObjects )  
+            $IterationList = @( $Global:IRT_UserObjects )
 			foreach ( $i in $IterationList ) {
 				$ScriptUserObjects.Add( $i )
 			}

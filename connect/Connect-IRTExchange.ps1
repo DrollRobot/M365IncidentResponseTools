@@ -31,6 +31,12 @@ function Connect-IRTExchange {
     .NOTES
     Version: 3.0.0
     #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+        'PSReviewUnusedParameter', 'DeviceCode', Justification = 'Used inside scriptblock')]
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+        'PSReviewUnusedParameter', 'Browser', Justification = 'Used inside scriptblock')]
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+        'PSReviewUnusedParameter', 'Private', Justification = 'Used inside scriptblock')]
     [CmdletBinding()]
     param (
         [Parameter(Mandatory)]
@@ -48,7 +54,7 @@ function Connect-IRTExchange {
     )
 
     begin {
-        $Yellow = @{ ForegroundColor = 'Yellow' }
+        $Yellow = @{ForegroundColor = 'Yellow'}
 
         $ExchangeScope = 'https://outlook.office365.com/.default'
         $Authority     = "https://login.microsoftonline.com/$TenantId"
@@ -66,7 +72,7 @@ function Connect-IRTExchange {
 
         # ---------- Setup: scope, authority ----------
 
-        # Inline helper — closes over $App, $Scopes, $DeviceCode, $Browser, $Private.
+        # Inline helper - closes over $App, $Scopes, $DeviceCode, $Browser, $Private.
         # Tries silent refresh first, then interactive or device code.
         $AcquireToken = {
             $Cached = $App.GetAccountsAsync().GetAwaiter().GetResult()
@@ -80,8 +86,13 @@ function Connect-IRTExchange {
             }
 
             if ($DeviceCode) {
-                return Invoke-IRTDeviceCodeAuth -App $App -Scopes $Scopes `
-                    -Browser $Browser -Private:$Private
+                $DeviceCodeParams = @{
+                    App     = $App
+                    Scopes  = $Scopes
+                    Browser = $Browser
+                    Private = $Private
+                }
+                return Invoke-IRTDeviceCodeAuth @DeviceCodeParams
             }
 
             try {
@@ -94,7 +105,7 @@ function Connect-IRTExchange {
 
         # ---------- Phase 1: token ----------
         # Three sources, in priority order:
-        #   1. -AccessToken parameter (caller already has one — runspace reconnect)
+        #   1. -AccessToken parameter (caller already has one - runspace reconnect)
         #   2. cached session token (if not forced, same tenant, not expired)
         #   3. fresh acquisition (silent refresh inside the helper if possible)
 
@@ -137,6 +148,14 @@ function Connect-IRTExchange {
                     Build()
             }
 
+            if (
+                -not $AccessToken -and
+                $Global:IRT_Session -and
+                $Global:IRT_Session.Exchange -and
+                $Global:IRT_Session.Exchange.Token
+            ) {
+                Write-Host @Yellow "Refreshing expired Exchange token for tenant $TenantId..."
+            }
             $TokenResult = & $AcquireToken
             if (-not $TokenResult.AccessToken) {
                 throw 'Failed to acquire Exchange access token.'

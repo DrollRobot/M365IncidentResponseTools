@@ -1,8 +1,8 @@
-function Request-GraphGroups {
+function Request-DirectoryRoleTemplate {
     <#
 	.SYNOPSIS
-    Requests groups from Microsoft Graph. Caches in global variable.
-	
+    Requests directory role templates from Microsoft Graph. Caches in global variable.
+
 	.NOTES
 	Version: 2.0.0
 	#>
@@ -22,25 +22,20 @@ function Request-GraphGroups {
         $FileNameDateFormat = "yy-MM-dd_HH-mm"
         $FileNameDate = ( Get-Date ).ToString( $FileNameDateFormat )
         $GetProperties = @(
-            'CreatedDateTime'
             'DisplayName'
-            'Description'
             'Id'
-            'OnPremisesSamAccountName'
-            'OnPremisesSyncEnabled'
         )
-
     }
 
     process {
 
         # return cached data if available
         if ( $Cached ) {
-            $Variable = Get-Variable -Scope Global -Name 'IRT_Groups' -ErrorAction SilentlyContinue
+            $Variable = Get-Variable -Scope Global -Name 'IRT_DirectoryRoleTemplates' -ErrorAction SilentlyContinue
             if ( $Variable ) {
                 switch ( $Return ) {
-                    'objects'   { return $Global:IRT_Groups }
-                    'tablebyid' { return $Global:IRT_GroupsById }
+                    'objects'   { return $Global:IRT_DirectoryRoleTemplates }
+                    'tablebyid' { return $Global:IRT_DirectoryRoleTemplatesById }
                     'none'      { return }
                 }
             }
@@ -51,28 +46,18 @@ function Request-GraphGroups {
         $DomainName = $DefaultDomain.Id -split '\.' | Select-Object -First 1
 
         # query graph
-        $Params = @{
-            All = $true
-            Property = $GetProperties
-        }
-        $Objects = Get-MgGroup @Params | Select-Object $GetProperties
-
-        # fetch all members for each group (ExpandProperty is limited to 20)
-        foreach ( $o in $Objects ) {
-            $Members = Get-MgGroupMember -GroupId $o.Id -All
-            $o | Add-Member -NotePropertyName 'Members' -NotePropertyValue $Members
-        }
+        $Objects = Get-MgDirectoryRoleTemplate -All -Property $GetProperties | Select-Object $GetProperties
 
         # store in global variables
-        $Global:IRT_Groups = $Objects
-        $Global:IRT_GroupsById = @{}
+        $Global:IRT_DirectoryRoleTemplates = $Objects
+        $Global:IRT_DirectoryRoleTemplatesById = @{}
         foreach ( $o in $Objects ) {
-            if ( $o.Id ) { $Global:IRT_GroupsById[$o.Id] = $o }
+            if ( $o.Id ) { $Global:IRT_DirectoryRoleTemplatesById[$o.Id] = $o }
         }
 
         # export to file
         if ($Xml) {
-            $FileName = "Groups_Raw_${DomainName}_${FileNameDate}.xml"
+            $FileName = "DirectoryRoleTemplates_Raw_${DomainName}_${FileNameDate}.xml"
             $XmlOutputPath = Join-Path -Path $CurrentPath -ChildPath $FileName
             if ( $Test ) {
                 $ExportTime = Measure-Command { $Objects | Export-Clixml -Depth 5 -Path $XmlOutputPath }
@@ -85,8 +70,8 @@ function Request-GraphGroups {
 
         # return
         switch ( $Return ) {
-            'objects'   { return $Global:IRT_Groups }
-            'tablebyid' { return $Global:IRT_GroupsById }
+            'objects'   { return $Global:IRT_DirectoryRoleTemplates }
+            'tablebyid' { return $Global:IRT_DirectoryRoleTemplatesById }
             'none'      { return }
         }
     }

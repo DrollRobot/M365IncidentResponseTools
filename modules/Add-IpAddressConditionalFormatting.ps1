@@ -56,7 +56,7 @@ function Add-IpAddressConditionalFormatting {
         Address         = "${IpAddressColumn}:${IpAddressColumn}"
         RuleType        = 'ContainsText'
         ConditionValue  = ' hosting'
-        BackgroundColor = [System.Drawing.ColorTranslator]::FromHtml('#FACD90') 
+        BackgroundColor = [System.Drawing.ColorTranslator]::FromHtml('#FACD90')
         StopIfTrue = $true
     }
     Add-ConditionalFormatting @CFParams
@@ -66,7 +66,7 @@ function Add-IpAddressConditionalFormatting {
         Address         = "${IpAddressColumn}:${IpAddressColumn}"
         RuleType        = 'ContainsText'
         ConditionValue  = ' cloud'
-        BackgroundColor = [System.Drawing.ColorTranslator]::FromHtml('#FACD90') 
+        BackgroundColor = [System.Drawing.ColorTranslator]::FromHtml('#FACD90')
         StopIfTrue = $true
     }
     Add-ConditionalFormatting @CFParams
@@ -76,7 +76,7 @@ function Add-IpAddressConditionalFormatting {
         Address         = "${IpAddressColumn}:${IpAddressColumn}"
         RuleType        = 'ContainsText'
         ConditionValue  = 'mobile'
-        BackgroundColor = [System.Drawing.ColorTranslator]::FromHtml('#F2CEEF') 
+        BackgroundColor = [System.Drawing.ColorTranslator]::FromHtml('#F2CEEF')
         StopIfTrue = $true
     }
     Add-ConditionalFormatting @CFParams

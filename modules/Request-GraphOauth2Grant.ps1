@@ -1,8 +1,8 @@
-function Request-DirectoryRoles {
+function Request-GraphOauth2Grant {
     <#
 	.SYNOPSIS
-    Requests directory roles from Microsoft Graph. Caches in global variable.
-	
+    Requests OAuth2 permission grants from Microsoft Graph. Caches in global variable.
+
 	.NOTES
 	Version: 2.0.0
 	#>
@@ -11,7 +11,7 @@ function Request-DirectoryRoles {
         [switch] $Cached,
         [switch] $Test,
         [boolean] $Xml = $Global:IRT_Config.ExportXml,
-        [ValidateSet('objects','tablebyid','none')]
+        [ValidateSet('objects','tablebyclientid','none')]
         [string] $Return = 'objects'
     )
 
@@ -21,24 +21,20 @@ function Request-DirectoryRoles {
         $CurrentPath = Get-Location
         $FileNameDateFormat = "yy-MM-dd_HH-mm"
         $FileNameDate = ( Get-Date ).ToString( $FileNameDateFormat )
-        $GetProperties = @(
-            'DisplayName'
-            'Id'
-            'RoleTemplateId'
-        )
-        $ExpandProperties = @( 'Members' )
+        # $GetProperties = @(
+        # )
     }
 
     process {
 
         # return cached data if available
         if ( $Cached ) {
-            $Variable = Get-Variable -Scope Global -Name 'IRT_DirectoryRoles' -ErrorAction SilentlyContinue
+            $Variable = Get-Variable -Scope Global -Name 'IRT_Oauth2Grants' -ErrorAction SilentlyContinue
             if ( $Variable ) {
                 switch ( $Return ) {
-                    'objects'   { return $Global:IRT_DirectoryRoles }
-                    'tablebyid' { return $Global:IRT_DirectoryRolesById }
-                    'none'      { return }
+                    'objects'          { return $Global:IRT_Oauth2Grants }
+                    'tablebyclientid'  { return $Global:IRT_Oauth2GrantsByClientId }
+                    'none'             { return }
                 }
             }
         }
@@ -48,18 +44,24 @@ function Request-DirectoryRoles {
         $DomainName = $DefaultDomain.Id -split '\.' | Select-Object -First 1
 
         # query graph
-        $Objects = Get-MgDirectoryRole -All -Property $GetProperties -ExpandProperty $ExpandProperties | Select-Object ( $GetProperties + $ExpandProperties )
+        $Objects = Get-MgOauth2PermissionGrant -All # -Property $GetProperties | Select-Object $GetProperties # get all properties
 
         # store in global variables
-        $Global:IRT_DirectoryRoles = $Objects
-        $Global:IRT_DirectoryRolesById = @{}
+        $Global:IRT_Oauth2Grants = $Objects
+        $Global:IRT_Oauth2GrantsByClientId = @{}
         foreach ( $o in $Objects ) {
-            if ( $o.Id ) { $Global:IRT_DirectoryRolesById[$o.Id] = $o }
+            $ClientId = $o.ClientId
+            if ( $ClientId ) {
+                if ( -not $Global:IRT_Oauth2GrantsByClientId.ContainsKey( $ClientId ) ) {
+                    $Global:IRT_Oauth2GrantsByClientId[$ClientId] = @()
+                }
+                $Global:IRT_Oauth2GrantsByClientId[$ClientId] += $o
+            }
         }
 
         # export to file
         if ($Xml) {
-            $FileName = "DirectoryRoles_Raw_${DomainName}_${FileNameDate}.xml"
+            $FileName = "Oauth2Grants_Raw_${DomainName}_${FileNameDate}.xml"
             $XmlOutputPath = Join-Path -Path $CurrentPath -ChildPath $FileName
             if ( $Test ) {
                 $ExportTime = Measure-Command { $Objects | Export-Clixml -Depth 5 -Path $XmlOutputPath }
@@ -72,9 +74,9 @@ function Request-DirectoryRoles {
 
         # return
         switch ( $Return ) {
-            'objects'   { return $Global:IRT_DirectoryRoles }
-            'tablebyid' { return $Global:IRT_DirectoryRolesById }
-            'none'      { return }
+            'objects'          { return $Global:IRT_Oauth2Grants }
+            'tablebyclientid'  { return $Global:IRT_Oauth2GrantsByClientId }
+            'none'             { return }
         }
     }
 }

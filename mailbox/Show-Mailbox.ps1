@@ -2,18 +2,17 @@ New-Alias -Name 'ShowMailbox' -Value 'Show-Mailbox' -Force
 function Show-Mailbox {
     <#
 	.SYNOPSIS
-	Displays mailbox properties.	
-	
+	Displays mailbox properties.
+
 	.NOTES
 	Version: 1.1.0
 	#>
     [CmdletBinding()]
     param(
         [Parameter( Position = 0 )]
-        [Alias( 'UserObject' )]
-        [psobject[]] $UserObjects,
-        
-        [switch] $Test,
+        [Alias('UserObjects')]
+        [psobject[]] $UserObject,
+
         [switch] $Cached
     )
 
@@ -26,23 +25,19 @@ function Show-Mailbox {
         # $ParameterSet = $PSCmdlet.ParameterSetName
         # $PermissionsList = [System.Collections.Generic.List[pscustomobject]]::new()
         $GuidPattern = '\b[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}\b'
-
-        # colors
-        $Blue = @{ ForegroundColor = 'Blue' }
-        # $Green = @{ ForegroundColor = 'Green' }
-        $Red = @{ ForegroundColor = 'Red' }
-        # $Magenta = @{ ForegroundColor = 'Magenta' }
+        $Blue = @{ForegroundColor = 'Blue'}
+        $Red = @{ForegroundColor = 'Red'}
 
         # if users passed via script argument:
-        if (($UserObjects | Measure-Object).Count -gt 0) {
-            $ScriptUserObjects = $UserObjects
+        if (($UserObject | Measure-Object).Count -gt 0) {
+            $ScriptUserObjects = $UserObject
         }
         # if not, look for global objects
         else {
-            
+
             # get from global variables
-            $ScriptUserObjects = Get-IRTUserObjects
-            
+            $ScriptUserObjects = Get-IRTUserObject
+
             # if none found, exit
             if ( -not $ScriptUserObjects -or $ScriptUserObjects.Count -eq 0 ) {
                 Write-Host @Red "${Function}: No user objects passed or found in global variables."
@@ -51,7 +46,7 @@ function Show-Mailbox {
             if (($ScriptUserObjects | Measure-Object).Count -eq 0) {
                 $ErrorParams = @{
                     Category    = 'InvalidArgument'
-                    Message     = "No -UserObjects argument used, no `$Global:IRT_UserObjects present."
+                    Message     = "No -UserObject argument used, no `$Global:IRT_UserObjects present."
                     ErrorAction = 'Stop'
                 }
                 Write-Error @ErrorParams
@@ -62,7 +57,7 @@ function Show-Mailbox {
     process {
 
         # # get mailbox permissions
-        # # get all mailboxes 
+        # # get all mailboxes
         # $AllMailboxes = Get-EXOMailbox -ResultSize Unlimited
         # if ( $AllMailboxes.Count -lt 100 ) {
         #     foreach ( $Mailbox in $AllMailboxes ) {
@@ -99,9 +94,9 @@ function Show-Mailbox {
 
             # # find other mailboxes user has permissions for
             # foreach ( $Mailbox in $AllMailboxes ) {
-            #     $Mailbox.Permissions | 
+            #     $Mailbox.Permissions |
             #         Where-Object { $_.User -eq $UserPrincipalName } |
-            #         ForEach-Object { 
+            #         ForEach-Object {
             #             $PermissionsList.Add(
             #                 [pscustomobject]@{
             #                     Mailbox = $UserPrincipalName
@@ -125,7 +120,7 @@ function Show-Mailbox {
                 $UserGuid = $Mailbox.ForwardingAddress
 
                 # get user object
-                $Users = Request-GraphUsers -Cached:$Cached
+                $Users = Request-GraphUser -Cached:$Cached
                 $MatchingUser = $Users | Where-Object { $_.Id -eq $UserGuid }
 
                 $ForwardingAddress = $MatchingUser.Mail

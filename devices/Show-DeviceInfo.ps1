@@ -5,7 +5,7 @@ New-Alias -Name 'ShowDevices' -Value 'Show-DeviceInfo' -Force
 function Show-DeviceInfo {
     <#
     .SYNOPSIS
-    Displays Entra and Intune device properties for combined device objects produced by Find-Devices.
+    Displays Entra and Intune device properties for combined device objects produced by Find-Device.
 
     .NOTES
     Version: 1.1.0
@@ -13,21 +13,21 @@ function Show-DeviceInfo {
     [CmdletBinding()]
     param(
         [Parameter( Position = 0 )]
-        [Alias('DeviceObject')]
-        [psobject[]] $DeviceObjects
+        [Alias('DeviceObjects')]
+        [psobject[]] $DeviceObject
     )
 
     begin {
 
         # if not passed directly, fall back to global variable
-        if ( -not $DeviceObjects -or $DeviceObjects.Count -eq 0 ) {
+        if ( -not $DeviceObject -or $DeviceObject.Count -eq 0 ) {
             $ScriptDeviceObjects = @( $Global:IRT_DeviceObjects )
             if ( -not $ScriptDeviceObjects -or $ScriptDeviceObjects.Count -eq 0 ) {
                 throw "No device objects passed or found in global variables."
             }
         }
         else {
-            $ScriptDeviceObjects = $DeviceObjects
+            $ScriptDeviceObjects = $DeviceObject
         }
 
         # colors
@@ -97,8 +97,8 @@ function Show-GraphDeviceTree {
     [CmdletBinding()]
     param(
         [Parameter(ValueFromPipeline)]
-        [Alias('DeviceObject')]
-        [psobject[]] $DeviceObjects,
+        [Alias('DeviceObjects')]
+        [psobject[]] $DeviceObject,
 
         [int] $Depth = 10
     )
@@ -113,10 +113,10 @@ function Show-GraphDeviceTree {
     }
 
     process {
-        foreach ($DeviceObject in $DeviceObjects) {
-            if ($null -eq $DeviceObject) { continue }
+        foreach ($DeviceObjectItem in $DeviceObject) {
+            if ($null -eq $DeviceObjectItem) { continue }
 
-            $Projected = $DeviceObject | Select-Object -Property * -ExcludeProperty $Exclude
+            $Projected = $DeviceObjectItem | Select-Object -Property * -ExcludeProperty $Exclude
 
             $Params = @{
                 Depth           = $Depth

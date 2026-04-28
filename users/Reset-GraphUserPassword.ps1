@@ -1,11 +1,10 @@
-New-Alias -Name 'ResetPassword' -Value 'Reset-GraphUserPasswords' -Force
-New-Alias -Name 'ResetPasswords' -Value 'Reset-GraphUserPasswords' -Force
-New-Alias -Name 'Reset-GraphUserPassword' -Value 'Reset-GraphUserPasswords' -Force
-function Reset-GraphUserPasswords {
+New-Alias -Name 'ResetPassword' -Value 'Reset-GraphUserPassword' -Force
+New-Alias -Name 'ResetPasswords' -Value 'Reset-GraphUserPassword' -Force
+function Reset-GraphUserPassword {
     <#
 	.SYNOPSIS
-	Resets Graph user password.	
-	
+	Resets Graph user password.
+
 	.NOTES
 	Version: 1.0.1
     1.0.1 - Updated to output password in safe way. Fixed bug preventing password reset. Updated variable names.
@@ -13,8 +12,8 @@ function Reset-GraphUserPasswords {
     [CmdletBinding( DefaultParameterSetName = 'RandomCharacters' )]
     param(
         [Parameter( Position = 0 )]
-        [Alias( 'UserObject' )]
-        [psobject[]] $UserObjects,
+        [Alias('UserObjects')]
+        [psobject[]] $UserObject,
 
         [Parameter( ParameterSetName = 'RandomCharacters' )]
         [Alias( 'Random' )]
@@ -25,26 +24,24 @@ function Reset-GraphUserPasswords {
         # [switch] $PassPhrase,
 
         [Parameter( ParameterSetName = 'Custom' )]
-        [switch] $Custom,
-
-        [string] $TenantId
+        [switch] $Custom
     )
 
     begin {
 
         # if not passed directly, find global
-        if ( -not $UserObjects -or $UserObjects.Count -eq 0 ) {
+        if ( -not $UserObject -or $UserObject.Count -eq 0 ) {
 
             # get from global variables
-            $LoopObjects = Get-IRTUserObjects
-        
+            $LoopObjects = Get-IRTUserObject
+
             # if none found, exit
             if ( -not $LoopObjects -or $LoopObjects.Count -eq 0 ) {
                 throw "No user objects passed or found in global variables."
             }
         }
         else {
-            $LoopObjects = $UserObjects
+            $LoopObjects = $UserObject
         }
 
         # variables
@@ -78,7 +75,7 @@ function Reset-GraphUserPasswords {
         foreach ( $LoopObject in $LoopObjects ) {
 
             switch ( $PSCmdlet.ParameterSetName ) {
-                'Custom' { 
+                'Custom' {
                     $Password = Read-Host -Prompt "`nEnter new password"
                 }
                 'RandomCharacters' {

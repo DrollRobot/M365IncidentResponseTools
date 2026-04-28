@@ -3,7 +3,7 @@ function Start-IncidentResponsePlaybook {
     <#
 	.SYNOPSIS
     Runs multiple functions to assist in investigating a user's activity.
-    
+
 	.NOTES
 	Version: 2.2.0
     2.2.0 - Added license report, added error handling to close runspaces when script exits.
@@ -13,9 +13,9 @@ function Start-IncidentResponsePlaybook {
     [CmdletBinding()]
     param (
         [Parameter( Position = 0 )]
-        [Alias( 'UserObject' )]
-        [psobject[]] $UserObjects,
-        
+        [Alias('UserObjects')]
+        [psobject[]] $UserObject,
+
         [string] $Ticket,
         [switch] $NoFolder,
         [int] $MaxRunspaces = 15,
@@ -26,6 +26,9 @@ function Start-IncidentResponsePlaybook {
 
         #region BEGIN
 
+        # constants
+        $Red = @{ForegroundColor = 'Red'}
+
         if ($Test -or $Script:Test) {
             $Script:Test = $true
             # start stopwatch
@@ -33,20 +36,20 @@ function Start-IncidentResponsePlaybook {
         }
 
         # if users passed via script argument:
-        if (($UserObjects | Measure-Object).Count -gt 0) {
-            $ScriptUserObjects = $UserObjects
+        if (($UserObject | Measure-Object).Count -gt 0) {
+            $ScriptUserObjects = $UserObject
         }
         # if not, look for global objects
         else {
-            
+
             # get from global variables
-            $ScriptUserObjects = Get-IRTUserObjects
-            
+            $ScriptUserObjects = Get-IRTUserObject
+
             # if none found, exit
             if ( -not $ScriptUserObjects -or $ScriptUserObjects.Count -eq 0 ) {
                 $ErrorParams = @{
                     Category    = 'InvalidArgument'
-                    Message     = "No -UserObjects argument used, no `$Global:IRT_UserObjects present."
+                    Message     = "No -UserObject argument used, no `$Global:IRT_UserObjects present."
                     ErrorAction = 'Stop'
                 }
                 Write-Error @ErrorParams
@@ -62,28 +65,15 @@ function Start-IncidentResponsePlaybook {
             }
             Write-Error @ErrorParams
         }
-
-        # verify connected to exchange
-        try {
-            [void](Get-AcceptedDomain)
-        }
-        catch {
-            $ErrorParams = @{
-                Category    = 'ConnectionError'
-                Message     = "Not connected to Exchange. Run Connect-ExchangeOnline."
-                ErrorAction = 'Stop'
-            }
-            Write-Error @ErrorParams
-        } 
     }
 
     process {
 
         if (-not $NoFolder) {
-            
+
             # make directory
             $DirParams = @{
-                UserObjects = $ScriptUserObjects
+                UserObject = $ScriptUserObjects
             }
             if ( $Ticket ) {
                 $DirParams['Ticket'] = $Ticket
@@ -111,12 +101,12 @@ function Start-IncidentResponsePlaybook {
         }
 
         # pre-populate caches in main thread
-        Request-DirectoryRoles -Return 'none'
-        Request-DirectoryRoleTemplates -Return 'none'
-        Request-GraphGroups -Return 'none'
-        Request-GraphOauth2Grants -Return 'none'
-        Request-GraphUsers -Return 'none'
-        Request-GraphServicePrincipals -Return 'none'
+        Request-DirectoryRole -Return 'none'
+        Request-DirectoryRoleTemplate -Return 'none'
+        Request-GraphGroup -Return 'none'
+        Request-GraphOauth2Grant -Return 'none'
+        Request-GraphUser -Return 'none'
+        Request-GraphServicePrincipal -Return 'none'
         $null = ConvertTo-HumanErrorDescription -ErrorCode 0  # trigger lazy-load of error table
 
         # pack references for injection into child runspace globals
@@ -158,7 +148,7 @@ function Start-IncidentResponsePlaybook {
 
             @{  Name   = 'Get-LicenseReport'
                 Script = {
-                    param( 
+                    param(
                         $WorkingPath,
                         $SharedRefs
                     )
@@ -174,7 +164,7 @@ function Start-IncidentResponsePlaybook {
 
             @{  Name   = 'Show-UserInfo'
                 Script = {
-                    param( 
+                    param(
                         $WorkingPath,
                         $SharedRefs
                     )
@@ -188,15 +178,15 @@ function Start-IncidentResponsePlaybook {
                 )
             }
 
-            @{  Name   = 'Get-UserApplications'
+            @{  Name   = 'Get-UserApplication'
                 Script = {
-                    param( 
+                    param(
                         $WorkingPath,
                         $SharedRefs
                     )
                     foreach ($k in $SharedRefs.Keys) { Set-Variable -Scope Global -Name $k -Value $SharedRefs[$k] }
                     Set-Location -Path $WorkingPath
-                    Get-UserApplications -Cached
+                    Get-UserApplication -Cached
                 }
                 Args  = @(
                     $WorkingPath,
@@ -206,7 +196,7 @@ function Start-IncidentResponsePlaybook {
 
             @{  Name   = 'Show-Mailbox'
                 Script = {
-                    param( 
+                    param(
                         $WorkingPath,
                         $SharedRefs
                     )
@@ -220,15 +210,15 @@ function Start-IncidentResponsePlaybook {
                 )
             }
 
-            @{  Name   = 'Get-AdminRoles'
-                Script = { 
-                    param( 
+            @{  Name   = 'Get-AdminRole'
+                Script = {
+                    param(
                         $WorkingPath,
                         $SharedRefs
                     )
                     foreach ($k in $SharedRefs.Keys) { Set-Variable -Scope Global -Name $k -Value $SharedRefs[$k] }
                     Set-Location -Path $WorkingPath
-                    Get-AdminRoles -Excel -Highlight $Global:IRT_UserObjects.UserPrincipalName -Cached
+                    Get-AdminRole -Excel -Highlight $Global:IRT_UserObjects.UserPrincipalName -Cached
                 }
                 Args  = @(
                     $WorkingPath,
@@ -236,15 +226,15 @@ function Start-IncidentResponsePlaybook {
                 )
             }
 
-            @{  Name   = 'Find-RiskyApplications'
-                Script = { 
-                    param( 
+            @{  Name   = 'Find-RiskyApplication'
+                Script = {
+                    param(
                         $WorkingPath,
                         $SharedRefs
                     )
                     foreach ($k in $SharedRefs.Keys) { Set-Variable -Scope Global -Name $k -Value $SharedRefs[$k] }
                     Set-Location -Path $WorkingPath
-                    Find-RiskyApplications -Cached
+                    Find-RiskyApplication -Cached
                 }
                 Args  = @(
                     $WorkingPath,
@@ -253,8 +243,8 @@ function Start-IncidentResponsePlaybook {
             }
 
             @{  Name   = 'Show-UserMFA'
-                Script = { 
-                    param( 
+                Script = {
+                    param(
                         $WorkingPath,
                         $SharedRefs
                     )
@@ -269,8 +259,8 @@ function Start-IncidentResponsePlaybook {
             }
 
             @{  Name   = 'Get-IRTMessageTrace'
-                Script = { 
-                    param( 
+                Script = {
+                    param(
                         $WorkingPath,
                         $SharedRefs,
                         $ExoConnectParams
@@ -279,7 +269,7 @@ function Start-IncidentResponsePlaybook {
                     Set-Location -Path $WorkingPath
                     Connect-ExchangeOnline @ExoConnectParams
                     $Params = @{
-                        UserObjects = $Global:IRT_UserObjects
+                        UserObject = $Global:IRT_UserObjects
                         Days = 90
                         Quiet = $true
                     }
@@ -292,9 +282,9 @@ function Start-IncidentResponsePlaybook {
                 )
             }
 
-            @{  Name   = 'Get-IRTInboxRules'
-                Script = { 
-                    param( 
+            @{  Name   = 'Get-IRTInboxRule'
+                Script = {
+                    param(
                         $WorkingPath,
                         $SharedRefs,
                         $ExoConnectParams
@@ -302,7 +292,7 @@ function Start-IncidentResponsePlaybook {
                     foreach ($k in $SharedRefs.Keys) { Set-Variable -Scope Global -Name $k -Value $SharedRefs[$k] }
                     Set-Location -Path $WorkingPath
                     Connect-ExchangeOnline @ExoConnectParams
-                    Get-IRTInboxRules
+                    Get-IRTInboxRule
                 }
                 Args  = @(
                     $WorkingPath,
@@ -311,41 +301,41 @@ function Start-IncidentResponsePlaybook {
                 )
             }
 
-            @{  Name   = 'Get-EntraAuditLogs'
-                Script = { 
-                    param( 
-                        $WorkingPath,
-                        $SharedRefs
-                    )
-                    foreach ($k in $SharedRefs.Keys) { Set-Variable -Scope Global -Name $k -Value $SharedRefs[$k] }
-                    Set-Location -Path $WorkingPath
-                    Get-EntraAuditLogs -Cached
-                }
-                Args  = @(
-                    $WorkingPath,
-                    $SharedRefs
-                )
-            }
-
-            @{  Name   = 'Get-SignInLogs'
-                Script = { 
-                    param( 
-                        $WorkingPath,
-                        $SharedRefs
-                    )
-                    foreach ($k in $SharedRefs.Keys) { Set-Variable -Scope Global -Name $k -Value $SharedRefs[$k] }
-                    Set-Location -Path $WorkingPath
-                    Get-SignInLogs
-                }
-                Args  = @(
-                    $WorkingPath,
-                    $SharedRefs
-                )
-            }
-
-            @{  Name   = 'Get-UALogs'
+            @{  Name   = 'Get-EntraAuditLog'
                 Script = {
-                    param( 
+                    param(
+                        $WorkingPath,
+                        $SharedRefs
+                    )
+                    foreach ($k in $SharedRefs.Keys) { Set-Variable -Scope Global -Name $k -Value $SharedRefs[$k] }
+                    Set-Location -Path $WorkingPath
+                    Get-EntraAuditLog -Cached
+                }
+                Args  = @(
+                    $WorkingPath,
+                    $SharedRefs
+                )
+            }
+
+            @{  Name   = 'Get-SignInLog'
+                Script = {
+                    param(
+                        $WorkingPath,
+                        $SharedRefs
+                    )
+                    foreach ($k in $SharedRefs.Keys) { Set-Variable -Scope Global -Name $k -Value $SharedRefs[$k] }
+                    Set-Location -Path $WorkingPath
+                    Get-SignInLog
+                }
+                Args  = @(
+                    $WorkingPath,
+                    $SharedRefs
+                )
+            }
+
+            @{  Name   = 'Get-UALog'
+                Script = {
+                    param(
                         $WorkingPath,
                         $SharedRefs,
                         $ExoConnectParams
@@ -354,11 +344,11 @@ function Start-IncidentResponsePlaybook {
                     Set-Location -Path $WorkingPath
                     Connect-ExchangeOnline @ExoConnectParams
                     $UAParams = @{
-                        UserObjects = $Global:IRT_UserObjects
+                        UserObject = $Global:IRT_UserObjects
                         WaitOnMessageTrace = $true
                         Cached = $true
                     }
-                    Get-UALogs @UAParams
+                    Get-UALog @UAParams
                 }
                 Args  = @(
                     $WorkingPath,
@@ -369,7 +359,7 @@ function Start-IncidentResponsePlaybook {
 
             @{  Name   = 'UALRiskyOperations'
                 Script = {
-                    param( 
+                    param(
                         $WorkingPath,
                         $SharedRefs,
                         $ExoConnectParams
@@ -378,12 +368,12 @@ function Start-IncidentResponsePlaybook {
                     Set-Location -Path $WorkingPath
                     Connect-ExchangeOnline @ExoConnectParams
                     $UAParams = @{
-                        UserObjects = $Global:IRT_UserObjects
+                        UserObject = $Global:IRT_UserObjects
                         RiskyOperations = $true
                         Days = 180
                         Cached = $true
                     }
-                    Get-UALogs @UAParams
+                    Get-UALog @UAParams
                 }
                 Args  = @(
                     $WorkingPath,
@@ -394,7 +384,7 @@ function Start-IncidentResponsePlaybook {
 
             @{  Name   = 'UALSignInLogs'
                 Script = {
-                    param( 
+                    param(
                         $WorkingPath,
                         $SharedRefs,
                         $ExoConnectParams
@@ -403,11 +393,11 @@ function Start-IncidentResponsePlaybook {
                     Set-Location -Path $WorkingPath
                     Connect-ExchangeOnline @ExoConnectParams
                     $UAParams = @{
-                        UserObjects = $Global:IRT_UserObjects
+                        UserObject = $Global:IRT_UserObjects
                         SignInLogs = $true
                         Cached = $true
                     }
-                    Get-UALogs @UAParams
+                    Get-UALog @UAParams
                 }
                 Args  = @(
                     $WorkingPath,
@@ -416,15 +406,15 @@ function Start-IncidentResponsePlaybook {
                 )
             }
 
-            @{  Name   = 'Get-NonInteractiveLogs'
+            @{  Name   = 'Get-NonInteractiveLog'
                 Script = {
-                    param( 
+                    param(
                         $WorkingPath,
                         $SharedRefs
                     )
                     foreach ($k in $SharedRefs.Keys) { Set-Variable -Scope Global -Name $k -Value $SharedRefs[$k] }
                     Set-Location -Path $WorkingPath
-                    Get-NonInteractiveLogs
+                    Get-NonInteractiveLog
                 }
                 Args  = @(
                     $WorkingPath,
@@ -434,7 +424,7 @@ function Start-IncidentResponsePlaybook {
 
             @{  Name   = 'Get-IRTMessageTrace -AllUsers'
                 Script = {
-                    param( 
+                    param(
                         $WorkingPath,
                         $SharedRefs,
                         $ExoConnectParams
@@ -448,7 +438,7 @@ function Start-IncidentResponsePlaybook {
                         Quiet = $true
                     }
                     Get-IRTMessageTrace @Params
-                } 
+                }
                 Args  = @(
                     $WorkingPath,
                     $SharedRefs,
@@ -485,7 +475,7 @@ function Start-IncidentResponsePlaybook {
 
                 $null = $PowerShell.AddScript($Step.Script)
                 foreach ($Arg in $Step.Args) {
-                    $null = $PowerShell.AddArgument($Arg) 
+                    $null = $PowerShell.AddArgument($Arg)
                 }
 
                 # loop output
@@ -506,9 +496,9 @@ function Start-IncidentResponsePlaybook {
 
                             # output errors, if any
                             if ( $Job.PowerShell.Streams.Error.Count -gt 0 ) {
-                                Write-Warning "Errors:"
+                                Write-Host @Red "$($Job.Name) Errors:"
                                 $Job.PowerShell.Streams.Error | ForEach-Object {
-                                    Write-Warning $_.ToString()
+                                    Write-Error $_
                                 }
                             }
                         }

@@ -19,6 +19,12 @@ function Connect-IRTIPPS {
     .NOTES
     Version: 2.0.0
     #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+        'PSReviewUnusedParameter', 'DeviceCode', Justification = 'Used inside scriptblock')]
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+        'PSReviewUnusedParameter', 'Browser', Justification = 'Used inside scriptblock')]
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+        'PSReviewUnusedParameter', 'Private', Justification = 'Used inside scriptblock')]
     [CmdletBinding()]
     param (
         [Parameter(Mandatory)]
@@ -61,7 +67,7 @@ function Connect-IRTIPPS {
 
         # ---------- Setup: scope, authority ----------
 
-        # Inline helper — closes over $App, $Scopes, $DeviceCode, $Browser, $Private.
+        # Inline helper - closes over $App, $Scopes, $DeviceCode, $Browser, $Private.
         # Tries silent refresh first, then interactive or device code.
         $AcquireToken = {
             $Cached = $App.GetAccountsAsync().GetAwaiter().GetResult()
@@ -75,8 +81,13 @@ function Connect-IRTIPPS {
             }
 
             if ($DeviceCode) {
-                return Invoke-IRTDeviceCodeAuth -App $App -Scopes $Scopes `
-                    -Browser $Browser -Private:$Private
+                $DeviceCodeParams = @{
+                    App     = $App
+                    Scopes  = $Scopes
+                    Browser = $Browser
+                    Private = $Private
+                }
+                return Invoke-IRTDeviceCodeAuth @DeviceCodeParams
             }
 
             try {
@@ -89,9 +100,9 @@ function Connect-IRTIPPS {
 
         # ---------- Phase 1: token ----------
         # Three sources, in priority order:
-        #   1. -AccessToken parameter (caller already has one — runspace reconnect)
+        #   1. -AccessToken parameter (caller already has one - runspace reconnect)
         #   2. cached session token (same tenant, same SearchOnly mode, not expired)
-        #   3. fresh acquisition (silent refresh inside the helper if possible —
+        #   3. fresh acquisition (silent refresh inside the helper if possible -
         #      reuses EXO's MSAL cache when present, swapping audience silently)
         #
         # The SearchOnly check on the cached path matters: a token issued for
@@ -126,7 +137,7 @@ function Connect-IRTIPPS {
                 Add-Type -Path $MsalDll
             }
 
-            # Prefer EXO's MSAL app if available — same client ID = same token
+            # Prefer EXO's MSAL app if available - same client ID = same token
             # cache = silent audience swap with no prompt. Fall back to IPPS's
             # cached app, then build a new one.
             $App = if ($Global:IRT_Session -and
@@ -146,6 +157,14 @@ function Connect-IRTIPPS {
                     Build()
             }
 
+            if (
+                -not $AccessToken -and
+                $Global:IRT_Session -and
+                $Global:IRT_Session.IPPS -and
+                $Global:IRT_Session.IPPS.Token
+            ) {
+                Write-Host @Yellow "Refreshing expired IPPS token for tenant $TenantId..."
+            }
             $TokenResult = & $AcquireToken
             if (-not $TokenResult.AccessToken) {
                 throw 'Failed to acquire IPPS access token.'

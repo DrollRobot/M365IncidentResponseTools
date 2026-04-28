@@ -1,6 +1,6 @@
-New-Alias -Name 'GetAdmins' -Value 'Get-AdminRoles' -Force
+New-Alias -Name 'GetAdmins' -Value 'Get-AdminRole' -Force
 
-function Get-AdminRoles {
+function Get-AdminRole {
     [CmdletBinding()]
     param(
         [switch] $Cached,
@@ -9,8 +9,7 @@ function Get-AdminRoles {
         [string[]] $Highlight,
         [string] $TableStyle = $Global:IRT_Config.ExcelTableStyle,
         [string] $Font = $Global:IRT_Config.ExcelFont,
-        [boolean] $Open = $true,
-        [string] $TenantId
+        [boolean] $Open = $true
     )
 
     begin {
@@ -23,29 +22,29 @@ function Get-AdminRoles {
         $Blue = @{ ForegroundColor = 'Blue' }
 
         # ensure ById caches are populated for Get-UnknownObject lookups
-        Request-GraphUsers -Return 'none' -Cached:$Cached
-        Request-GraphGroups -Return 'none' -Cached:$Cached
-        Request-GraphServicePrincipals -Return 'none' -Cached:$Cached
-        Request-DirectoryRoles -Return 'none' -Cached:$Cached
+        Request-GraphUser -Return 'none' -Cached:$Cached
+        Request-GraphGroup -Return 'none' -Cached:$Cached
+        Request-GraphServicePrincipal -Return 'none' -Cached:$Cached
+        Request-DirectoryRole -Return 'none' -Cached:$Cached
     }
 
     process {
 
-        $RoleObjects = Request-DirectoryRoles -Cached:$Cached
+        $RoleObjects = Request-DirectoryRole -Cached:$Cached
         $MemberIds = $RoleObjects.Members.Id | Sort-Object -Unique
 
         foreach ( $MemberId in $MemberIds ) {
 
             $MemberRoles = ( $RoleObjects | Where-Object { $MemberId -in $_.Members.Id } ).DisplayName -join ', '
             $Object = Get-UnknownObject -Id $MemberId
-            $CustomObject = New-RoleMemberObject -Id $MemberId -Roles $MemberRoles -RoleSource 'Direct Assignment' -GraphObject $Object
+            $CustomObject = New-RoleMemberObject -Id $MemberId -Role $MemberRoles -RoleSource 'Direct Assignment' -GraphObject $Object
             $CustomObjects.Add( $CustomObject )
 
             # expand group members inline (nested groups not possible with M365 role assignments)
             if ( $CustomObject.ObjectType -eq 'Group' ) {
                 foreach ( $GroupMemberId in ( Get-MgGroupMember -GroupId $MemberId ).Id ) {
                     $GroupMember = Get-UnknownObject -Id $GroupMemberId
-                    $CustomObjects.Add( ( New-RoleMemberObject -Id $GroupMemberId -Roles $MemberRoles -RoleSource "Group: $($Object.DisplayName)" -GraphObject $GroupMember ) )
+                    $CustomObjects.Add( ( New-RoleMemberObject -Id $GroupMemberId -Role $MemberRoles -RoleSource "Group: $($Object.DisplayName)" -GraphObject $GroupMember ) )
                 }
             }
         }
@@ -247,7 +246,7 @@ function Get-AdminRoles {
 function New-RoleMemberObject {
     param(
         [string] $Id,
-        [string] $Roles,
+        [Alias('Roles')] [string] $Role,
         [string] $RoleSource,
         $GraphObject
     )
@@ -261,7 +260,7 @@ function New-RoleMemberObject {
                 DisplayName       = $GraphObject.DisplayName
                 UserPrincipalName = $GraphObject.UserPrincipalName
                 RoleSource        = $RoleSource
-                Roles             = $Roles
+                Roles             = $Role
             }
         }
         'ServicePrincipal' {
@@ -273,7 +272,7 @@ function New-RoleMemberObject {
                 ServicePrincipalType = $GraphObject.ServicePrincipalType
                 Description          = $GraphObject.Description
                 RoleSource           = $RoleSource
-                Roles                = $Roles
+                Roles             = $Role
             }
         }
         'Group' {
@@ -283,7 +282,7 @@ function New-RoleMemberObject {
                 DisplayName = $GraphObject.DisplayName
                 Description = $GraphObject.Description
                 RoleSource  = $RoleSource
-                Roles       = $Roles
+                Roles             = $Role
             }
         }
         default {
@@ -297,7 +296,7 @@ function Get-UnknownObject {
     <#
 	.SYNOPSIS
 	Looks up an object by Id using cached ById hashtables. Falls back to Get-MgDirectoryObject if not found in cache.
-	
+
 	.NOTES
 	Version: 2.0.0
     2.0.0 - Rewrote to use Request-* cached ById hashtables instead of direct Graph calls.
@@ -340,4 +339,4 @@ function Get-UnknownObject {
 
 
 # TESTING
-# Get-AdminRoles
+# Get-AdminRole

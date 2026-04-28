@@ -2,10 +2,10 @@ function Get-ExchangeItemDeleteSummary {
     <#
 	.SYNOPSIS
     Parses ExchangeItemGroup HardDelete events from UAL.
-	
+
 	.NOTES
 	Version: 2.1.0
-    2.1.0 - Moved wait logic to Show-UALogs. Now receives resolved MessageTraceTable directly.
+    2.1.0 - Moved wait logic to Show-UALog. Now receives resolved MessageTraceTable directly.
     2.0.0 - Replaced per-user variable with single IRT_MessageTraceTable. Added SharedState
             support for cross-runspace communication. Added timeout and -Test diagnostics.
     1.1.0 - Removed Auditdata param, added parsing for email subjects.
@@ -66,7 +66,7 @@ function Get-ExchangeItemDeleteSummary {
 
                 # add best option to summary
                 if ($Subject) {
-                    $SummaryLines.Add( "    Subject: ${Subject}" )            
+                    $SummaryLines.Add( "    Subject: ${Subject}" )
                 }
                 elseif ($Item.InternetMessageId) {
                     $SummaryLines.Add( "    Item: $($Item.InternetMessageId)" )

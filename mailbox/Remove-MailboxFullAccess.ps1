@@ -3,15 +3,15 @@ function Remove-MailboxFullAccess {
     <#
 	.SYNOPSIS
 	Remove full access to the target user's mailbox
-	
+
 	.NOTES
 	Version: 1.0.0
 	#>
     [CmdletBinding()]
     param (
         [Parameter( Position = 0 )]
-        [Alias( 'UserObject' )]
-        [psobject[]] $UserObjects,
+        [Alias('UserObjects')]
+        [psobject[]] $UserObject,
 
         [string] $GrantAccessTo
     )
@@ -23,8 +23,8 @@ function Remove-MailboxFullAccess {
         $Params = @{
             Remove = $true
         }
-        if ($UserObjects) {
-            $Params['UserObjects'] = $UserObjects
+        if ($UserObject) {
+            $Params['UserObject'] = $UserObject
         }
         if ($GrantAccessTo) {
             $Params['GrantAccessTo'] = $GrantAccessTo

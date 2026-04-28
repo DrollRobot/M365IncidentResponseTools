@@ -2,7 +2,7 @@ function Get-ExchangeItemUpdateSummary {
     <#
 	.SYNOPSIS
     Parses ExchangeItem Update events from UAL.
-	
+
 	.NOTES
 	Version: 1.0.0
 	#>

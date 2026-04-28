@@ -2,7 +2,7 @@ function Get-AttachmentAccessSummary {
     <#
 	.SYNOPSIS
     Parses ExchangeItemAggregated AttachmentAccess events from UAL.
-	
+
 	.NOTES
 	Version: 1.0.0
 	#>

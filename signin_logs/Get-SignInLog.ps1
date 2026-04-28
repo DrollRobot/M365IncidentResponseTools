@@ -1,29 +1,28 @@
-New-Alias -Name "SILog" -Value "Get-SignInLogs" -Force
-New-Alias -Name "SILogs" -Value "Get-SignInLogs" -Force
-New-Alias -Name "GetSILog" -Value "Get-SignInLogs" -Force
-New-Alias -Name "GetSILogs" -Value "Get-SignInLogs" -Force
-New-Alias -Name "Get-SignInLog" -Value "Get-SignInLogs" -Force
-function Get-SignInLogs {
+New-Alias -Name "SILog" -Value "Get-SignInLog" -Force
+New-Alias -Name "SILogs" -Value "Get-SignInLog" -Force
+New-Alias -Name "GetSILog" -Value "Get-SignInLog" -Force
+New-Alias -Name "GetSILogs" -Value "Get-SignInLog" -Force
+function Get-SignInLog {
     <#
 	.SYNOPSIS
-	Downloads user sign in logs.	
-	
+	Downloads user sign in logs.
+
 	.NOTES
 	Version: 1.1.2
     1.1.2 - Added graceful exit when no logs are found.
     1.1.1 - Added test timers.
 	#>
-    [CmdletBinding(DefaultParameterSetName = 'UserObjects')]
+    [CmdletBinding(DefaultParameterSetName = 'UserObject')]
     param (
-        [Parameter(Position = 0,ParameterSetName='UserObjects')]
-        [Alias('UserObject')]
-        [psobject[]] $UserObjects,
+        [Parameter(Position = 0,ParameterSetName='UserObject')]
+        [Alias('UserObjects')]
+        [psobject[]] $UserObject,
 
         [Parameter(ParameterSetName='AllUsers')]
         [switch] $AllUsers,
 
-        [Parameter(ParameterSetName='IpAddresses')]
-        [string[]] $IpAddresses,
+        [Parameter(ParameterSetName='IpAddress')]
+        [string[]] $IpAddress,
 
         # relative date range
         [int] $Days, # default value set at #DEFAULTDAYS
@@ -63,17 +62,17 @@ function Get-SignInLogs {
 
         # create user objects depending on parameters used
         switch ( $ParameterSet ) {
-            'UserObjects' {
+            'UserObject' {
                 # if users passed via script argument:
-                if (($UserObjects | Measure-Object).Count -gt 0) {
-                    $ScriptUserObjects = $UserObjects
+                if (($UserObject | Measure-Object).Count -gt 0) {
+                    $ScriptUserObjects = $UserObject
                 }
                 # if not, look for global objects
                 else {
-                    
+
                     # get from global variables
-                    $ScriptUserObjects = Get-IRTUserObjects
-                    
+                    $ScriptUserObjects = Get-IRTUserObject
+
                     # if none found, exit
                     if ( -not $ScriptUserObjects -or $ScriptUserObjects.Count -eq 0 ) {
                         Write-Host @Red "${Function}: No user objects passed or found in global variables."
@@ -82,16 +81,16 @@ function Get-SignInLogs {
                     if (($ScriptUserObjects | Measure-Object).Count -eq 0) {
                         $ErrorParams = @{
                             Category    = 'InvalidArgument'
-                            Message     = "No -UserObjects argument used, no `$Global:IRT_UserObjects present."
+                            Message     = "No -UserObject argument used, no `$Global:IRT_UserObjects present."
                             ErrorAction = 'Stop'
                         }
                         Write-Error @ErrorParams
                     }
                 }
             }
-            'IpAddresses' {
+            'IpAddress' {
                 $ScriptUserObjects = [System.Collections.Generic.List[pscustomobject]]::new()
-                foreach ($IpAddress in $IpAddresses) {
+                foreach ($IpAddress in $IpAddress) {
                     [void]$ScriptUserObjects.Add(
                         [pscustomobject]@{
                             UserPrincipalName = $IpAddress
@@ -115,82 +114,21 @@ function Get-SignInLogs {
 
         #region DATE RANGE
 
-        # validate only days or (start and end)
-        if ($Days -and ($Start -or $End)) {
-            $ErrorParams = @{
-                Category    = 'InvalidArgument'
-                Message     = "Choose either relative range with -Days or absolute range with -Start and -End."
-                ErrorAction = 'Stop'
-            }
-            Write-Error @ErrorParams  
-        }
+        # API bug with filters may be fixed?
+        # https://github.com/microsoftgraph/msgraph-sdk-powershell/issues/3146#issuecomment-2752675332
+        $DefaultDays = if ($NonInteractive) { 3 } else { 30 } # DEFAULTDAYS
 
-        # validate if start or end used, both were used.
-        if (($Start -and -not $End) -or
-            ($End -and -not $Start)
-        ) {
-            $ErrorParams = @{
-                Category    = 'InvalidArgument'
-                Message     = "Specify both -Start and -End"
-                ErrorAction = 'Stop'
-            }
-            Write-Error @ErrorParams  
+        $DateRangeParams = @{
+            Days        = $Days
+            Start       = $Start
+            End         = $End
+            DefaultDays = $DefaultDays
         }
-
-        # attempt to parse user input dates into datetime objects
-        if ($Start -and $End) {
-            $DateRangeType = 'Absolute'
-            # start - convert user string into object
-            try {
-                $StartDate = Get-Date -Date $Start -ErrorAction 'Stop'
-                $StartDateUtc = [DateTime]::SpecifyKind($StartDate, [DateTimeKind]::Local).ToUniversalTime()
-            }
-            catch {
-                $ErrorParams = @{
-                    Category    = 'InvalidArgument'
-                    Message     = "-Start invalid. Use format 'MM/dd/yy hh:mm(tt)"
-                    ErrorAction = 'Stop'
-                }
-                Write-Error @ErrorParams
-            }
-            # end - convert user string into object
-            try {
-                $EndDate = Get-Date -Date $End -ErrorAction 'Stop'
-                $EndDateUtc = [DateTime]::SpecifyKind($EndDate, [DateTimeKind]::Local).ToUniversalTime()
-            }
-            catch {
-                $ErrorParams = @{
-                    Category    = 'InvalidArgument'
-                    Message     = "-End invalid. Use format 'MM/dd/yy hh:mm(tt)"
-                    ErrorAction = 'Stop'
-                }
-                Write-Error @ErrorParams
-            }
-            # make sure earliest date is the start date
-            if ($StartDateUtc -gt $EndDateUtc) {
-                $Temp = $StartDateUtc
-                $StartDateUtc = $EndDateUtc
-                $EndDateUtc = $Temp
-            }
-            # set days to match range
-            $Days = [Int]([Math]::Ceiling( ($EndDate - $StartDate).TotalDays ))
-        }
-        # create objects based on days
-        else {
-            $DateRangeType = 'Relative'
-            # set default value for days ### must be done after checking for relative/absolute arguments
-            if (-not $Days -and $NonInteractive) {
-                $Days = 3 # DEFAULTDAYS default value for non interactive
-                # API bug with filters may be fixed?
-                # https://github.com/microsoftgraph/msgraph-sdk-powershell/issues/3146#issuecomment-2752675332
-            }
-            elseif (-not $Days) {
-                $Days = 30 # DEFAULTDAYS default value for interactive
-            }
-
-            $StartDateUtc = (Get-Date).AddDays($Days * -1).ToUniversalTime()
-            $EndDateUtc = (Get-Date).ToUniversalTime()
-        }
+        $DateRange = Resolve-IRTDateRange @DateRangeParams
+        $DateRangeType = $DateRange.RangeType
+        $Days          = $DateRange.Days
+        $StartDateUtc  = $DateRange.StartUtc
+        $EndDateUtc    = $DateRange.EndUtc
     }
 
     process {
@@ -203,11 +141,11 @@ function Get-SignInLogs {
 
             # users
             switch ( $ParameterSet ) {
-                'UserObjects' {
+                'UserObject' {
                     $Target = $ScriptUserObject.UserPrincipalName -split '@' | Select-Object -First 1
                     $FilterStrings.Add( "UserId eq '$($ScriptUserObject.Id)'" )
                 }
-                'IpAddresses' {
+                'IpAddress' {
                     $Target = $ScriptUserObject.UserPrincipalName
                     $FilterStrings.Add( "ipAddress eq '$($ScriptUserObject.UserPrincipalName)'" )
                 }
@@ -239,15 +177,12 @@ function Get-SignInLogs {
             # time range
             if ($DateRangeType -eq 'Relative') {
                 if ($Days -ne 30) { # don't use filter if date range is maximum
-                    $DateString = $StartDateUtc.ToString( "yyyy-MM-ddTHH:mm:ssZ" )
-                    $FilterStrings.Add( "createdDateTime ge ${DateString}" )
+                    $FilterStrings.Add( "createdDateTime ge $($DateRange.StartString)" )
                 }
             }
             elseif ($DateRangeType -eq 'Absolute') {
-                $StartDateString = $StartDateUtc.ToString( "yyyy-MM-ddTHH:mm:ssZ" )
-                $FilterStrings.Add( "createdDateTime ge ${StartDateString}" )
-                $EndDateString = $EndDateUtc.ToString( "yyyy-MM-ddTHH:mm:ssZ" )
-                $FilterStrings.Add( "createdDateTime le ${EndDateString}" )
+                $FilterStrings.Add( "createdDateTime ge $($DateRange.StartString)" )
+                $FilterStrings.Add( "createdDateTime le $($DateRange.EndString)" )
             }
 
             # non interactive
@@ -336,11 +271,6 @@ function Get-SignInLogs {
             $Logs.Insert(0,
                 [pscustomobject]@{
                     Metadata = $true
-                    UserObject = $ScriptUserObject
-                    StartDate = $StartDateUtc.ToLocalTime()
-                    EndDate = $EndDateUtc.ToLocalTime()
-                    Days = $Days
-                    DomainName = $DomainName
                     FileNamePrefix = $FileNamePrefix
                     FileName = $FileNameBase
                     Title = $SheetTitle
@@ -378,7 +308,7 @@ function Get-SignInLogs {
                         IpInfo = $IpInfo
                         Open   = $Open
                     }
-                    Show-SignInLogs @Params
+                    Show-SignInLog @Params
                 }
             }
             else {

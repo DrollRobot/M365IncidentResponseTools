@@ -86,7 +86,7 @@ function Disconnect-IRT {
             Where-Object { $_.State -eq 'Connected' })
 
         if (-not $GraphStillConnected -and -not $ExoOrIppsStillConnected) {
-            # Preserve IRT_OriginalPrompt — needed by the module's OnRemove handler to
+            # Preserve IRT_OriginalPrompt - needed by the module's OnRemove handler to
             # restore the original prompt when Remove-Module is called.
             Get-Variable -Scope Global -Name 'IRT_*' -ErrorAction SilentlyContinue |
                 Where-Object { $_.Name -ne 'IRT_OriginalPrompt' } |

@@ -1,37 +1,36 @@
 ###############################################################################
-#region Disable-GraphUsers
+#region Disable-GraphUser
 
 # new aliases
-New-Alias -Name 'DisableUser' -Value 'Disable-GraphUsers' -Force
-New-Alias -Name 'DisableUsers' -Value 'Disable-GraphUsers' -Force
-New-Alias -Name 'Disable-GraphUser' -Value 'Disable-GraphUsers' -Force
+New-Alias -Name 'DisableUser' -Value 'Disable-GraphUser' -Force
+New-Alias -Name 'DisableUsers' -Value 'Disable-GraphUser' -Force
 
 # old aliases
-New-Alias -Name 'Lock-GraphUsers' -Value 'Disable-GraphUsers' -Force
-New-Alias -Name 'LockUser' -Value 'Disable-GraphUsers' -Force
-New-Alias -Name 'LockUsers' -Value 'Disable-GraphUsers' -Force
-New-Alias -Name 'Lock-GraphUser' -Value 'Disable-GraphUsers' -Force
+New-Alias -Name 'Lock-GraphUsers' -Value 'Disable-GraphUser' -Force
+New-Alias -Name 'LockUser' -Value 'Disable-GraphUser' -Force
+New-Alias -Name 'LockUsers' -Value 'Disable-GraphUser' -Force
+New-Alias -Name 'Lock-GraphUser' -Value 'Disable-GraphUser' -Force
 
-function Disable-GraphUsers {
+function Disable-GraphUser {
     <#
 	.SYNOPSIS
 	Disable graph user account(s).
-	
+
 	.NOTES
 	Version: 2.0.0
 	#>
     [CmdletBinding()]
     param(
         [Parameter( Position = 0 )]
-        [Alias( 'UserObject' )]
-        [psobject[]] $UserObjects
+        [Alias('UserObjects')]
+        [psobject[]] $UserObject
     )
 
     $Params = @{
         Enabled = $false
     }
-    if ( $UserObjects ) {
-        $Params['UserObjects'] = $UserObjects
+    if ( $UserObject ) {
+        $Params['UserObject'] = $UserObject
     }
 
     Set-GraphUserAccountEnabled @Params
@@ -39,39 +38,38 @@ function Disable-GraphUsers {
 
 
 ###############################################################################
-#region Enable-GraphUsers
+#region Enable-GraphUser
 
 # new aliases
-New-Alias -Name 'EnableUser' -Value 'Enable-GraphUsers' -Force
-New-Alias -Name 'EnableUsers' -Value 'Enable-GraphUsers' -Force
-New-Alias -Name 'Enable-GraphUser' -Value 'Enable-GraphUsers' -Force
+New-Alias -Name 'EnableUser' -Value 'Enable-GraphUser' -Force
+New-Alias -Name 'EnableUsers' -Value 'Enable-GraphUser' -Force
 
 # old aliases
-New-Alias -Name 'Unlock-GraphUsers' -Value 'Enable-GraphUsers' -Force
-New-Alias -Name 'UnlockUser' -Value 'Enable-GraphUsers' -Force
-New-Alias -Name 'UnlockUsers' -Value 'Enable-GraphUsers' -Force
-New-Alias -Name 'Unlock-GraphUser' -Value 'Enable-GraphUsers' -Force
+New-Alias -Name 'Unlock-GraphUsers' -Value 'Enable-GraphUser' -Force
+New-Alias -Name 'UnlockUser' -Value 'Enable-GraphUser' -Force
+New-Alias -Name 'UnlockUsers' -Value 'Enable-GraphUser' -Force
+New-Alias -Name 'Unlock-GraphUser' -Value 'Enable-GraphUser' -Force
 
-function Enable-GraphUsers {
+function Enable-GraphUser {
     <#
 	.SYNOPSIS
 	Enable graph user account(s).
-	
+
 	.NOTES
 	Version: 2.0.0
 	#>
     [CmdletBinding()]
     param(
         [Parameter( Position = 0 )]
-        [Alias( 'UserObject' )]
-        [psobject[]] $UserObjects
+        [Alias('UserObjects')]
+        [psobject[]] $UserObject
     )
 
     $Params = @{
         Enabled = $true
     }
-    if ( $UserObjects ) {
-        $Params['UserObjects'] = $UserObjects
+    if ( $UserObject ) {
+        $Params['UserObject'] = $UserObject
     }
 
     Set-GraphUserAccountEnabled @Params
@@ -83,16 +81,16 @@ function Enable-GraphUsers {
 function Set-GraphUserAccountEnabled {
     <#
 	.SYNOPSIS
-	Set AccountEnabled property on graph user(s). Called by Disable-GraphUsers and Enable-GraphUsers.
-	
+	Set AccountEnabled property on graph user(s). Called by Disable-GraphUser and Enable-GraphUser.
+
 	.NOTES
 	Version: 1.0.0
 	#>
     [CmdletBinding()]
     param(
         [Parameter( Position = 0 )]
-        [Alias( 'UserObject' )]
-        [psobject[]] $UserObjects,
+        [Alias('UserObjects')]
+        [psobject[]] $UserObject,
 
         [Parameter( Mandatory )]
         [bool] $Enabled
@@ -101,18 +99,18 @@ function Set-GraphUserAccountEnabled {
     begin {
 
         # if not passed directly, find global
-        if ( -not $UserObjects -or $UserObjects.Count -eq 0 ) {
+        if ( -not $UserObject -or $UserObject.Count -eq 0 ) {
 
             # get from global variables
-            $ScriptUserObjects = Get-IRTUserObjects
-        
+            $ScriptUserObjects = Get-IRTUserObject
+
             # if none found, exit
             if ( -not $ScriptUserObjects -or $ScriptUserObjects.Count -eq 0 ) {
                 throw "No user objects passed or found in global variables."
             }
         }
         else {
-            $ScriptUserObjects = $UserObjects
+            $ScriptUserObjects = $UserObject
         }
 
         # variables
@@ -152,12 +150,12 @@ function Set-GraphUserAccountEnabled {
 
             # if disabling, force sign outs
             if ( -not $Enabled ) {
-                Write-Host @Blue "`nRevoking user sessions."
+                Write-Host @Blue "`nRevoking user sessions..."
                 Revoke-MgUserSignInSession -UserId $ScriptUserObject.Id | Out-Null
             }
 
             # disable/enable account
-            Write-Host @Blue "`n${Action}ing user account... (set AccountEnabled=$Enabled)"
+            Write-Host @Blue "`n$($Action.TrimEnd('e'))ing user account..."
             Update-MgUser -UserId $ScriptUserObject.Id -AccountEnabled:$Enabled
 
             # get new user object
@@ -174,7 +172,7 @@ function Set-GraphUserAccountEnabled {
         }
 
 
-        ### show last onprem sync time 
+        ### show last onprem sync time
         # get date object
         try {
             $SyncTime = (Get-MgOrganization).OnPremisesLastSyncDateTime.ToLocalTime()

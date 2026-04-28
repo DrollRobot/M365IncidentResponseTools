@@ -1,18 +1,17 @@
-New-Alias -Name 'FindDevice' -Value 'Find-Devices' -Force
-New-Alias -Name 'FindDevices' -Value 'Find-Devices' -Force
-New-Alias -Name 'Find-Device' -Value 'Find-Devices' -Force
-function Find-Devices {
+New-Alias -Name 'FindDevice' -Value 'Find-Device' -Force
+New-Alias -Name 'FindDevices' -Value 'Find-Device' -Force
+function Find-Device {
     <#
     .SYNOPSIS
     Finds devices by display name, device ID, operating system, registered owner, serial number, or other
     Entra/Intune identifiers. Creates $IRT_DeviceObjects from combined Entra + Intune device records.
 
     .EXAMPLE
-    Find-Devices DESKTOP-ABC123
-    Find-Devices -Search DESKTOP-ABC123,LAPTOP-XYZ789
-    Find-Devices flast@domain.com
-    Find-Devices -Search bf7573a5844f   # partial device id / Entra id / Intune id
-    Find-Devices -Search SN1234567890   # serial number (Intune)
+    Find-Device DESKTOP-ABC123
+    Find-Device -Search DESKTOP-ABC123,LAPTOP-XYZ789
+    Find-Device flast@domain.com
+    Find-Device -Search bf7573a5844f   # partial device id / Entra id / Intune id
+    Find-Device -Search SN1234567890   # serial number (Intune)
 
     .NOTES
     Version: 1.1.0
@@ -22,8 +21,7 @@ function Find-Devices {
         [Parameter( Position = 0, Mandatory )]
         [string[]] $Search,
         [string] $VarPrefix,
-        [switch] $Script,
-        [string] $TenantId
+        [switch] $Script
     )
 
     begin {
@@ -43,7 +41,7 @@ function Find-Devices {
         $Red = @{ForegroundColor = 'Red'}
 
         # get all combined device objects from cache
-        $AllDevices = Request-GraphDevices -Cached
+        $AllDevices = Request-GraphDevice -Cached
     }
 
     process {
@@ -76,7 +74,7 @@ function Find-Devices {
             }
 
             if (($MatchingDevices | Measure-Object).Count -eq 1) {
-                
+
                 if (-not $Script) {
 
                     # show device info
@@ -123,6 +121,6 @@ function Find-Devices {
             if ( $ScriptDeviceObjects.Count -gt 1 ) {
                 $ScriptDeviceObjects | Format-Table $DisplayProperties
             }
-        }        
+        }
     }
 }

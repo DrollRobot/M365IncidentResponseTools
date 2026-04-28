@@ -1,4 +1,4 @@
-function Build-AllOperationsSheet {
+function Build-AllOperationSheet {
     <#
     .SYNOPSIS
     Builds the AllOperations Excel worksheet for unified audit logs.
@@ -9,7 +9,8 @@ function Build-AllOperationsSheet {
     [CmdletBinding()]
     param (
         [Parameter(Mandatory)]
-        [System.Collections.Generic.List[PSObject]] $Logs,
+        [Alias('Logs')]
+        [System.Collections.Generic.List[PSObject]] $Log,
 
         [Parameter(Mandatory)]
         $ExcelPackage,
@@ -25,7 +26,8 @@ function Build-AllOperationsSheet {
         [Parameter(Mandatory)]
         [string] $Title,
 
-        [psobject[]] $OperationsSheetData,
+        [Alias('OperationsSheetData')]
+        [psobject[]] $OperationSheetData,
 
         [string] $TableStyle = $Global:IRT_Config.ExcelTableStyle,
         [string] $Font = $Global:IRT_Config.ExcelFont,
@@ -43,8 +45,8 @@ function Build-AllOperationsSheet {
             $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
 
             $OperationsFromSheet = [System.Collections.Generic.HashSet[string]]::new()
-            if ($OperationsSheetData) {
-                foreach ($Row in $OperationsSheetData) {
+            if ($OperationSheetData) {
+                foreach ($Row in $OperationSheetData) {
                     [void]$OperationsFromSheet.Add("$($Row.Workload)|$($Row.RecordType)|$($Row.Operation)")
                 }
             }
@@ -61,54 +63,54 @@ function Build-AllOperationsSheet {
             Write-Host @Yellow "${Function}: ${TestText} started at $(Get-Date -Format 'hh:mm:sstt')" | Out-Host
         }
 
-        $RowCount = ($Logs | Measure-Object).Count
+        $RowCount = ($Log | Measure-Object).Count
         $Rows = [System.Collections.Generic.List[PSCustomObject]]::new()
         for ($i = 0; $i -lt $RowCount; $i++) {
 
-            $Log = $Logs[$i]
+            $LogEntry = $Log[$i]
 
             # save operations to create complete list
             if ($Script:Test) {
                 [void]$OperationsFromLog.Add(
-                    "$($Log.AuditData.Workload)|$($Log.AuditData.RecordType)|$($Log.AuditData.Operation)"
+                    "$($LogEntry.AuditData.Workload)|$($LogEntry.AuditData.RecordType)|$($LogEntry.AuditData.Operation)"
                 )
             }
 
             # Raw
-            $Raw = $Log | ConvertTo-Json -Depth 10
+            $Raw = $LogEntry | ConvertTo-Json -Depth 10
 
             #region USERIDS
-            if ( $Log.UserIds -match '^ServicePrincipal_.*$' ) {
-                $SpName = $Log.AuditData.Actor[0].ID
+            if ( $LogEntry.UserIds -match '^ServicePrincipal_.*$' ) {
+                $SpName = $LogEntry.AuditData.Actor[0].ID
                 $UserIds = "SP: ${SpName}"
             }
             else {
-                $UserIds = $Log.UserIds
+                $UserIds = $LogEntry.UserIds
             }
 
             #region IPADDRESSES
             $CellLines = $null
             $IpAddresses = [System.Collections.Generic.Hashset[string]]::new()
-                if ( $Log.AuditData.ClientIP ) {
+                if ( $LogEntry.AuditData.ClientIP ) {
                     try {
-                        $IpObject = [System.Net.IPAddress]$Log.AuditData.ClientIP
+                        $IpObject = [System.Net.IPAddress]$LogEntry.AuditData.ClientIP
                     }
                     catch {}
                     if ($IpObject) {
                         [void]$IpAddresses.Add($IpObject.ToString())
                     }
                 }
-                if ( $Log.AuditData.ActorIpAddress ) {
+                if ( $LogEntry.AuditData.ActorIpAddress ) {
                     try {
-                        $IpObject = [System.Net.IPAddress]$Log.AuditData.ActorIpAddress
+                        $IpObject = [System.Net.IPAddress]$LogEntry.AuditData.ActorIpAddress
                     }
                     catch {}
                     if ($IpObject) {
                         [void]$IpAddresses.Add($IpObject.ToString())
                     }                }
-                if ( $Log.AuditData.ClientIPAddress ) {
+                if ( $LogEntry.AuditData.ClientIPAddress ) {
                     try {
-                        $IpObject = [System.Net.IPAddress]$Log.AuditData.ClientIPAddress
+                        $IpObject = [System.Net.IPAddress]$LogEntry.AuditData.ClientIPAddress
                     }
                     catch {}
                     if ($IpObject) {
@@ -125,55 +127,55 @@ function Build-AllOperationsSheet {
             $IpText = $CellLines -join "`n`n"
 
             #region Summary
-            $RecordType = $Log.RecordType
-            $Operations = $Log.Operations
+            $RecordType = $LogEntry.RecordType
+            $Operations = $LogEntry.Operations
             $OperationString = $RecordType + ' ' + $Operations
             $EmailParams = @{
-                Log = $Log
+                Log = $LogEntry
             }
             if ($MessageTraceTable) { $EmailParams['MessageTraceTable'] = $MessageTraceTable }
             switch ( $OperationString ) {
                 'AzureActiveDirectory Add member to role.' {
-                    $EventObject = Get-AddRemoveRoleSummary -Log $Log
+                    $EventObject = Get-AddRemoveRoleSummary -Log $LogEntry
                 }
                 'AzureActiveDirectory Remove member from role.' {
-                    $EventObject = Get-AddRemoveRoleSummary -Log $Log
+                    $EventObject = Get-AddRemoveRoleSummary -Log $LogEntry
                 }
                 'AzureActiveDirectory Update user.' {
-                    $EventObject = Get-UpdateUserSummary -Log $Log
+                    $EventObject = Get-UpdateUserSummary -Log $LogEntry
                 }
                 'AzureActiveDirectoryStsLogon UserLoggedIn' {
-                    $EventObject = Get-LoginOperationsSummary -Log $Log -Cached:$Cached
+                    $EventObject = Get-LoginOperationSummary -Log $LogEntry -Cached:$Cached
                 }
                 'AzureActiveDirectoryStsLogon UserLoggedOff' {
-                    $EventObject = Get-LoginOperationsSummary -Log $Log -Cached:$Cached
+                    $EventObject = Get-LoginOperationSummary -Log $LogEntry -Cached:$Cached
                 }
                 'AzureActiveDirectoryStsLogon UserLoginFailed' {
-                    $EventObject = Get-LoginOperationsSummary -Log $Log -Cached:$Cached
+                    $EventObject = Get-LoginOperationSummary -Log $LogEntry -Cached:$Cached
                 }
                 'ExchangeAdmin New-InboxRule' {
-                    $EventObject = Get-InboxRuleSummary -Log $Log
+                    $EventObject = Get-InboxRuleSummary -Log $LogEntry
                 }
                 'ExchangeAdmin Set-ConditionalAccessPolicy' {
-                    $EventObject = Get-SetConditionalAccessPolicySummary -Log $Log
+                    $EventObject = Get-SetConditionalAccessPolicySummary -Log $LogEntry
                 }
                 'ExchangeAdmin Set-InboxRule' {
-                    $EventObject = Get-InboxRuleSummary -Log $Log
+                    $EventObject = Get-InboxRuleSummary -Log $LogEntry
                 }
                 'ExchangeItemAggregated AttachmentAccess' {
-                    $EventObject = Get-AttachmentAccessSummary -Log $Log
+                    $EventObject = Get-AttachmentAccessSummary -Log $LogEntry
                 }
                 'ExchangeItemAggregated MailItemsAccessed' {
                     $EventObject = Get-MailItemsAccessedSummary @EmailParams
                 }
                 'ExchangeItem Create' {
-                    $EventObject = Get-ExchangeItemCreateSendSummary -Log $Log
+                    $EventObject = Get-ExchangeItemCreateSendSummary -Log $LogEntry
                 }
                 'ExchangeItem Send' {
-                    $EventObject = Get-ExchangeItemCreateSendSummary -Log $Log
+                    $EventObject = Get-ExchangeItemCreateSendSummary -Log $LogEntry
                 }
                 'ExchangeItem Update' {
-                    $EventObject = Get-ExchangeItemUpdateSummary -Log $Log
+                    $EventObject = Get-ExchangeItemUpdateSummary -Log $LogEntry
                 }
                 'ExchangeItemGroup HardDelete' {
                     $EventObject = Get-ExchangeItemDeleteSummary @EmailParams
@@ -185,37 +187,37 @@ function Build-AllOperationsSheet {
                     $EventObject = Get-ExchangeItemDeleteSummary @EmailParams
                 }
                 'SharePoint PageViewed' {
-                    $EventObject = Get-PageViewedSummary -Log $Log
+                    $EventObject = Get-PageViewedSummary -Log $LogEntry
                 }
                 'SharePoint PIMRoleAssigned' {
-                    $EventObject = Get-PIMRoleAssignedSummary -Log $Log -Cached:$Cached
+                    $EventObject = Get-PIMRoleAssignedSummary -Log $LogEntry -Cached:$Cached
                 }
                 'SharePoint SearchQueryPerformed' {
-                    $EventObject = Get-SearchQueryPerformedSummary -Log $Log
+                    $EventObject = Get-SearchQueryPerformedSummary -Log $LogEntry
                 }
                 'SharePointFileOperation FileAccessed' {
-                    $EventObject = Get-SharePointFileOperationSummary -Log $Log
+                    $EventObject = Get-SharePointFileOperationSummary -Log $LogEntry
                 }
                 'SharePointFileOperation FileDownloaded' {
-                    $EventObject = Get-SharePointFileOperationSummary -Log $Log
+                    $EventObject = Get-SharePointFileOperationSummary -Log $LogEntry
                 }
                 'SharePointFileOperation FileModified' {
-                    $EventObject = Get-SharePointFileOperationSummary -Log $Log
+                    $EventObject = Get-SharePointFileOperationSummary -Log $LogEntry
                 }
                 'SharePointFileOperation FileModifiedExtended' {
-                    $EventObject = Get-SharePointFileOperationSummary -Log $Log
+                    $EventObject = Get-SharePointFileOperationSummary -Log $LogEntry
                 }
                 'SharePointFileOperation FilePreviewed' {
-                    $EventObject = Get-SharePointFileOperationSummary -Log $Log
+                    $EventObject = Get-SharePointFileOperationSummary -Log $LogEntry
                 }
                 'SharePointFileOperation FileSyncDownloadedFull' {
-                    $EventObject = Get-SharePointFileOperationSummary -Log $Log
+                    $EventObject = Get-SharePointFileOperationSummary -Log $LogEntry
                 }
                 'SharePointFileOperation FileSyncUploadedFull' {
-                    $EventObject = Get-SharePointFileOperationSummary -Log $Log
+                    $EventObject = Get-SharePointFileOperationSummary -Log $LogEntry
                 }
                 'SharePointFileOperation FileUploaded' {
-                    $EventObject = Get-SharePointFileOperationSummary -Log $Log
+                    $EventObject = Get-SharePointFileOperationSummary -Log $LogEntry
                 }
                 default {
                     $EventObject = [pscustomobject]@{
@@ -226,8 +228,8 @@ function Build-AllOperationsSheet {
 
             # Date/Time
             $DateTime = $null
-            if ($Log.$RawDateProperty) {
-                $DateTime = $Log.$RawDateProperty.ToLocalTime()
+            if ($LogEntry.$RawDateProperty) {
+                $DateTime = $LogEntry.$RawDateProperty.ToLocalTime()
             }
 
             # add to list
@@ -235,9 +237,9 @@ function Build-AllOperationsSheet {
                 Raw = $Raw
                 $DateColumnHeader = $DateTime
                 UserIds = $UserIds
-                Workload = $Log.AuditData.Workload
-                RecordType = $Log.RecordType
-                Operation = $Log.AuditData.Operation
+                Workload = $LogEntry.AuditData.Workload
+                RecordType = $LogEntry.RecordType
+                Operation = $LogEntry.AuditData.Operation
                 IpAddresses = $IpText
                 Summary = $EventObject.Summary
             })
@@ -301,8 +303,8 @@ function Build-AllOperationsSheet {
             Add-IpAddressConditionalFormatting -Worksheet $Worksheet -ColumnName 'IpAddresses'
 
             # operations conditional formatting
-            if ($OperationsSheetData) {
-                foreach ($Row in $OperationsSheetData) {
+            if ($OperationSheetData) {
+                foreach ($Row in $OperationSheetData) {
                     if ($Row.Risk -eq 'High') {
                         $CFParams = @{
                             Worksheet       = $Worksheet
@@ -348,7 +350,7 @@ function Build-AllOperationsSheet {
                 Range        = "B:B"
                 NumberFormat = 'm/d/yyyy h:mm:ss AM/PM'
             }
-            Set-Format @DateFormatParams
+            Set-ExcelRange @DateFormatParams
 
             # font
             $FontParams = @{
@@ -365,7 +367,7 @@ function Build-AllOperationsSheet {
                 BorderLeft  = 'Thin'
                 BorderColor = 'Black'
             }
-            Set-Format @BorderParams
+            Set-ExcelRange @BorderParams
 
             # text wrapping on Summary (applied last to prevent other formatting from resetting it)
             $SummaryWrapParams = @{

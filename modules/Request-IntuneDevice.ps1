@@ -1,4 +1,4 @@
-function Request-IntuneDevices {
+function Request-IntuneDevice {
     <#
     .SYNOPSIS
     Requests all managed devices from Intune (Microsoft Graph). Caches in global variables.

@@ -2,7 +2,7 @@ function Get-SetConditionalAccessPolicySummary {
     <#
 	.SYNOPSIS
     Parses ExchangeAdmin Set-ConditionalAccessPolicy events from UAL.
-	
+
 	.NOTES
 	Version: 1.0.0
 	#>

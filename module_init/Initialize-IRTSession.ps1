@@ -1,4 +1,4 @@
-# ScriptsToProcess — runs in the CALLER's scope (not the module's) on every Import-Module.
+# ScriptsToProcess - runs in the CALLER's scope (not the module's) on every Import-Module.
 # Because this runs outside the module scope, the prompt function defined here is NOT
 # tracked by the module and will NOT be removed when the module is reimported with -Force.
 

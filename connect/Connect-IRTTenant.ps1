@@ -26,7 +26,7 @@ function Connect-IRTTenant {
     .PARAMETER Exchange
     Connect to Exchange Online only.
 
-    .PARAMETER AdditionalScopes
+    .PARAMETER AdditionalScope
     Additional Graph scopes to request beyond the default set.
 
     .PARAMETER DeviceCode
@@ -72,7 +72,8 @@ function Connect-IRTTenant {
         [switch] $Graph,
         [switch] $Exchange,
 
-        [string[]] $AdditionalScopes,
+        [Alias('AdditionalScopes')]
+        [string[]] $AdditionalScope,
         [System.Nullable[bool]] $DeviceCode,
 
         [string] $PasswordBrowser = $IRT_Config.PasswordBrowser,
@@ -86,7 +87,7 @@ function Connect-IRTTenant {
         if (-not ( Test-Path $TenantFile )) {
 
             $Message  = "Tenant file not found: ${TenantFile}`n"
-            $Message += "Run Open-IRTTenantsWorksheet to create it and edit with your tenant information."
+            $Message += "Run Open-IRTTenantWorksheet to create it and edit with your tenant information."
 
             throw $Message
         }
@@ -136,8 +137,8 @@ function Connect-IRTTenant {
         if ($Graph)    { $ConnectParams['Graph']    = $true }
         if ($Exchange) { $ConnectParams['Exchange'] = $true }
 
-        if ($AdditionalScopes) {
-            $ConnectParams['AdditionalScopes'] = $AdditionalScopes
+        if ($AdditionalScope) {
+            $ConnectParams['AdditionalScope'] = $AdditionalScope
         }
 
         if ($Private) { $ConnectParams['Private'] = $true }
@@ -158,7 +159,7 @@ function Connect-IRTTenant {
     }
 }
 
-function Open-IRTTenantsWorksheet {
+function Open-IRTTenantWorksheet {
     <#
     .SYNOPSIS
     Opens the tenants worksheet for editing. Creates it from the template if it doesn't exist.

@@ -1,9 +1,10 @@
-function Merge-ListsOnDate {
+function Merge-ListOnDate {
     # merges lists
     [CmdletBinding(DefaultParameterSetName = 'Ascending')]
     param(
         [Parameter(Mandatory = $true)]
-        [System.Collections.Generic.List[psobject][]] $Lists,
+        [Alias('Lists')]
+        [System.Collections.Generic.List[psobject][]] $List,
 
         [Parameter(Mandatory = $true)]
         [string] $PropertyName,
@@ -15,61 +16,8 @@ function Merge-ListsOnDate {
         [switch] $Descending
     )
 
-    # helper: check if a list is sorted on property in the requested direction
-    function Test-IsSorted {
-        param(
-            [System.Collections.Generic.List[psobject]] $InputList,
-            [string] $KeyProperty,
-            [bool] $IsAscending
-        )
-        if ($InputList.Count -lt 2) { return $true }
-        $Previous = $InputList[0].$KeyProperty
-        for ($Index = 1; $Index -lt $InputList.Count; $Index++) {
-            $Current = $InputList[$Index].$KeyProperty
-            if ($IsAscending) {
-                if ($Current -lt $Previous) { return $false }
-            } else {
-                if ($Current -gt $Previous) { return $false }
-            }
-            $Previous = $Current
-        }
-        return $true
-    }
-
-    # helper: ensure each list is sorted; if not, sort it into a new list
-    function Get-WorkingLists {
-        param(
-            [System.Collections.Generic.List[psobject][]] $InputLists,
-            [string] $KeyProperty,
-            [bool] $IsAscending
-        )
-        $Working = New-Object 'System.Collections.Generic.List[System.Collections.Generic.List[psobject]]'
-        foreach ($SingleList in $InputLists) {
-            if (-not $SingleList -or $SingleList.Count -eq 0) {
-                $Working.Add([System.Collections.Generic.List[psobject]]::new())
-                continue
-            }
-
-            if (Test-IsSorted -InputList $SingleList -KeyProperty $KeyProperty -IsAscending $IsAscending) {
-                # already sorted; reuse as-is
-                $Working.Add($SingleList)
-            } else {
-                # not sorted; sort and materialize into a new strongly-typed List[psobject]
-                $sortParams = @{
-                    Property   = $KeyProperty
-                    Descending = -not $IsAscending
-                }
-                $Sorted = @( $SingleList | Sort-Object @sortParams )
-                $AsList = [System.Collections.Generic.List[psobject]]::new()
-                foreach ($Item in $Sorted) { $AsList.Add($Item) }
-                $Working.Add($AsList)
-            }
-        }
-        return ,$Working
-    }
-
     # validate at least one list exists
-    if (-not $Lists -or $Lists.Count -eq 0) {
+    if (-not $List -or $List.Count -eq 0) {
         return [System.Collections.Generic.List[psobject]]::new()
     }
 
@@ -77,7 +25,7 @@ function Merge-ListsOnDate {
     $IsAscending = [bool]$Ascending
 
     # build working lists (sorted if needed)
-    $WorkingLists = Get-WorkingLists -InputLists $Lists -KeyProperty $PropertyName -IsAscending $IsAscending
+    $WorkingLists = Get-WorkingList -InputList $List -KeyProperty $PropertyName -IsAscending $IsAscending
 
     # try to use PriorityQueue if available (PowerShell 7+ / .NET 6+)
     $PriorityQueueType = $null
@@ -101,23 +49,19 @@ function Merge-ListsOnDate {
             else { return [long][math]::Round([double]::MaxValue - $Num) } # crude reversal for numerics
         }
         else {
-            # fallback: try string collation using ordinal bytes (less ideal); reverse by prefixing weight
-            $Bytes = [System.Text.Encoding]::UTF8.GetBytes([string]$Value)
-            $Hash  = [System.BitConverter]::ToInt64((New-Object byte[] 8), 0)
-            # the above is a placeholder to force fallback; return 0 so we trip the non-PQ path
             return 0
         }
     }
 
     # if PriorityQueue is available and the key type is suitable, use it; otherwise use portable k-way scan
     $UsePriorityQueue = $false
-    if ($PriorityQueueType -ne $null) {
+    if ($null -ne $PriorityQueueType) {
         # quick probe first non-null key
         $ProbeKey = $null
         foreach ($List in $WorkingLists) {
             if ($List.Count -gt 0) {
                 $ProbeKey = $List[0].$PropertyName
-                if ($ProbeKey -ne $null) { break }
+                if ($null -ne $ProbeKey) { break }
             }
         }
         if ($ProbeKey -is [datetime] -or $ProbeKey -is [int] -or $ProbeKey -is [long] -or $ProbeKey -is [double] -or $ProbeKey -is [decimal] -or $ProbeKey -is [single]) {
@@ -226,6 +170,60 @@ function Merge-ListsOnDate {
     }
 
     return $MergedList
+}
+
+
+function Test-IsSorted {
+    # helper: check if a list is sorted on property in the requested direction
+    param(
+        [System.Collections.Generic.List[psobject]] $InputList,
+        [string] $KeyProperty,
+        [bool] $IsAscending
+    )
+    if ($InputList.Count -lt 2) { return $true }
+    $Previous = $InputList[0].$KeyProperty
+    for ($Index = 1; $Index -lt $InputList.Count; $Index++) {
+        $Current = $InputList[$Index].$KeyProperty
+        if ($IsAscending) {
+            if ($Current -lt $Previous) { return $false }
+        } else {
+            if ($Current -gt $Previous) { return $false }
+        }
+        $Previous = $Current
+    }
+    return $true
+}
+
+function Get-WorkingList {
+    # helper: ensure each list is sorted; if not, sort it into a new list
+    param(
+        [System.Collections.Generic.List[psobject][]] $InputList,
+        [string] $KeyProperty,
+        [bool] $IsAscending
+    )
+    $Working = New-Object 'System.Collections.Generic.List[System.Collections.Generic.List[psobject]]'
+    foreach ($SingleList in $InputList) {
+        if (-not $SingleList -or $SingleList.Count -eq 0) {
+            $Working.Add([System.Collections.Generic.List[psobject]]::new())
+            continue
+        }
+
+        if (Test-IsSorted -InputList $SingleList -KeyProperty $KeyProperty -IsAscending $IsAscending) {
+            # already sorted; reuse as-is
+            $Working.Add($SingleList)
+        } else {
+            # not sorted; sort and materialize into a new strongly-typed List[psobject]
+            $sortParams = @{
+                Property   = $KeyProperty
+                Descending = -not $IsAscending
+            }
+            $Sorted = @( $SingleList | Sort-Object @sortParams )
+            $AsList = [System.Collections.Generic.List[psobject]]::new()
+            foreach ($Item in $Sorted) { $AsList.Add($Item) }
+            $Working.Add($AsList)
+        }
+    }
+    return ,$Working
 }
 
 

@@ -2,23 +2,21 @@ function Show-IRTMessageTrace {
     <#
 	.SYNOPSIS
 	Processes message trace data and creates spreadsheet.
-	
+
 	.NOTES
 	Version: 1.0.0
 	#>
     [CmdletBinding( DefaultParameterSetName = 'Objects' )]
     param (
         [Parameter(Position = 0, Mandatory, ValueFromPipeline, ParameterSetName = 'Objects')]
-        [Alias( 'Message' )]
-        [System.Collections.Generic.List[PSObject]] $Messages,
+        [Alias('Messages')]
+        [System.Collections.Generic.List[PSObject]] $Message,
 
         [Parameter(Position = 0, Mandatory, ParameterSetName = 'Xml')]
         [string] $XmlPath,
 
         [string] $TableStyle = $Global:IRT_Config.ExcelTableStyle,
-        [string] $Font = $Global:IRT_Config.ExcelFont,
-
-        [switch] $Test
+        [string] $Font = $Global:IRT_Config.ExcelFont
     )
 
     begin {
@@ -49,7 +47,7 @@ function Show-IRTMessageTrace {
 
             try {
                 $ResolvedXmlPath = Resolve-ScriptPath -Path $XmlPath -File -FileExtension 'xml'
-                [System.Collections.Generic.List[PSObject]]$Messages = Import-CliXml -Path $ResolvedXmlPath
+                [System.Collections.Generic.List[PSObject]]$Message = Import-CliXml -Path $ResolvedXmlPath
             }
             catch {
                 $_
@@ -64,11 +62,11 @@ function Show-IRTMessageTrace {
         }
 
         # import metadata
-        if ($Messages[0].Metadata) {
+        if ($Message[0].Metadata) {
 
             # remove metadata from beginning of list
-            $Metadata = $Messages[0]
-            $Messages.RemoveAt(0)
+            $Metadata = $Message[0]
+            $Message.RemoveAt(0)
 
             $UserEmails = $Metadata.UserEmails
             $UserName = $Metadata.UserName
@@ -83,7 +81,7 @@ function Show-IRTMessageTrace {
         }
 
         # exit if no messages found
-        if (($Messages | Measure-Object).Count -eq 0) {
+        if (($Message | Measure-Object).Count -eq 0) {
             Write-Host @Red "${Function}: No messages found. Exiting"
             return
         }
@@ -107,7 +105,7 @@ function Show-IRTMessageTrace {
     process {
 
         # exit if no messages
-        if (($Messages | Measure-Object).Count -eq 0) {
+        if (($Message | Measure-Object).Count -eq 0) {
             Write-Host @Red "${Function}: No messages. Exiting."
         }
 
@@ -119,32 +117,32 @@ function Show-IRTMessageTrace {
             Write-Host @Yellow "${Function}: ${TestText} started at $(Get-Date -Format 'hh:mm:sstt')" | Out-Host
         }
 
-        $RowCount = $Messages.Count
+        $RowCount = $Message.Count
         $Rows = [System.Collections.Generic.List[PSCustomObject]]::new($RowCount)
         for ($i = 0; $i -lt $RowCount; $i++) {
 
-            $Message = $Messages[$i]
+            $MessageEntry = $Message[$i]
 
             # Raw
-            $Raw = $Message | ConvertTo-Json -Depth 10
+            $Raw = $MessageEntry | ConvertTo-Json -Depth 10
 
             # Date/Time
             $DateTime = $null
-            if ($Message.$RawDateProperty) {
-                $DateTime = $Message.$RawDateProperty.ToLocalTime()
+            if ($MessageEntry.$RawDateProperty) {
+                $DateTime = $MessageEntry.$RawDateProperty.ToLocalTime()
             }
 
             $Rows.Add([pscustomobject]@{
                 Raw               = $Raw
                 $DateColumnHeader = $DateTime
-                Status            = $Message.Status
-                SenderAddress     = $Message.SenderAddress
-                RecipientAddress  = $Message.RecipientAddress
-                Subject           = $Message.Subject
-                FromIP            = $Message.FromIP
-                ToIP              = $Message.ToIP
-                MessageTraceId    = $Message.MessageTraceId
-                MessageId         = $Message.MessageId
+                Status            = $MessageEntry.Status
+                SenderAddress     = $MessageEntry.SenderAddress
+                RecipientAddress  = $MessageEntry.RecipientAddress
+                Subject           = $MessageEntry.Subject
+                FromIP            = $MessageEntry.FromIP
+                ToIP              = $MessageEntry.ToIP
+                MessageTraceId    = $MessageEntry.MessageTraceId
+                MessageId         = $MessageEntry.MessageId
             })
 
             if ($Script:Test -and ($i % 1000 -eq 0)) {
@@ -294,13 +292,13 @@ function Show-IRTMessageTrace {
 
         #region FORMATTING
 
-        # set date format 
+        # set date format
         $FmtParams = @{
             Worksheet = $Worksheet
             Range = "B:B"
             NumberFormat  = 'm/d/yyyy h:mm:ss AM/PM'
         }
-        Set-Format @FmtParams
+        Set-ExcelRange @FmtParams
 
         # set font and size
         $SetParams = @{
@@ -317,7 +315,7 @@ function Show-IRTMessageTrace {
             BorderLeft = 'Thin'
             BorderColor = 'Black'
         }
-        Set-Format @BorderParams
+        Set-ExcelRange @BorderParams
 
         #region OUTPUT
 

@@ -39,8 +39,7 @@ function Request-IRTMessageTrace {
         [int] $Days,
 
         [int] $ResultLimit = 50000,
-        [switch] $Quiet,
-        [switch] $Test
+        [switch] $Quiet
     )
 
     begin {
@@ -72,11 +71,11 @@ function Request-IRTMessageTrace {
         $ChunkEnd = $AbsoluteEnd
         while ($ChunkEnd -gt $AbsoluteStart) {
             $ChunkStart = $ChunkEnd.AddDays(-10)
-            if ($ChunkStart -lt $AbsoluteStart) { 
-                $ChunkStart = $AbsoluteStart 
+            if ($ChunkStart -lt $AbsoluteStart) {
+                $ChunkStart = $AbsoluteStart
             }
             $Chunks.Add(
-                [pscustomobject]@{ 
+                [pscustomobject]@{
                     Start = $ChunkStart
                     End = $ChunkEnd
                 }
@@ -98,7 +97,7 @@ function Request-IRTMessageTrace {
                 WarningVariable  = '+Warn'
                 ErrorAction    = 'Stop'
             }
-            if ($SenderAddress) { 
+            if ($SenderAddress) {
                 $LoopParams['SenderAddress']    = $SenderAddress
             }
             if ($RecipientAddress) {
@@ -139,16 +138,16 @@ function Request-IRTMessageTrace {
             if (-not $Quiet) { Write-Host "Retrieved ${PageCount} messages." }
 
             # add page messages to AllMessages
-            if ($PageCount) { 
-                foreach ($i in $Page) { 
-                    $AllMessages.Add($i) 
-                } 
+            if ($PageCount) {
+                foreach ($i in $Page) {
+                    $AllMessages.Add($i)
+                }
             }
 
             # if ResultLimit hit, return
-            if ($AllMessages.Count -ge $ResultLimit) { 
+            if ($AllMessages.Count -ge $ResultLimit) {
                 Write-Output ($AllMessages | Select-Object -First $ResultLimit)
-                return 
+                return
             }
 
             # keep following the service-provided continuation only while we hit the page size limit
@@ -160,25 +159,25 @@ function Request-IRTMessageTrace {
 
                 # reset any existing -starting* keys, then merge the new Hints (clamped to the chunk)
                 foreach ($k in @($LoopParams.Keys)) {
-                    if ($k -like 'Starting*') { 
+                    if ($k -like 'Starting*') {
                         $null = $LoopParams.Remove($k)
                     }
                 }
                 foreach ($k in $NextParams.Keys) {
                     if ($k -eq 'StartDate') {
-                        $LoopParams[$k] = if ($NextParams[$k] -lt $Chunk.Start) { 
-                            $Chunk.Start 
-                        } 
-                        else { 
+                        $LoopParams[$k] = if ($NextParams[$k] -lt $Chunk.Start) {
+                            $Chunk.Start
+                        }
+                        else {
                             $NextParams[$k]
                         }
                     }
                     elseif ($k -eq 'EndDate') {
-                        $LoopParams[$k] = if ($NextParams[$k] -gt $Chunk.End) { 
-                            $Chunk.End 
-                        } 
-                        else { 
-                            $NextParams[$k] 
+                        $LoopParams[$k] = if ($NextParams[$k] -gt $Chunk.End) {
+                            $Chunk.End
+                        }
+                        else {
+                            $NextParams[$k]
                         }
                     }
                     else {
@@ -219,10 +218,10 @@ function Request-IRTMessageTrace {
 
                 $PageCount = ($Page | Measure-Object).Count
                 if (-not $Quiet) { Write-Host "Retrieved ${PageCount} messages." }
-                foreach ($m in $Page) {$AllMessages.Add($m)} 
-                if (($AllMessages | Measure-Object).Count -ge $ResultLimit) { 
+                foreach ($m in $Page) {$AllMessages.Add($m)}
+                if (($AllMessages | Measure-Object).Count -ge $ResultLimit) {
                     Write-Output ($AllMessages | Select-Object -First $ResultLimit)
-                    return 
+                    return
                 }
             }
 

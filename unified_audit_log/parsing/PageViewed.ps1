@@ -2,7 +2,7 @@ function Get-PageViewedSummary {
     <#
 	.SYNOPSIS
     Parses PageViewed events from UAL.
-	
+
 	.NOTES
 	Version: 1.0.0
 	#>

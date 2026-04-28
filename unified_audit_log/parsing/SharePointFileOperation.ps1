@@ -2,7 +2,7 @@ function Get-SharePointFileOperationSummary {
     <#
 	.SYNOPSIS
     Parses Sharepoint FileAccessed events from UAL.
-	
+
 	.NOTES
 	Version: 1.0.0
 	#>

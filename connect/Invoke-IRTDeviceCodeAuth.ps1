@@ -16,11 +16,11 @@ function Invoke-IRTDeviceCodeAuth {
     An MSAL IPublicClientApplication built by the caller. Untyped to avoid
     requiring the MSAL assembly at function-definition time.
 
-    .PARAMETER Scopes
+    .PARAMETER Scope
     Scopes to request. Format depends on the audience (Graph permission
     URIs, .default for Exchange/IPPS, etc.).
 
-    .PARAMETER ExtraQueryParameters
+    .PARAMETER ExtraQueryParameter
     Optional hashtable of extra parameters appended to the /authorize
     request (e.g. @{ prompt = 'consent' } to drive admin consent).
 
@@ -39,9 +39,9 @@ function Invoke-IRTDeviceCodeAuth {
     [CmdletBinding()]
     param (
         [Parameter(Mandatory)] $App,
-        [Parameter(Mandatory)] [string[]] $Scopes,
+        [Parameter(Mandatory)] [Alias('Scopes')] [string[]] $Scope,
 
-        [hashtable] $ExtraQueryParameters,
+        [Alias('ExtraQueryParameters')] [hashtable] $ExtraQueryParameter,
 
         [ValidateSet('msedge','chrome','firefox','brave','default')]
         [string] $Browser = 'default',
@@ -52,7 +52,7 @@ function Invoke-IRTDeviceCodeAuth {
 
     # PS-based delegates fail when MSAL invokes them on a thread-pool thread.
     # A C# lambda runs on any thread. Func<object,Task> avoids referencing
-    # MSAL types at compile time — Func contravariance lets it satisfy
+    # MSAL types at compile time - Func contravariance lets it satisfy
     # MSAL's Func<DeviceCodeResult,Task> parameter.
     if (-not ([System.Management.Automation.PSTypeName]'IRT.DeviceCodeHelper').Type) {
         Add-Type -TypeDefinition @'
@@ -76,12 +76,12 @@ namespace IRT {
     }
 
     $Helper  = [IRT.DeviceCodeHelper]::new()
-    $Builder = $App.AcquireTokenWithDeviceCode($Scopes, $Helper.Callback)
+    $Builder = $App.AcquireTokenWithDeviceCode($Scope, $Helper.Callback)
 
-    if ($ExtraQueryParameters -and $ExtraQueryParameters.Count -gt 0) {
+    if ($ExtraQueryParameter -and $ExtraQueryParameter.Count -gt 0) {
         $Extra = [System.Collections.Generic.Dictionary[string,string]]::new()
-        foreach ($Key in $ExtraQueryParameters.Keys) {
-            $Extra[$Key] = [string]$ExtraQueryParameters[$Key]
+        foreach ($Key in $ExtraQueryParameter.Keys) {
+            $Extra[$Key] = [string]$ExtraQueryParameter[$Key]
         }
         $Builder = $Builder.WithExtraQueryParameters($Extra)
     }

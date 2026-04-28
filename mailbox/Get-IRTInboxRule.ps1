@@ -1,12 +1,11 @@
-New-Alias -Name 'InboxRule' -Value 'Get-IRTInboxRules' -Force
-New-Alias -Name 'InboxRules' -Value 'Get-IRTInboxRules' -Force
-New-Alias -Name 'Get-IRTInboxRule' -Value 'Get-IRTInboxRules' -Force
+New-Alias -Name 'InboxRule' -Value 'Get-IRTInboxRule' -Force
+New-Alias -Name 'InboxRules' -Value 'Get-IRTInboxRule' -Force
 
-function Get-IRTInboxRules {
+function Get-IRTInboxRule {
     <#
 	.SYNOPSIS
 	Downloads incoming and outgoing message trace for provided users, merges into one array, saves raw xml, then saves as excel spreadsheet.
-	
+
 	.NOTES
 	Version: 1.1.6
     1.1.6 - Added column borders, raw json. Fixed bugs.
@@ -15,14 +14,13 @@ function Get-IRTInboxRules {
     [CmdletBinding()]
     param (
         [Parameter( Position = 0 )]
-        [Alias( 'UserObject' )]
-        [psobject[]] $UserObjects,
+        [Alias('UserObjects')]
+        [psobject[]] $UserObject,
 
         [string] $TableStyle = $Global:IRT_Config.ExcelTableStyle,
         [string] $Font = $Global:IRT_Config.ExcelFont,
         [boolean] $Open = $true,
-        [boolean] $Xml = $Global:IRT_Config.ExportXml,
-        [switch] $Test
+        [boolean] $Xml = $Global:IRT_Config.ExportXml
     )
 
     begin {
@@ -44,41 +42,22 @@ function Get-IRTInboxRules {
             'Description'
             'DeleteCommand'
         )
-
-        # colors
-        $Blue = @{ ForegroundColor = 'Blue' }
-        # $Cyan = @{ ForegroundColor = 'Cyan' }
-        # $Green = @{ ForegroundColor = 'Green' }
-        $Red = @{ ForegroundColor = 'Red' }
-        # $Magenta = @{ ForegroundColor = 'Magenta' }
-        
+        $Blue = @{ForegroundColor = 'Blue'}
+        $Red = @{ForegroundColor = 'Red'}
 
         # if user objects not passed directly, find global
-        if ( -not $UserObjects -or $UserObjects.Count -eq 0 ) {
-        
+        if ( -not $UserObject -or $UserObject.Count -eq 0 ) {
+
             # get from global variables
-            $ScriptUserObjects = Get-IRTUserObjects
-                        
+            $ScriptUserObjects = Get-IRTUserObject
+
             # if none found, exit
             if ( -not $ScriptUserObjects -or $ScriptUserObjects.Count -eq 0 ) {
                 throw "No user objects passed or found in global variables."
             }
         }
         else {
-            $ScriptUserObjects = $UserObjects
-        }
-
-        # verify connected to exchange
-        try {
-            [void](Get-AcceptedDomain)
-        }
-        catch {
-            $ErrorParams = @{
-                Category    = 'ConnectionError'
-                Message     = "Not connected to Exchange. Run Connect-ExchangeOnline."
-                ErrorAction = 'Stop'
-            }
-            Write-Error @ErrorParams
+            $ScriptUserObjects = $UserObject
         }
 
         # get client domain name for file output
@@ -100,7 +79,7 @@ function Get-IRTInboxRules {
                 Write-Host @Red "${Function}: No mailbox for ${UserEmail}"
                 continue
             }
-            
+
             # get username
             $UserName = $UserEmail -split '@' | Select-Object -First 1
 
@@ -276,10 +255,10 @@ function Get-IRTInboxRules {
                 BorderLeft = 'Thin'
                 BorderColor = 'Black'
             }
-            Set-Format @BorderParams
+            Set-ExcelRange @BorderParams
 
             #region OUTPUT
-            
+
             # save and close
             Write-Host @Blue "Exporting to: ${ExcelOutputPath}"
             if ( $Open ) {

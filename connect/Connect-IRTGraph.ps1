@@ -12,7 +12,7 @@ function Connect-IRTGraph {
     .PARAMETER DeviceCode
     Use device code authentication flow.
 
-    .PARAMETER AdditionalScopes
+    .PARAMETER AdditionalScope
     Additional Graph scopes to request beyond the default set.
 
     .PARAMETER Browser
@@ -24,13 +24,18 @@ function Connect-IRTGraph {
     .NOTES
     Version: 3.0.0
     #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+        'PSReviewUnusedParameter', 'DeviceCode', Justification = 'Used inside scriptblock')]
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+        'PSAvoidUsingConvertToSecureStringWithPlainText', '')]
     [CmdletBinding()]
     param (
         [Parameter(Mandatory)]
         [string] $TenantId,
         [switch] $GCCHigh,
         [switch] $DeviceCode,
-        [string[]] $AdditionalScopes,
+        [Alias('AdditionalScopes')]
+        [string[]] $AdditionalScope,
 
         [ValidateSet('msedge','chrome','firefox','brave','default')]
         [string] $Browser = $Global:IRT_Config.Browser,
@@ -40,7 +45,8 @@ function Connect-IRTGraph {
     )
 
     begin {
-        $Yellow = @{ ForegroundColor = 'Yellow' }
+        $Green = @{ForegroundColor = 'Green'}
+        $Yellow = @{ForegroundColor = 'Yellow'}
 
         $DefaultScopes = @(
             'Application.ReadWrite.All'
@@ -82,8 +88,8 @@ function Connect-IRTGraph {
             'UserAuthenticationMethod.ReadWrite.All'
             'UserAuthMethod-Passkey.ReadWrite.All'
         )
-        $Scopes = if ($AdditionalScopes) {
-            $DefaultScopes + $AdditionalScopes | Select-Object -Unique
+        $Scopes = if ($AdditionalScope) {
+            $DefaultScopes + $AdditionalScope | Select-Object -Unique
         } else {
             $DefaultScopes
         }
@@ -127,7 +133,7 @@ function Connect-IRTGraph {
                 Build()
         }
 
-        # Inline helper — closes over $App, $MsalScopes, $DeviceCode, $Browser, $Private.
+        # Inline helper - closes over $App, $MsalScopes, $DeviceCode, $Browser, $Private.
         # Tries silent refresh first, then interactive or device code.
         # -RequireConsent skips the silent path and forces a consent prompt.
         $AcquireToken = {
@@ -149,8 +155,14 @@ function Connect-IRTGraph {
 
             if ($DeviceCode) {
                 $Extra = if ($RequireConsent) { @{ prompt = 'consent' } } else { $null }
-                return Invoke-IRTDeviceCodeAuth -App $App -Scopes $MsalScopes `
-                    -ExtraQueryParameters $Extra -Browser $Browser -Private:$Private
+                $params = @{
+                    App                  = $App
+                    Scope                = $MsalScopes
+                    ExtraQueryParameter  = $Extra
+                    Browser              = $Browser
+                    Private              = $Private
+                }
+                return Invoke-IRTDeviceCodeAuth @params
             }
 
             try {
@@ -199,6 +211,9 @@ function Connect-IRTGraph {
         }
 
         if ($NeedNewToken) {
+            if ($Global:IRT_Session -and $Global:IRT_Session.Graph -and $Global:IRT_Session.Graph.Token) {
+                Write-Host @Yellow "Refreshing Graph token for tenant $TenantId."
+            }
             $TokenResult = & $AcquireToken
             if (-not $TokenResult.AccessToken) {
                 throw 'Failed to acquire Graph access token.'
@@ -208,14 +223,19 @@ function Connect-IRTGraph {
         }
 
         # ---------- Phase 2: Connect-MgGraph ----------
-        # Connect if no context, wrong tenant, or missing scopes.
+        # Connect if no context, wrong tenant, missing scopes, or we just acquired
+        # a fresh token (the existing MgContext is still bound to the old expired one).
 
         $Ctx = Get-MgContext -ErrorAction SilentlyContinue
-        $NeedConnect = (-not $Ctx) -or
+        $NeedConnect = $NeedNewToken -or
+                       (-not $Ctx) -or
                        ($Ctx.TenantId -ne $TenantId) -or
                        [bool]($Scopes | Where-Object { $Ctx.Scopes -notcontains $_ })
 
         if ($NeedConnect) {
+            if ($Ctx) {
+                Disconnect-MgGraph -ErrorAction SilentlyContinue
+            }
             $Secure = ConvertTo-SecureString -String $Token -AsPlainText -Force
             $Params = @{ AccessToken = $Secure; NoWelcome = $true }
             if ($GCCHigh) { $Params['Environment'] = 'USGov' }
@@ -226,24 +246,25 @@ function Connect-IRTGraph {
         # Verify tenant-wide consent. The token may have all scopes via per-user
         # consent while admin consent is missing, so this is independent of
         # MgContext.Scopes. Drive the dedicated /adminconsent endpoint if anything
-        # is missing — that flow has no checkbox to miss, so consent persists
+        # is missing - that flow has no checkbox to miss, so consent persists
         # tenant-wide reliably.
 
         try {
-            $MissingAdminScopes = Test-IRTGraphAdminConsent -RequestedScopes $Scopes
+            $MissingAdminScopes = Test-IRTGraphAdminConsent -RequestedScope $Scopes
         } catch {
-            Write-Verbose "Admin consent check failed, assuming consent required: $_"
-            $MissingAdminScopes = $Scopes
+            Write-Warning ("Admin consent check failed - skipping consent verification. " +
+                "Re-run Connect-IRT to retry. Error: $_")
+            $MissingAdminScopes = @()
         }
 
         if ($MissingAdminScopes) {
-            Write-Host @Yellow ("Admin consent missing tenant-wide for {0} scope(s):" -f $MissingAdminScopes.Count)
-            Write-Host @Yellow ("  {0}" -f ($MissingAdminScopes -join ', '))
+            Write-Host @Yellow "Admin consent missing tenant-wide for $($MissingAdminScopes.Count) scope(s):"
+            Write-Host @Yellow "  $($MissingAdminScopes -join ', ')"
 
             $ConsentParams = @{
                 TenantId    = $TenantId
                 ClientId    = $GraphClientId
-                Scopes      = $MissingAdminScopes  # only request what's actually missing
+                Scope       = $MissingAdminScopes  # only request what's actually missing
                 ResourceUri = $GraphBaseUrl
                 Browser     = $Browser
             }
@@ -257,18 +278,29 @@ function Connect-IRTGraph {
             for ($Attempt = 1; $Attempt -le 5 -and $StillMissing; $Attempt++) {
                 Start-Sleep -Seconds 2
                 try {
-                    $StillMissing = Test-IRTGraphAdminConsent -RequestedScopes $Scopes
+                    $StillMissing = Test-IRTGraphAdminConsent -RequestedScope $Scopes
                 } catch {
                     $StillMissing = $Scopes
                 }
             }
 
             if ($StillMissing) {
-                Write-Warning ('Tenant-wide grant not yet visible for: {0}' -f ($StillMissing -join ', '))
+                Write-Warning "Tenant-wide grant not yet visible for: $($StillMissing -join ', ')"
                 Write-Warning 'Replication may still be in flight; re-run Connect-IRT shortly to confirm.'
             } else {
-                Write-Host 'Admin consent granted tenant-wide.' -ForegroundColor Green
+                Write-Host @Green 'Admin consent granted tenant-wide.'
             }
+        }
+
+        if (-not $NeedNewToken -and -not $NeedConnect) {
+            Write-Host @Yellow "Already connected to Graph for tenant $TenantId."
+        }
+
+        return [pscustomobject]@{
+            Token                   = $Token
+            Account                 = $Account
+            TenantId                = $TenantId
+            PublicClientApplication = $App
         }
     }
 }
@@ -293,7 +325,8 @@ function Test-IRTGraphAdminConsent {
     [CmdletBinding()]
     param (
         [Parameter(Mandatory)]
-        [string[]] $RequestedScopes,
+        [Alias('RequestedScopes')]
+        [string[]] $RequestedScope,
 
         [string] $ClientAppId = '14d82eec-204b-4c2f-b7e8-296a70dab67e',  # Graph CLI Tools
         [string] $ResourceAppId = '00000003-0000-0000-c000-000000000000' # Microsoft Graph
@@ -320,7 +353,7 @@ function Test-IRTGraphAdminConsent {
                  Where-Object { $_ } | Select-Object -Unique)
 
     # Return the missing ones (case-insensitive compare)
-    $RequestedScopes | Where-Object { $Granted -notcontains $_ }
+    $RequestedScope | Where-Object { $Granted -notcontains $_ }
 }
 
 
@@ -330,7 +363,7 @@ function Invoke-IRTAdminConsent {
     param (
         [Parameter(Mandatory)] [string]   $TenantId,
         [Parameter(Mandatory)] [string]   $ClientId,
-        [Parameter(Mandatory)] [string[]] $Scopes,
+        [Parameter(Mandatory)] [Alias('Scopes')] [string[]] $Scope,
         [string] $ResourceUri = 'https://graph.microsoft.com',
         [switch] $GCCHigh,
 
@@ -341,86 +374,92 @@ function Invoke-IRTAdminConsent {
         [int] $TimeoutSeconds = 300
     )
 
-    $Listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, 0)
-    $Listener.Start()
-    $Port        = ([System.Net.IPEndPoint]$Listener.LocalEndpoint).Port
-    $RedirectUri = "http://localhost:$Port/"
+    begin {
+        $Yellow = @{ ForegroundColor = 'Yellow' }
 
-    try {
-        $LoginHost = if ($GCCHigh) { 'login.microsoftonline.us' } else { 'login.microsoftonline.com' }
-        $State     = [guid]::NewGuid().ToString('N')
-
-        # Fully-qualify each scope with the resource URI, then space-delimit.
-        # This is what makes /v2.0/adminconsent work for dynamic-consent apps
-        # like Microsoft Graph Command Line Tools, where /.default would only
-        # consent to statically configured permissions (User.Read in this case).
-        $ScopeQuery = ($Scopes | ForEach-Object { "$ResourceUri/$_" }) -join ' '
-
-        $ConsentUrl = "https://$LoginHost/$TenantId/v2.0/adminconsent" +
-                      "?client_id=$ClientId" +
-                      "&redirect_uri=$([uri]::EscapeDataString($RedirectUri))" +
-                      "&state=$State" +
-                      "&scope=$([uri]::EscapeDataString($ScopeQuery))"
-
-        Write-Host 'Opening admin consent page in browser...' -ForegroundColor Yellow
-        Write-Host ("  Granting tenant-wide consent for {0} scope(s)." -f $Scopes.Count) -ForegroundColor Yellow
-        Write-Host '  Sign in as a Global Administrator and click Accept.' -ForegroundColor Yellow
-        Open-Browser -Browser $Browser -Url $ConsentUrl -Private:$Private
-
-        $AcceptTask = $Listener.AcceptTcpClientAsync()
-        if (-not $AcceptTask.Wait($TimeoutSeconds * 1000)) {
-            throw "Timed out after $TimeoutSeconds seconds waiting for admin consent response."
-        }
-        $Client = $AcceptTask.Result
-
-        try {
-            $Stream      = $Client.GetStream()
-            $Reader      = [System.IO.StreamReader]::new($Stream)
-            $RequestLine = $Reader.ReadLine()
-
-            $Body = '<html><body style="font-family:sans-serif;text-align:center;padding-top:4em">' +
-                    '<h2>Admin consent received.</h2>' +
-                    '<p>You may close this window and return to PowerShell.</p>' +
-                    '</body></html>'
-            $Bytes = [System.Text.Encoding]::UTF8.GetBytes($Body)
-            $Header = "HTTP/1.1 200 OK`r`n" +
-                      "Content-Type: text/html; charset=utf-8`r`n" +
-                      "Content-Length: $($Bytes.Length)`r`n" +
-                      "Connection: close`r`n`r`n"
-            $HeaderBytes = [System.Text.Encoding]::ASCII.GetBytes($Header)
-            $Stream.Write($HeaderBytes, 0, $HeaderBytes.Length)
-            $Stream.Write($Bytes, 0, $Bytes.Length)
-            $Stream.Flush()
-        } finally {
-            $Client.Close()
-        }
-
-        if ($RequestLine -notmatch '^GET\s+(\S+)\s+HTTP') {
-            throw "Malformed redirect request: $RequestLine"
-        }
-        $Path  = $Matches[1]
-        $Query = if ($Path -match '\?(.+)$') { $Matches[1] } else { '' }
-
-        $Params = @{}
-        foreach ($Pair in $Query -split '&') {
-            $Kv = $Pair -split '=', 2
-            if ($Kv.Count -eq 2) {
-                $Params[[uri]::UnescapeDataString($Kv[0])] = [uri]::UnescapeDataString($Kv[1])
-            }
-        }
-
-        if ($Params['state'] -ne $State) {
-            throw 'Admin consent response state mismatch — possible CSRF or stale request.'
-        }
-        if ($Params['error']) {
-            throw "Admin consent denied or failed: $($Params['error']) — $($Params['error_description'])"
-        }
-        if ($Params['admin_consent'] -eq 'True') {
-            return $true
-        }
-        throw "Unexpected admin consent response: $Query"
+        $Listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, 0)
+        $Listener.Start()
+        $Port        = ([System.Net.IPEndPoint]$Listener.LocalEndpoint).Port
+        $RedirectUri = "http://localhost:$Port/"
     }
-    finally {
-        $Listener.Stop()
+
+    process {
+        try {
+            $LoginHost = if ($GCCHigh) { 'login.microsoftonline.us' } else { 'login.microsoftonline.com' }
+            $State     = [guid]::NewGuid().ToString('N')
+
+            # Fully-qualify each scope with the resource URI, then space-delimit.
+            # This is what makes /v2.0/adminconsent work for dynamic-consent apps
+            # like Microsoft Graph Command Line Tools, where /.default would only
+            # consent to statically configured permissions (User.Read in this case).
+            $ScopeQuery = ($Scope | ForEach-Object { "$ResourceUri/$_" }) -join ' '
+
+            $ConsentUrl = "https://$LoginHost/$TenantId/v2.0/adminconsent" +
+                        "?client_id=$ClientId" +
+                        "&redirect_uri=$([uri]::EscapeDataString($RedirectUri))" +
+                        "&state=$State" +
+                        "&scope=$([uri]::EscapeDataString($ScopeQuery))"
+
+            Write-Host @Yellow 'Opening admin consent page in browser...'
+            Write-Host @Yellow "  Granting tenant-wide consent for $($Scope.Count) scope(s)."
+            Write-Host @Yellow '  Sign in as a Global Administrator and click Accept.'
+            Open-Browser -Browser $Browser -Url $ConsentUrl -Private:$Private
+
+            $AcceptTask = $Listener.AcceptTcpClientAsync()
+            if (-not $AcceptTask.Wait($TimeoutSeconds * 1000)) {
+                throw "Timed out after $TimeoutSeconds seconds waiting for admin consent response."
+            }
+            $Client = $AcceptTask.Result
+
+            try {
+                $Stream      = $Client.GetStream()
+                $Reader      = [System.IO.StreamReader]::new($Stream)
+                $RequestLine = $Reader.ReadLine()
+
+                $Body = '<html><body style="font-family:sans-serif;text-align:center;padding-top:4em">' +
+                        '<h2>Admin consent received.</h2>' +
+                        '<p>You may close this window and return to PowerShell.</p>' +
+                        '</body></html>'
+                $Bytes = [System.Text.Encoding]::UTF8.GetBytes($Body)
+                $Header = "HTTP/1.1 200 OK`r`n" +
+                        "Content-Type: text/html; charset=utf-8`r`n" +
+                        "Content-Length: $($Bytes.Length)`r`n" +
+                        "Connection: close`r`n`r`n"
+                $HeaderBytes = [System.Text.Encoding]::ASCII.GetBytes($Header)
+                $Stream.Write($HeaderBytes, 0, $HeaderBytes.Length)
+                $Stream.Write($Bytes, 0, $Bytes.Length)
+                $Stream.Flush()
+            } finally {
+                $Client.Close()
+            }
+
+            if ($RequestLine -notmatch '^GET\s+(\S+)\s+HTTP') {
+                throw "Malformed redirect request: $RequestLine"
+            }
+            $Path  = $Matches[1]
+            $Query = if ($Path -match '\?(.+)$') { $Matches[1] } else { '' }
+
+            $Params = @{}
+            foreach ($Pair in $Query -split '&') {
+                $Kv = $Pair -split '=', 2
+                if ($Kv.Count -eq 2) {
+                    $Params[[uri]::UnescapeDataString($Kv[0])] = [uri]::UnescapeDataString($Kv[1])
+                }
+            }
+
+            if ($Params['state'] -ne $State) {
+                throw 'Admin consent response state mismatch - possible CSRF or stale request.'
+            }
+            if ($Params['error']) {
+                throw "Admin consent denied or failed: $($Params['error']) - $($Params['error_description'])"
+            }
+            if ($Params['admin_consent'] -eq 'True') {
+                return $true
+            }
+            throw "Unexpected admin consent response: $Query"
+        }
+        finally {
+            $Listener.Stop()
+        }
     }
 }

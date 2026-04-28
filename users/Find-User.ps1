@@ -1,16 +1,15 @@
-New-Alias -Name 'FindUser' -Value 'Find-Users' -Force
-New-Alias -Name 'FindUsers' -Value 'Find-Users' -Force
-New-Alias -Name 'Find-User' -Value 'Find-Users' -Force
-function Find-Users {
+New-Alias -Name 'FindUser' -Value 'Find-User' -Force
+New-Alias -Name 'FindUsers' -Value 'Find-User' -Force
+function Find-User {
     <#
     .SYNOPSIS
     Finds graph user by displayname, email address, or user id guid. Creates $UserObjects variable.
 
     .EXAMPLE
-    Find-Users flast
-    Find-Users -Search flast,flast,flast
-    Find-Users flast@domain.com
-    Find-Users -Search bf7573a5844f (partial user id number)
+    Find-User flast
+    Find-User -Search flast,flast,flast
+    Find-User flast@domain.com
+    Find-User -Search bf7573a5844f (partial user id number)
 
     .NOTES
     Version: 1.1.4
@@ -18,15 +17,14 @@ function Find-Users {
     1.1.3 - Removed checks for modules and permissions. Checking at module level instead.
     1.1.2 - Added enabled as a displayed field.
     1.1.1 - Bug fix. Script was passing collections rather than user objects.
-    1.1.0 - Major rewrite. Renamed to Find-Users.
+    1.1.0 - Major rewrite. Renamed to Find-User.
     #>
     [CmdletBinding()]
     param (
         [Parameter( Position = 0, Mandatory )]
         [string[]] $Search,
         [string] $VarPrefix,
-        [switch] $Script,
-        [string] $TenantId
+        [switch] $Script
     )
 
     begin {
@@ -48,7 +46,7 @@ function Find-Users {
         # $Magenta = @{ ForegroundColor = 'Magenta' }
 
         # get all users from cache
-        $GraphUsers = Request-GraphUsers -Cached
+        $GraphUsers = Request-GraphUser -Cached
     }
 
     process {
@@ -67,7 +65,7 @@ function Find-Users {
             }
 
             if (($MatchingUsers | Measure-Object).Count -eq 1) {
-                
+
                 if ( -not $Script ) {
 
                     # show user info
@@ -114,7 +112,7 @@ function Find-Users {
             if ( $ScriptUserObjects.Count -gt 1 ) {
                 $ScriptUserObjects | Format-Table $DisplayProperties
             }
-        }        
+        }
     }
 }
 

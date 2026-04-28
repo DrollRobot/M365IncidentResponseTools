@@ -71,20 +71,20 @@ function Test-IRTConnection {
             [pscustomobject]@{
                 Service   = 'Graph'
                 Connected = $GraphConnected
-                Domain    = if ($graphDomain) { $graphDomain } else { '—' }
-                Account   = if ($GraphConnected) { $GraphCtx.Account } else { '—' }
+                Domain    = if ($graphDomain) { $graphDomain } else { '-' }
+                Account   = if ($GraphConnected) { $GraphCtx.Account } else { '-' }
             }
             [pscustomobject]@{
                 Service   = 'Exchange'
                 Connected = $ExoConnected
-                Domain    = if ($exoDomain) { $exoDomain } else { '—' }
-                Account   = if ($ExoConnected) { $ExoConn.UserPrincipalName } else { '—' }
+                Domain    = if ($exoDomain) { $exoDomain } else { '-' }
+                Account   = if ($ExoConnected) { $ExoConn.UserPrincipalName } else { '-' }
             }
             [pscustomobject]@{
                 Service   = 'IPPS'
                 Connected = $IppsConnected
-                Domain    = if ($ippsDomain) { $ippsDomain } else { '—' }
-                Account   = if ($IppsConnected) { $IppsConn.UserPrincipalName } else { '—' }
+                Domain    = if ($ippsDomain) { $ippsDomain } else { '-' }
+                Account   = if ($IppsConnected) { $IppsConn.UserPrincipalName } else { '-' }
             }
         )
 

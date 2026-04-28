@@ -2,7 +2,7 @@ function Get-UpdateUserSummary {
     <#
 	.SYNOPSIS
     Parses AzureActiveDirectory "Update user." events from UAL.
-	
+
 	.NOTES
 	Version: 1.0.0
 	#>
@@ -21,7 +21,7 @@ function Get-UpdateUserSummary {
     process {
 
         # ModifiedProperties
-        $Properties = ( $Log.AuditData.ModifiedProperties | 
+        $Properties = ( $Log.AuditData.ModifiedProperties |
             Where-Object { $_.Name -eq "Included Updated Properties" } ).NewValue
         foreach ( $Property in $Properties ) {
             $SummaryStrings.Add( "Property: ${Property}" )

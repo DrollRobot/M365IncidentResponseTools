@@ -2,7 +2,7 @@ function Get-PIMRoleAssignedSummary {
     <#
 	.SYNOPSIS
     Parses Sharepoint "PIMRoleAssigned" events from UAL.
-	
+
 	.NOTES
 	Version: 1.0.0
 	#>
@@ -19,15 +19,15 @@ function Get-PIMRoleAssignedSummary {
         # variables
         $SummaryLines = [System.Collections.Generic.List[string]]::new()
 
-        $Users = Request-GraphUsers -Cached:$Cached
+        $User = Request-GraphUser -Cached:$Cached
     }
 
     process {
 
-        # User 
+        # User
         $GuidPattern = "\b[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}\b"
         $UserId = $Log.AuditData.EventData | Select-String -Pattern $GuidPattern -AllMatches | ForEach-Object { $_.Matches.Value }
-        $UserPrincipalName = ($Users | Where-Object {$_.Id -eq $UserId}).UserPrincipalName
+        $UserPrincipalName = ($User | Where-Object {$_.Id -eq $UserId}).UserPrincipalName
         $SummaryLines.Add("User: ${UserPrincipalName}")
 
         # Role

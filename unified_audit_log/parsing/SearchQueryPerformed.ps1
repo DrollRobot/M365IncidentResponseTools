@@ -2,7 +2,7 @@ function Get-SearchQueryPerformedSummary {
     <#
 	.SYNOPSIS
     Parses SearchQueryPerformed events from UAL.
-	
+
 	.NOTES
 	Version: 1.0.0
 	#>

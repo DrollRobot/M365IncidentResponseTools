@@ -89,12 +89,12 @@
 
     # Modules to import as nested modules of the module specified in RootModule/ModuleToProcess
     NestedModules     = @(
-        'applications\Find-RiskyApplications.ps1'
+        'applications\Find-RiskyApplication.ps1'
         'applications\Get-IRTTenantInfo.ps1'
-        'applications\Get-UserApplications.ps1'
-        'applications\Show-TenantServicePrincipals.ps1'
+        'applications\Get-UserApplication.ps1'
+        'applications\Show-TenantServicePrincipal.ps1'
 
-        'devices\Find-Devices.ps1'
+        'devices\Find-Device.ps1'
         'devices\Show-DeviceInfo.ps1'
 
         'connect\Connect-IRT.ps1'
@@ -106,11 +106,11 @@
         'connect\Invoke-IRTDeviceCodeAuth.ps1'
         'connect\Test-IRTConnection.ps1'
 
-        'entra-audit-log\Get-EntraAuditLogs.ps1'
-        'entra-audit-log\Show-EntraAuditLogs.ps1'
+        'entra-audit-log\Get-EntraAuditLog.ps1'
+        'entra-audit-log\Show-EntraAuditLog.ps1'
 
-        'mailbox\Get-IRTInboxRules.ps1'
-        'mailbox\Get-MailboxesUserHasFullAccessTo.ps1'
+        'mailbox\Get-IRTInboxRule.ps1'
+        'mailbox\Get-MailboxUserHasFullAccessTo.ps1'
         'mailbox\Grant-MailboxFullAccess.ps1'
         'mailbox\Open-MailboxInOWA.ps1'
         'mailbox\Remove-MailboxFullAccess.ps1'
@@ -118,41 +118,43 @@
         'mailbox\Show-MailboxAccess.ps1'
 
         'message_trace\Get-IRTMessageTrace.ps1'
-        'message_trace\Merge-ListsOnDate.ps1'
+        'message_trace\Merge-ListOnDate.ps1'
         'message_trace\Request-IRTMessageTrace.ps1'
         'message_trace\Request-IRTMessageTraceV1.ps1'
         'message_trace\Show-IRTMessageTrace.ps1'
 
         'modules\Build-Menu.ps1'
-        'modules\Compress-InvestigationFolders.ps1'
+        'modules\Compress-InvestigationFolder.ps1'
         'modules\Convert-DecimalToExcelColumn.ps1'
-        'modules\Find-GraphDirectoryObjects.ps1'
+        'modules\Find-GraphDirectoryObject.ps1'
         'modules\Format-PhoneNumber.ps1'
         'modules\Format-Tree.ps1'
-        'modules\Get-IRT_UserObjects.ps1'
+        'modules\Get-IRTUserObject.ps1'
         'modules\Import-IRTConfig.ps1'
         'modules\Get-RandomPassword.ps1'
         'modules\Import-LogFile.ps1'
-        'modules\Initialize-Modules.ps1'
+        'modules\Initialize-Module.ps1'
         'modules\New-InvestigationFolder.ps1'
         'modules\Open-Browser.ps1'
-        'modules\Request-DirectoryRoles.ps1'
-        'modules\Request-DirectoryRoleTemplates.ps1'
-        'modules\Request-GraphGroups.ps1'
-        'modules\Request-GraphOauth2Grants.ps1'
-        'modules\Request-GraphServicePrincipals.ps1'
-        'modules\Request-GraphUsers.ps1'
+        'modules\Request-DirectoryRole.ps1'
+        'modules\Request-DirectoryRoleTemplate.ps1'
+        'modules\Request-GraphGroup.ps1'
+        'modules\Request-GraphOauth2Grant.ps1'
+        'modules\Request-GraphServicePrincipal.ps1'
+        'modules\Request-GraphUser.ps1'
         'modules\Add-IpAddressConditionalFormatting.ps1'
-        'modules\Request-GraphDevices.ps1'
+        'modules\Request-GraphDevice.ps1'
+        'modules\Request-IntuneDevice.ps1'
+        'modules\Resolve-IRTDateRange.ps1'
         'modules\Test-PythonPackage.ps1'
 
-        'roles\Get-AdminRoles.ps1'
+        'roles\Get-AdminRole.ps1'
 
         'signin_logs\Convert-TrustType.ps1'
         'signin_logs\ConvertTo-HumanErrorDescription.ps1'
-        'signin_logs\Get-NonInteractiveLogs.ps1'
-        'signin_logs\Get-SignInLogs.ps1'
-        'signin_logs\Show-SignInLogs.ps1'
+        'signin_logs\Get-NonInteractiveLog.ps1'
+        'signin_logs\Get-SignInLog.ps1'
+        'signin_logs\Show-SignInLog.ps1'
 
         'unified_audit_log\parsing\AddRemoveRole.ps1'
         'unified_audit_log\parsing\AllOperations.ps1'
@@ -170,14 +172,14 @@
         'unified_audit_log\parsing\PIMRoleAssigned.ps1'
         'unified_audit_log\parsing\SearchQueryPerformed.ps1'
         'unified_audit_log\parsing\TeamsSessionStarted.ps1'
-        'unified_audit_log\Get-UALogs.ps1'
-        'unified_audit_log\Show-UALogs.ps1'
+        'unified_audit_log\Get-UALog.ps1'
+        'unified_audit_log\Show-UALog.ps1'
 
-        'users\Find-Users.ps1'
+        'users\Find-User.ps1'
         'users\Get-FullUserObject.ps1'
         'users\Set-GraphUserAccountEnabled.ps1'
-        'users\Reset-GraphUserPasswords.ps1'
-        'users\Revoke-UsersSessions.ps1'
+        'users\Reset-GraphUserPassword.ps1'
+        'users\Revoke-UserSession.ps1'
         'users\Set-UsageLocation.ps1'
         'users\Show-GraphUserTree.ps1'
         'users\Show-UserInfo.ps1'
@@ -189,13 +191,12 @@
     # Functions to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no functions to export.
     FunctionsToExport = @(
         ### applications
-        'Find-RiskyApplications'
+        'Find-RiskyApplication'
         'Get-IRTTenantInfo'
-        'Get-UserApplications'
-        'Show-TenantServicePrincipals'
+        'Get-UserApplication'
+        'Show-TenantServicePrincipal'
 
         ### devices
-        'Find-Devices'
         'Show-DeviceInfo'
 
         ### connect
@@ -206,15 +207,15 @@
         'Connect-IRTTenant'
         'Disconnect-IRT'
         'Test-IRTConnection'
-        'Open-IRTTenantsWorksheet'
+        'Open-IRTTenantWorksheet'
 
         ### entra-audit-log
-        'Get-EntraAuditLogs'
-        'Show-EntraAuditLogs'
+        'Get-EntraAuditLog'
+        'Show-EntraAuditLog'
 
         ### mailbox
-        'Get-IRTInboxRules'
-        'Get-MailboxesUserHasFullAccessTo'
+        'Get-IRTInboxRule'
+        'Get-MailboxUserHasFullAccessTo'
         'Grant-MailboxFullAccess'
         'Open-MailboxInOWA'
         'Remove-MailboxFullAccess'
@@ -226,41 +227,39 @@
         'Show-IRTMessageTrace'
 
         ### modules
-        'Compress-InvestigationFolders'
-        'Find-GraphDirectoryObjects'
+        'Compress-InvestigationFolder'
+        'Find-GraphDirectoryObject'
         'Import-IRTConfig'
         'Open-IRTConfig'
-        'Get-IRTUserObjects'
+        'Get-IRTUserObject'
         'Import-LogFile'
         'New-InvestigationFolder'
-        'Request-DirectoryRoles'
-        'Request-DirectoryRoleTemplates'
-        'Request-GraphGroups'
-        'Request-GraphOauth2Grants'
-        'Request-GraphDevices'
-        'Request-GraphServicePrincipals'
-        'Request-GraphUsers'
+        'Request-DirectoryRole'
+        'Request-DirectoryRoleTemplate'
+        'Request-GraphGroup'
+        'Request-GraphOauth2Grant'
+        'Request-GraphDevice'
+        'Request-GraphServicePrincipal'
+        'Request-GraphUser'
+        'Resolve-IRTDateRange'
         'Set-IRTConfig'
 
         ### roles
-        'Get-AdminRoles'
+        'Get-AdminRole'
 
         ### signin_logs
-        'Get-NonInteractiveLogs'
-        'Get-SignInLogs'
-        'Show-SignInLogs'
+        'Get-NonInteractiveLog'
+        'Get-SignInLog'
+        'Show-SignInLog'
 
         ### unified_audit_log
-        'Get-UALogs'
-        'Show-UALogs'
+        'Get-UALog'
+        'Show-UALog'
 
         ### users
-        'Disable-GraphUsers'
-        'Enable-GraphUsers'
-        'Find-Users'
+        'Find-User'
         'Get-FullUserObject'
-        'Reset-GraphUserPasswords'
-        'Revoke-UsersSessions'
+        'Revoke-UserSession'
         'Set-UsageLocation'
         'Show-UserInfo'
         'Show-UserMFA'
@@ -294,7 +293,6 @@
 
         ### devices
         # Find-Devices
-        'Find-Device'
         'FindDevice'
         'FindDevices'
         # Show-DeviceInfo
@@ -314,13 +312,11 @@
         # Get-EntraAuditLogs
         'EALog'
         'EALogs'
-        'Get-EntraAuditLog'
         'GetEALog'
         'GetEALogs'
 
         ### mailbox
         # Get-IRTInboxRules
-        'Get-IRTInboxRule'
         'InboxRule'
         'InboxRules'
         # Grant-MailboxFullAccess
@@ -349,6 +345,9 @@
         # Import-LogFile
         'ImportLog'
         'ImportLogs'
+        # New-InvestigationFolder
+        'NewDir'
+        'NewFolder'
 
         ### roles
         # Get-AdminRoles
@@ -356,13 +355,11 @@
 
         ### signin_logs
         # Get-NonInteractiveLogs
-        'Get-NonInteractiveLog'
         'GetNILog'
         'GetNILogs'
         'NILog'
         'NILogs'
         # Get-SignInLogs
-        'Get-SignInLog'
         'GetSILog'
         'GetSILogs'
         'SILog'
@@ -370,7 +367,6 @@
 
         ### unified_audit_log
         # Get-UALogs
-        'Get-UALog'
         'GetUALog'
         'GetUALogs'
         'UALog'
@@ -378,23 +374,18 @@
 
         ### users
         # Find-Users
-        'Find-User'
         'FindUser'
         'FindUsers'
         # Disable-GraphUsers
-        'Disable-GraphUser'
         'DisableUser'
         'DisableUsers'
         'Lock-GraphUsers'
-        'Lock-GraphUser'
         'LockUser'
         'LockUsers'
         # Reset-GraphUserPasswords
-        'Reset-GraphUserPassword'
         'ResetPassword'
         'ResetPasswords'
         # Revoke-UsersSessions
-        'Revoke-UserSessions'
         'RevokeSessions'
         # Set-UsageLocation
         'SetLocation'
@@ -406,18 +397,13 @@
         'ShowMFA'
         'UserMFA'
         # Enable-GraphUsers
-        'Enable-GraphUser'
         'EnableUser'
         'EnableUsers'
         'Unlock-GraphUsers'
-        'Unlock-GraphUser'
         'UnlockUser'
         'UnlockUsers'
 
         ### root
-        # New-InvestigationFolder
-        'NewDir'
-        'NewFolder'
         # Start-IncidentResponsePlaybook
         'Playbook'
     )

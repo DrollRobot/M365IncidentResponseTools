@@ -1,26 +1,26 @@
-function Compress-InvestigationFolders {
+function Compress-InvestigationFolder {
     <#
 	.SYNOPSIS
 	Compresses all folders ending with "_investigation" into folder called investigations.
-	
+
 	.NOTES
 	Version: 1.0.0
 	#>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+        'PSReviewUnusedParameter', 'Days', Justification = 'Used inside scriptblock'
+    )]
     [CmdletBinding()]
     param (
         [int] $Days = 3
     )
 
     begin {
-
-        # variables
-        
         # get the current directory path
         $CurrentDirectory = Get-Location
 
         # define the destination path as a subfolder named "incidents" under the current directory
         $DestinationPath = Join-Path -Path $CurrentDirectory.Path -ChildPath '\investigations\'
-        
+
         if ( -not ( Test-Path -Path $DestinationPath ) ) {
             New-Item -ItemType Directory -Path $DestinationPath | Out-Null
         }

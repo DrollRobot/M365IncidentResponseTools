@@ -1,8 +1,8 @@
-function Get-LoginOperationsSummary {
+function Get-LoginOperationSummary {
     <#
 	.SYNOPSIS
     Parses AzureActiveDirectory UserLoggedIn, UserLoggedOff, and UserLoginFailed events from UAL.
-	
+
 	.NOTES
 	Version: 1.0.0
 	#>
@@ -30,7 +30,7 @@ function Get-LoginOperationsSummary {
         $TargetId = $Log.AuditData.Target.ID
         if ($TargetId) {
             # ensure global variable exists
-            Request-GraphServicePrincipals -Return 'none' -Cached:$Cached
+            Request-GraphServicePrincipal -Return 'none' -Cached:$Cached
 
             # fetch name from table
             $TargetName = $Global:IRT_ServicePrincipalsByAppId["$TargetId"].DisplayName
@@ -127,7 +127,7 @@ function Build-UserLoginOperationsSheet {
             else {
                 $UserIds = $Log.UserIds
             }
-            # FIXME If no userid, parse Id from $Log.AuditData.Actor[0].ID and resolve to name 
+            # FIXME If no userid, parse Id from $Log.AuditData.Actor[0].ID and resolve to name
 
             # Operation
             $Operation = $Log.AuditData.Operation
@@ -163,7 +163,7 @@ function Build-UserLoginOperationsSheet {
             $Application = $null
             $TargetId = $Log.AuditData.Target.ID
             if ($TargetId) {
-                Request-GraphServicePrincipals -Return 'none' -Cached:$Cached
+                Request-GraphServicePrincipal -Return 'none' -Cached:$Cached
                 $Application = $Global:IRT_ServicePrincipalsByAppId["$TargetId"].DisplayName
             }
             if (-not $Application) { $Application = $TargetId }
@@ -223,7 +223,7 @@ function Build-UserLoginOperationsSheet {
             # IP address conditional formatting
             Add-IpAddressConditionalFormatting -Worksheet $Worksheet -ColumnName 'IpAddress'
 
-            # Application conditional formatting — highlight PowerShell/CLI tools
+            # Application conditional formatting - highlight PowerShell/CLI tools
             $AppColumn = ($Worksheet.Tables[0].Columns | Where-Object {$_.Name -eq 'Application'}).Id | Convert-DecimalToExcelColumn
             $PsAppStrings = @(
                 'Azure Active Directory PowerShell'
@@ -269,24 +269,18 @@ function Build-UserLoginOperationsSheet {
                 Range        = 'B:B'
                 NumberFormat = 'm/d/yyyy h:mm:ss AM/PM'
             }
-            Set-Format @DateFormatParams
+            Set-ExcelRange @DateFormatParams
 
-            # Text wrapping on IpAddress and UserAgent
-            $IpCol = ($Worksheet.Tables[0].Columns | Where-Object {$_.Name -eq 'IpAddress'}).Id | Convert-DecimalToExcelColumn
-            $IpWrapParams = @{
-                Worksheet = $Worksheet
-                Range     = "${IpCol}${TableStartRow}:${IpCol}${EndRow}"
-                WrapText  = $true
-            }
-            Set-ExcelRange @IpWrapParams
-
-            $UaCol = ($Worksheet.Tables[0].Columns | Where-Object {$_.Name -eq 'UserAgent'}).Id | Convert-DecimalToExcelColumn
-            $UaWrapParams = @{
-                Worksheet = $Worksheet
-                Range     = "${UaCol}${TableStartRow}:${UaCol}${EndRow}"
-                WrapText  = $true
-            }
-            Set-ExcelRange @UaWrapParams
+            # # Text wrapping on IpAddress and UserAgent
+            # $IpCol = ($Worksheet.Tables[0].Columns |
+            #     Where-Object {$_.Name -eq 'IpAddress'}).Id |
+            #     Convert-DecimalToExcelColumn
+            # $IpWrapParams = @{
+            #     Worksheet = $Worksheet
+            #     Range     = "${IpCol}${TableStartRow}:${IpCol}${EndRow}"
+            #     WrapText  = $true
+            # }
+            # Set-ExcelRange @IpWrapParams # FIXME maybe we don't want text wrapping?
 
             # Font
             try {
@@ -294,7 +288,7 @@ function Build-UserLoginOperationsSheet {
             } catch {}
 
             # Left border
-            Set-Format -Worksheet $Worksheet -Range "${TableStartColumn}${TableStartRow}:${EndColumn}${EndRow}" -BorderLeft 'Thin' -BorderColor 'Black'
+            Set-ExcelRange -Worksheet $Worksheet -Range "${TableStartColumn}${TableStartRow}:${EndColumn}${EndRow}" -BorderLeft 'Thin' -BorderColor 'Black'
 
         } # end if Tables.Count
 

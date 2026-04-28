@@ -2,7 +2,7 @@ function Convert-TrustType {
 	<#
 	.SYNOPSIS
 	Helper function for displaying logs. Accepts string or int, returns human readable description".
-	
+
 	.NOTES
     TrustType int values described here:
     https://learn.microsoft.com/en-us/azure/active-directory/devices/concept-azure-ad-join
@@ -15,7 +15,7 @@ function Convert-TrustType {
     )
 
     begin {}
-    
+
     process {
 
         if ($TrustType -is [int]) {

@@ -2,7 +2,7 @@ function Show-GraphUserTree {
 	<#
 	.SYNOPSIS
 	Shows a graph user object in a compact tree view.
-	
+
 	.NOTES
 	Version: 1.0.5
 	#>
@@ -10,8 +10,8 @@ function Show-GraphUserTree {
     param(
         # accept object(s) from pipeline or parameter
         [Parameter(ValueFromPipeline)]
-        [Alias('UserObject')]
-        [Microsoft.Graph.PowerShell.Models.MicrosoftGraphUser[]] $UserObjects,
+        [Alias('UserObjects')]
+        [Microsoft.Graph.PowerShell.Models.MicrosoftGraphUser[]] $UserObject,
 
         [int]$Depth = 10
     )
@@ -30,13 +30,13 @@ function Show-GraphUserTree {
 
     process {
 
-        $ScriptUserObjects = $UserObjects
+        $ScriptUserObjects = $UserObject
         foreach ($ScriptUserObject in $ScriptUserObjects) {
             if ($null -eq $ScriptUserObject) { continue }
 
             # create a pscustomobject projection so we can safely tweak values
             $Projected = $ScriptUserObject | Select-Object -Property * -ExcludeProperty $Exclude
-            Format-SentinelDates $Projected
+            Format-SentinelDate $Projected
 
             # call format-tree with defaults; always omit null/empty
             $Params = @{
@@ -48,7 +48,10 @@ function Show-GraphUserTree {
     }
 }
 
-function Format-SentinelDates([pscustomobject]$Obj) {
+function Format-SentinelDate {
+    param(
+        [pscustomobject]$Obj
+    )
     # helper: normalize sentinel dates (year 1) to $null
     foreach ($Name in 'Birthday','HireDate') {
         $Prop = $Obj.PSObject.Properties[$Name]

@@ -2,7 +2,7 @@ function Get-ExchangeItemCreateSendSummary {
     <#
 	.SYNOPSIS
     Parses ExchangeItem events from UAL.
-	
+
 	.NOTES
 	Version: 1.0.0
 	#>

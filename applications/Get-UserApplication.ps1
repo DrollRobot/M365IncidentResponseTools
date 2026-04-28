@@ -1,23 +1,22 @@
-New-Alias -Name 'UserApps' -Value 'Get-UserApplications' -Force
-function Get-UserApplications {
+New-Alias -Name 'UserApps' -Value 'Get-UserApplication' -Force
+function Get-UserApplication {
     <#
 	.SYNOPSIS
 	Displays user's Oauth2 permission grants. (Applications they have granted consent to)
-	
+
 	.NOTES
 	Version: 1.0.0
 	#>
     [CmdletBinding()]
     param(
         [Parameter(Position = 0, ValueFromPipeline = $true, ValueFromPipelineByPropertyName = $true)]
-        [Alias( 'UserObject' )]
-        [psobject[]] $UserObjects,
+        [Alias('UserObjects')]
+        [psobject[]] $UserObject,
 
         [string] $TableStyle = $Global:IRT_Config.ExcelTableStyle,
         [string] $Font = $Global:IRT_Config.ExcelFont,
         [boolean] $Xml = $Global:IRT_Config.ExportXml,
         [boolean] $Open = $true,
-        [switch] $Test,
         [switch] $Cached
     )
 
@@ -37,12 +36,12 @@ function Get-UserApplications {
         # $Green = @{ ForegroundColor = 'Green' }
         $Red = @{ ForegroundColor = 'Red' }
         # $Magenta = @{ ForegroundColor = 'Magenta' }
-    
+
         # if not passed directly, find global user object
-        if ( -not $UserObjects -or $UserObjects.Count -eq 0 ) {
+        if ( -not $UserObject -or $UserObject.Count -eq 0 ) {
 
             # get from global variables
-            $ScriptUserObjects = Get-IRTUserObjects
+            $ScriptUserObjects = Get-IRTUserObject
 
             # if none found, exit
             if ( -not $ScriptUserObjects -or $ScriptUserObjects.Count -eq 0 ) {
@@ -50,7 +49,7 @@ function Get-UserApplications {
             }
         }
         else {
-            $ScriptUserObjects = $UserObjects
+            $ScriptUserObjects = $UserObject
         }
 
         # check if connected to exchange
@@ -67,8 +66,8 @@ function Get-UserApplications {
         $DomainName = $DefaultDomain.Id -split '\.' | Select-Object -First 1
 
         # prefetch graph data once
-        $Grants = Request-GraphOauth2Grants -Cached:$Cached
-        $ServicePrincipals = Request-GraphServicePrincipals -Cached:$Cached
+        $Grants = Request-GraphOauth2Grant -Cached:$Cached
+        $ServicePrincipals = Request-GraphServicePrincipal -Cached:$Cached
     }
 
     process {
@@ -95,7 +94,7 @@ function Get-UserApplications {
             foreach ( $Grant in $UserGrants ) {
 
                 # find application
-                $Client   = $ServicePrincipals | Where-Object { $_.Id -eq $Grant.ClientId }   
+                $Client   = $ServicePrincipals | Where-Object { $_.Id -eq $Grant.ClientId }
                 $Resource = $ServicePrincipals | Where-Object { $_.Id -eq $Grant.ResourceId }
 
                 # find friendly name, or revert to id
@@ -185,7 +184,7 @@ function Get-UserApplications {
                 BorderLeft = 'Thin'
                 BorderColor = 'Black'
             }
-            Set-Format @BorderParams
+            Set-ExcelRange @BorderParams
 
             #region OUTPUT
 

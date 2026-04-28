@@ -1,8 +1,8 @@
-function Request-DirectoryRoleTemplates {
+function Request-GraphUser {
     <#
 	.SYNOPSIS
-    Requests directory role templates from Microsoft Graph. Caches in global variable.
-	
+    Requests users from Microsoft Graph. Caches in global variable.
+
 	.NOTES
 	Version: 2.0.0
 	#>
@@ -23,7 +23,14 @@ function Request-DirectoryRoleTemplates {
         $FileNameDate = ( Get-Date ).ToString( $FileNameDateFormat )
         $GetProperties = @(
             'DisplayName'
+            'AccountEnabled'
             'Id'
+            'Mail'
+            'OnPremisesLastSyncDateTime'
+            'OnPremisesSamAccountName'
+            'OnPremisesSyncEnabled'
+            'ProxyAddresses'
+            'UserPrincipalName'
         )
     }
 
@@ -31,11 +38,11 @@ function Request-DirectoryRoleTemplates {
 
         # return cached data if available
         if ( $Cached ) {
-            $Variable = Get-Variable -Scope Global -Name 'IRT_DirectoryRoleTemplates' -ErrorAction SilentlyContinue
+            $Variable = Get-Variable -Scope Global -Name 'IRT_Users' -ErrorAction SilentlyContinue
             if ( $Variable ) {
                 switch ( $Return ) {
-                    'objects'   { return $Global:IRT_DirectoryRoleTemplates }
-                    'tablebyid' { return $Global:IRT_DirectoryRoleTemplatesById }
+                    'objects'   { return $Global:IRT_Users }
+                    'tablebyid' { return $Global:IRT_UsersById }
                     'none'      { return }
                 }
             }
@@ -46,18 +53,18 @@ function Request-DirectoryRoleTemplates {
         $DomainName = $DefaultDomain.Id -split '\.' | Select-Object -First 1
 
         # query graph
-        $Objects = Get-MgDirectoryRoleTemplate -All -Property $GetProperties | Select-Object $GetProperties
+        $Objects = Get-MgUser -All -Property $GetProperties | Select-Object $GetProperties
 
         # store in global variables
-        $Global:IRT_DirectoryRoleTemplates = $Objects
-        $Global:IRT_DirectoryRoleTemplatesById = @{}
+        $Global:IRT_Users = $Objects
+        $Global:IRT_UsersById = @{}
         foreach ( $o in $Objects ) {
-            if ( $o.Id ) { $Global:IRT_DirectoryRoleTemplatesById[$o.Id] = $o }
+            if ( $o.Id ) { $Global:IRT_UsersById[$o.Id] = $o }
         }
 
         # export to file
         if ($Xml) {
-            $FileName = "DirectoryRoleTemplates_Raw_${DomainName}_${FileNameDate}.xml"
+            $FileName = "Users_Raw_${DomainName}_${FileNameDate}.xml"
             $XmlOutputPath = Join-Path -Path $CurrentPath -ChildPath $FileName
             if ( $Test ) {
                 $ExportTime = Measure-Command { $Objects | Export-Clixml -Depth 5 -Path $XmlOutputPath }
@@ -70,8 +77,8 @@ function Request-DirectoryRoleTemplates {
 
         # return
         switch ( $Return ) {
-            'objects'   { return $Global:IRT_DirectoryRoleTemplates }
-            'tablebyid' { return $Global:IRT_DirectoryRoleTemplatesById }
+            'objects'   { return $Global:IRT_Users }
+            'tablebyid' { return $Global:IRT_UsersById }
             'none'      { return }
         }
     }

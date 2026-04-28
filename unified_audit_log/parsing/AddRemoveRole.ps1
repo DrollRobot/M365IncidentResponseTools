@@ -2,7 +2,7 @@ function Get-AddRemoveRoleSummary {
     <#
 	.SYNOPSIS
     Parses AzureActiveDirectory "Remove member from role." and "Add member to role." events from UAL.
-	
+
 	.NOTES
 	Version: 1.0.0
 	#>

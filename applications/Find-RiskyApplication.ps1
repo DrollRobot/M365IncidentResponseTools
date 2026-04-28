@@ -1,6 +1,6 @@
-New-Alias -Name 'RiskyApps' -Value 'Find-RiskyApplications' -Force
+New-Alias -Name 'RiskyApps' -Value 'Find-RiskyApplication' -Force
 
-function Find-RiskyApplications {
+function Find-RiskyApplication {
     <#
     .SYNOPSIS
         Identifies potentially malicious OAuth applications registered in the tenant.
@@ -31,7 +31,7 @@ function Find-RiskyApplications {
             'AccountEnabled'
             'DisplayName'
             'UserPrincipalName'
-            'Id' 
+            'Id'
         )
         $ThreatFeeds = @(
             @{
@@ -53,9 +53,9 @@ function Find-RiskyApplications {
         )
         $FoundApps = $false
 
-        $ServicePrincipals = Request-GraphServicePrincipals -Cached:$Cached
-        $PermissionGrants = Request-GraphOauth2Grants -Cached:$Cached
-        $Users = Request-GraphUsers -Cached:$Cached
+        $ServicePrincipals = Request-GraphServicePrincipal -Cached:$Cached
+        $PermissionGrants = Request-GraphOauth2Grant -Cached:$Cached
+        $Users = Request-GraphUser -Cached:$Cached
 
         # colors
         $Blue = @{ForegroundColor = 'Blue'}
@@ -70,7 +70,7 @@ function Find-RiskyApplications {
             UsersAllowedToCreateApps      = $DefaultRolePermissions.AllowedToCreateApps
             UsersAllowedToConsentForApps  = [bool]( $DefaultRolePermissions.PermissionGrantPoliciesAssigned |
                 Where-Object {$_ -match 'ManagePermissionGrantsForSelf'})
-        } 
+        }
         $Output | Format-List | Out-Host
 
 
@@ -83,17 +83,17 @@ function Find-RiskyApplications {
         $SusAppIds = @(foreach ($Feed in $ThreatFeeds) {
             $Feed.Apps | ForEach-Object {$_.$($Feed.AppIdField)}
         }) | Sort-Object -Unique
-	
+
         # find risky apps
         $RiskyApps = $ServicePrincipals | Where-Object {$_.AppId -in $SusAppIds}
-	
+
         foreach ($RiskyApp in $RiskyApps) {
 
             $FoundApps = $true
-	
+
             # find permission grants for the app
             $AppGrants = $PermissionGrants | Where-Object {$_.ClientId -eq $RiskyApp.Id}
-	
+
             # show app information
             Write-Host @Blue "App Information:"
             foreach ($Feed in $ThreatFeeds) {
@@ -104,11 +104,11 @@ function Find-RiskyApplications {
                     break
                 }
             }
-	
+
             # show users who have the app
             Write-Host @Blue "Users who have this app:"
-            $Users | 
-                Where-Object {$_.Id -in $AppGrants.PrincipalId} | 
+            $Users |
+                Where-Object {$_.Id -in $AppGrants.PrincipalId} |
                 Format-Table $UserDisplayProperties |
                 Out-Host
         }

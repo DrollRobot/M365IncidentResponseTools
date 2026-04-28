@@ -1,4 +1,4 @@
-function Request-GraphDevices {
+function Request-GraphDevice {
     <#
 	.SYNOPSIS
     Requests Entra and Intune devices from Microsoft Graph. Builds combined device objects and caches them.
@@ -8,7 +8,7 @@ function Request-GraphDevices {
     object, or $null when the device is not enrolled / the tenant does not use Intune).
 
     Devices that appear only in Intune (no matching Entra record) are included with .Entra = $null.
-	
+
 	.NOTES
 	Version: 2.0.0
 	#>
@@ -50,8 +50,8 @@ function Request-GraphDevices {
         # --- Entra devices ---
         $EntraDevices = Get-MgDevice -All -ExpandProperty 'RegisteredOwners'
 
-        # --- Intune devices (optional — skipped when not licensed / no permission) ---
-        $IntuneDevices   = Request-IntuneDevices   # returns $null when Intune is unavailable
+        # --- Intune devices (optional - skipped when not licensed / no permission) ---
+        $IntuneDevices   = Request-IntuneDevice   # returns $null when Intune is unavailable
         $TenantHasIntune = $null -ne $IntuneDevices
 
         # build local lookup keyed by AzureADDeviceId for the Entra-Intune join
@@ -79,7 +79,7 @@ function Request-GraphDevices {
 
             $Combined = [PSCustomObject]@{
                 DisplayName     = $EntraDevice.DisplayName
-                DeviceId        = $EntraDevice.DeviceId   # AAD device GUID — links Entra ↔ Intune
+                DeviceId        = $EntraDevice.DeviceId   # AAD device GUID - links Entra, Intune
                 OperatingSystem = $EntraDevice.OperatingSystem
                 OwnerUPN        = $OwnerUpn
                 AccountEnabled  = $EntraDevice.AccountEnabled
@@ -143,7 +143,7 @@ function Request-GraphDevices {
 }
 
 
-function Request-IntuneDevices {
+function Request-IntuneDevice {
     <#
     .SYNOPSIS
     Requests all managed devices from Intune (Microsoft Graph).

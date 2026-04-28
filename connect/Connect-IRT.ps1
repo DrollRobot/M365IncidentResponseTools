@@ -19,7 +19,7 @@ function Connect-IRT {
     .PARAMETER DeviceCode
     Use device code authentication flow instead of interactive browser auth.
 
-    .PARAMETER AdditionalScopes
+    .PARAMETER AdditionalScope
     Additional Graph scopes to request beyond the default set.
 
     .PARAMETER Graph
@@ -55,7 +55,8 @@ function Connect-IRT {
         [string] $TenantId,
         [switch] $GCCHigh,
         [switch] $DeviceCode,
-        [string[]] $AdditionalScopes,
+        [Alias('AdditionalScopes')]
+        [string[]] $AdditionalScope,
 
         [switch] $Graph,
         [switch] $Exchange,
@@ -103,8 +104,8 @@ function Connect-IRT {
             if ($Force)            { $GraphParams['Force']              = $true }
             $GraphParams['Browser'] = $Browser
             if ($Private) { $GraphParams['Private'] = $true }
-            if ($AdditionalScopes) {
-                $GraphParams['AdditionalScopes'] = $AdditionalScopes
+            if ($AdditionalScope) {
+                $GraphParams['AdditionalScope'] = $AdditionalScope
             }
 
             $GraphConnection = Connect-IRTGraph @GraphParams
