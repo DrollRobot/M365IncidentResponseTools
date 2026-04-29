@@ -114,7 +114,7 @@ function Set-IRTConfig {
     Import-IRTConfig
     $Config = $Global:IRT_Config
 
-    # Define settings metadata
+    # define settings metadata
     $Settings = [ordered]@{
         PasswordBrowser = @{
             Summary     = 'Browser for opening password URLs in Tenants CSV'
@@ -141,32 +141,43 @@ function Set-IRTConfig {
         ExcelFont = @{
             Summary     = 'Excel font name'
             Description = 'The font used across all Excel output. Monospace fonts like Consolas work best for log data. ' +
-                          'Enter any font name installed on your system.'
+                'Enter any font name installed on your system.'
             Options     = $null  # free text
         }
         ExportXml = @{
             Summary     = 'Export raw XML with log pulls'
             Description = 'When enabled, log commands (sign-in logs, UAL, message trace) will save ' +
-                          'the raw XML response alongside the parsed Excel output.'
+                'the raw XML response alongside the parsed Excel output.'
             Options     = @('true', 'false')
         }
         AllOperationsSheetPath = @{
             Summary     = 'All Operations sheet path'
             Description = 'Path to the unified_audit_log-all_operations.xlsx file used for operation lookups. ' +
-                          'Leave blank (null) to use the default file bundled with the module. ' +
-                          'Set to an absolute path to use a custom file outside the module.'
+                'Leave blank (null) to use the default file bundled with the module. Set to an absolute path to ' +
+                'use a custom file outside the module.'
             Options     = $null  # free text / file path
         }
         TenantsSheetPath = @{
             Summary     = 'Tenants worksheet path'
             Description = 'Path to the tenants.xlsx file used by Connect-IRTTenant. ' +
-                          'Leave blank (null) to use the default location: $env:APPDATA\M365IncidentResponseTools\tenants.xlsx. ' +
-                          'Set to an absolute path to use a custom file.'
+                'Leave blank (null) to use the default location: $env:APPDATA\M365IncidentResponseTools\tenants.xlsx. ' +
+                'Set to an absolute path to use a custom file.'
             Options     = $null  # free text / file path
+        }
+        MaxRunspaces = @{
+            Summary     = 'Maximum runspaces for parallel operations'
+            Description = 'Maximum number of runspaces used for parallel processing.'
+            Options     = $null  # free text / integer
+        }
+        MaxExchangeConnections = @{
+            Summary     = 'Maximum concurrent Exchange connections'
+            Description = 'Maximum number of concurrent Exchange Online connections. (Recommend 10 or lower:' +
+                'https://techcommunity.microsoft.com/blog/exchange/more-efficient-bulk-operations-with-powershell-parallelism/4409693)'
+            Options     = $null  # free text / integer
         }
     }
 
-    # Main menu loop
+    # main menu loop
     while ($true) {
         $MenuOptions = [ordered]@{}
         $KeyMap = [ordered]@{}
@@ -242,6 +253,11 @@ function Set-IRTConfig {
         # Convert string to bool for ExportXml
         if ($SelectedKey -eq 'ExportXml') {
             $NewValue = $NewValue -eq 'true'
+        }
+
+        # Convert string to int for integer settings
+        if ($SelectedKey -in 'MaxRunspaces', 'MaxExchangeConnections') {
+            $NewValue = [int]$NewValue
         }
 
         $Config.$SelectedKey = $NewValue

@@ -4,7 +4,6 @@ function Open-Browser {
     Simplifies opening browser windows
 
     .NOTES
-    Author: Eric Zappe
     Version 1.03
     #>
 

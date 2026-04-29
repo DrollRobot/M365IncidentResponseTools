@@ -203,7 +203,6 @@ function Get-UALog {
                     $ServicePrincipalIdNoDash = $LoopObject.Id -replace '-',''
                     $AppId = $LoopObject.AppId
                     $AppIdNoDash = $LoopObject.AppId -replace '-',''
-
                     $ObjectName = $LoopObject.DisplayName -replace '[^a-zA-Z0-9]',''
                 }
             }

@@ -3,41 +3,29 @@ function Request-IRTMessageTraceV1 {
         [string[]] $SenderAddress,
         [string[]] $RecipientAddress,
 
-        [Parameter( Mandatory )]
+        [Alias('InternetMessageId')]
+        [string[]] $MessageId,
+
+        [Parameter(Mandatory)]
         [datetime] $StartDate,
-
-        [Parameter( Mandatory )]
+        [Parameter(Mandatory)]
         [datetime] $EndDate,
-
         [int] $ResultLimit = 50000,
-
         [switch] $Quiet
     )
-
     begin {
-
-        #region BEGIN
-
-        # constants
-        # $Function = $MyInvocation.MyCommand.Name
-        # $ParameterSet = $PSCmdlet.ParameterSetName
         $Blue = @{ForegroundColor = 'Blue' }
-
-        $PageSize = 5000 # 5000 is max page size for message trace
+        $PageSize = 5000
         $Page = 1
         $MoreToGet = $true
-
         $Params = @{
             StartDate = $StartDate
             EndDate   = $EndDate
             PageSize  = $PageSize
         }
-        if ( $SenderAddress ) {
-            $Params['SenderAddress'] = $SenderAddress
-        }
-        if ( $RecipientAddress ) {
-            $Params['RecipientAddress'] = $RecipientAddress
-        }
+        if ( $SenderAddress )    { $Params['SenderAddress']    = $SenderAddress }
+        if ( $RecipientAddress ) { $Params['RecipientAddress'] = $RecipientAddress }
+        if ( $MessageId )        { $Params['MessageId']        = $MessageId }
     }
 
     process {

@@ -59,7 +59,6 @@ function Get-IRTTenantInfo {
     [CmdletBinding()]
     param (
         [Parameter( Mandatory, Position = 0, ValueFromPipeline, ValueFromPipelineByPropertyName )]
-        [Alias('Tenant', 'Tenants', 'TenantId')]
         [Alias('TenantIds')]
         [string[]] $TenantId,
 

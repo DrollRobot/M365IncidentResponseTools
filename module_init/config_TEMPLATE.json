@@ -5,5 +5,7 @@
     "ExcelFont": "Consolas",
     "ExportXml": false,
     "AllOperationsSheetPath": null,
-    "TenantsSheetPath": null
+    "TenantsSheetPath": null,
+    "MaxRunspaces": 25,
+    "MaxExchangeConnections": 10
 }

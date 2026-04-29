@@ -109,6 +109,17 @@
         'entra-audit-log\Get-EntraAuditLog.ps1'
         'entra-audit-log\Show-EntraAuditLog.ps1'
 
+        'onprem_ad\Helpers.ps1'
+        'onprem_ad\Find-AdOu.ps1'
+        'onprem_ad\Find-AdUser.ps1'
+        'onprem_ad\Find-AllDomainControllers.ps1'
+        'onprem_ad\Get-AdAdminUsers.ps1'
+        'onprem_ad\Set-AdUserEnabled.ps1'
+        'onprem_ad\Push-AdSync.ps1'
+        'onprem_ad\Reset-AdUserPassword.ps1'
+        'onprem_ad\Show-AdOus.ps1'
+        'onprem_ad\Show-AdUserInfo.ps1'
+
         'mailbox\Get-IRTInboxRule.ps1'
         'mailbox\Get-MailboxUserHasFullAccessTo.ps1'
         'mailbox\Grant-MailboxFullAccess.ps1'
@@ -126,6 +137,7 @@
         'modules\Build-Menu.ps1'
         'modules\Compress-InvestigationFolder.ps1'
         'modules\Convert-DecimalToExcelColumn.ps1'
+        'modules\Copy-IRTFunctions.ps1'
         'modules\Find-GraphDirectoryObject.ps1'
         'modules\Format-PhoneNumber.ps1'
         'modules\Format-Tree.ps1'
@@ -213,6 +225,18 @@
         'Get-EntraAuditLog'
         'Show-EntraAuditLog'
 
+        ### onprem_ad
+        'Find-AdOu'
+        'Find-AdUser'
+        'Find-AllDomainControllers'
+        'Get-AdAdminUsers'
+        'Disable-AdUser'
+        'Enable-AdUser'
+        'Push-AdSync'
+        'Reset-AdUserPassword'
+        'Show-AdOus'
+        'Show-AdUserInfo'
+
         ### mailbox
         'Get-IRTInboxRule'
         'Get-MailboxUserHasFullAccessTo'
@@ -228,6 +252,7 @@
 
         ### modules
         'Compress-InvestigationFolder'
+        'Copy-IRTFunctions'
         'Find-GraphDirectoryObject'
         'Import-IRTConfig'
         'Open-IRTConfig'
@@ -315,6 +340,52 @@
         'GetEALog'
         'GetEALogs'
 
+        ### onprem_ad
+        # Find-AdOu
+        'FindAdOu'
+        'FindAdOus'
+        'Find-AdOus'
+        # Find-AdUser
+        'FindAdUser'
+        'FindAdUsers'
+        'Find-AdUsers'
+        # Find-AllDomainControllers
+        'FindDCs'
+        'FindDomainControllers'
+        'Find-DCs'
+        # Get-AdAdminUsers
+        'GetAdAdmins'
+        'AdAdmins'
+        # Disable-AdUser
+        'DisableAdUser'
+        'DisableAdUsers'
+        'Lock-AdUser'
+        'Lock-AdUsers'
+        'LockAdUser'
+        'LockAdUsers'
+        # Push-AdSync
+        'PushAdSync'
+        'AdSync'
+        'SyncAd'
+        # Reset-AdUserPassword
+        'ResetAdPassword'
+        'ResetAdPasswords'
+        'Reset-AdPassword'
+        # Show-AdOus
+        'ShowAdOus'
+        'AdOus'
+        # Show-AdUserInfo
+        'ShowAdUser'
+        'ShowAdUsers'
+        'AdUserInfo'
+        # Enable-AdUser
+        'EnableAdUser'
+        'EnableAdUsers'
+        'Unlock-AdUser'
+        'Unlock-AdUsers'
+        'UnlockAdUser'
+        'UnlockAdUsers'
+
         ### mailbox
         # Get-IRTInboxRules
         'InboxRule'
@@ -337,6 +408,9 @@
         'MessageTrace'
 
         ### modules
+        # Copy-IRTFunctions
+        'CopyIRTFunctions'
+        'CopyIRT'
         # Import-IRTConfig / Open-IRTConfig / Set-IRTConfig
         'ImportConfig'
         'OpenConfig'
