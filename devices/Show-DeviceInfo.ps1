@@ -1,5 +1,5 @@
-New-Alias -Name 'ShowDevice'  -Value 'Show-DeviceInfo' -Force
-New-Alias -Name 'ShowDevices' -Value 'Show-DeviceInfo' -Force
+New-Alias -Name 'ShowDevice'  -Value 'Show-DeviceInfo' 
+New-Alias -Name 'ShowDevices' -Value 'Show-DeviceInfo' 
 
 #region Show-DeviceInfo
 function Show-DeviceInfo {

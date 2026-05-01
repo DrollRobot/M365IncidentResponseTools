@@ -1,5 +1,5 @@
-New-Alias -Name 'SetLocation' -Value 'Set-UsageLocation' -Force
-New-Alias -Name 'SetUsage' -Value 'Set-UsageLocation' -Force
+New-Alias -Name 'SetLocation' -Value 'Set-UsageLocation' 
+New-Alias -Name 'SetUsage' -Value 'Set-UsageLocation' 
 function Set-UsageLocation {
     <#
 	.SYNOPSIS

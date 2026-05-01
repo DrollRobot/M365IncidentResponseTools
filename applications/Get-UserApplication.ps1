@@ -1,4 +1,4 @@
-New-Alias -Name 'UserApps' -Value 'Get-UserApplication' -Force
+New-Alias -Name 'UserApps' -Value 'Get-UserApplication' 
 function Get-UserApplication {
     <#
 	.SYNOPSIS

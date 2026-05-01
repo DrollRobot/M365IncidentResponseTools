@@ -1,7 +1,7 @@
-New-Alias -Name 'UALog' -Value 'Get-UALog' -Force
-New-Alias -Name 'UALogs' -Value 'Get-UALog' -Force
-New-Alias -Name 'GetUALog' -Value 'Get-UALog' -Force
-New-Alias -Name 'GetUALogs' -Value 'Get-UALog' -Force
+New-Alias -Name 'UALog' -Value 'Get-UALog' 
+New-Alias -Name 'UALogs' -Value 'Get-UALog' 
+New-Alias -Name 'GetUALog' -Value 'Get-UALog' 
+New-Alias -Name 'GetUALogs' -Value 'Get-UALog' 
 function Get-UALog {
     <#
 	.SYNOPSIS

@@ -1,7 +1,7 @@
-New-Alias -Name 'NILog' -Value 'Get-NonInteractiveLog' -Force
-New-Alias -Name 'NILogs' -Value 'Get-NonInteractiveLog' -Force
-New-Alias -Name 'GetNILog' -Value 'Get-NonInteractiveLog' -Force
-New-Alias -Name 'GetNILogs' -Value 'Get-NonInteractiveLog' -Force
+New-Alias -Name 'NILog' -Value 'Get-NonInteractiveLog' 
+New-Alias -Name 'NILogs' -Value 'Get-NonInteractiveLog' 
+New-Alias -Name 'GetNILog' -Value 'Get-NonInteractiveLog' 
+New-Alias -Name 'GetNILogs' -Value 'Get-NonInteractiveLog' 
 function Get-NonInteractiveLog {
 	<#
 	.SYNOPSIS

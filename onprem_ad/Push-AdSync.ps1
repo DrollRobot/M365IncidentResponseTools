@@ -1,11 +1,11 @@
-New-Alias -Name 'PushAdSync' -Value 'Push-AdSync' -Force
-New-Alias -Name 'AdSync' -Value 'Push-AdSync' -Force
-New-Alias -Name 'SyncAd' -Value 'Push-AdSync' -Force
+New-Alias -Name 'PushAdSync' -Value 'Push-AdSync' 
+New-Alias -Name 'AdSync' -Value 'Push-AdSync' 
+New-Alias -Name 'SyncAd' -Value 'Push-AdSync' 
 
 function Push-AdSync {
     <#
     .SYNOPSIS
-    Function to assist with forcing an Active Directory sync.
+    Function to assist with forcing an Active Directory sync. Uses PS remoting to find server running sync service.
 
     .NOTES
         Version: 2.0.0
@@ -15,10 +15,10 @@ function Push-AdSync {
     #>
     [CmdletBinding()]
     param(
-        [Alias( 'Reset', 'ResetPassword' )]
+        [Alias('Reset', 'ResetPassword')]
         [switch] $ResetCredentials,
 
-        [Alias( 'SyncServers' )]
+        [Alias('SyncServers')]
         [string[]] $SyncServer,
 
         [ValidateRange(1, 50)]

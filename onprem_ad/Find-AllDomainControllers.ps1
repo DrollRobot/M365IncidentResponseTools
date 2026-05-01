@@ -1,6 +1,6 @@
-New-Alias -Name 'FindDCs'              -Value 'Find-AllDomainControllers' -Force
-New-Alias -Name 'FindDomainControllers' -Value 'Find-AllDomainControllers' -Force
-New-Alias -Name 'Find-DCs'              -Value 'Find-AllDomainControllers' -Force
+New-Alias -Name 'FindDCs'              -Value 'Find-AllDomainControllers' 
+New-Alias -Name 'FindDomainControllers' -Value 'Find-AllDomainControllers' 
+New-Alias -Name 'Find-DCs'              -Value 'Find-AllDomainControllers' 
 
 function Find-AllDomainControllers { 
     

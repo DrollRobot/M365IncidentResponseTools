@@ -1,4 +1,4 @@
-New-Alias -Name 'Playbook' -Value 'Start-IncidentResponsePlaybook' -Force
+New-Alias -Name 'Playbook' -Value 'Start-IncidentResponsePlaybook' 
 function Start-IncidentResponsePlaybook {
     <#
 	.SYNOPSIS
@@ -146,7 +146,7 @@ function Start-IncidentResponsePlaybook {
 
         $Steps = @(
 
-            @{  Name   = 'Get-LicenseReport'
+            @{  Name   = 'Get-LicenseReport' # FIXME not included in module?
                 Script = {
                     param(
                         $WorkingPath,

@@ -1,5 +1,4 @@
-New-Alias -Name 'IRTTenant' -Value 'Connect-IRTTenant' -Force
-
+New-Alias -Name 'IRTTenant' -Value 'Connect-IRTTenant' 
 function Connect-IRTTenant {
     <#
     .SYNOPSIS
@@ -159,6 +158,10 @@ function Connect-IRTTenant {
     }
 }
 
+New-Alias -Name "OpenIRTTenantWorksheet" -Value Open-IRTTenantWorksheet 
+New-Alias -Name "Open-IRTTenantSheet" -Value Open-IRTTenantWorksheet 
+New-Alias -Name "OpenIRTTenantSheet" -Value Open-IRTTenantWorksheet 
+New-Alias -Name "IRTTenantSheet" -Value Open-IRTTenantWorksheet 
 function Open-IRTTenantWorksheet {
     <#
     .SYNOPSIS

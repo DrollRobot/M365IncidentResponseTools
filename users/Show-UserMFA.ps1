@@ -1,5 +1,5 @@
-New-Alias -Name 'ShowMFA' -Value 'Show-UserMFA' -Force
-New-Alias -Name 'UserMFA' -Value 'Show-UserMFA' -Force
+New-Alias -Name 'ShowMFA' -Value 'Show-UserMFA' 
+New-Alias -Name 'UserMFA' -Value 'Show-UserMFA' 
 function Show-UserMFA {
     <#
     .SYNOPSIS

@@ -1,4 +1,4 @@
-New-Alias -Name 'ShowMailbox' -Value 'Show-Mailbox' -Force
+New-Alias -Name 'ShowMailbox' -Value 'Show-Mailbox' 
 function Show-Mailbox {
     <#
 	.SYNOPSIS

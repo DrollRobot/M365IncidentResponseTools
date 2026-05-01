@@ -1,6 +1,6 @@
 #region Import-IRTConfig
-New-Alias -Name 'ImportConfig' -Value 'Import-IRTConfig' -Force
-New-Alias -Name 'IRTConfig'    -Value 'Import-IRTConfig' -Force
+New-Alias -Name 'ImportConfig' -Value 'Import-IRTConfig' 
+New-Alias -Name 'IRTConfig'    -Value 'Import-IRTConfig' 
 function Import-IRTConfig {
     <#
     .SYNOPSIS
@@ -53,7 +53,7 @@ function Import-IRTConfig {
 
 
 #region Open-IRTConfig
-New-Alias -Name 'OpenConfig'   -Value 'Open-IRTConfig' -Force
+New-Alias -Name 'OpenConfig'   -Value 'Open-IRTConfig' 
 function Open-IRTConfig {
     <#
     .SYNOPSIS
@@ -74,7 +74,7 @@ function Open-IRTConfig {
 
 
 #region Set-IRTConfig
-New-Alias -Name 'SetConfig'    -Value 'Set-IRTConfig' -Force
+New-Alias -Name 'SetConfig'    -Value 'Set-IRTConfig' 
 function Set-IRTConfig {
     <#
     .SYNOPSIS

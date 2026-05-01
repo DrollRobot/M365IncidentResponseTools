@@ -42,7 +42,7 @@ if ($env:TERM_PROGRAM -ne 'vscode') {
             Write-Host $userList -NoNewline
         }
 
-        Write-Host ' ' -NoNewline
+        Write-Host ' '
         & $Global:IRT_OriginalPrompt
     }
 }

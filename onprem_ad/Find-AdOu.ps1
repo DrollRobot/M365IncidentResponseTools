@@ -1,6 +1,6 @@
-New-Alias -Name 'FindAdOu'  -Value 'Find-AdOu' -Force
-New-Alias -Name 'FindAdOus' -Value 'Find-AdOu' -Force
-New-Alias -Name 'Find-AdOus' -Value 'Find-AdOu' -Force
+New-Alias -Name 'FindAdOu'  -Value 'Find-AdOu' 
+New-Alias -Name 'FindAdOus' -Value 'Find-AdOu' 
+New-Alias -Name 'Find-AdOus' -Value 'Find-AdOu' 
 
 function Find-AdOu {
     <#

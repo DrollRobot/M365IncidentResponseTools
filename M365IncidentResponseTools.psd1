@@ -316,6 +316,20 @@
         'Show-EnterpriseApps'
         'Show-Applications'
 
+        ### connect
+        # Connect-IRT
+        'ConnectIRT'
+        # Connect-IRTTenant
+        'IRTTenant'
+        # Open-IRTTenantWorksheet
+        'OpenIRTTenantWorksheet'
+        'Open-IRTTenantSheet'
+        'OpenIRTTenantSheet'
+        'IRTTenantSheet'
+        # Disconnect-IRT
+        'DisconnectIRT'
+        'IRTDisconnect'
+
         ### devices
         # Find-Devices
         'FindDevice'
@@ -323,15 +337,6 @@
         # Show-DeviceInfo
         'ShowDevice'
         'ShowDevices'
-
-        ### connect
-        # Connect-IRT
-        'ConnectIRT'
-        # Connect-IRTTenant
-        'IRTTenant'
-        # Disconnect-IRT
-        'DisconnectIRT'
-        'IRTDisconnect'
 
         ### entra-audit-log
         # Get-EntraAuditLogs

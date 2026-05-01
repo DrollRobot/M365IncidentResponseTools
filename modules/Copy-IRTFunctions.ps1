@@ -1,5 +1,5 @@
-New-Alias -Name 'CopyIRT' -Value 'Copy-IRTFunctions' -Force
-New-Alias -Name 'CopyIRTFunctions' -Value 'Copy-IRTFunctions' -Force
+New-Alias -Name 'CopyIRT' -Value 'Copy-IRTFunctions' 
+New-Alias -Name 'CopyIRTFunctions' -Value 'Copy-IRTFunctions' 
 
 function Copy-IRTFunctions {
     <#

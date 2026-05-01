@@ -2,14 +2,14 @@
 #region Disable-GraphUser
 
 # new aliases
-New-Alias -Name 'DisableUser' -Value 'Disable-GraphUser' -Force
-New-Alias -Name 'DisableUsers' -Value 'Disable-GraphUser' -Force
+New-Alias -Name 'DisableUser' -Value 'Disable-GraphUser' 
+New-Alias -Name 'DisableUsers' -Value 'Disable-GraphUser' 
 
 # old aliases
-New-Alias -Name 'Lock-GraphUsers' -Value 'Disable-GraphUser' -Force
-New-Alias -Name 'LockUser' -Value 'Disable-GraphUser' -Force
-New-Alias -Name 'LockUsers' -Value 'Disable-GraphUser' -Force
-New-Alias -Name 'Lock-GraphUser' -Value 'Disable-GraphUser' -Force
+New-Alias -Name 'Lock-GraphUsers' -Value 'Disable-GraphUser' 
+New-Alias -Name 'LockUser' -Value 'Disable-GraphUser' 
+New-Alias -Name 'LockUsers' -Value 'Disable-GraphUser' 
+New-Alias -Name 'Lock-GraphUser' -Value 'Disable-GraphUser' 
 
 function Disable-GraphUser {
     <#
@@ -41,14 +41,14 @@ function Disable-GraphUser {
 #region Enable-GraphUser
 
 # new aliases
-New-Alias -Name 'EnableUser' -Value 'Enable-GraphUser' -Force
-New-Alias -Name 'EnableUsers' -Value 'Enable-GraphUser' -Force
+New-Alias -Name 'EnableUser' -Value 'Enable-GraphUser' 
+New-Alias -Name 'EnableUsers' -Value 'Enable-GraphUser' 
 
 # old aliases
-New-Alias -Name 'Unlock-GraphUsers' -Value 'Enable-GraphUser' -Force
-New-Alias -Name 'UnlockUser' -Value 'Enable-GraphUser' -Force
-New-Alias -Name 'UnlockUsers' -Value 'Enable-GraphUser' -Force
-New-Alias -Name 'Unlock-GraphUser' -Value 'Enable-GraphUser' -Force
+New-Alias -Name 'Unlock-GraphUsers' -Value 'Enable-GraphUser' 
+New-Alias -Name 'UnlockUser' -Value 'Enable-GraphUser' 
+New-Alias -Name 'UnlockUsers' -Value 'Enable-GraphUser' 
+New-Alias -Name 'Unlock-GraphUser' -Value 'Enable-GraphUser' 
 
 function Enable-GraphUser {
     <#

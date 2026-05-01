@@ -1,5 +1,5 @@
-New-Alias -Name 'ShowUser' -Value 'Show-UserInfo' -Force
-New-Alias -Name 'ShowUsers' -Value 'Show-UserInfo' -Force
+New-Alias -Name 'ShowUser' -Value 'Show-UserInfo' 
+New-Alias -Name 'ShowUsers' -Value 'Show-UserInfo' 
 function Show-UserInfo {
     <#
 	.SYNOPSIS

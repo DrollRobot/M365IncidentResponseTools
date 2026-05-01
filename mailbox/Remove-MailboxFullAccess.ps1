@@ -1,4 +1,4 @@
-New-Alias -Name 'RemoveFullAccess' -Value 'Remove-MailboxFullAccess' -Force
+New-Alias -Name 'RemoveFullAccess' -Value 'Remove-MailboxFullAccess' 
 function Remove-MailboxFullAccess {
     <#
 	.SYNOPSIS

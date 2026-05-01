@@ -1,7 +1,7 @@
-New-Alias -Name "SILog" -Value "Get-SignInLog" -Force
-New-Alias -Name "SILogs" -Value "Get-SignInLog" -Force
-New-Alias -Name "GetSILog" -Value "Get-SignInLog" -Force
-New-Alias -Name "GetSILogs" -Value "Get-SignInLog" -Force
+New-Alias -Name "SILog" -Value "Get-SignInLog" 
+New-Alias -Name "SILogs" -Value "Get-SignInLog" 
+New-Alias -Name "GetSILog" -Value "Get-SignInLog" 
+New-Alias -Name "GetSILogs" -Value "Get-SignInLog" 
 function Get-SignInLog {
     <#
 	.SYNOPSIS

@@ -1,5 +1,5 @@
-New-Alias -Name 'FindObject' -Value 'Find-GraphDirectoryObject' -Force
-New-Alias -Name 'FindObjects' -Value 'Find-GraphDirectoryObject' -Force
+New-Alias -Name 'FindObject' -Value 'Find-GraphDirectoryObject' 
+New-Alias -Name 'FindObjects' -Value 'Find-GraphDirectoryObject' 
 function Find-GraphDirectoryObject {
     param(
         [Parameter( Position = 0 )]

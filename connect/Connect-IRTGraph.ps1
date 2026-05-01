@@ -212,7 +212,7 @@ function Connect-IRTGraph {
 
         if ($NeedNewToken) {
             if ($Global:IRT_Session -and $Global:IRT_Session.Graph -and $Global:IRT_Session.Graph.Token) {
-                Write-Host @Yellow "Refreshing Graph token for tenant $TenantId."
+                Write-Host @Yellow "Refreshing expired Graph token for tenant $TenantId."
             }
             $TokenResult = & $AcquireToken
             if (-not $TokenResult.AccessToken) {

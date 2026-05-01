@@ -1,5 +1,5 @@
-New-Alias -Name 'IRTDisconnect'              -Value 'Disconnect-IRT' -Force
-New-Alias -Name 'DisconnectIRT'              -Value 'Disconnect-IRT' -Force
+New-Alias -Name 'IRTDisconnect'              -Value 'Disconnect-IRT' 
+New-Alias -Name 'DisconnectIRT'              -Value 'Disconnect-IRT' 
 
 function Disconnect-IRT {
     <#

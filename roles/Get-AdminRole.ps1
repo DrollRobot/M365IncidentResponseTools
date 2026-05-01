@@ -1,4 +1,4 @@
-New-Alias -Name 'GetAdmins' -Value 'Get-AdminRole' -Force
+New-Alias -Name 'GetAdmins' -Value 'Get-AdminRole' 
 
 function Get-AdminRole {
     [CmdletBinding()]

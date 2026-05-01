@@ -1,5 +1,5 @@
-New-Alias -Name 'InboxRule' -Value 'Get-IRTInboxRule' -Force
-New-Alias -Name 'InboxRules' -Value 'Get-IRTInboxRule' -Force
+New-Alias -Name 'InboxRule' -Value 'Get-IRTInboxRule' 
+New-Alias -Name 'InboxRules' -Value 'Get-IRTInboxRule' 
 
 function Get-IRTInboxRule {
     <#

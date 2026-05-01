@@ -1,7 +1,7 @@
-New-Alias -Name "EALog" -Value "Get-EntraAuditLog" -Force
-New-Alias -Name "EALogs" -Value "Get-EntraAuditLog" -Force
-New-Alias -Name "GetEALog" -Value "Get-EntraAuditLog" -Force
-New-Alias -Name "GetEALogs" -Value "Get-EntraAuditLog" -Force
+New-Alias -Name "EALog" -Value "Get-EntraAuditLog" 
+New-Alias -Name "EALogs" -Value "Get-EntraAuditLog" 
+New-Alias -Name "GetEALog" -Value "Get-EntraAuditLog" 
+New-Alias -Name "GetEALogs" -Value "Get-EntraAuditLog" 
 function Get-EntraAuditLog {
     <#
 	.SYNOPSIS

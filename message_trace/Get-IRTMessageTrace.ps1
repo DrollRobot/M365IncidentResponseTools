@@ -1,4 +1,4 @@
-New-Alias -Name 'MessageTrace' -Value 'Get-IRTMessageTrace' -Force
+New-Alias -Name 'MessageTrace' -Value 'Get-IRTMessageTrace' 
 function Get-IRTMessageTrace {
     <#
 	.SYNOPSIS

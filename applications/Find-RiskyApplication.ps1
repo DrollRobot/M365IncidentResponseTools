@@ -1,4 +1,4 @@
-New-Alias -Name 'RiskyApps' -Value 'Find-RiskyApplication' -Force
+New-Alias -Name 'RiskyApps' -Value 'Find-RiskyApplication' 
 
 function Find-RiskyApplication {
     <#

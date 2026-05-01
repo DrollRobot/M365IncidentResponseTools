@@ -1,5 +1,5 @@
-New-Alias -Name 'ResetPassword' -Value 'Reset-GraphUserPassword' -Force
-New-Alias -Name 'ResetPasswords' -Value 'Reset-GraphUserPassword' -Force
+New-Alias -Name 'ResetPassword' -Value 'Reset-GraphUserPassword' 
+New-Alias -Name 'ResetPasswords' -Value 'Reset-GraphUserPassword' 
 function Reset-GraphUserPassword {
     <#
 	.SYNOPSIS

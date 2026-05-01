@@ -1,4 +1,4 @@
-New-Alias -Name 'FullAccess' -Value 'Grant-MailboxFullAccess' -Force
+New-Alias -Name 'FullAccess' -Value 'Grant-MailboxFullAccess' 
 function Grant-MailboxFullAccess {
     <#
 	.SYNOPSIS

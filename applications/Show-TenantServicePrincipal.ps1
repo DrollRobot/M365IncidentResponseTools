@@ -1,10 +1,10 @@
-New-Alias -Name 'ShowApps' -Value 'Show-TenantServicePrincipal' -Force
-New-Alias -Name 'ShowServicePrincipals' -Value 'Show-TenantServicePrincipal' -Force
-New-Alias -Name 'ShowEnterpriseApps' -Value 'Show-TenantServicePrincipal' -Force
-New-Alias -Name 'Show-Apps' -Value 'Show-TenantServicePrincipal' -Force
-New-Alias -Name 'Show-ServicePrincipals' -Value 'Show-TenantServicePrincipal' -Force
-New-Alias -Name 'Show-EnterpriseApps' -Value 'Show-TenantServicePrincipal' -Force
-New-Alias -Name 'Show-Applications' -Value 'Show-TenantServicePrincipal' -Force
+New-Alias -Name 'ShowApps' -Value 'Show-TenantServicePrincipal' 
+New-Alias -Name 'ShowServicePrincipals' -Value 'Show-TenantServicePrincipal' 
+New-Alias -Name 'ShowEnterpriseApps' -Value 'Show-TenantServicePrincipal' 
+New-Alias -Name 'Show-Apps' -Value 'Show-TenantServicePrincipal' 
+New-Alias -Name 'Show-ServicePrincipals' -Value 'Show-TenantServicePrincipal' 
+New-Alias -Name 'Show-EnterpriseApps' -Value 'Show-TenantServicePrincipal' 
+New-Alias -Name 'Show-Applications' -Value 'Show-TenantServicePrincipal' 
 
 function Show-TenantServicePrincipal {
     <#

@@ -1,5 +1,5 @@
-New-Alias -Name 'FindDevice' -Value 'Find-Device' -Force
-New-Alias -Name 'FindDevices' -Value 'Find-Device' -Force
+New-Alias -Name 'FindDevice' -Value 'Find-Device' 
+New-Alias -Name 'FindDevices' -Value 'Find-Device' 
 function Find-Device {
     <#
     .SYNOPSIS

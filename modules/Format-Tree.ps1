@@ -1,5 +1,5 @@
-New-Alias -Name "FTree" -Value "Format-Tree" -Force
-New-Alias -Name "FTr" -Value "Format-Tree" -Force
+New-Alias -Name "FTree" -Value "Format-Tree" 
+New-Alias -Name "FTr" -Value "Format-Tree" 
 
 
 #region Format-Tree

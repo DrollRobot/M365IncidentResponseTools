@@ -1,5 +1,5 @@
-New-Alias -Name 'FindUser' -Value 'Find-User' -Force
-New-Alias -Name 'FindUsers' -Value 'Find-User' -Force
+New-Alias -Name 'FindUser' -Value 'Find-User' 
+New-Alias -Name 'FindUsers' -Value 'Find-User' 
 function Find-User {
     <#
     .SYNOPSIS

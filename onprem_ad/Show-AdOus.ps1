@@ -1,5 +1,5 @@
-New-Alias -Name 'ShowAdOus' -Value 'Show-AdOus' -Force
-New-Alias -Name 'AdOus'     -Value 'Show-AdOus' -Force
+New-Alias -Name 'ShowAdOus' -Value 'Show-AdOus' 
+New-Alias -Name 'AdOus'     -Value 'Show-AdOus' 
 
 function Show-AdOus {
     <#

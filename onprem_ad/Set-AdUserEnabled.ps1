@@ -2,14 +2,14 @@
 #region Disable-AdUser
 
 # new aliases
-New-Alias -Name 'DisableAdUser'  -Value 'Disable-AdUser' -Force
-New-Alias -Name 'DisableAdUsers' -Value 'Disable-AdUser' -Force
+New-Alias -Name 'DisableAdUser'  -Value 'Disable-AdUser' 
+New-Alias -Name 'DisableAdUsers' -Value 'Disable-AdUser' 
 
 # old aliases
-New-Alias -Name 'Lock-AdUser'  -Value 'Disable-AdUser' -Force
-New-Alias -Name 'Lock-AdUsers' -Value 'Disable-AdUser' -Force
-New-Alias -Name 'LockAdUser'   -Value 'Disable-AdUser' -Force
-New-Alias -Name 'LockAdUsers'  -Value 'Disable-AdUser' -Force
+New-Alias -Name 'Lock-AdUser'  -Value 'Disable-AdUser' 
+New-Alias -Name 'Lock-AdUsers' -Value 'Disable-AdUser' 
+New-Alias -Name 'LockAdUser'   -Value 'Disable-AdUser' 
+New-Alias -Name 'LockAdUsers'  -Value 'Disable-AdUser' 
 
 function Disable-AdUser {
     <#
@@ -41,14 +41,14 @@ function Disable-AdUser {
 #region Enable-AdUser
 
 # new aliases
-New-Alias -Name 'EnableAdUser'  -Value 'Enable-AdUser' -Force
-New-Alias -Name 'EnableAdUsers' -Value 'Enable-AdUser' -Force
+New-Alias -Name 'EnableAdUser'  -Value 'Enable-AdUser' 
+New-Alias -Name 'EnableAdUsers' -Value 'Enable-AdUser' 
 
 # old aliases
-New-Alias -Name 'Unlock-AdUser'  -Value 'Enable-AdUser' -Force
-New-Alias -Name 'Unlock-AdUsers' -Value 'Enable-AdUser' -Force
-New-Alias -Name 'UnlockAdUser'   -Value 'Enable-AdUser' -Force
-New-Alias -Name 'UnlockAdUsers'  -Value 'Enable-AdUser' -Force
+New-Alias -Name 'Unlock-AdUser'  -Value 'Enable-AdUser' 
+New-Alias -Name 'Unlock-AdUsers' -Value 'Enable-AdUser' 
+New-Alias -Name 'UnlockAdUser'   -Value 'Enable-AdUser' 
+New-Alias -Name 'UnlockAdUsers'  -Value 'Enable-AdUser' 
 
 function Enable-AdUser {
     <#

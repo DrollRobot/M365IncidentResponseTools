@@ -1,5 +1,5 @@
-New-Alias -Name "ImportLogs" -Value "Import-LogFile" -Force
-New-Alias -Name "ImportLog" -Value "Import-LogFile" -Force
+New-Alias -Name "ImportLogs" -Value "Import-LogFile" 
+New-Alias -Name "ImportLog" -Value "Import-LogFile" 
 function Import-LogFile {
     <#
 	.SYNOPSIS

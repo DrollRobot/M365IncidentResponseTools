@@ -1,5 +1,5 @@
-New-Alias -Name 'GetAdAdmins' -Value 'Get-AdAdminUsers' -Force
-New-Alias -Name 'AdAdmins'    -Value 'Get-AdAdminUsers' -Force
+New-Alias -Name 'GetAdAdmins' -Value 'Get-AdAdminUsers' 
+New-Alias -Name 'AdAdmins'    -Value 'Get-AdAdminUsers' 
 
 function Get-AdAdminUsers {
     <#

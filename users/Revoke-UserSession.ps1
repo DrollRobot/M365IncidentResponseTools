@@ -1,5 +1,5 @@
-New-Alias -Name 'RevokeSessions' -Value 'Revoke-UserSession' -Force
-New-Alias -Name 'Revoke-UserSessions' -Value 'Revoke-UserSession' -Force
+New-Alias -Name 'RevokeSessions' -Value 'Revoke-UserSession' 
+New-Alias -Name 'Revoke-UserSessions' -Value 'Revoke-UserSession' 
 function Revoke-UserSession {
     <#
 	.SYNOPSI

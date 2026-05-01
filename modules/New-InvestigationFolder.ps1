@@ -1,5 +1,5 @@
-New-Alias -Name 'NewDir' -Value "New-InvestigationFolder" -Force
-New-Alias -Name 'NewFolder' -Value "New-InvestigationFolder" -Force
+New-Alias -Name 'NewDir' -Value "New-InvestigationFolder" 
+New-Alias -Name 'NewFolder' -Value "New-InvestigationFolder" 
 
 function New-InvestigationFolder {
 	<#

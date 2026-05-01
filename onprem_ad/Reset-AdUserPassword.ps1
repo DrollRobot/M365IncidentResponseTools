@@ -1,6 +1,6 @@
-New-Alias -Name 'ResetAdPassword'  -Value 'Reset-AdUserPassword' -Force
-New-Alias -Name 'ResetAdPasswords' -Value 'Reset-AdUserPassword' -Force
-New-Alias -Name 'Reset-AdPassword' -Value 'Reset-AdUserPassword' -Force
+New-Alias -Name 'ResetAdPassword'  -Value 'Reset-AdUserPassword' 
+New-Alias -Name 'ResetAdPasswords' -Value 'Reset-AdUserPassword' 
+New-Alias -Name 'Reset-AdPassword' -Value 'Reset-AdUserPassword' 
 
 function Reset-AdUserPassword {
     <#

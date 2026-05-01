@@ -1,4 +1,4 @@
-New-Alias -Name 'ConnectIRT' -Value 'Connect-IRT' -Force
+New-Alias -Name 'ConnectIRT' -Value 'Connect-IRT' 
 
 function Connect-IRT {
     <#

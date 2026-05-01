@@ -1,4 +1,4 @@
-New-Alias -Name 'OpenMailbox' -Value 'Open-MailboxInOWA' -Force
+New-Alias -Name 'OpenMailbox' -Value 'Open-MailboxInOWA' 
 function Open-MailboxInOWA {
     <#
 	.SYNOPSIS
