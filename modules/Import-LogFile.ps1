@@ -3,8 +3,8 @@ New-Alias -Name "ImportLog" -Value "Import-LogFile" -Force
 function Import-LogFile {
     <#
 	.SYNOPSIS
-	
-	
+
+
 	.NOTES
 	Version: 1.0.0
 	#>
@@ -25,16 +25,16 @@ function Import-LogFile {
         }
 
         # get file names
-        $Files = Get-ChildItem -Path $CurrentPath | 
+        $Files = Get-ChildItem -Path $CurrentPath |
             Where-Object { $_.Name -match $Pattern } |
             Sort-Object LastWriteTime -Descending
         $FileNames = $Files.Name
     }
 
     process {
-        
+
         if ( @( $FileNames ).Count -eq 1 ) {
-        
+
             # if only one file, import that one
             Write-Host @Cyan "Only one file found in the current directory. Importing ${FileNames}."
             $ResolvedXmlPath = Join-Path -Path $CurrentPath -ChildPath $FileNames

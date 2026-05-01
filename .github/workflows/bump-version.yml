@@ -32,4 +32,3 @@ jobs:
           git add "*.psd1"
           git commit -m "chore: bump version to ${{ env.NEW_VERSION }} [skip ci]"
           git push
-          

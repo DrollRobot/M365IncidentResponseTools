@@ -3,7 +3,7 @@ function Open-MailboxInOWA {
     <#
 	.SYNOPSIS
 	Opens user mailbox in OWA in a browser.
-	
+
 	.NOTES
 	Version: 1.1.0
     1.1.0 - Added Clipboard option.
@@ -11,11 +11,11 @@ function Open-MailboxInOWA {
     [CmdletBinding()]
     param (
         [Parameter( Position = 0 )]
-        [Alias( 'UserObject' )]
-        [psobject[]] $UserObjects,
+        [Alias('UserObjects')]
+        [psobject[]] $UserObject,
 
         [ValidateSet( 'msedge','chrome','firefox','brave','default' )]
-        [string] $Browser = 'default',
+        [string] $Browser = $Global:IRT_Config.Browser,
         [switch] $Private,
 
         [switch] $Clipboard
@@ -32,19 +32,19 @@ function Open-MailboxInOWA {
         $Blue = @{ ForegroundColor = 'Blue' }
         # $Cyan = @{ ForegroundColor = 'Cyan' }
         # $Green = @{ ForegroundColor = 'Green' }
-        # $Red = @{ ForegroundColor = 'Red' }
+        $Red = @{ ForegroundColor = 'Red' }
         # $Magenta = @{ ForegroundColor = 'Magenta' }
 
         # if users passed via script argument:
-        if (($UserObjects | Measure-Object).Count -gt 0) {
-            $ScriptUserObjects = $UserObjects
+        if (($UserObject | Measure-Object).Count -gt 0) {
+            $ScriptUserObjects = $UserObject
         }
         # if not, look for global objects
         else {
-            
+
             # get from global variables
-            $ScriptUserObjects = Get-IRTUserObjects
-            
+            $ScriptUserObjects = Get-IRTUserObject
+
             # if none found, exit
             if ( -not $ScriptUserObjects -or $ScriptUserObjects.Count -eq 0 ) {
                 Write-Host @Red "${Function}: No user objects passed or found in global variables."
@@ -53,7 +53,7 @@ function Open-MailboxInOWA {
             if (($ScriptUserObjects | Measure-Object).Count -eq 0) {
                 $ErrorParams = @{
                     Category    = 'InvalidArgument'
-                    Message     = "No -UserObjects argument used, no `$Global:IRT_UserObjects present."
+                    Message     = "No -UserObject argument used, no `$Global:IRT_UserObjects present."
                     ErrorAction = 'Stop'
                 }
                 Write-Error @ErrorParams
@@ -71,7 +71,7 @@ function Open-MailboxInOWA {
                 ErrorAction = 'Stop'
             }
             Write-Error @ErrorParams
-        }  
+        }
     }
 
     process {
@@ -79,6 +79,15 @@ function Open-MailboxInOWA {
         foreach ($ScriptUserObject in $ScriptUserObjects) {
 
             $UserEmail = $ScriptUserObject.UserPrincipalName
+
+            # verify user has mailbox
+            try { $Mailbox = Get-EXOMailbox -UserPrincipalName $UserEmail -ErrorAction Stop }
+            catch { $Mailbox = $null }
+            if (-not $Mailbox) {
+                Write-Host @Red "${Function}: No mailbox for ${UserEmail}"
+                continue
+            }
+
             $MailboxUrl = "https://outlook.office.com/mail/${UserEmail}/?offline=disabled"
 
             if ($Clipboard) {

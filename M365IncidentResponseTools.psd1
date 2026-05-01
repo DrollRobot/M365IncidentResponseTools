@@ -12,7 +12,7 @@
     RootModule = 'M365IncidentResponseTools.psm1'
 
     # Version number of this module.
-    ModuleVersion     = '2.6.0.0'
+    ModuleVersion     = '2.6.2.0'
 
     # Supported PSEditions
     # CompatiblePSEditions = @()
@@ -33,7 +33,7 @@
     # Description = ''
 
     # Minimum version of the PowerShell engine required by this module
-    # PowerShellVersion = ''
+    PowerShellVersion = '7.5'
 
     # Name of the PowerShell host required by this module
     # PowerShellHostName = ''
@@ -55,6 +55,7 @@
         # Microsoft.Graph pinned to 2.33.0 due to auth changes in 2.34.0
         @{ModuleName = 'Microsoft.Graph.Applications'; RequiredVersion = '2.33.0'}
         @{ModuleName = 'Microsoft.Graph.Authentication'; RequiredVersion = '2.33.0'}
+        @{ModuleName = 'Microsoft.Graph.DeviceManagement'; RequiredVersion = '2.33.0'}
         @{ModuleName = 'Microsoft.Graph.Beta.Identity.Signins'; RequiredVersion = '2.33.0'}
         @{ModuleName = 'Microsoft.Graph.Beta.Reports'; RequiredVersion = '2.33.0'}
         @{ModuleName = 'Microsoft.Graph.DirectoryObjects'; RequiredVersion = '2.33.0'}
@@ -77,7 +78,7 @@
     # Runs in caller scope (not module scope), so functions defined here are NOT tracked by
     # the module and survive Import-Module -Force reimports.
     ScriptsToProcess  = @(
-        'Initialize-IRTSession.ps1'
+        'module_init\Initialize-IRTSession.ps1'
     )
 
     # Type files (.ps1xml) to be loaded when importing this module
@@ -88,22 +89,39 @@
 
     # Modules to import as nested modules of the module specified in RootModule/ModuleToProcess
     NestedModules     = @(
-        'applications\Find-RiskyApplications.ps1'
-        'applications\Get-UserApplications.ps1'
-        'applications\Show-Applications.ps1'
+        'applications\Find-RiskyApplication.ps1'
+        'applications\Get-IRTTenantInfo.ps1'
+        'applications\Get-UserApplication.ps1'
+        'applications\Show-TenantServicePrincipal.ps1'
 
-        'connect\Connect-IncidentResponseTools.ps1'
+        'devices\Find-Device.ps1'
+        'devices\Show-DeviceInfo.ps1'
+
+        'connect\Connect-IRT.ps1'
         'connect\Connect-IRTExchange.ps1'
         'connect\Connect-IRTGraph.ps1'
+        'connect\Connect-IRTIPPS.ps1'
         'connect\Connect-IRTTenant.ps1'
-        'connect\Disconnect-IncidentResponseTools.ps1'
-        'connect\Get-IRTConnectionStatus.ps1'
+        'connect\Disconnect-IRT.ps1'
+        'connect\Invoke-IRTDeviceCodeAuth.ps1'
+        'connect\Test-IRTConnection.ps1'
 
-        'entra-audit-log\Get-EntraAuditLogs.ps1'
-        'entra-audit-log\Show-EntraAuditLogs.ps1'
+        'entra-audit-log\Get-EntraAuditLog.ps1'
+        'entra-audit-log\Show-EntraAuditLog.ps1'
 
-        'mailbox\Get-IRTInboxRules.ps1'
-        'mailbox\Get-MailboxesUserHasFullAccessTo.ps1'
+        'onprem_ad\Helpers.ps1'
+        'onprem_ad\Find-AdOu.ps1'
+        'onprem_ad\Find-AdUser.ps1'
+        'onprem_ad\Find-AllDomainControllers.ps1'
+        'onprem_ad\Get-AdAdminUsers.ps1'
+        'onprem_ad\Set-AdUserEnabled.ps1'
+        'onprem_ad\Push-AdSync.ps1'
+        'onprem_ad\Reset-AdUserPassword.ps1'
+        'onprem_ad\Show-AdOus.ps1'
+        'onprem_ad\Show-AdUserInfo.ps1'
+
+        'mailbox\Get-IRTInboxRule.ps1'
+        'mailbox\Get-MailboxUserHasFullAccessTo.ps1'
         'mailbox\Grant-MailboxFullAccess.ps1'
         'mailbox\Open-MailboxInOWA.ps1'
         'mailbox\Remove-MailboxFullAccess.ps1'
@@ -111,95 +129,117 @@
         'mailbox\Show-MailboxAccess.ps1'
 
         'message_trace\Get-IRTMessageTrace.ps1'
-        'message_trace\Merge-ListsOnDate.ps1'
+        'message_trace\Merge-ListOnDate.ps1'
         'message_trace\Request-IRTMessageTrace.ps1'
         'message_trace\Request-IRTMessageTraceV1.ps1'
         'message_trace\Show-IRTMessageTrace.ps1'
 
         'modules\Build-Menu.ps1'
+        'modules\Compress-InvestigationFolder.ps1'
         'modules\Convert-DecimalToExcelColumn.ps1'
-        'modules\Find-GraphDirectoryObjects.ps1'
+        'modules\Copy-IRTFunctions.ps1'
+        'modules\Find-GraphDirectoryObject.ps1'
+        'modules\Format-PhoneNumber.ps1'
         'modules\Format-Tree.ps1'
-        'modules\Get-IRT_UserObjects.ps1'
+        'modules\Get-IRTUserObject.ps1'
+        'modules\Import-IRTConfig.ps1'
         'modules\Get-RandomPassword.ps1'
         'modules\Import-LogFile.ps1'
-        'modules\Initialize-Modules.ps1'
+        'modules\Initialize-Module.ps1'
+        'modules\New-InvestigationFolder.ps1'
         'modules\Open-Browser.ps1'
-        'modules\Request-DirectoryRoles.ps1'
-        'modules\Request-DirectoryRoleTemplates.ps1'
-        'modules\Request-GraphGroups.ps1'
-        'modules\Request-GraphOauth2Grants.ps1'
-        'modules\Request-GraphServicePrincipals.ps1'
-        'modules\Request-GraphUsers.ps1'
+        'modules\Request-DirectoryRole.ps1'
+        'modules\Request-DirectoryRoleTemplate.ps1'
+        'modules\Request-GraphGroup.ps1'
+        'modules\Request-GraphOauth2Grant.ps1'
+        'modules\Request-GraphServicePrincipal.ps1'
+        'modules\Request-GraphUser.ps1'
+        'modules\Add-IpAddressConditionalFormatting.ps1'
+        'modules\Request-GraphDevice.ps1'
+        'modules\Request-IntuneDevice.ps1'
+        'modules\Resolve-IRTDateRange.ps1'
         'modules\Test-PythonPackage.ps1'
-        'modules\Test-TokenExpired.ps1'
 
-        'roles\Get-AdminRoles.ps1'
+        'roles\Get-AdminRole.ps1'
 
         'signin_logs\Convert-TrustType.ps1'
         'signin_logs\ConvertTo-HumanErrorDescription.ps1'
-        'signin_logs\Get-NonInteractiveLogs.ps1'
-        'signin_logs\Get-SignInLogs.ps1'
-        'signin_logs\Show-SignInLogs.ps1'
+        'signin_logs\Get-NonInteractiveLog.ps1'
+        'signin_logs\Get-SignInLog.ps1'
+        'signin_logs\Show-SignInLog.ps1'
 
-        'unified_audit_log\parsing\Resolve-AzureActiveDirectoryAddRemoveRole.ps1'
-        'unified_audit_log\parsing\Resolve-AzureActiveDirectoryLogin.ps1'
-        'unified_audit_log\parsing\Resolve-AzureActiveDirectoryUpdateUser.ps1'
-        'unified_audit_log\parsing\Resolve-ExchangeAdminInboxRule.ps1'
-        'unified_audit_log\parsing\Resolve-ExchangeAdminSetConditionalAccessPolicy.ps1'
-        'unified_audit_log\parsing\Resolve-ExchangeItemAggregatedAttachmentAccess.ps1'
-        'unified_audit_log\parsing\Resolve-ExchangeItemAggregatedMailItemsAccessed.ps1'
-        'unified_audit_log\parsing\Resolve-ExchangeItemGroupDelete.ps1'
-        'unified_audit_log\parsing\Resolve-ExchangeItemSubject.ps1'
-        'unified_audit_log\parsing\Resolve-ExchangeItemUpdate.ps1'
-        'unified_audit_log\parsing\Resolve-SharePointFileOperation.ps1'
-        'unified_audit_log\parsing\Resolve-SharePointPageViewed.ps1'
-        'unified_audit_log\parsing\Resolve-SharePointPIMRoleAssigned.ps1'
-        'unified_audit_log\parsing\Resolve-SharePointSearchQueryPerformed.ps1'
-        'unified_audit_log\parsing\Resolve-TeamsSessionStarted.ps1'
-        'unified_audit_log\parsing\Resolve-UserLoginFailed.ps1'
-        'unified_audit_log\Get-UALogs.ps1'
-        'unified_audit_log\Show-UALogs.ps1'
+        'unified_audit_log\parsing\AddRemoveRole.ps1'
+        'unified_audit_log\parsing\AllOperations.ps1'
+        'unified_audit_log\parsing\UserLoginOperations.ps1'
+        'unified_audit_log\parsing\UpdateUser.ps1'
+        'unified_audit_log\parsing\InboxRule.ps1'
+        'unified_audit_log\parsing\SetConditionalAccessPolicy.ps1'
+        'unified_audit_log\parsing\AttachmentAccess.ps1'
+        'unified_audit_log\parsing\MailItemsAccessed.ps1'
+        'unified_audit_log\parsing\ExchangeItemCreateSend.ps1'
+        'unified_audit_log\parsing\ExchangeItemUpdate.ps1'
+        'unified_audit_log\parsing\ExchangeItemDelete.ps1'
+        'unified_audit_log\parsing\SharePointFileOperation.ps1'
+        'unified_audit_log\parsing\PageViewed.ps1'
+        'unified_audit_log\parsing\PIMRoleAssigned.ps1'
+        'unified_audit_log\parsing\SearchQueryPerformed.ps1'
+        'unified_audit_log\parsing\TeamsSessionStarted.ps1'
+        'unified_audit_log\Get-UALog.ps1'
+        'unified_audit_log\Show-UALog.ps1'
 
-        'users\Find-Users.ps1'
+        'users\Find-User.ps1'
         'users\Get-FullUserObject.ps1'
-        'users\Lock-GraphUsers.ps1'
-        'users\Reset-GraphUserPasswords.ps1'
-        'users\Revoke-UsersSessions.ps1'
+        'users\Set-GraphUserAccountEnabled.ps1'
+        'users\Reset-GraphUserPassword.ps1'
+        'users\Revoke-UserSession.ps1'
         'users\Set-UsageLocation.ps1'
         'users\Show-GraphUserTree.ps1'
         'users\Show-UserInfo.ps1'
         'users\Show-UserMFA.ps1'
-        'users\Unlock-GraphUsers.ps1'
 
-        'Compress-InvestigationFolders.ps1'
-        'New-InvestigationFolder.ps1'
         'Start-IncidentResponsePlaybook.ps1'
     )
 
     # Functions to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no functions to export.
     FunctionsToExport = @(
         ### applications
-        'Find-RiskyApplications'
-        'Get-UserApplications'
-        'Show-Applications'
+        'Find-RiskyApplication'
+        'Get-IRTTenantInfo'
+        'Get-UserApplication'
+        'Show-TenantServicePrincipal'
+
+        ### devices
+        'Show-DeviceInfo'
 
         ### connect
-        'Connect-IncidentResponseTools'
+        'Connect-IRT'
         'Connect-IRTExchange'
         'Connect-IRTGraph'
+        'Connect-IRTIPPS'
         'Connect-IRTTenant'
-        'Disconnect-IncidentResponseTools'
-        'Get-IRTConnectionStatus'
-        'Open-IRTTenantsCSV'
+        'Disconnect-IRT'
+        'Test-IRTConnection'
+        'Open-IRTTenantWorksheet'
 
         ### entra-audit-log
-        'Get-EntraAuditLogs'
-        'Show-EntraAuditLogs'
+        'Get-EntraAuditLog'
+        'Show-EntraAuditLog'
+
+        ### onprem_ad
+        'Find-AdOu'
+        'Find-AdUser'
+        'Find-AllDomainControllers'
+        'Get-AdAdminUsers'
+        'Disable-AdUser'
+        'Enable-AdUser'
+        'Push-AdSync'
+        'Reset-AdUserPassword'
+        'Show-AdOus'
+        'Show-AdUserInfo'
 
         ### mailbox
-        'Get-IRTInboxRules'
-        'Get-MailboxesUserHasFullAccessTo'
+        'Get-IRTInboxRule'
+        'Get-MailboxUserHasFullAccessTo'
         'Grant-MailboxFullAccess'
         'Open-MailboxInOWA'
         'Remove-MailboxFullAccess'
@@ -211,43 +251,45 @@
         'Show-IRTMessageTrace'
 
         ### modules
-        'Find-GraphDirectoryObjects'
-        'Get-IRTUserObjects'
+        'Compress-InvestigationFolder'
+        'Copy-IRTFunctions'
+        'Find-GraphDirectoryObject'
+        'Import-IRTConfig'
+        'Open-IRTConfig'
+        'Get-IRTUserObject'
         'Import-LogFile'
-        'Request-DirectoryRoles'
-        'Request-DirectoryRoleTemplates'
-        'Request-GraphGroups'
-        'Request-GraphOauth2Grants'
-        'Request-GraphServicePrincipals'
-        'Request-GraphUsers'
+        'New-InvestigationFolder'
+        'Request-DirectoryRole'
+        'Request-DirectoryRoleTemplate'
+        'Request-GraphGroup'
+        'Request-GraphOauth2Grant'
+        'Request-GraphDevice'
+        'Request-GraphServicePrincipal'
+        'Request-GraphUser'
+        'Resolve-IRTDateRange'
+        'Set-IRTConfig'
 
         ### roles
-        'Get-AdminRoles'
+        'Get-AdminRole'
 
         ### signin_logs
-        'Get-NonInteractiveLogs'
-        'Get-SignInLogs'
-        'Show-SignInLogs'
+        'Get-NonInteractiveLog'
+        'Get-SignInLog'
+        'Show-SignInLog'
 
         ### unified_audit_log
-        'Get-UALogs'
-        'Show-UALogs'
+        'Get-UALog'
+        'Show-UALog'
 
         ### users
-        'Find-Users'
+        'Find-User'
         'Get-FullUserObject'
-        'Lock-GraphUsers'
-        'Reset-GraphUserPasswords'
-        'Revoke-UsersSessions'
+        'Revoke-UserSession'
         'Set-UsageLocation'
-        'Show-GraphUserTree'
         'Show-UserInfo'
         'Show-UserMFA'
-        'Unlock-GraphUsers'
 
         ### root
-        'Compress-InvestigationFolders'
-        'New-InvestigationFolder'
         'Start-IncidentResponsePlaybook'
     )
 
@@ -265,30 +307,87 @@
         'RiskyApps'
         # Get-UserApplications
         'UserApps'
-        # Show-Applications
+        # Show-TenantServicePrincipals
         'ShowApps'
+        'ShowServicePrincipals'
+        'ShowEnterpriseApps'
+        'Show-Apps'
+        'Show-ServicePrincipals'
+        'Show-EnterpriseApps'
+        'Show-Applications'
+
+        ### devices
+        # Find-Devices
+        'FindDevice'
+        'FindDevices'
+        # Show-DeviceInfo
+        'ShowDevice'
+        'ShowDevices'
 
         ### connect
-        # Connect-IRTTenant
+        # Connect-IRT
         'ConnectIRT'
-        'IRTConnect'
-        # Disconnect-IncidentResponseTools
+        # Connect-IRTTenant
+        'IRTTenant'
+        # Disconnect-IRT
         'DisconnectIRT'
-        'DisconnectIncidentResponseTools'
-        'Disconnect-IRT'
         'IRTDisconnect'
 
         ### entra-audit-log
         # Get-EntraAuditLogs
         'EALog'
         'EALogs'
-        'Get-EntraAuditLog'
         'GetEALog'
         'GetEALogs'
 
+        ### onprem_ad
+        # Find-AdOu
+        'FindAdOu'
+        'FindAdOus'
+        'Find-AdOus'
+        # Find-AdUser
+        'FindAdUser'
+        'FindAdUsers'
+        'Find-AdUsers'
+        # Find-AllDomainControllers
+        'FindDCs'
+        'FindDomainControllers'
+        'Find-DCs'
+        # Get-AdAdminUsers
+        'GetAdAdmins'
+        'AdAdmins'
+        # Disable-AdUser
+        'DisableAdUser'
+        'DisableAdUsers'
+        'Lock-AdUser'
+        'Lock-AdUsers'
+        'LockAdUser'
+        'LockAdUsers'
+        # Push-AdSync
+        'PushAdSync'
+        'AdSync'
+        'SyncAd'
+        # Reset-AdUserPassword
+        'ResetAdPassword'
+        'ResetAdPasswords'
+        'Reset-AdPassword'
+        # Show-AdOus
+        'ShowAdOus'
+        'AdOus'
+        # Show-AdUserInfo
+        'ShowAdUser'
+        'ShowAdUsers'
+        'AdUserInfo'
+        # Enable-AdUser
+        'EnableAdUser'
+        'EnableAdUsers'
+        'Unlock-AdUser'
+        'Unlock-AdUsers'
+        'UnlockAdUser'
+        'UnlockAdUsers'
+
         ### mailbox
         # Get-IRTInboxRules
-        'Get-IRTInboxRule'
         'InboxRule'
         'InboxRules'
         # Grant-MailboxFullAccess
@@ -309,9 +408,20 @@
         'MessageTrace'
 
         ### modules
+        # Copy-IRTFunctions
+        'CopyIRTFunctions'
+        'CopyIRT'
+        # Import-IRTConfig / Open-IRTConfig / Set-IRTConfig
+        'ImportConfig'
+        'OpenConfig'
+        'SetConfig'
+        'IRTConfig'
         # Import-LogFile
         'ImportLog'
         'ImportLogs'
+        # New-InvestigationFolder
+        'NewDir'
+        'NewFolder'
 
         ### roles
         # Get-AdminRoles
@@ -319,13 +429,11 @@
 
         ### signin_logs
         # Get-NonInteractiveLogs
-        'Get-NonInteractiveLog'
         'GetNILog'
         'GetNILogs'
         'NILog'
         'NILogs'
         # Get-SignInLogs
-        'Get-SignInLog'
         'GetSILog'
         'GetSILogs'
         'SILog'
@@ -333,7 +441,6 @@
 
         ### unified_audit_log
         # Get-UALogs
-        'Get-UALog'
         'GetUALog'
         'GetUALogs'
         'UALog'
@@ -341,19 +448,18 @@
 
         ### users
         # Find-Users
-        'Find-User'
         'FindUser'
         'FindUsers'
-        # Lock-GraphUsers
-        'Lock-GraphUser'
+        # Disable-GraphUsers
+        'DisableUser'
+        'DisableUsers'
+        'Lock-GraphUsers'
         'LockUser'
         'LockUsers'
         # Reset-GraphUserPasswords
-        'Reset-GraphUserPassword'
         'ResetPassword'
         'ResetPasswords'
         # Revoke-UsersSessions
-        'Revoke-UserSessions'
         'RevokeSessions'
         # Set-UsageLocation
         'SetLocation'
@@ -364,15 +470,14 @@
         # Show-UserMFA
         'ShowMFA'
         'UserMFA'
-        # Unlock-GraphUsers
-        'Unlock-GraphUser'
+        # Enable-GraphUsers
+        'EnableUser'
+        'EnableUsers'
+        'Unlock-GraphUsers'
         'UnlockUser'
         'UnlockUsers'
 
         ### root
-        # New-InvestigationFolder
-        'NewDir'
-        'NewFolder'
         # Start-IncidentResponsePlaybook
         'Playbook'
     )

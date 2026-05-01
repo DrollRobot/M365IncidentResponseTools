@@ -1,20 +1,132 @@
 New-Alias -Name "FTree" -Value "Format-Tree" -Force
 New-Alias -Name "FTr" -Value "Format-Tree" -Force
 
-function Get-Indent([int]$CurrentDepth, [int]$Size) { 
-    ' ' * ($CurrentDepth * $Size) 
+
+#region Format-Tree
+function Format-Tree {
+<#
+displays a simple tree view of any object (ps 5.1+)
+- property names are light green on ps 7+; values default color
+- pass -OmitNullOrEmpty to hide nulls, empty strings, empty containers, and empty objects
+- pass -ExcludeProperty to omit properties by name anywhere in the tree (case-insensitive)
+- multiline values align continuation lines under the value column
+- no artificial root line; first properties start at zero indentation
+#>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory, ValueFromPipeline)]
+        $InputObject,
+
+        [Parameter(Position=0, Mandatory)]
+        [int] $Depth,
+        [int] $IndentSize = 4,
+        [Alias('NewLines')] [bool] $NewLine = $true,
+
+        # hide nulls, empty strings, empty arrays/maps, and objects with no visible children
+        [switch] $OmitNullOrEmpty,
+
+        # property names to exclude anywhere (case-insensitive)
+        [string[]] $ExcludeProperty
+    )
+
+    begin {
+
+        $Script:Green = @{ForegroundColor = 'Green'}
+        $Script:Red = @{ForegroundColor = 'Red'}
+
+        # case-insensitive exclude set
+        $ExcludeSet = $null
+        if ($ExcludeProperty) {
+            $ExcludeSet = [System.Collections.Generic.HashSet[string]]::new(
+                [System.StringComparer]::OrdinalIgnoreCase
+            )
+            foreach ($n in $ExcludeProperty) {
+                [void]$ExcludeSet.Add($n)
+            }
+        }
+
+        # empty line before and after, similar to Format-Table, Format-List
+        if ($NewLine) {
+            Write-Host ''
+        }
+    }
+
+    process {
+
+        # root handling
+        if (Test-IsScalar $InputObject) {
+            if (-not ($OmitNullOrEmpty -and (Test-IsEmptyScalar $InputObject))) {
+                Write-Host ([string]$InputObject)
+            }
+            return
+        }
+
+        if ($InputObject -is [System.Collections.IDictionary]) {
+            foreach ($Key in ($InputObject.Keys | Sort-Object)) {
+                Out-Print ("[$Key]") $InputObject[$Key] 0 | Out-Null
+            }
+            return
+        }
+
+        $RootNames = Get-PropertyName $InputObject
+        if (($RootNames | Measure-Object).Count -gt 0) {
+            if ($ExcludeSet) {
+                $RootNames = $RootNames | Where-Object { -not $ExcludeSet.Contains($_) }
+            }
+            foreach ($Name in $RootNames) {
+                try {
+                    $Value = $InputObject.PSObject.Properties[$Name].Value
+                }
+                catch {
+                    $Value = $null
+                }
+                Out-Print $Name $Value 0 | Out-Null
+            }
+            return
+        }
+
+        if ($InputObject -is [System.Collections.IEnumerable]) {
+            $i = 0
+            foreach ($E in $InputObject) {
+                Out-Print ("[{0}]" -f $i) $E 0 | Out-Null
+                $i++
+            }
+            return
+        }
+
+        Write-NameValue '<root>' ('<{0}>' -f $InputObject.GetType().FullName) 0 $IndentSize
+    }
+
+    end {
+        # empty line before and after, similar to Format-Table, Format-List
+        if ($NewLine) {
+            Write-Host ''
+        }
+    }
 }
 
-function Get-PropertyNames($Obj) {
+function Get-Indent([int]$CurrentDepth, [int]$Size) {
+    ' ' * ($CurrentDepth * $Size)
+}
+
+function Get-PropertyName($Obj) {
     $Obj.PSObject.Properties |
         Where-Object { $_.IsGettable -and $_.MemberType -in 'NoteProperty','Property','AliasProperty' } |
         Select-Object -ExpandProperty Name -Unique |
         Sort-Object
 }
 
-function Out-Print([string]$Name, $Value, [int]$CurrentDepth) {
-    # print node (returns $true if anything was printed)
+function Out-Print {
+    param(
+        [Parameter(Position=0)]
+        [string] $Name,
+        [Parameter(Position=1)]
+        $Value,
+        [Parameter(Position=2)]
+        [int] $CurrentDepth
+    )
 
+    # print node (returns $true if anything was printed)
     if ($CurrentDepth -gt $Depth) { return $false }
 
     $Value = Resolve-Json $Value
@@ -69,12 +181,12 @@ function Out-Print([string]$Name, $Value, [int]$CurrentDepth) {
         }
 
         $Visible = @()
-        foreach ($E in $Value) { 
-            if (Test-HasVisible $E ($CurrentDepth + 1)) { 
+        foreach ($E in $Value) {
+            if (Test-HasVisible $E ($CurrentDepth + 1)) {
                 $Visible += ,$E
-            } 
+            }
         }
-        if ($Visible.Count -eq 0) { 
+        if ($Visible.Count -eq 0) {
             return $false
         }
         Write-NameValue $Name ("[{0}]" -f $Visible.Count) $CurrentDepth $IndentSize
@@ -84,7 +196,7 @@ function Out-Print([string]$Name, $Value, [int]$CurrentDepth) {
         return $true
     }
 
-    $Names = Get-PropertyNames $Value
+    $Names = Get-PropertyName $Value
     if ($ExcludeSet) { $Names = $Names | Where-Object { -not $ExcludeSet.Contains($_) } }
 
     $Pairs = @()
@@ -139,7 +251,7 @@ function Test-IsScalar($Value) {
 
 function Test-HasVisible($Value, [int]$CurrentDepth) {
     # returns $true if value would produce visible output at this depth
-    
+
     if ($CurrentDepth -gt $Depth) { return $false }
 
     # if value looks like json
@@ -171,7 +283,7 @@ function Test-HasVisible($Value, [int]$CurrentDepth) {
         return $false
     }
 
-    $Names = Get-PropertyNames $Value
+    $Names = Get-PropertyName $Value
     if ($ExcludeSet) { $Names = $Names | Where-Object { -not $ExcludeSet.Contains($_) } }
     foreach ($N in $Names) {
         try { $V = $Value.PSObject.Properties[$N].Value } catch { $V = $null }
@@ -203,109 +315,6 @@ function Write-NameValue([string]$Name, [string]$ValueText, [int]$CurrentDepth, 
         Write-Host @Green ($PlainPrefix + $Lines[0])
         for ($i = 1; $i -lt $Lines.Count; $i++) {
             Write-Host ($ContIndent + $Lines[$i])
-        }
-    }
-}
-
-
-function Format-Tree {
-<#
-displays a simple tree view of any object (ps 5.1+)
-- property names are light green on ps 7+; values default color
-- pass -OmitNullOrEmpty to hide nulls, empty strings, empty containers, and empty objects
-- pass -ExcludeProperty to omit properties by name anywhere in the tree (case-insensitive)
-- multiline values align continuation lines under the value column
-- no artificial root line; first properties start at zero indentation
-#>
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory, ValueFromPipeline)]
-        $InputObject,
-
-        [Parameter(Position=0, Mandatory)]
-        [int] $Depth,
-        [int] $IndentSize = 4,
-        [bool] $NewLines = $true,
-
-        # hide nulls, empty strings, empty arrays/maps, and objects with no visible children
-        [switch] $OmitNullOrEmpty,
-
-        # property names to exclude anywhere (case-insensitive)
-        [string[]] $ExcludeProperty
-    )
-
-    begin {
-
-        $Script:Green = @{ForegroundColor = 'Green'}
-        $Script:Red = @{ForegroundColor = 'Red'}
-
-        # case-insensitive exclude set
-        $ExcludeSet = $null
-        if ($ExcludeProperty) {
-            $ExcludeSet = [System.Collections.Generic.HashSet[string]]::new(
-                [System.StringComparer]::OrdinalIgnoreCase
-            )
-            foreach ($n in $ExcludeProperty) {
-                [void]$ExcludeSet.Add($n)
-            }
-        }
-
-        # empty line before and after, similar to Format-Table, Format-List
-        if ($NewLines) {
-            Write-Host ''
-        }
-    }
-
-    process {
-
-        # root handling
-        if (Test-IsScalar $InputObject) {
-            if (-not ($OmitNullOrEmpty -and (Test-IsEmptyScalar $InputObject))) { 
-                Write-Host ([string]$InputObject)
-            }
-            return
-        }
-
-        if ($InputObject -is [System.Collections.IDictionary]) {
-            foreach ($Key in ($InputObject.Keys | Sort-Object)) {
-                Out-Print ("[$Key]") $InputObject[$Key] 0 | Out-Null
-            }
-            return
-        }
-
-        $RootNames = Get-PropertyNames $InputObject
-        if (($RootNames | Measure-Object).Count -gt 0) {
-            if ($ExcludeSet) { 
-                $RootNames = $RootNames | Where-Object { -not $ExcludeSet.Contains($_) }
-            }
-            foreach ($Name in $RootNames) {
-                try { 
-                    $Value = $InputObject.PSObject.Properties[$Name].Value
-                }
-                catch { 
-                    $Value = $null 
-                }
-                Out-Print $Name $Value 0 | Out-Null
-            }
-            return
-        }
-
-        if ($InputObject -is [System.Collections.IEnumerable]) {
-            $i = 0
-            foreach ($E in $InputObject) {
-                Out-Print ("[{0}]" -f $i) $E 0 | Out-Null
-                $i++
-            }
-            return
-        }
-
-        Write-NameValue '<root>' ('<{0}>' -f $InputObject.GetType().FullName) 0 $IndentSize
-    }
-
-    end {
-        # empty line before and after, similar to Format-Table, Format-List
-        if ($NewLines) {
-            Write-Host ''
         }
     }
 }

@@ -3,7 +3,7 @@ New-Alias -Name 'UserMFA' -Value 'Show-UserMFA' -Force
 function Show-UserMFA {
     <#
     .SYNOPSIS
-    Shows a graph user's MFA methods.     
+    Shows a graph user's MFA methods.
 
     .NOTES
     Inspired by:
@@ -12,14 +12,15 @@ function Show-UserMFA {
     [CmdletBinding()]
     param(
         [Parameter(Position = 0, ValueFromPipeline = $true, ValueFromPipelineByPropertyName = $true)]
-        [Alias( 'UserObject' )]
-        [psobject[]] $UserObjects,
+        [Alias('UserObjects')]
+        [psobject[]] $UserObject,
 
-        [string] $TableStyle = 'Dark8',
-        [boolean] $Xml = $true,
+        [string] $TableStyle = $Global:IRT_Config.ExcelTableStyle,
+        [string] $Font = $Global:IRT_Config.ExcelFont,
+        [boolean] $Xml = $Global:IRT_Config.ExportXml,
         [boolean] $Open = $true
     )
-     
+
     begin {
 
         #region BEGIN
@@ -32,14 +33,8 @@ function Show-UserMFA {
         $Properties = [System.Collections.Generic.Hashset[string]]::new()
         $PropertySortOrder = @(
             'Raw'
-            'CreatedDateTime'
             'MethodType'
-            'DisplayName'
-            'PhoneNumber'
-            'PhoneType'
-            'SmsSignInState'
-            'EmailAddress'
-            'DeviceTag'
+            'Summary'
             'Id'
             'DeleteCommand'
         )
@@ -56,18 +51,18 @@ function Show-UserMFA {
         # $Yellow = @{ ForegroundColor = 'Yellow' }
 
         # if user objects not passed directly, find global
-        if ( -not $UserObjects -or $UserObjects.Count -eq 0 ) {
+        if ( -not $UserObject -or $UserObject.Count -eq 0 ) {
 
             # get from global variables
-            $ScriptUserObjects = Get-IRTUserObjects
-        
+            $ScriptUserObjects = Get-IRTUserObject
+
             # if none found, exit
             if ( -not $ScriptUserObjects -or $ScriptUserObjects.Count -eq 0 ) {
                 throw "No user objects passed or found in global variables."
             }
         }
         else {
-            $ScriptUserObjects = $UserObjects
+            $ScriptUserObjects = $UserObject
         }
 
         # get client domain name for file output
@@ -77,7 +72,7 @@ function Show-UserMFA {
         # get date/time string for filename
         $DateString = Get-Date -Format $FileNameDateFormat
     }
-     
+
     process {
 
         foreach ( $ScriptUserObject in $ScriptUserObjects ) {
@@ -116,6 +111,8 @@ function Show-UserMFA {
                     Value      = $Raw
                 }
                 $CustomObject | Add-Member @AddParams
+
+                $SummaryParts = [System.Collections.Generic.List[string]]::new()
 
                 foreach ( $Key in $Method.AdditionalProperties.Keys ) {
 
@@ -195,7 +192,7 @@ function Show-UserMFA {
                                 # add human friendly method name
                                 $NameParams['Value'] = 'Phone'
                                 $CustomObject | Add-Member @NameParams
-                                
+
                                 # add delete command
                                 $DeleteString = "Remove-MgUserAuthenticationPhoneMethod -UserId ${UserId} -PhoneAuthenticationMethodId ${MethodId}"
                                 $DeleteParams['Value'] = $DeleteString
@@ -241,19 +238,13 @@ function Show-UserMFA {
 
                                 # add human friendly method name
                                 $NameParams['Value'] = $Method.AdditionalProperties["@odata.type"]
-                                $CustomObject | Add-Member @NameParams                            
+                                $CustomObject | Add-Member @NameParams
                             }
                         }
                     }
 
-                    # convert created date string to datetime object # FIXME use new function for date string
+                    # convert created date string to datetime object and add to summary
                     elseif ( $Key -eq 'createdDateTime' ) {
-
-                        # start params table
-                        $AddParams = @{
-                            MemberType = 'NoteProperty'
-                            Name       = 'CreatedDateTime'
-                        }
 
                         # cast string to datetime object
                         $DateTime = [datetime]( $Method.AdditionalProperties[$Key] )
@@ -279,27 +270,35 @@ function Show-UserMFA {
                             $EventDateString = $EventDateString.Substring(0, 9) + " " + $EventDateString.Substring(10)
                         }
 
-                        # add object to table
-                        $AddParams['Value'] = $EventDateString
-                        $CustomObject | Add-Member @AddParams
+                        # add to summary list
+                        $SummaryParts.Add( "CreatedDateTime: ${EventDateString}" )
                     }
 
-                    # for other properties, add to table
+                    # for other properties, add to summary list
                     else {
 
                         # capitalize propertyname
                         $CapPropertyName = $Key.Substring(0, 1).ToUpper() + $Key.Substring(1)
 
-                        # add to object
-                        $AddParams = @{
-                            MemberType = 'NoteProperty'
-                            Name       = $CapPropertyName
-                            Value      = $Method.AdditionalProperties[$Key]
+                        # format phone numbers for Excel compatibility
+                        $Value = $Method.AdditionalProperties[$Key]
+                        if ( $CapPropertyName -eq 'PhoneNumber' ) {
+                            $Value = Format-PhoneNumber $Value
                         }
-                        $CustomObject | Add-Member @AddParams
+
+                        # add to summary list
+                        if ( $null -ne $Value -and $Value -ne '' ) {
+                            $SummaryParts.Add( "${CapPropertyName}: ${Value}" )
+                        }
                     }
                 }
-    
+
+                # add summary column
+                if ( $SummaryParts.Count -gt 0 ) {
+                    $SummaryString = $SummaryParts -join "`n"
+                    $CustomObject | Add-Member -MemberType NoteProperty -Name 'Summary' -Value $SummaryString
+                }
+
                 # add loop object to table
                 $OutputTable.Add( $CustomObject )
             }
@@ -366,48 +365,42 @@ function Show-UserMFA {
             $SheetStartColumn = $WorkSheet.Dimension.Start.Column | Convert-DecimalToExcelColumn
             $SheetStartRow = $WorkSheet.Dimension.Start.Row
             # $TableStartColumn = ( $workSheet.Tables.Address | Select-Object -First 1 ).Start.Column | Convert-DecimalToExcelColumn
-            # $TableStartRow = ( $workSheet.Tables.Address | Select-Object -First 1 ).Start.Row
+            $TableStartRow = ( $workSheet.Tables.Address | Select-Object -First 1 ).Start.Row
             $EndColumn = $WorkSheet.Dimension.End.Column | Convert-DecimalToExcelColumn
             $EndRow = $WorkSheet.Dimension.End.Row
 
+            $SummaryColumn = ($Worksheet.Tables[0].Columns | Where-Object {$_.Name -eq 'Summary'}).Id | Convert-DecimalToExcelColumn
+
             #region COLUMN WIDTH
 
-            # resize Raw column
-            $Column = ( $Worksheet.Tables[0].Columns | Where-Object { $_.Name -eq 'Raw' } ).Id 
-            $Worksheet.Column($Column).Width = 8
-
-            # resize DateTime column
-            $Column = ( $Worksheet.Tables[0].Columns | Where-Object { $_.Name -eq 'CreatedDateTime' } ).Id 
-            $Worksheet.Column($Column).Width = 26
-            
-            # resize Id column
-            $Column = ( $Worksheet.Tables[0].Columns | Where-Object { $_.Name -eq 'Id' } ).Id
-            $Worksheet.Column($Column).Width = 20
-
-            # resize DeleteCommand column
-            $Column = ( $Worksheet.Tables[0].Columns | Where-Object { $_.Name -eq 'DeleteCommand' } ).Id
-            $Worksheet.Column($Column).Width = 100
+            # column widths
+            $ColumnWidths = @{
+                'Raw'           = 8
+                'MethodType'    = 20
+                'Summary'       = 70
+                'Id'            = 42
+                'DeleteCommand' = 200
+            }
+            foreach ($ColName in $ColumnWidths.Keys) {
+                $Col = ($Worksheet.Tables[0].Columns | Where-Object { $_.Name -eq $ColName }).Id
+                if ($Col) { $Worksheet.Column($Col).Width = $ColumnWidths[$ColName] }
+            }
 
             #region FORMATTING
 
-            # # set text wrapping in description column
-            # $WrappingParams = @{
-            #     Worksheet = $Worksheet
-            #     Range     = "${TableStartColumn}${TableStartRow}:${EndColumn}${EndRow}"
-            #     WrapText  = $true
-            # }
-            # Set-ExcelRange @WrappingParams
+            # enable text wrapping on Summary column
+            $WrapParams = @{
+                Worksheet = $Worksheet
+                Range     = "${SummaryColumn}${TableStartRow}:${SummaryColumn}${EndRow}"
+                WrapText  = $true
+            }
+            Set-ExcelRange @WrapParams
 
-            # # set row height
-            # for ( $i = $TableStartRow; $i -le $EndRow; $i++ ) {  
-            #     $workSheet.Row($i).CustomHeight = 15
-            # }
-            
             # set font and size
             $SetParams = @{
                 Worksheet = $Worksheet
                 Range     = "${SheetStartColumn}${SheetStartRow}:${EndColumn}${EndRow}"
-                FontName  = 'Consolas'
+                FontName  = $Font
             }
             Set-ExcelRange @SetParams
 
@@ -418,10 +411,10 @@ function Show-UserMFA {
                 BorderLeft = 'Thin'
                 BorderColor = 'Black'
             }
-            Set-Format @BorderParams
+            Set-ExcelRange @BorderParams
 
             #region OUTPUT
-                        
+
             # save and close
             Write-Host @Blue "Exporting to: ${ExcelOutputPath}"
             if ($Open) {

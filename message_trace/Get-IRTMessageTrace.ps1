@@ -3,38 +3,38 @@ function Get-IRTMessageTrace {
     <#
 	.SYNOPSIS
 	Downloads incoming and outgoing message trace for specified user, or all users.
-	
+
 	.NOTES
 	Version: 1.5.0
     1.5.0 - Integrated V1 and V2 into same function.
     1.4.0 - Switched to separate get/show functions. Updated to passing objects, not files. Added global variables.
 	#>
-    [CmdletBinding( DefaultParameterSetName = 'UserObjects' )]
+    [CmdletBinding( DefaultParameterSetName = 'UserObject' )]
     param (
-        [Parameter(ParameterSetName = 'UserObjects', Position = 0)]
-        [Alias( 'UserObject' )]
-        [psobject[]] $UserObjects,
+        [Parameter(ParameterSetName = 'UserObject', Position = 0)]
+        [Alias('UserObjects')]
+        [psobject[]] $UserObject,
 
-        [Parameter(ParameterSetName = 'UserEmails')]
-        [Alias( 'UserEmail' )]
-        [string[]] $UserEmails,
+        [Parameter(ParameterSetName = 'UserEmail')]
+        [Alias('UserEmails')]
+        [string[]] $UserEmail,
 
         [Parameter(ParameterSetName = 'AllUsers')]
         [switch] $AllUsers,
 
-        # relative date range
-        [int] $Days, # default value set at #DEFAULTDAYS
-        # absolute date range
-        # [string] $Start, #FIXME need to update request-irtmessagetrace
-        # [string] $End,
+        [int] $Days, # default set at DEFAULTDAYS
+        [string] $Start,
+        [string] $End,
 
         [int] $ResultLimit = 50000,
-        [string] $TableStyle = 'Dark8',
+
         [boolean] $Variable = $true,
         [boolean] $Excel = $true,
         [switch] $Quiet,
         [switch] $Test,
-        [boolean] $Xml = $true
+        [boolean] $Xml = $Global:IRT_Config.ExportXml,
+        [string] $TableStyle = $Global:IRT_Config.ExcelTableStyle,
+        [string] $Font = $Global:IRT_Config.ExcelFont
     )
 
     begin {
@@ -51,41 +51,41 @@ function Get-IRTMessageTrace {
         $Blue = @{ForegroundColor = 'Blue' }
         # $Green = @{ForegroundColor = 'Green'}
         # $Magenta = @{ForegroundColor = 'Magenta'}
-        # $Red = @{ForegroundColor = 'Red'}
+        $Red = @{ForegroundColor = 'Red'}
         # $Yellow = @{ForegroundColor = 'Yellow'}
 
         # create user objects depending on parameters used
         switch ( $ParameterSet ) {
-            'UserObjects' {
+            'UserObject' {
                 # if users passed via script argument:
-                if (($UserObjects | Measure-Object).Count -gt 0) {
-                    $ScriptUserObjects = $UserObjects
+                if (($UserObject | Measure-Object).Count -gt 0) {
+                    $ScriptUserObjects = $UserObject
                 }
                 # if not, look for global objects
                 else {
-                    
+
                     # get from global variables
-                    $ScriptUserObjects = Get-IRTUserObjects
-                    
+                    $ScriptUserObjects = Get-IRTUserObject
+
                     # if none found, exit
                     if (($ScriptUserObjects | Measure-Object).Count -eq 0) {
                         $ErrorParams = @{
                             Category    = 'InvalidArgument'
-                            Message     = "No -UserObjects argument used, no `$Global:IRT_UserObjects present."
+                            Message     = "No -UserObject argument used, no `$Global:IRT_UserObjects present."
                             ErrorAction = 'Stop'
                         }
                         Write-Error @ErrorParams
                     }
                 }
             }
-            'UserEmails' {
+            'UserEmail' {
                 # variables
                 $ScriptUserObjects = [System.Collections.Generic.list[psobject]]::new()
 
-                foreach ( $Email in $UserEmails ) {
+                foreach ( $Email in $UserEmail ) {
 
                     # create object with userprincipalname property
-                    $ScriptUserObjects.Add( 
+                    $ScriptUserObjects.Add(
                         [pscustomobject]@{
                             UserPrincipalName = $Email
                         }
@@ -103,91 +103,19 @@ function Get-IRTMessageTrace {
             }
         }
 
-        # verify connected to exchange
-        try {
-            [void](Get-AcceptedDomain)
-        }
-        catch {
-            $ErrorParams = @{
-                Category    = 'ConnectionError'
-                Message     = "Not connected to Exchange. Run Connect-ExchangeOnline."
-                ErrorAction = 'Stop'
-            }
-            Write-Error @ErrorParams
-        } 
 
-        #region DATE RANGE
-        # validate only days or (start and end)
-        if ($Days -and ($Start -or $End)) {
-            $ErrorParams = @{
-                Category    = 'InvalidArgument'
-                Message     = "Choose either relative range with -Days or absolute range with -Start and -End."
-                ErrorAction = 'Stop'
-            }
-            Write-Error @ErrorParams  
+        # parse date ranges
+        $DateRangeParams = @{
+            Days        = $Days
+            Start       = $Start
+            End         = $End
+            DefaultDays = 10 #DEFAULTDAYS
         }
-
-        # validate if start or end used, both were used.
-        if (($Start -and -not $End) -or
-            ($End -and -not $Start)
-        ) {
-            $ErrorParams = @{
-                Category    = 'InvalidArgument'
-                Message     = "Specify both -Start and -End"
-                ErrorAction = 'Stop'
-            }
-            Write-Error @ErrorParams  
-        }
-
-        # attempt to parse user input dates into datetime objects
-        if ($Start -and $End) {
-            $DateRangeType = 'Absolute'
-            # start - convert user string into object
-            try {
-                $StartDate = Get-Date -Date $Start -ErrorAction 'Stop'
-                $StartDateUtc = [DateTime]::SpecifyKind($StartDate, [DateTimeKind]::Local).ToUniversalTime()
-            }
-            catch {
-                $ErrorParams = @{
-                    Category    = 'InvalidArgument'
-                    Message     = "-Start invalid. Use format 'MM/dd/yy hh:mm(tt)"
-                    ErrorAction = 'Stop'
-                }
-                Write-Error @ErrorParams
-            }
-            # end - convert user string into object
-            try {
-                $EndDate = Get-Date -Date $End -ErrorAction 'Stop'
-                $EndDateUtc = [DateTime]::SpecifyKind($EndDate, [DateTimeKind]::Local).ToUniversalTime()
-            }
-            catch {
-                $ErrorParams = @{
-                    Category    = 'InvalidArgument'
-                    Message     = "-End invalid. Use format 'MM/dd/yy hh:mm(tt)"
-                    ErrorAction = 'Stop'
-                }
-                Write-Error @ErrorParams
-            }
-            # make sure earliest date is the start date
-            if ($StartDateUtc -gt $EndDateUtc) {
-                $Temp = $StartDateUtc
-                $StartDateUtc = $EndDateUtc
-                $EndDateUtc = $Temp
-            }
-            # set days to match range
-            $Days = [Int]([Math]::Ceiling( ($EndDate - $StartDate).TotalDays ))
-        }
-        # create objects based on days
-        else {
-            $DateRangeType = 'Relative'
-            # set default value for days ### must be done after checking for relative/absolute arguments
-            if (-not $Days) {
-                $Days = 10 #DEFAULTDAYS
-            }
-
-            $StartDateUtc = (Get-Date).AddDays($Days * -1).ToUniversalTime()
-            $EndDateUtc = (Get-Date).ToUniversalTime()
-        }
+        $DateRange = Resolve-IRTDateRange @DateRangeParams
+        $DateRangeType = $DateRange.RangeType
+        $Days          = $DateRange.Days
+        $StartDateUtc  = $DateRange.StartUtc
+        $EndDateUtc    = $DateRange.EndUtc
 
         #region VERIFY COMMAND
         # verify Get-MessageTraceV2 is available
@@ -219,7 +147,7 @@ function Get-IRTMessageTrace {
                         Message     = "-EndDate must be greater than -StartDate."
                         ErrorAction = 'Stop'
                     }
-                    Write-Error @ErrorParams 
+                    Write-Error @ErrorParams
                 }
                 # recalculate $Days to match the adjusted date range
                 $Days = [Int]([Math]::Ceiling(($EndDateUtc - $StartDateUtc).TotalDays))
@@ -255,6 +183,7 @@ function Get-IRTMessageTrace {
             else {
 
                 # verify user has mailbox. if not, exit.
+                $Mailbox = $null
                 try {
                     $Params = @{
                         UserPrincipalName = $ScriptUserObject.UserPrincipalName
@@ -264,15 +193,11 @@ function Get-IRTMessageTrace {
                 }
                 catch {}
                 if (-not $Mailbox) {
-                    Write-Host @Red "${Function}: $($ScriptUserObject.UserPrincipalName) does not have a mailbox. Exiting"
-                    $VariableParams = @{
-                        Name  = "IRT_MessageTraceTable_${UserName}"
-                        Value = $Null
-                        Scope = 'Global'
-                        Force = $True
+                    Write-Host @Red "${Function}: No mailbox for $($ScriptUserObject.UserPrincipalName)"
+                    if ($Global:IRT_WaitFlags) {
+                        $Global:IRT_WaitFlags.MessageTraceUserDone = $true
                     }
-                    New-Variable @VariableParams
-                    return
+                    continue
                 }
 
                 $UserName = $ScriptUserObject.UserPrincipalName -split '@' | Select-Object -First 1
@@ -380,14 +305,10 @@ function Get-IRTMessageTrace {
                 if ($ListOfLists.Count -eq 0) {
                     # exit if no messages returned
                     Write-Host @Red "0 total messages retrieved. Exiting."
-                    $VariableParams = @{
-                        Name  = "IRT_MessageTraceTable_${UserName}"
-                        Value = $Null
-                        Scope = 'Global'
-                        Force = $True
+                    if ($Global:IRT_WaitFlags) {
+                        $Global:IRT_WaitFlags.MessageTraceUserDone = $true
                     }
-                    New-Variable @VariableParams
-                    return
+                    continue
                 }
                 elseif ($ListOfLists.Count -eq 1) {
                     $AllMessages = $ListOfLists[0]
@@ -399,21 +320,18 @@ function Get-IRTMessageTrace {
                         Lists        = $ListOfLists
                         Descending   = $true
                     }
-                    [System.Collections.Generic.List[psobject]]$AllMessages = Merge-ListsOnDate @MergeParams
+                    [System.Collections.Generic.List[psobject]]$AllMessages = Merge-ListOnDate @MergeParams
                 }
             }
 
             # exit if no messages found
             if (($AllMessages | Measure-Object).Count -eq 0) {
                 Write-Host @Red "${Function}: No messages found. Exiting."
-                $VariableParams = @{
-                    Name  = "IRT_MessageTraceTable_${UserName}"
-                    Value = $Null
-                    Scope = 'Global'
-                    Force = $True
+                if ($Global:IRT_WaitFlags) {
+                    if ($AllUsers) { $Global:IRT_WaitFlags.MessageTraceAllUsersDone = $true }
+                    else           { $Global:IRT_WaitFlags.MessageTraceUserDone = $true }
                 }
-                New-Variable @VariableParams
-                return
+                continue
             }
 
             #region METADATA
@@ -439,27 +357,31 @@ function Get-IRTMessageTrace {
 
             # export to variables
             if ($Variable) {
-                if ($AllUsers) {
-                    # do nothing
-                }
-                else {
-                    # export table by internetmessageid
-                    $Table = @{}
-                    foreach ($Message in $AllMessages) {
-                        if (-not $Message.Metadata) {
-                            $InternetMessageId = $Message.MessageId
-                            $Table[$InternetMessageId] = $Message
+                # build table by normalized InternetMessageId
+                $Table = @{}
+                foreach ($Message in $AllMessages) {
+                    if (-not $Message.Metadata) {
+                        $NormalizedId = ($Message.MessageId -replace '[<>]','').Trim()
+                        if ($NormalizedId) {
+                            $Table[$NormalizedId] = $Message
                         }
                     }
-                    $VariableName = "IRT_MessageTraceTable_${UserName}"
-                    Write-Host @Blue "Exporting message trace to `$Global:${VariableName}"
-                    $VariableParams = @{
-                        Name  = $VariableName
-                        Value = $Table
-                        Scope = 'Global'
-                        Force = $True
-                    }
-                    New-Variable @VariableParams
+                }
+
+                # merge into global synchronized hashtable
+                if ($Global:IRT_MessageTraceTable -isnot [hashtable]) {
+                    $Global:IRT_MessageTraceTable = [hashtable]::Synchronized(@{})
+                }
+                foreach ($Key in $Table.Keys) {
+                    $Global:IRT_MessageTraceTable[$Key] = $Table[$Key]
+                }
+                if ($Global:IRT_WaitFlags) {
+                    if ($AllUsers) { $Global:IRT_WaitFlags.MessageTraceAllUsersDone = $true }
+                    else           { $Global:IRT_WaitFlags.MessageTraceUserDone = $true }
+                }
+                Write-Host @Blue "${Function}: Exporting message trace to `$Global:IRT_MessageTraceTable ($($Global:IRT_MessageTraceTable.Count) entries, source: $(if ($AllUsers) {'AllUsers'} else {$UserName}))"
+                if ($Test) {
+                    Write-Host @Blue "${Function}: Table key count: $($Table.Count)"
                 }
             }
 
@@ -476,7 +398,12 @@ function Get-IRTMessageTrace {
 
             # create excel sheet
             if ($Excel) {
-                Show-IRTMessageTrace -Messages $AllMessages
+                $Params = @{
+                    Messages   = $AllMessages
+                    TableStyle = $TableStyle
+                    Font       = $Font
+                }
+                Show-IRTMessageTrace @Params
             }
         }
     }

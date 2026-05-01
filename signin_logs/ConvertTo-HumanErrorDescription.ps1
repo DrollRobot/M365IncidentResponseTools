@@ -2,7 +2,7 @@ function ConvertTo-HumanErrorDescription {
 	<#
 	.SYNOPSIS
 	Helper function for Entra sign in logs. Accepts number, returns "N:DESCRIPTION".
-	
+
 	.NOTES
 	Version: 1.1.0
     1.1.0 - Converted from doing the whole sheet to just one log at a time

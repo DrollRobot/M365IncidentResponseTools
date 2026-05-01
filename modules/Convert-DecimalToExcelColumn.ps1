@@ -15,7 +15,7 @@ function Convert-DecimalToExcelColumn {
 
     28 | Convert-DecimalToExcelColumn
 	AB
-	
+
 	.NOTES
 	Version: 1.0.1
     1.0.1 - Fixed type casting error preventing script from working correctly for 27+.
@@ -27,25 +27,27 @@ function Convert-DecimalToExcelColumn {
         [int] $Number
     )
 
-    # initialize result variable
-    $ColumnLetters = [System.Collections.Generic.List[char]]::new()
+    process {
+        # initialize result variable
+        $ColumnLetters = [System.Collections.Generic.List[char]]::new()
 
-    while ( $Number -gt 0 ) {
+        while ( $Number -gt 0 ) {
 
-        # divide by 26
-        [int]$Remainder = ($Number - 1) % 26
+            # divide by 26
+            [int]$Remainder = ($Number - 1) % 26
 
-        # determine the corresponding letter (a=0 maps to A)
-        $Letter = [char]([int][char]'A' + $Remainder)
+            # determine the corresponding letter (a=0 maps to A)
+            $Letter = [char]([int][char]'A' + $Remainder)
 
-        # prepend the letter to the result string
-        $ColumnLetters.Insert(0,$Letter)
+            # prepend the letter to the result string
+            $ColumnLetters.Insert(0,$Letter)
 
-        # update the number for next iteration
-        $Number = [int][math]::Floor(($Number - 1) / 26)
+            # update the number for next iteration
+            $Number = [int][math]::Floor(($Number - 1) / 26)
+        }
+
+        return ($ColumnLetters -join '')
     }
-
-    return ($ColumnLetters -join '')
 }
 
 <#

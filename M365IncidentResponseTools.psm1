@@ -7,3 +7,6 @@ $MyInvocation.MyCommand.ScriptBlock.Module.OnRemove = {
 #     Get-Variable -Scope Global -Name 'IRT_*' -ErrorAction SilentlyContinue |
 #         Remove-Variable -Scope Global -ErrorAction SilentlyContinue
 }
+
+# Load user config on module import
+Import-IRTConfig

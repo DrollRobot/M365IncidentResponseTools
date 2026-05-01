@@ -3,30 +3,28 @@ New-Alias -Name 'SetUsage' -Value 'Set-UsageLocation' -Force
 function Set-UsageLocation {
     <#
 	.SYNOPSIS
-	Sets user's usage location.	
-	
+	Sets user's usage location.
+
 	.NOTES
 	Version: 1.0.2
     1.0.2 - .Contains() method is case sensitive. Adjusted so .ToUpper() happens before running .Contains() so lower case input of valid country codes will be accepted.
 	#>
-    [CmdletBinding()]
+    [CmdletBinding(SupportsShouldProcess = $true)]
     param(
         [Parameter( Position = 0 )]
-        [Alias( 'UserObject' )]
-        [Microsoft.Graph.PowerShell.Models.MicrosoftGraphUser[]] $UserObjects,
+        [Alias('UserObjects')]
+        [Microsoft.Graph.PowerShell.Models.MicrosoftGraphUser[]] $UserObject,
 
-        [string] $CountryCode,
-
-        [string] $TenantId
+        [string] $CountryCode
     )
 
     begin {
 
         # if not passed directly, find global
-        if ( -not $UserObjects -or $UserObjects.Count -eq 0 ) {
+        if ( -not $UserObject -or $UserObject.Count -eq 0 ) {
 
             # get from global variables
-            $ScriptUserObjects = Get-IRTUserObjects
+            $ScriptUserObjects = Get-IRTUserObject
 
             # if none found, exit
             if ( -not $ScriptUserObjects -or $ScriptUserObjects.Count -eq 0 ) {
@@ -34,7 +32,7 @@ function Set-UsageLocation {
             }
         }
         else {
-            $ScriptUserObjects = $UserObjects
+            $ScriptUserObjects = $UserObject
         }
 
         # variables
@@ -88,8 +86,10 @@ function Set-UsageLocation {
             $CountryCode = $CountryCode.ToUpper()
 
             # set new location
-            Write-Host @Blue "`nSetting new usage location."
-            Update-MgUser -UserId $ScriptUserObject.Id -Usagelocation $CountryCode
+            if ($PSCmdlet.ShouldProcess($ScriptUserObject.UserPrincipalName, "Set usage location to $CountryCode")) {
+                Write-Host @Blue "`nSetting new usage location."
+                Update-MgUser -UserId $ScriptUserObject.Id -Usagelocation $CountryCode
+            }
 
             # get new user object
             Write-Host @Blue "`nGetting new user properties."

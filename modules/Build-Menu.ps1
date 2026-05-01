@@ -21,7 +21,7 @@ function Build-Menu {
 
     .EXAMPLE
     Input:
-    $Options = [ordered]@{
+    $Option = [ordered]@{
         '1' = @{
             String = 'Do this'
             Color = 'Red'
@@ -33,7 +33,7 @@ function Build-Menu {
     }
     $MenuParams = @{
         Title = "Choose action:"
-        Options = $Options
+        Options = $Option
         List = $true
     }
     $UserChoice = Build-Menu @MenuParams
@@ -44,8 +44,8 @@ function Build-Menu {
     [1] Do this     # Foregroundcolor Red
     [2] Do that     # Foregroundcolor Green
 
-    Enter choice: 
-    
+    Enter choice:
+
 
     .NOTES
     Version: 1.1.2
@@ -56,7 +56,8 @@ function Build-Menu {
     #>
     param(
         [parameter( Mandatory )]
-        [object] $Options,
+        [Alias('Options')]
+        [object] $Option,
 
         [string] $Title,
 
@@ -66,7 +67,7 @@ function Build-Menu {
         [Parameter(ParameterSetName = 'Table')]
         [switch] $Table,
 
-        [switch] $NoNewLines,
+        [switch] $NoNewLine,
 
         [string] $TestAnswer
     )
@@ -81,20 +82,20 @@ function Build-Menu {
 
     # determine input type
     if ( (
-            $Options -is [array] -and 
-            ( $Options | ForEach-Object { $_ -is [string] } )
-        ) -or 
-        $Options -is [System.Collections.Generic.List[string]]
+            $Option -is [array] -and
+            ( $Option | ForEach-Object { $_ -is [string] } )
+        ) -or
+        $Option -is [System.Collections.Generic.List[string]]
     ) {
         $ArrayOrList = $true
     }
-    elseif ( $Options -is [System.Collections.Specialized.OrderedDictionary] ) {
+    elseif ( $Option -is [System.Collections.Specialized.OrderedDictionary] ) {
         # every key must be a string
-        if ( ($Options.Keys | Where-Object { $_ -isnot [string] }).Count ) {
+        if ( ($Option.Keys | Where-Object { $_ -isnot [string] }).Count ) {
             throw 'Build-Menu: Hashtable keys must be strings.'
         }
         # every value must itself be a hashtable with at least a string key
-        foreach ($Value in $Options.Values) {
+        foreach ($Value in $Option.Values) {
             if ($Value -isnot [hashtable] -or -not $Value.ContainsKey('String')) {
                 throw 'Build-Menu: Each option must be a hashtable that contains a ''String'' key.'
             }
@@ -110,28 +111,28 @@ function Build-Menu {
         Write-Host $Title
     }
 
-    if ( -not $NoNewLines ) {
+    if ( -not $NoNewLine ) {
         Write-Host ''
     }
 
     if ( $ArrayOrList ) {
-        
+
         # build menu with numbers counting from one
-        for ( $i = 0; $i -lt @($Options).Count; $i++ ) {
+        for ( $i = 0; $i -lt @($Option).Count; $i++ ) {
 
             # add one so first index isn't 0
             $Index = $i + 1
 
             # variables
-            $String = $Options[$i]
+            $String = $Option[$i]
 
             # output
             Write-Host -NoNewLine "[${Index}] ${String}  "
 
             # for list format, add a newline every loop. for table format, only at end
-            if ( $List -or 
-                ( $Table -and 
-                $Index -eq @($Options).Count - 1 )
+            if ( $List -or
+                ( $Table -and
+                $Index -eq @($Option).Count - 1 )
             ) {
                 Write-Host ''
             }
@@ -141,14 +142,14 @@ function Build-Menu {
     else { # if hashtable
 
         # build menu with numbers from hashtable
-        $Keys = $Options.Keys
+        $Keys = $Option.Keys
         $LastKey = $Keys[-1]
 
         foreach ( $Key in $Keys ) {
 
             # variables
-            $Option = $Options[$Key]
-            $String = $Option.String
+            $OptionItem = $Option[$Key]
+            $String = $OptionItem.String
 
             # build params for output
             $Params = @{
@@ -156,23 +157,23 @@ function Build-Menu {
             }
 
             # if color was specified, add to params
-            if ( $Option.ContainsKey('Color') -and $Option['Color'])  {
-                $Params['ForegroundColor'] = $Option.Color
+            if ( $OptionItem.ContainsKey('Color') -and $OptionItem['Color'])  {
+                $Params['ForegroundColor'] = $OptionItem.Color
             }
 
             Write-Host "[${Key}] ${String}  " @Params
 
             # for list format, add a newline every loop. for table format, only at end
-            if ( $List -or 
-                ( $Table -and 
-                $Key -eq $LastKey 
+            if ( $List -or
+                ( $Table -and
+                $Key -eq $LastKey
             ) ) {
                 Write-Host ''
             }
         }
     }
 
-    if ( -not $NoNewLines ) {
+    if ( -not $NoNewLine ) {
         Write-Host ''
     }
 
@@ -187,8 +188,8 @@ function Build-Menu {
     # validate answer and return string
     if ( $ArrayOrList ) {
 
-        while ( -not ( $UserChoice -ge 1 -and $UserChoice -le @($Options).Count ) ) {
-            Write-Host -NoNewLine @Red "Choice must be a number, 1 to $( @($Options).Count ). Enter Choice"
+        while ( -not ( $UserChoice -ge 1 -and $UserChoice -le @($Option).Count ) ) {
+            Write-Host -NoNewLine @Red "Choice must be a number, 1 to $( @($Option).Count ). Enter Choice"
             $UserChoice = Read-Host
         }
 
@@ -196,17 +197,17 @@ function Build-Menu {
         $i = $UserChoice - 1
 
         # use index number to get string
-        $Return = $Options[$i]
+        $Return = $Option[$i]
 
     }
     else { # if hashtable
-        while ( $UserChoice -notin $Options.Keys ) {
-            $OptionsString = @( $Options.Keys | Sort-Object ) -join ',' 
+        while ( $UserChoice -notin $Option.Keys ) {
+            $OptionsString = @( $Option.Keys | Sort-Object ) -join ','
             Write-Host @Red "Choice must be in ${OptionsString}. Enter Choice"
             $UserChoice = Read-Host
         }
 
-        $Return = $Options[$UserChoice].String
+        $Return = $Option[$UserChoice].String
     }
 
     return $Return

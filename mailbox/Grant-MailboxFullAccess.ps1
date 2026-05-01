@@ -3,15 +3,15 @@ function Grant-MailboxFullAccess {
     <#
 	.SYNOPSIS
 	Grants the currently logged in user full access to the target user's mailbox.
-	
+
 	.NOTES
 	Version: 1.0.0
 	#>
     [CmdletBinding()]
     param (
         [Parameter( Position = 0 )]
-        [Alias( 'UserObject' )]
-        [psobject[]] $UserObjects,
+        [Alias('UserObjects')]
+        [psobject[]] $UserObject,
 
         [string] $GrantAccessTo,
 
@@ -31,19 +31,19 @@ function Grant-MailboxFullAccess {
         $Blue = @{ ForegroundColor = 'Blue' }
         # $Cyan = @{ ForegroundColor = 'Cyan' }
         # $Green = @{ ForegroundColor = 'Green' }
-        # $Red = @{ ForegroundColor = 'Red' }
+        $Red = @{ ForegroundColor = 'Red' }
         # $Magenta = @{ ForegroundColor = 'Magenta' }
 
         # if users passed via script argument:
-        if (($UserObjects | Measure-Object).Count -gt 0) {
-            $ScriptUserObjects = $UserObjects
+        if (($UserObject | Measure-Object).Count -gt 0) {
+            $ScriptUserObjects = $UserObject
         }
         # if not, look for global objects
         else {
-            
+
             # get from global variables
-            $ScriptUserObjects = Get-IRTUserObjects
-            
+            $ScriptUserObjects = Get-IRTUserObject
+
             # if none found, exit
             if ( -not $ScriptUserObjects -or $ScriptUserObjects.Count -eq 0 ) {
                 Write-Host @Red "${Function}: No user objects passed or found in global variables."
@@ -52,7 +52,7 @@ function Grant-MailboxFullAccess {
             if (($ScriptUserObjects | Measure-Object).Count -eq 0) {
                 $ErrorParams = @{
                     Category    = 'InvalidArgument'
-                    Message     = "No -UserObjects argument used, no `$Global:IRT_UserObjects present."
+                    Message     = "No -UserObject argument used, no `$Global:IRT_UserObjects present."
                     ErrorAction = 'Stop'
                 }
                 Write-Error @ErrorParams
@@ -141,6 +141,14 @@ function Grant-MailboxFullAccess {
         foreach ( $ScriptUserObject in $ScriptUserObjects ) {
 
             $UserEmail = $ScriptUserObject.UserPrincipalName
+
+            # verify user has mailbox
+            try { $Mailbox = Get-EXOMailbox -UserPrincipalName $UserEmail -ErrorAction Stop }
+            catch { $Mailbox = $null }
+            if (-not $Mailbox) {
+                Write-Host @Red "${Function}: No mailbox for ${UserEmail}"
+                continue
+            }
 
             if ($Remove) {
                 # remove access
