@@ -1,14 +1,35 @@
-New-Alias -Name 'ShowUser' -Value 'Show-UserInfo' 
-New-Alias -Name 'ShowUsers' -Value 'Show-UserInfo' 
 function Show-UserInfo {
     <#
-	.SYNOPSIS
-	Displays user properties.
+    .SYNOPSIS
+    Displays user properties.
 
-	.NOTES
-	Version: 1.2.0
+    .DESCRIPTION
+    Retrieves the full Graph user object (all available properties) and displays it as a
+    formatted tree in the console. Also updates $Global:IRT_UserObjects with the enriched
+    object so downstream playbook steps receive complete data.
+
+    Falls back to $Global:IRT_UserObjects if no -UserObject is passed.
+
+    .PARAMETER UserObject
+    One or more Microsoft Graph user objects to display. Falls back to global session
+    objects if omitted.
+
+    .EXAMPLE
+    Show-UserInfo
+    Displays info for the user stored in the global session.
+
+    .EXAMPLE
+    Show-UserInfo -UserObject $User
+    Displays info for a specific user object.
+
+    .OUTPUTS
+    None. Output is written to the console.
+
+    .NOTES
+    Version: 1.2.0
     1.2.0 - Switched to Format-Tree, Show-GraphUserTree
-	#>
+    #>
+    [Alias('ShowUser', 'ShowUsers')]
     [CmdletBinding()]
     param(
         [Parameter( Position = 0 )]
@@ -17,7 +38,6 @@ function Show-UserInfo {
     )
 
     begin {
-
         # if not passed directly, find global user object
         if ( -not $UserObject -or $UserObject.Count -eq 0 ) {
 
@@ -32,13 +52,6 @@ function Show-UserInfo {
         else {
             $ScriptUserObjects = $UserObject
         }
-
-        # colors
-        $Blue = @{ ForegroundColor = 'Blue' }
-        # $Cyan = @{ ForegroundColor = 'Cyan' }
-        # $Green = @{ ForegroundColor = 'Green' }
-        # $Red = @{ ForegroundColor = 'Red' }
-        # $Magenta = @{ ForegroundColor = 'Magenta' }
     }
 
     process {
@@ -52,16 +65,16 @@ function Show-UserInfo {
             $UserEmail = $ScriptUserObject.UserPrincipalName
 
             # get user object with all possible properties
-            Write-Host @Blue "`nGetting full user object."
+            Write-IRT "`nGetting full user object."
             $ScriptUserObject = Get-FullUserObject -UserObject $ScriptUserObject
 
             # copy full user object to global variables
             $Global:IRT_UserObjects.Add($ScriptUserObject)
 
-            Write-Host @Blue "`nShowing user properties for: ${UserEmail}"
+            Write-IRT "`nShowing user properties for: ${UserEmail}"
             $ScriptUserObject | Show-GraphUserTree | Out-Host
 
-            Write-Host @Blue "`nShowing groups for: ${UserEmail}"
+            Write-IRT "`nShowing groups for: ${UserEmail}"
             $UserGroups = Get-MgUserMemberOfAsGroup -UserId $ScriptUserObject.Id
             if ( $UserGroups ) {
                 $UserGroups |

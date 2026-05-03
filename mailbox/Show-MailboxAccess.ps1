@@ -1,7 +1,3 @@
-New-Alias -Name 'MailboxAccess' -Value 'Show-MailboxAccess' 
-New-Alias -Name 'ShowAccess' -Value 'Show-MailboxAccess' 
-New-Alias -Name 'ShowFullAccess' -Value 'Show-MailboxAccess' 
-
 function Show-MailboxAccess {
     <#
 	.SYNOPSIS
@@ -10,6 +6,7 @@ function Show-MailboxAccess {
 	.NOTES
 	Version: 1.0.0
 	#>
+    [Alias('MailboxAccess', 'ShowAccess', 'ShowFullAccess')]
     [CmdletBinding()]
     param (
         [Parameter( Position = 0 )]
@@ -18,16 +15,6 @@ function Show-MailboxAccess {
     )
 
     begin {
-
-        #region BEGIN
-
-        # constants
-        $Function = $MyInvocation.MyCommand.Name
-        # $ParameterSet = $PSCmdlet.ParameterSetName
-
-        $Blue = @{ ForegroundColor = 'Blue' }
-        $Red = @{ ForegroundColor = 'Red' }
-
         # if users passed via script argument:
         if (($UserObject | Measure-Object).Count -gt 0) {
             $ScriptUserObjects = $UserObject
@@ -40,7 +27,7 @@ function Show-MailboxAccess {
 
             # if none found, exit
             if ( -not $ScriptUserObjects -or $ScriptUserObjects.Count -eq 0 ) {
-                Write-Host @Red "${Function}: No user objects passed or found in global variables."
+                Write-IRT "No user objects passed or found in global variables." -Level Error
                 return
             }
             if (($ScriptUserObjects | Measure-Object).Count -eq 0) {
@@ -52,7 +39,6 @@ function Show-MailboxAccess {
                 Write-Error @ErrorParams
             }
         }
-
     }
 
     process {
@@ -65,12 +51,12 @@ function Show-MailboxAccess {
             try { $Mailbox = Get-EXOMailbox -UserPrincipalName $UserEmail -ErrorAction Stop }
             catch { $Mailbox = $null }
             if (-not $Mailbox) {
-                Write-Host @Red "${Function}: No mailbox for ${UserEmail}"
+                Write-IRT "No mailbox for ${UserEmail}" -Level Warn
                 continue
             }
 
             # show users who have access to target mailbox
-            Write-Host @Blue "Showing users who have access to ${UserEmail}" | Out-Host
+            Write-IRT "Showing users who have access to ${UserEmail}"
             $Properties = @(
                 'User'
                 'AccessRights'

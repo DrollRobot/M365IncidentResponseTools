@@ -1,12 +1,50 @@
-New-Alias -Name 'UserApps' -Value 'Get-UserApplication' 
 function Get-UserApplication {
     <#
-	.SYNOPSIS
-	Displays user's Oauth2 permission grants. (Applications they have granted consent to)
+    .SYNOPSIS
+    Displays user's Oauth2 permission grants. (Applications they have granted consent to)
 
-	.NOTES
-	Version: 1.0.0
-	#>
+    .DESCRIPTION
+    Retrieves all OAuth2 permission grants for one or more Entra ID users and displays the
+    applications they have personally consented to. Each row shows the app name, granted
+    scopes, and the consent date if available.
+
+    Falls back to $Global:IRT_UserObjects if no -UserObject is passed.
+
+    .PARAMETER UserObject
+    One or more Entra ID user objects to query. Falls back to global session objects if
+    omitted. Accepts pipeline input.
+
+    .PARAMETER TableStyle
+    Excel table style. Defaults to IRT_Config.ExcelTableStyle.
+
+    .PARAMETER Font
+    Excel font name. Defaults to IRT_Config.ExcelFont.
+
+    .PARAMETER Xml
+    Export raw XML alongside the Excel file. Defaults to IRT_Config.ExportXml.
+
+    .PARAMETER Open
+    Open the Excel file immediately after export. Default: $true.
+
+    .PARAMETER Cached
+    Use pre-cached Graph service principal data instead of making new API calls.
+
+    .EXAMPLE
+    Get-UserApplication
+    Shows OAuth app consents for the user in the global session.
+
+    .EXAMPLE
+    Get-UserApplication -UserObject $User
+    Shows OAuth app consents for a specific user.
+
+    .OUTPUTS
+    None. Results are displayed in the console and optionally exported to Excel.
+
+    .NOTES
+    Version: 1.0.0
+    # FIXME - Search UAL for user consent events to show dates?
+    #>
+    [Alias('UserApps')]
     [CmdletBinding()]
     param(
         [Parameter(Position = 0, ValueFromPipeline = $true, ValueFromPipelineByPropertyName = $true)]
@@ -30,13 +68,6 @@ function Get-UserApplication {
         $FileNameDateFormat = "yy-MM-dd_HH-mm"
         $WorksheetName = 'UserAppConsents'
 
-        # colors
-        $Blue = @{ ForegroundColor = 'Blue' }
-        # $Cyan = @{ ForegroundColor = 'Cyan' }
-        # $Green = @{ ForegroundColor = 'Green' }
-        $Red = @{ ForegroundColor = 'Red' }
-        # $Magenta = @{ ForegroundColor = 'Magenta' }
-
         # if not passed directly, find global user object
         if ( -not $UserObject -or $UserObject.Count -eq 0 ) {
 
@@ -50,15 +81,6 @@ function Get-UserApplication {
         }
         else {
             $ScriptUserObjects = $UserObject
-        }
-
-        # check if connected to exchange
-        try {
-            $Exchange = Get-ConnectionInformation
-        }
-        catch {}
-        if ( -not $Exchange ) {
-            Write-Host @Red "Not connected to ExchangeOnlineManagement. Consent dates won't be checked."
         }
 
         # get client domain name for file output
@@ -123,12 +145,12 @@ function Get-UserApplication {
             }
 
             if (($OutputTable | Measure-Object).Count -eq 0) {
-                Write-Host @Red "No user consent applications."
+                Write-IRT "No user consent applications." -Level Warn
                 continue
             }
 
             if ($Xml) {
-                Write-Host @Blue "Exporting raw data to: ${XmlOutputPath}"
+                Write-IRT "Exporting raw data to: ${XmlOutputPath}"
                 $UserGrants | Export-CliXml -Depth 10 -Path $XmlOutputPath
             }
 
@@ -189,9 +211,9 @@ function Get-UserApplication {
             #region OUTPUT
 
             # save and open/close
-            Write-Host @Blue "Exporting to: ${ExcelOutputPath}"
+            Write-IRT "Exporting to: ${ExcelOutputPath}"
             if ($Open) {
-                Write-Host @Blue "Opening Excel."
+                Write-IRT "Opening Excel."
                 $Workbook | Close-ExcelPackage -Show
             }
             else {

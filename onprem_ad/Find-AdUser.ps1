@@ -1,23 +1,52 @@
-New-Alias -Name 'FindAdUser'  -Value 'Find-AdUser' 
-New-Alias -Name 'FindAdUsers' -Value 'Find-AdUser' 
-New-Alias -Name 'Find-AdUsers' -Value 'Find-AdUser' 
-
 function Find-AdUser {
     <#
     .SYNOPSIS
-    Finds local ad user by DisplayName, Name, UserPrincipalName, ProxyAddresses, SamAccountName. Creates $UserObject variable
+    Finds local AD user by DisplayName, Name, UserPrincipalName, ProxyAddresses, SamAccountName, or ObjectGUID.
+
+    .DESCRIPTION
+    Searches Active Directory for users matching one or more search strings. The search is
+    applied across DisplayName, Name, UserPrincipalName, ProxyAddresses (email extracted
+    by regex), SamAccountName, and ObjectGUID.
+
+    If a single user is found, the full AD object is retrieved and stored in
+    $Global:UserObject, $Global:UserObjects, and $Global:UserEmail. For multiple matches
+    only $Global:UserObjects is populated. Use -Script to suppress global side effects and
+    return objects directly.
+
+    .PARAMETER Search
+    One or more search strings. Each string is independently searched across all supported
+    fields.
+
+    .PARAMETER VarPrefix
+    Optional prefix for the global variable names (e.g. 'Admin' > $Global:AdminUserObject).
+    Useful when working with multiple users simultaneously.
+
+    .PARAMETER Script
+    Return objects directly and suppress global variable assignment. Use when calling from
+    scripts or the playbook.
 
     .EXAMPLE
     Find-AdUser flast
-    Find-AdUser flast,flast,flast
-    Find-AdUser -Search flast@domain.com
-    Find-AdUser bf7573a5844f (partial user id number)
+    Finds users matching 'flast' and sets the global user object if exactly one match.
+
+    .EXAMPLE
+    Find-AdUser flast@contoso.com
+    Searches by email address.
+
+    .EXAMPLE
+    $Users = Find-AdUser -Search 'flast','jsmith' -Script
+    Returns matching user objects for two search strings without setting globals.
+
+    .OUTPUTS
+    None by default (sets global variables).
+    Microsoft.ActiveDirectory.Management.ADUser[] when -Script is used.
 
     .NOTES
     Version: 1.2.1
     1.2.1 - Fixed bug where script was passing collections of user objects rather than user objects.
     1.2.0 - Major rewrite.
     #>
+    [Alias('FindAdUser', 'FindAdUsers', 'Find-AdUsers')]
     [CmdletBinding()]
     param (
         [Parameter(Position = 0, Mandatory)]
@@ -52,8 +81,6 @@ function Find-AdUser {
             'UserPrincipalName'
             'ObjectGUID'
         )
-        $Cyan = @{ForegroundColor = 'Cyan'}
-        $Red = @{ForegroundColor = 'Red'}
         $EmailPattern = "[A-Za-z0-9._%+-]{1,63}@(?:[A-Za-z0-9.-]+\.)+[A-Za-z]{2,6}"
 
         # find users whos displayname or email matches search
@@ -87,11 +114,11 @@ function Find-AdUser {
             }
 
             if (($MatchingUsers | Measure-Object).Count -eq 1) {
-                
+
                 if (-not $Script) {
 
                     # show user info
-                    Write-Host @Cyan "Showing results for search: ${SearchString}"
+                    Write-IRT "Showing results for search: ${SearchString}"
                     $MatchingUsers | Format-Table $DisplayProperties
                 }
 
@@ -106,16 +133,16 @@ function Find-AdUser {
                 if (-not $Script) {
 
                     # show user info
-                    Write-Host @Cyan "Showing results for search: ${SearchString}"
+                    Write-IRT "Showing results for search: ${SearchString}"
                     $MatchingUsers | Format-Table $DisplayProperties
-                    Write-Host @Red 'Multiple users found. Refine search.'
+                    Write-IRT 'Multiple users found. Refine search.' -Level Error
                 }
             }
             # if no users found
             else {
                 if (-not $Script) {
-                    Write-Host @Red "$SearchString not found. Try a different search."
-                }            
+                    Write-IRT "$SearchString not found. Try a different search." -Level Error
+                }
             }
         }
 
@@ -149,7 +176,7 @@ function Find-AdUser {
                 Force = $true
             }
             New-Variable @VariableParams
-            Write-Host @Cyan "Created `$${VarPrefix}UserObject, `$${VarPrefix}UserObjects, and `$${VarPrefix}UserEmail"
+            Write-IRT "Created `$${VarPrefix}UserObject, `$${VarPrefix}UserObjects, and `$${VarPrefix}UserEmail"
         }
         elseif (($ScriptUserObjects | Measure-Object).Count -gt 1) {
 
@@ -161,9 +188,9 @@ function Find-AdUser {
                 Force = $true
             }
             New-Variable @VariableParams
-            Write-Host @Cyan "Created `$${VarPrefix}UserObjects"
+            Write-IRT "Created `$${VarPrefix}UserObjects"
             $ScriptUserObjects | Format-Table $DisplayProperties
-        }        
+        }
     }
 }
 

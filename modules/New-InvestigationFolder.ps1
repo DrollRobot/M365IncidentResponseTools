@@ -1,14 +1,38 @@
-New-Alias -Name 'NewDir' -Value "New-InvestigationFolder" 
-New-Alias -Name 'NewFolder' -Value "New-InvestigationFolder" 
-
 function New-InvestigationFolder {
-	<#
-	.SYNOPSIS
-	Makes a new directory based on client and user info
+    <#
+    .SYNOPSIS
+    Makes a new directory based on client and user info.
 
-	.NOTES
-	Version: 1.0.2
-	#>
+    .DESCRIPTION
+    Creates a timestamped investigation output folder in the current working directory.
+    The folder name is built from the tenant's default domain, an optional ticket number,
+    and the display names of the users under investigation.
+
+    If the Graph context is not available the function prompts for a client name
+    interactively. Falls back to $Global:IRT_UserObjects if no -UserObject is passed.
+
+    .PARAMETER UserObject
+    One or more user objects whose names are included in the folder name. Falls back to
+    global session objects if omitted.
+
+    .PARAMETER Ticket
+    Optional ticket or case number to include in the folder name.
+
+    .EXAMPLE
+    New-InvestigationFolder
+    Creates a folder like: investigation_contoso_jsmith_26-05-03_14-30
+
+    .EXAMPLE
+    New-InvestigationFolder -Ticket 'INC-1234' -UserObject $User
+    Creates a folder that includes the ticket number and user name.
+
+    .OUTPUTS
+    System.IO.DirectoryInfo
+
+    .NOTES
+    Version: 1.0.2
+    #>
+	[Alias('NewDir', 'NewFolder')]
 	[CmdletBinding(SupportsShouldProcess)]
 	param (
 		[Parameter( Position = 0 )]

@@ -1,11 +1,3 @@
-New-Alias -Name 'ShowApps' -Value 'Show-TenantServicePrincipal' 
-New-Alias -Name 'ShowServicePrincipals' -Value 'Show-TenantServicePrincipal' 
-New-Alias -Name 'ShowEnterpriseApps' -Value 'Show-TenantServicePrincipal' 
-New-Alias -Name 'Show-Apps' -Value 'Show-TenantServicePrincipal' 
-New-Alias -Name 'Show-ServicePrincipals' -Value 'Show-TenantServicePrincipal' 
-New-Alias -Name 'Show-EnterpriseApps' -Value 'Show-TenantServicePrincipal' 
-New-Alias -Name 'Show-Applications' -Value 'Show-TenantServicePrincipal' 
-
 function Show-TenantServicePrincipal {
     <#
 	.SYNOPSIS
@@ -15,6 +7,7 @@ function Show-TenantServicePrincipal {
 	Version: 1.3.0
 	1.3.0 - Added -Excel export option.
 	#>
+    [Alias('ShowApps', 'ShowServicePrincipals', 'ShowEnterpriseApps', 'Show-Apps', 'Show-ServicePrincipals', 'Show-EnterpriseApps', 'Show-Applications')]
     [CmdletBinding()]
     param (
         [string] $Search,
@@ -30,9 +23,6 @@ function Show-TenantServicePrincipal {
         # variables
         $TenantId = (Get-MgContext).TenantId
         $ServicePrincipals = Request-GraphServicePrincipal -Cached:$Cached
-
-        # colors
-        $Blue = @{ ForegroundColor = 'Blue' }
 
         # custom default display view - no ps1xml needed
         $TypeDataParams = @{
@@ -60,11 +50,11 @@ function Show-TenantServicePrincipal {
     process {
 
         if ( $Search ) {
-            Write-Host @Blue "Service principals matching: ${Search}"
+            Write-IRT "Service principals matching: ${Search}"
             $MatchingServicePrincipals = $ServicePrincipals | Where-Object { $_.DisplayName -match $Search }
         }
         else {
-            Write-Host @Blue "All service principals:"
+            Write-IRT "All service principals:"
             $MatchingServicePrincipals = $ServicePrincipals
         }
 
@@ -124,7 +114,7 @@ function Show-TenantServicePrincipal {
             $TitleDateString = Get-Date -Format 'MM/dd/yy HH:mm'
             $WorksheetName   = 'ServicePrincipals'
 
-            Write-Host @Blue "Exporting Excel: ${ExcelOutputPath}"
+            Write-IRT "Exporting Excel: ${ExcelOutputPath}"
 
             $ExportData = $OutputTable | Select-Object -Property @(
                 'CreatedDateTime'
@@ -172,7 +162,7 @@ function Show-TenantServicePrincipal {
             $Worksheet.Cells[1, 1].Style.Font.Size = 16
 
             if ($Open) {
-                Write-Host "Opening Excel."
+                Write-IRT "Opening Excel."
                 $Workbook | Close-ExcelPackage -Show
             }
             else {

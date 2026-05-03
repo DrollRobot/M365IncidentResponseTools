@@ -1,15 +1,63 @@
-New-Alias -Name 'Playbook' -Value 'Start-IncidentResponsePlaybook' 
 function Start-IncidentResponsePlaybook {
     <#
-	.SYNOPSIS
+    .SYNOPSIS
     Runs multiple functions to assist in investigating a user's activity.
 
-	.NOTES
-	Version: 2.2.0
+    .DESCRIPTION
+    The incident response playbook is the primary investigation entry point. It accepts one
+    or more Entra ID user objects and launches up to 13 data-collection steps in parallel
+    using a runspace pool, then writes each result set to the investigation folder.
+
+    Steps include: license report, user info, app assignments, mailbox details, admin roles,
+    risky applications, MFA state, message trace, inbox rules, Entra audit log, sign-in logs,
+    non-interactive sign-in logs, and Unified Audit Log (UAL).
+
+    If -UserObject is omitted the function falls back to $Global:IRT_UserObjects populated
+    by Find-GraphUser or Get-IRTUserObject. A Graph connection is required; Exchange Online
+    is required for mailbox and inbox rule steps.
+
+    .PARAMETER UserObject
+    One or more Entra ID user objects to investigate. Accepts the objects returned by
+    Find-GraphUser or Get-IRTUserObject. Falls back to global session objects if omitted.
+
+    .PARAMETER Ticket
+    Ticket or case number string. Used to name the investigation folder when -NoFolder is
+    not specified.
+
+    .PARAMETER NoFolder
+    Skip creating an investigation output folder. Results are still displayed in the console
+    but not written to disk.
+
+    .PARAMETER MaxRunspaces
+    Maximum number of parallel runspaces. Default: 15. Reduce if the host machine has
+    limited memory or Graph throttling is a concern.
+
+    .PARAMETER Test
+    Enables stopwatch timing output. Useful for benchmarking playbook run duration.
+
+    .EXAMPLE
+    Find-GraphUser 'jsmith@contoso.com'
+    Start-IncidentResponsePlaybook
+    Look up a user, then run the full playbook using the global user object.
+
+    .EXAMPLE
+    Start-IncidentResponsePlaybook -UserObject $User -Ticket 'INC-1234'
+    Run the playbook for an already-resolved user object and name the output folder INC-1234.
+
+    .EXAMPLE
+    Start-IncidentResponsePlaybook -UserObject $User -NoFolder -MaxRunspaces 5
+    Run without writing files, using a limited runspace pool.
+
+    .OUTPUTS
+    None. All output is written to the investigation folder or displayed in the console.
+
+    .NOTES
+    Version: 2.2.0
     2.2.0 - Added license report, added error handling to close runspaces when script exits.
     2.1.0 - Added ability to run parallel exchange runspaces using exchange access token.
     2.0.0 - Added ability to run mulitple operations in parallel using runspaces.
-	#>
+    #>
+    [Alias('Playbook')]
     [CmdletBinding()]
     param (
         [Parameter( Position = 0 )]
@@ -26,8 +74,6 @@ function Start-IncidentResponsePlaybook {
 
         #region BEGIN
 
-        # constants
-        $Red = @{ForegroundColor = 'Red'}
 
         if ($Test -or $Script:Test) {
             $Script:Test = $true
@@ -496,7 +542,7 @@ function Start-IncidentResponsePlaybook {
 
                             # output errors, if any
                             if ( $Job.PowerShell.Streams.Error.Count -gt 0 ) {
-                                Write-Host @Red "$($Job.Name) Errors:"
+                                Write-IRT "$($Job.Name) Errors:" -Level Error
                                 $Job.PowerShell.Streams.Error | ForEach-Object {
                                     Write-Error $_
                                 }

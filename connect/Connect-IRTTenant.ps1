@@ -1,4 +1,3 @@
-New-Alias -Name 'IRTTenant' -Value 'Connect-IRTTenant' 
 function Connect-IRTTenant {
     <#
     .SYNOPSIS
@@ -55,6 +54,7 @@ function Connect-IRTTenant {
     Version: 1.1.0
     1.1.0 - Updated to use xlsx file instead of csv.
     #>
+    [Alias('IRTTenant')]
     [CmdletBinding()]
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingPlainTextForPassword', 'PasswordBrowser')] # suppress annoying warning
 
@@ -114,7 +114,7 @@ function Connect-IRTTenant {
 
         $MatchedTenant = $MatchedTenants[0]
 
-        Write-Host "Matched tenant: $($MatchedTenant.TenantName)" -ForegroundColor Cyan
+        Write-IRT "Matched tenant: $($MatchedTenant.TenantName)"
 
         # build connection parameters
         $ConnectParams = @{
@@ -158,10 +158,6 @@ function Connect-IRTTenant {
     }
 }
 
-New-Alias -Name "OpenIRTTenantWorksheet" -Value Open-IRTTenantWorksheet 
-New-Alias -Name "Open-IRTTenantSheet" -Value Open-IRTTenantWorksheet 
-New-Alias -Name "OpenIRTTenantSheet" -Value Open-IRTTenantWorksheet 
-New-Alias -Name "IRTTenantSheet" -Value Open-IRTTenantWorksheet 
 function Open-IRTTenantWorksheet {
     <#
     .SYNOPSIS
@@ -173,6 +169,7 @@ function Open-IRTTenantWorksheet {
     .NOTES
     Version: 1.0.0
     #>
+    [Alias('OpenIRTTenantWorksheet', 'Open-IRTTenantSheet', 'OpenIRTTenantSheet', 'IRTTenantSheet')]
     [CmdletBinding()]
     param (
         [string] $TenantFile = $(if ($Global:IRT_Config.TenantsSheetPath) { $Global:IRT_Config.TenantsSheetPath } else { Join-Path $env:APPDATA 'M365IncidentResponseTools\tenants.xlsx' })
@@ -191,7 +188,7 @@ function Open-IRTTenantWorksheet {
             }
 
             Copy-Item -Path $TemplateFile -Destination $TenantFile
-            Write-Host "Created tenants worksheet file from template: ${TenantFile}" -ForegroundColor Green
+            Write-IRT "Created tenants worksheet file from template: ${TenantFile}"
         }
 
         Invoke-Item $TenantFile

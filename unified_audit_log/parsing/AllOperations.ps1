@@ -36,8 +36,6 @@ function Build-AllOperationSheet {
     )
 
     begin {
-        $Function = $MyInvocation.MyCommand.Name
-        $Yellow = @{ ForegroundColor = 'Yellow' }
         $RawDateProperty = 'CreationDate'
         $DateColumnHeader = 'DateTime'
 
@@ -60,7 +58,6 @@ function Build-AllOperationSheet {
         if ($Script:Test) {
             $TestText = "Row loop"
             $TimerStart = $Stopwatch.Elapsed
-            Write-Host @Yellow "${Function}: ${TestText} started at $(Get-Date -Format 'hh:mm:sstt')" | Out-Host
         }
 
         $RowCount = ($Log | Measure-Object).Count
@@ -259,14 +256,13 @@ function Build-AllOperationSheet {
         if ($Script:Test) {
             Write-Progress -Id 1 -Activity 'Row loop' -Completed
             $ElapsedString = ($StopWatch.Elapsed - $TimerStart).ToString('mm\:ss')
-            Write-Host @Yellow "${Function}: ${TestText} took ${ElapsedString}" | Out-Host
+            Write-IRT "${TestText} took ${ElapsedString}" -Level Warn
         }
 
         #region EXPORT
         if ($Script:Test) {
             $TestText = "Exporting to excel"
             $TimerStart = $Stopwatch.Elapsed
-            Write-Host @Yellow "${Function}: ${TestText} started at $(Get-Date -Format 'hh:mm:sstt')" | Out-Host
         }
 
         $ExcelParams = @{
@@ -282,7 +278,7 @@ function Build-AllOperationSheet {
 
         if ($Script:Test) {
             $ElapsedString = ($StopWatch.Elapsed - $TimerStart).ToString('mm\:ss')
-            Write-Host @Yellow "${Function}: ${TestText} took ${ElapsedString}" | Out-Host
+            Write-IRT "${TestText} took ${ElapsedString}" -Level Warn
         }
 
         #region FORMATTING
@@ -399,9 +395,9 @@ function Build-AllOperationSheet {
                 $ModuleRoot = $MyInvocation.MyCommand.Module.ModuleBase
                 $AllOperationsConfig = $Global:IRT_Config.AllOperationsSheetPath
                 $OperationsSheetPath = if ($AllOperationsConfig) { $AllOperationsConfig } else { Join-Path -Path $ModuleRoot -ChildPath "data\${AllOperationsFileName}" }
-                Write-Host @Yellow "${Function}: Add to ${AllOperationsFileName}:" | Out-Host
+                Write-IRT "Add to ${AllOperationsFileName}:" -Level Warn
                 $OperationsToAdd | Format-Table | Out-Host
-                Write-Host @Yellow "${Function}: Appending to: ${OperationsSheetPath}" | Out-Host
+                Write-IRT "Appending to: ${OperationsSheetPath}" -Level Warn
                 $OperationsToAdd | Export-Excel -Path $OperationsSheetPath -WorksheetName 'Operations' -Append
             }
         }

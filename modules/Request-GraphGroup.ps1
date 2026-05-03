@@ -1,11 +1,17 @@
 function Request-GraphGroup {
     <#
-	.SYNOPSIS
+    .SYNOPSIS
     Requests groups from Microsoft Graph. Caches in global variable.
 
-	.NOTES
-	Version: 2.0.0
-	#>
+    .DESCRIPTION
+    Internal helper. Fetches all Entra ID groups from Microsoft Graph and caches the
+    result in a session-scoped global variable keyed by object ID. Subsequent callers
+    that pass -Cached skip the API call. Used by the playbook and role-reporting functions
+    to resolve group membership without repeated Graph requests.
+
+    .NOTES
+    Version: 2.0.0
+    #>
     [CmdletBinding()]
     param (
         [switch] $Cached,

@@ -1,6 +1,3 @@
-New-Alias -Name 'IRTDisconnect'              -Value 'Disconnect-IRT' 
-New-Alias -Name 'DisconnectIRT'              -Value 'Disconnect-IRT' 
-
 function Disconnect-IRT {
     <#
     .SYNOPSIS
@@ -22,6 +19,7 @@ function Disconnect-IRT {
     .NOTES
     Version: 1.0.0
     #>
+    [Alias('IRTDisconnect', 'DisconnectIRT')]
     [CmdletBinding()]
     param (
         [switch] $Graph,
@@ -43,7 +41,7 @@ function Disconnect-IRT {
             $GraphCtx = Get-MgContext -ErrorAction SilentlyContinue
             if ($GraphCtx) {
                 Disconnect-MgGraph -ErrorAction SilentlyContinue | Out-Null
-                Write-Host 'Disconnected from Microsoft Graph.' -ForegroundColor Yellow
+                Write-IRT 'Disconnected from Microsoft Graph.' -Level Warn
             }
         }
 
@@ -60,7 +58,7 @@ function Disconnect-IRT {
                 Disconnect-ExchangeOnline -ConnectionId $Conn.ConnectionId -Confirm:$false -ErrorAction SilentlyContinue
             }
             if ($ExoConns) {
-                Write-Host 'Disconnected from Exchange Online.' -ForegroundColor Yellow
+                Write-IRT 'Disconnected from Exchange Online.' -Level Warn
             }
         }
 
@@ -75,7 +73,7 @@ function Disconnect-IRT {
                 Disconnect-ExchangeOnline -ConnectionId $Conn.ConnectionId -Confirm:$false -ErrorAction SilentlyContinue
             }
             if ($IppsConns) {
-                Write-Host 'Disconnected from IPPS (Security & Compliance).' -ForegroundColor Yellow
+                Write-IRT 'Disconnected from IPPS (Security & Compliance).' -Level Warn
             }
         }
 

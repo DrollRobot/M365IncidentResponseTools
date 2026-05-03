@@ -1,6 +1,57 @@
-New-Alias -Name 'GetAdmins' -Value 'Get-AdminRole' 
-
 function Get-AdminRole {
+    <#
+    .SYNOPSIS
+    Reports all Entra ID directory role members for the tenant.
+
+    .DESCRIPTION
+    Retrieves every Entra ID (Azure AD) directory role and its members, including users,
+    service principals, and groups. When a group holds a role, its members are expanded
+    inline so the report is always a flat list of effective principals.
+
+    Output defaults to formatted console tables grouped by object type (Users, Service
+    Principals, Groups). Use -Excel to export a formatted .xlsx workbook instead.
+
+    .PARAMETER Cached
+    Use pre-cached Graph data instead of making new API calls. Speeds up repeated runs
+    during the same session.
+
+    .PARAMETER Script
+    Return raw PSCustomObject results instead of printing to the console. Useful when
+    calling this function from scripts or the playbook.
+
+    .PARAMETER Excel
+    Export results to a formatted Excel workbook (.xlsx) in the current directory.
+
+    .PARAMETER Highlight
+    One or more strings to search across Id, DisplayName, UserPrincipalName, and
+    Description. Matching rows are flagged with '>>>' in a Match column.
+
+    .PARAMETER TableStyle
+    Excel table style name. Defaults to the value in IRT_Config.ExcelTableStyle.
+
+    .PARAMETER Font
+    Font name for the Excel workbook. Defaults to the value in IRT_Config.ExcelFont.
+
+    .PARAMETER Open
+    When exporting to Excel, open the file immediately after writing. Default: $true.
+
+    .EXAMPLE
+    Get-AdminRole
+    Displays all role members grouped by type in the console.
+
+    .EXAMPLE
+    Get-AdminRole -Excel -Highlight 'jsmith@contoso.com'
+    Exports an Excel report and flags any row matching 'jsmith@contoso.com'.
+
+    .EXAMPLE
+    $RoleMembers = Get-AdminRole -Script
+    Returns raw objects for further processing.
+
+    .OUTPUTS
+    None (console output) by default.
+    System.Collections.Generic.List[PSCustomObject] when -Script is used.
+    #>
+    [Alias('GetAdmins')]
     [CmdletBinding()]
     param(
         [switch] $Cached,
@@ -19,7 +70,6 @@ function Get-AdminRole {
         $FileNameDateFormat = "yy-MM-dd_HH-mm"
         $FileDateString = Get-Date -Format $FileNameDateFormat
 
-        $Blue = @{ ForegroundColor = 'Blue' }
 
         # ensure ById caches are populated for Get-UnknownObject lookups
         Request-GraphUser -Return 'none' -Cached:$Cached
@@ -92,7 +142,7 @@ function Get-AdminRole {
 
         if ( -not $Excel ) {
             foreach ( $TypeKey in $DisplayProperties.Keys ) {
-                Write-Host @Blue "`n$($TypeLabels[$TypeKey])"
+                Write-IRT "`n$($TypeLabels[$TypeKey])"
                 $TypeObjects = $CustomObjects | Where-Object { $_.ObjectType -eq $TypeKey }
                 if ( $TypeObjects ) {
                     $TypeObjects | Format-Table -AutoSize -Property $DisplayProperties[$TypeKey] | Out-Host
@@ -110,7 +160,7 @@ function Get-AdminRole {
             $ExcelOutputPath = "AdminRoles_${DomainName}_${FileDateString}.xlsx"
             $TitleDateString = Get-Date -Format 'MM/dd/yy HH:mm'
 
-            Write-Host @Blue "Exporting Excel: ${ExcelOutputPath}"
+            Write-IRT "Exporting Excel: ${ExcelOutputPath}"
 
             $Workbook = $null
             $LabelRow = 3

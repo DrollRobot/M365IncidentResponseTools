@@ -1,18 +1,53 @@
-New-Alias -Name 'PushAdSync' -Value 'Push-AdSync' 
-New-Alias -Name 'AdSync' -Value 'Push-AdSync' 
-New-Alias -Name 'SyncAd' -Value 'Push-AdSync' 
-
 function Push-AdSync {
     <#
     .SYNOPSIS
-    Function to assist with forcing an Active Directory sync. Uses PS remoting to find server running sync service.
+    Forces an Active Directory / Entra ID (Azure AD Connect) sync cycle.
+
+    .DESCRIPTION
+    Triggers an AD-to-Entra delta sync as quickly as possible. The execution path is:
+
+    1. If running on a domain controller, fires 'repadmin /syncall /AdeP' to force
+       intra-AD replication first.
+    2. If the ADSync service is running locally, invokes Start-ADSyncSyncCycle directly
+       and exits.
+    3. Otherwise, discovers candidate servers (DCs first, then other enabled AD computers
+       by last logon) in parallel using a runspace pool and invokes the sync cycle
+       remotely on the first server found to have the service.
+
+    Domain admin credentials are cached in $Global:Storage for the session.
+    Use -ResetCredentials to force a re-prompt.
+
+    .PARAMETER ResetCredentials
+    Clear the cached domain admin credentials and prompt again before connecting.
+
+    .PARAMETER SyncServer
+    Target one or more specific server names directly, bypassing AD discovery.
+
+    .PARAMETER ThrottleLimit
+    Maximum number of parallel runspaces used for server discovery. Default: 20.
+
+    .EXAMPLE
+    Push-AdSync
+    Automatically discovers and triggers a delta sync.
+
+    .EXAMPLE
+    Push-AdSync -SyncServer 'sync01.contoso.com'
+    Triggers sync on a known server without discovery.
+
+    .EXAMPLE
+    Push-AdSync -ResetCredentials
+    Re-prompts for domain admin credentials before syncing.
+
+    .OUTPUTS
+    None. Progress is written to the console.
 
     .NOTES
-        Version: 2.0.0
-        2.0.0 - Parallel server discovery via runspace pool (ping, open session, service check).
-                Added -SyncServer parameter to target specific servers directly, bypassing AD query.
-                Added -ThrottleLimit parameter.
+    Version: 2.0.0
+    2.0.0 - Parallel server discovery via runspace pool (ping, open session, service check).
+            Added -SyncServer parameter to target specific servers directly, bypassing AD query.
+            Added -ThrottleLimit parameter.
     #>
+    [Alias('PushAdSync', 'AdSync', 'SyncAd')]
     [CmdletBinding()]
     param(
         [Alias('Reset', 'ResetPassword')]
@@ -25,31 +60,24 @@ function Push-AdSync {
         [int] $ThrottleLimit = 20
     )
 
-    begin {
-        # colors
-        $Cyan = @{ForegroundColor = 'Cyan'}
-        $Red  = @{ForegroundColor = 'Red'}
-        $Yellow  = @{ForegroundColor = 'Yellow'}
-    }
-
     process {
 
         if (Test-RunningOnDomainController) {
-            Write-Host @Cyan "Pushing AD replication..."
+            Write-IRT "Pushing AD replication..."
             $null = repadmin /syncall /AdeP
         }
         else {
-            Write-Host @Yellow "Not running on a domain controller. Skipping AD replication."
+            Write-IRT "Not running on a domain controller. Skipping AD replication." -Level Warn
         }
 
         # if sync service is running on this server, push sync locally
         $SyncService = Get-Service -Name 'adsync' -ErrorAction SilentlyContinue
         if ($SyncService) {
-            Write-Host @Cyan "`nPushing sync."
+            Write-IRT "`nPushing sync."
             Start-ADSyncSyncCycle -PolicyType Delta
             return
         }
-        Write-Host @Cyan "Adsync service not running on this device."
+        Write-IRT "Adsync service not running on this device."
 
         if (-not (Get-YesNo "Search for server running adsync?")) {
             return
@@ -57,13 +85,13 @@ function Push-AdSync {
 
         # build the ordered candidate server list
         if ($SyncServer) {
-            # user supplied explicit targets — skip AD query, RSAT check, and DC check entirely
+            # user supplied explicit targets - skip AD query, RSAT check, and DC check entirely
             $ServerNamesInQueryOrder = $SyncServer
         }
         else {
             # require AD RSAT for discovery
             if (-not (Test-AdAvailable)) {
-                Write-Host @Red "Active Directory can't be reached from this device. Exiting."
+                Write-IRT "Active Directory can't be reached from this device. Specify hostnames with -SyncServer." -Level Error
                 return
             }
 
@@ -152,7 +180,7 @@ function Push-AdSync {
                 $Result.Error = "Service check failed: $_"
             }
 
-            # close session now if adsync is not present — only keep sessions where adsync was found
+            # close session now if adsync is not present - only keep sessions where adsync was found
             if (-not $Result.AdsyncPresent) {
                 Remove-PSSession -Session $Result.Session -ErrorAction SilentlyContinue
                 $Result.Session = $null
@@ -198,37 +226,37 @@ function Push-AdSync {
                 $CN = $RS.ComputerName
 
                 if (-not $DiscoveryResult.Reachable) {
-                    Write-Host @Red "Pinging ${CN}: FAILED."
+                    Write-IRT "Pinging ${CN}: FAILED." -Level Warn
                     continue
                 }
 
                 if (-not $DiscoveryResult.SessionOpened) {
-                    Write-Host @Red "Opening session on ${CN} failed: $($DiscoveryResult.Error)"
+                    Write-IRT "Opening session on ${CN} failed: $($DiscoveryResult.Error)" -Level Warn
                     continue
                 }
 
                 if (-not $DiscoveryResult.AdsyncPresent) {
-                    Write-Host @Cyan "Adsync service not present on ${CN}."
+                    Write-IRT "Adsync service not present on ${CN}."
                     continue
                 }
 
-                # adsync found — attempt push
-                Write-Host @Cyan "Adsync service found on ${CN}. Pushing sync..."
+                # adsync found - attempt push
+                Write-IRT "Adsync service found on ${CN}. Pushing sync..."
                 try {
                     $SyncResult = Invoke-Command -Session $DiscoveryResult.Session -ScriptBlock {
                         [string]( Start-ADSyncSyncCycle -PolicyType Delta ).Result
                     }
 
                     if ($SyncResult -eq 'Success') {
-                        Write-Host @Cyan "Sync pushed successfully on ${CN}."
+                        Write-IRT "Sync pushed successfully on ${CN}."
                         $Synced = $true
                     }
                     else {
-                        Write-Host @Red "Sync failed on ${CN} (result: $SyncResult)."
+                        Write-IRT "Sync failed on ${CN} (result: $SyncResult)." -Level Error
                     }
                 }
                 catch {
-                    Write-Host @Red "Sync failed on ${CN}: $_"
+                    Write-IRT "Sync failed on ${CN}: $_" -Level Error
                 }
                 finally {
                     Remove-PSSession -Session $DiscoveryResult.Session -ErrorAction SilentlyContinue
@@ -238,7 +266,7 @@ function Push-AdSync {
             }
 
             if (-not $Synced) {
-                Write-Host @Red "No adsync server was found or sync could not be pushed on any server."
+                Write-IRT "No adsync server was found or sync could not be pushed on any server." -Level Error
             }
         }
         finally {

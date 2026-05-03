@@ -1,15 +1,38 @@
-New-Alias -Name 'FindAdOu'  -Value 'Find-AdOu' 
-New-Alias -Name 'FindAdOus' -Value 'Find-AdOu' 
-New-Alias -Name 'Find-AdOus' -Value 'Find-AdOu' 
-
 function Find-AdOu {
     <#
     .SYNOPSIS
-    Makes finding specific Ou easier.
+    Makes finding specific OUs easier.
+
+    .DESCRIPTION
+    Searches all Active Directory Organizational Units for entries matching the -Search
+    string. The search is applied against Name (regex), CanonicalName (exact), and
+    DistinguishedName (exact). If exactly one match is found it is stored in
+    $Global:OuObject and displayed; multiple or zero results produce a warning.
+
+    .PARAMETER Search
+    String to search for. Tested as a regex against Name and as an exact match against
+    CanonicalName and DistinguishedName.
+
+    .PARAMETER Script
+    Return the matching OU object directly instead of printing it and setting the global
+    variable. Useful when calling from scripts.
+
+    .EXAMPLE
+    Find-AdOu 'Workstations'
+    Finds all OUs with 'Workstations' in their name and sets $Global:OuObject if exactly one match.
+
+    .EXAMPLE
+    $Ou = Find-AdOu -Search 'contoso.com/Workstations' -Script
+    Returns the OU object directly for use in a script.
+
+    .OUTPUTS
+    None by default (sets $Global:OuObject and writes to console).
+    Microsoft.ActiveDirectory.Management.ADOrganizationalUnit when -Script is used.
 
     .NOTES
     Version: 1.0.0
     #>
+    [Alias('FindAdOu', 'FindAdOus', 'Find-AdOus')]
     [CmdletBinding()]
     param (
         [Parameter( Position = 0, Mandatory )]
@@ -55,7 +78,7 @@ function Find-AdOu {
 
                 # show ou info
                 $MatchingOus | Format-Table $Properties
-        
+
                 # set variable
                 New-Variable -Name "OuObject" -Value $MatchingOus -Scope 'Global'
                 Write-Host "Created `$Global:OuObject."
@@ -69,18 +92,18 @@ function Find-AdOu {
 
                 # show ou info
                 $MatchingOus | Format-Table $Properties | Out-Default
-        
+
                 # tell user to try again
-                throw 'Multiple Ous found. Search again.' 
+                throw 'Multiple Ous found. Search again.'
             }
             else {
 
                 # show ou info
                 $MatchingOus | Format-Table $Properties
-        
+
                 # tell user to try again
-                Write-Host 'Multiple Ous found. Search again.' 
-            }   
+                Write-Host 'Multiple Ous found. Search again.'
+            }
         }
         # if no users found, tell user to search again
         else {
@@ -92,7 +115,7 @@ function Find-AdOu {
             else {
                 # tell user to try again
                 Write-Host "$Search not found. Try a different search."
-            }  
+            }
         }
     }
 }

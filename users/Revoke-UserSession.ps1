@@ -1,5 +1,3 @@
-New-Alias -Name 'RevokeSessions' -Value 'Revoke-UserSession' 
-New-Alias -Name 'Revoke-UserSessions' -Value 'Revoke-UserSession' 
 function Revoke-UserSession {
     <#
 	.SYNOPSI
@@ -8,6 +6,7 @@ function Revoke-UserSession {
 	.NOTES
 	Version: 1.0.0
 	#>
+    [Alias('RevokeSessions', 'Revoke-UserSessions')]
     [CmdletBinding()]
     param(
         [Parameter( Position = 0 )]
@@ -16,7 +15,6 @@ function Revoke-UserSession {
     )
 
     begin {
-
         # if not passed directly, find global
         if ( -not $UserObject -or $UserObject.Count -eq 0 ) {
 
@@ -31,15 +29,6 @@ function Revoke-UserSession {
         else {
             $ScriptUserObjects = $UserObject
         }
-
-        # variables
-
-        # colors
-        $Blue = @{ ForegroundColor = 'Blue' }
-        # $Cyan = @{ ForegroundColor = 'Cyan' }
-        # $Green = @{ ForegroundColor = 'Green' }
-        # $Magenta = @{ ForegroundColor = 'Magenta' }
-        $Red = @{ ForegroundColor = 'Red' }
     }
 
     process {
@@ -48,14 +37,14 @@ function Revoke-UserSession {
 
             $UserPrincipalName = $ScriptUserObject.UserPrincipalName
 
-            Write-Host @Blue "`nRevoking user sessions for: ${UserPrincipalName}" | Out-Host
+            Write-IRT "`nRevoking user sessions for: ${UserPrincipalName}"
             $Result = ( Revoke-MgUserSignInSession -UserId $ScriptUserObject.Id ).Value
 
             if ( $Result -eq $true ) {
-                Write-Host @Blue "`nSessions revoked." | Out-Host
+                Write-IRT "`nSessions revoked."
             }
             else {
-                Write-Host @Red "`nRevoking sessions failed." | Out-Host
+                Write-IRT "`nRevoking sessions failed." -Level Error
             }
         }
     }

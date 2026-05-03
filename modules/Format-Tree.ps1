@@ -1,7 +1,3 @@
-New-Alias -Name "FTree" -Value "Format-Tree" 
-New-Alias -Name "FTr" -Value "Format-Tree" 
-
-
 #region Format-Tree
 function Format-Tree {
 <#
@@ -12,6 +8,7 @@ displays a simple tree view of any object (ps 5.1+)
 - multiline values align continuation lines under the value column
 - no artificial root line; first properties start at zero indentation
 #>
+    [Alias('FTree', 'FTr')]
     [CmdletBinding()]
     param(
         [Parameter(Mandatory, ValueFromPipeline)]

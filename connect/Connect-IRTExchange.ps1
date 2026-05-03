@@ -54,8 +54,6 @@ function Connect-IRTExchange {
     )
 
     begin {
-        $Yellow = @{ForegroundColor = 'Yellow'}
-
         $ExchangeScope = 'https://outlook.office365.com/.default'
         $Authority     = "https://login.microsoftonline.com/$TenantId"
         if ($GCCHigh) {
@@ -154,7 +152,7 @@ function Connect-IRTExchange {
                 $Global:IRT_Session.Exchange -and
                 $Global:IRT_Session.Exchange.Token
             ) {
-                Write-Host @Yellow "Refreshing expired Exchange token for tenant $TenantId..."
+                Write-IRT "Refreshing expired Exchange token for tenant $TenantId..." -Level Warn
             }
             $TokenResult = & $AcquireToken
             if (-not $TokenResult.AccessToken) {
@@ -187,7 +185,7 @@ function Connect-IRTExchange {
         }
 
         if (-not $NeedNewToken -and -not $NeedConnect) {
-            Write-Host @Yellow "Already connected to Exchange Online for tenant $TenantId."
+            Write-IRT "Already connected to Exchange Online for tenant $TenantId." -Level Warn
         }
 
         return [pscustomobject]@{

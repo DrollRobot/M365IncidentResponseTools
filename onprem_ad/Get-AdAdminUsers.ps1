@@ -1,14 +1,35 @@
-New-Alias -Name 'GetAdAdmins' -Value 'Get-AdAdminUsers' 
-New-Alias -Name 'AdAdmins'    -Value 'Get-AdAdminUsers' 
-
 function Get-AdAdminUsers {
     <#
-	.SYNOPSIS
-	Displays a list of admin users.
-	
-	.NOTES
-		Version: 1.0.0
-	#>
+    .SYNOPSIS
+    Displays a list of admin users.
+
+    .DESCRIPTION
+    Retrieves all Active Directory users where AdminCount equals 1 (the standard AD
+    attribute set by SDProp for accounts that have been members of privileged groups).
+    Results are sorted by Enabled status then LastLogonDate descending, and include each
+    user's group memberships.
+
+    Use -Csv to export the results to a CSV file in C:\Temp.
+
+    .PARAMETER Csv
+    Export results to a CSV file instead of displaying them in the console.
+
+    .EXAMPLE
+    Get-AdAdminUsers
+    Displays all AdminCount=1 users in a formatted table.
+
+    .EXAMPLE
+    Get-AdAdminUsers -Csv
+    Exports the list to AdAdminUsers_<domain>_<date>.csv in C:\Temp.
+
+    .OUTPUTS
+    None (console table) by default.
+    CSV file when -Csv is used.
+
+    .NOTES
+    Version: 1.0.0
+    #>
+    [Alias('GetAdAdmins', 'AdAdmins')]
     [CmdletBinding()]
     param (
         [switch] $Csv

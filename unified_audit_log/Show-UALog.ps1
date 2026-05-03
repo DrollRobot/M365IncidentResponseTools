@@ -22,16 +22,12 @@ function Show-UALog {
         [boolean] $IpInfo = $true,
         [boolean] $Open = $true,
         [boolean] $WaitOnMessageTrace = $false,
+        [int] $MaxWaitMinutes = 15,
         [switch] $Test,
         [switch] $Cached
     )
 
     begin {
-
-        #region BEGIN
-
-        # constants
-        $Function = $MyInvocation.MyCommand.Name
         $ParameterSet = $PSCmdlet.ParameterSetName
         if ($Test -or $Script:Test) {
             $Script:Test = $true
@@ -39,16 +35,11 @@ function Show-UALog {
             $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
         }
 
-        $Blue = @{ ForegroundColor = 'Blue' }
-        $Red = @{ ForegroundColor = 'Red' }
-        $Yellow = @{ ForegroundColor = 'Yellow' }
-
         # import from xml
         if ($ParameterSet -eq 'Xml') {
             if ($Script:Test) {
                 $TestText = "Importing from Xml"
                 $TimerStart = $Stopwatch.Elapsed
-                Write-Host @Yellow "${Function}: ${TestText} started at $(Get-Date -Format 'hh:mm:sstt')" | Out-Host
             }
 
             try {
@@ -57,21 +48,15 @@ function Show-UALog {
             }
             catch {
                 $_
-                Write-Host @Red "${Function}: Error importing from ${XmlPath}."
+                Write-IRT "Error importing from ${XmlPath}." -Level Error
                 return
             }
 
             if ($Script:Test) {
                 $ElapsedString = ($StopWatch.Elapsed - $TimerStart).ToString('mm\:ss')
-                Write-Host @Yellow "${Function}: ${TestText} took ${ElapsedString}" | Out-Host
+                Write-IRT "${TestText} took ${ElapsedString}" -Level Warn
             }
         }
-
-        # $Groups = Request-GraphGroup
-        # $Roles = Request-DirectoryRole
-        # $RoleTemplates = Request-DirectoryRoleTemplate
-        # $ServicePrincipals = Request-GraphServicePrincipal
-        # $Users = Request-GraphUser
 
         #region METADATA
         if ($Log[0].Metadata) {
@@ -81,7 +66,7 @@ function Show-UALog {
             $Log.RemoveAt(0)
         }
         else {
-            Write-Host @Red "${Function}: No Metadata found."
+            Write-IRT "No Metadata found." -Level Error
         }
 
         # sheet registry - maps operation types to their dedicated sheet builders
@@ -174,25 +159,23 @@ function Show-UALog {
             if ($Script:Test) {
                 $TestText = "Querying ip info"
                 $TimerStart = $Stopwatch.Elapsed
-                Write-Host @Yellow "${Function}: ${TestText} started at $(Get-Date -Format 'hh:mm:sstt')" | Out-Host
             }
 
             $env:PYTHONUTF8 = '1'
             & ip_info --apis bulk --output_format none --ip_addresses $IpInfoAddresses
             if ($LASTEXITCODE -ne 0) {
-                Write-Host @Red "${Function}: ip_info query failed." | Out-Host
+                Write-IRT "ip_info query failed." -Level Warn
             }
 
             if ($Script:Test) {
                 $ElapsedString = ($StopWatch.Elapsed - $TimerStart).ToString('mm\:ss')
-                Write-Host @Yellow "${Function}: ${TestText} took ${ElapsedString}" | Out-Host
+                Write-IRT "${TestText} took ${ElapsedString}" -Level Warn
             }
 
             # add ip info to global colection
             if ($Script:Test) {
                 $TestText = "Creating ip info collection in global scope"
                 $TimerStart = $Stopwatch.Elapsed
-                Write-Host @Yellow "${Function}: ${TestText} started at $(Get-Date -Format 'hh:mm:sstt')" | Out-Host
             }
 
             foreach ($Ip in $IpInfoAddresses) {
@@ -211,7 +194,7 @@ function Show-UALog {
 
             if ($Script:Test) {
                 $ElapsedString = ($StopWatch.Elapsed - $TimerStart).ToString('mm\:ss')
-                Write-Host @Yellow "${Function}: ${TestText} took ${ElapsedString}" | Out-Host
+                Write-IRT "${TestText} took ${ElapsedString}" -Level Warn
             }
         }
 
@@ -219,7 +202,6 @@ function Show-UALog {
         # resolve message trace table once before the row loop
         $MessageTraceTable = $null
         if ($WaitOnMessageTrace) {
-            $MaxWaitMinutes = 10
             $WaitInterval = 15
             $WaitStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
 
@@ -227,18 +209,18 @@ function Show-UALog {
             if ($Global:IRT_WaitFlags) {
                 while (-not ($Global:IRT_WaitFlags.MessageTraceUserDone -and $Global:IRT_WaitFlags.MessageTraceAllUsersDone)) {
                     if ($WaitStopwatch.Elapsed.TotalMinutes -ge $MaxWaitMinutes) {
-                        Write-Host @Red "${Function}: Timed out after ${MaxWaitMinutes} minutes waiting on message trace. Continuing without subjects."
+                        Write-IRT "Timed out after ${MaxWaitMinutes} minutes waiting on message trace. Continuing without subjects." -Level Error
                         if ($Script:Test) {
-                            Write-Host @Yellow "${Function}: WaitFlags.MessageTraceUserDone = $($Global:IRT_WaitFlags.MessageTraceUserDone), WaitFlags.MessageTraceAllUsersDone = $($Global:IRT_WaitFlags.MessageTraceAllUsersDone)"
+                            Write-IRT "WaitFlags.MessageTraceUserDone = $($Global:IRT_WaitFlags.MessageTraceUserDone), WaitFlags.MessageTraceAllUsersDone = $($Global:IRT_WaitFlags.MessageTraceAllUsersDone)" -Level Warn
                         }
                         break
                     }
                     if ($Script:Test) {
                         $Elapsed = $WaitStopwatch.Elapsed.ToString('mm\:ss')
-                        Write-Host @Yellow "${Function}: Waiting on message trace (${Elapsed} elapsed). UserDone=$($Global:IRT_WaitFlags.MessageTraceUserDone), AllUsersDone=$($Global:IRT_WaitFlags.MessageTraceAllUsersDone)"
+                        Write-IRT "Waiting on message trace (${Elapsed} elapsed). UserDone=$($Global:IRT_WaitFlags.MessageTraceUserDone), AllUsersDone=$($Global:IRT_WaitFlags.MessageTraceAllUsersDone)" -Level Warn
                     }
                     else {
-                        Write-Host @Yellow "${Function}: Waiting on message trace..."
+                        Write-IRT "Waiting on message trace..." -Level Warn
                     }
                     Start-Sleep -Seconds $WaitInterval
                 }
@@ -249,16 +231,16 @@ function Show-UALog {
         if ($Global:IRT_MessageTraceTable -is [hashtable] -and $Global:IRT_MessageTraceTable.Count -gt 0) {
             $MessageTraceTable = $Global:IRT_MessageTraceTable
             if ($Script:Test) {
-                Write-Host @Yellow "${Function}: Using `$Global:IRT_MessageTraceTable ($($MessageTraceTable.Count) entries)"
+                Write-IRT "Using `$Global:IRT_MessageTraceTable ($($MessageTraceTable.Count) entries)" -Level Warn
             }
         }
 
         if ($Script:Test) {
             if ($MessageTraceTable) {
-                Write-Host @Yellow "${Function}: MessageTraceTable resolved with $($MessageTraceTable.Count) entries"
+                Write-IRT "MessageTraceTable resolved with $($MessageTraceTable.Count) entries" -Level Warn
             }
             else {
-                Write-Host @Yellow "${Function}: No MessageTraceTable available - subjects will not be resolved"
+                Write-IRT "No MessageTraceTable available - subjects will not be resolved" -Level Warn
             }
         }
 
@@ -332,9 +314,9 @@ function Show-UALog {
         }
 
         #region output
-        Write-Host @Blue "${Function}: Exporting to: ${ExcelOutputPath}"
+        Write-IRT "Exporting to: ${ExcelOutputPath}"
         if ($Open) {
-            Write-Host @Blue "Opening Excel."
+            Write-IRT "Opening Excel."
             $Workbook | Close-ExcelPackage -Show
         }
         else {

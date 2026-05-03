@@ -29,7 +29,6 @@ function Show-SignInLog {
         #region BEGIN
 
         # constants
-        $Function = $MyInvocation.MyCommand.Name
         $ParameterSet = $PSCmdlet.ParameterSetName
         if ($Test -or $Script:Test) {
             $Script:Test = $true
@@ -39,19 +38,12 @@ function Show-SignInLog {
         $RawDateProperty = 'CreatedDateTime'
         $DateColumnHeader = 'DateTime'
 
-        # colors
-        $Blue = @{ ForegroundColor = 'Blue' }
-        # $Green = @{ ForegroundColor = 'Green' }
-        # $Magenta = @{ ForegroundColor = 'Magenta' }
-        # $Red = @{ ForegroundColor = 'Red' }
-        $Yellow = @{ ForegroundColor = 'Yellow' }
 
         # import from xml
         if ($ParameterSet -eq 'Xml') {
             if ($Script:Test) {
                 $TestText = "Importing from Xml"
                 $TimerStart = $Stopwatch.Elapsed
-                Write-Host @Yellow "${Function}: ${TestText} started at $(Get-Date -Format 'hh:mm:sstt')" | Out-Host
             }
 
             try {
@@ -70,7 +62,7 @@ function Show-SignInLog {
 
             if ($Script:Test) {
                 $ElapsedString = ($StopWatch.Elapsed - $TimerStart).ToString('mm\:ss')
-                Write-Host @Yellow "${Function}: ${TestText} took ${ElapsedString}" | Out-Host
+                Write-IRT "${TestText} took ${ElapsedString}" -Level Warn
             }
         }
 
@@ -82,7 +74,7 @@ function Show-SignInLog {
             $Log.RemoveAt(0)
         }
         else {
-            Write-Host @Red "${Function}: No Metadata found."
+            Write-IRT "No Metadata found." -Level Error
         }
 
         # build file name
@@ -135,27 +127,25 @@ function Show-SignInLog {
             if ($Script:Test) {
                 $TestText = "Querying ip info"
                 $TimerStart = $Stopwatch.Elapsed
-                Write-Host @Yellow "${Function}: ${TestText} started at $(Get-Date -Format 'hh:mm:sstt')" | Out-Host
             }
 
             # query information for all IP addresses
             $env:PYTHONUTF8 = '1'
             & ip_info --apis bulk --output_format none --ip_addresses $IpInfoAddresses
             if ($LASTEXITCODE -ne 0) {
-                Write-Host @Red "${Function}: ip_info query failed." | Out-Host
+                Write-IRT "ip_info query failed." -Level Error
             }
 
             # end timer for ip query
             if ($Script:Test) {
                 $ElapsedString = ($StopWatch.Elapsed - $TimerStart).ToString('mm\:ss')
-                Write-Host @Yellow "${Function}: ${TestText} took ${ElapsedString}" | Out-Host
+                Write-IRT "${TestText} took ${ElapsedString}" -Level Warn
             }
 
             # add ip info to global colection
             if ($Script:Test) {
                 $TestText = "Creating ip info collection in global scope"
                 $TimerStart = $Stopwatch.Elapsed
-                Write-Host @Yellow "${Function}: ${TestText} started at $(Get-Date -Format 'hh:mm:sstt')" | Out-Host
             }
 
             foreach ($Ip in $IpInfoAddresses) {
@@ -174,7 +164,7 @@ function Show-SignInLog {
 
             if ($Script:Test) {
                 $ElapsedString = ($StopWatch.Elapsed - $TimerStart).ToString('mm\:ss')
-                Write-Host @Yellow "${Function}: ${TestText} took ${ElapsedString}" | Out-Host
+                Write-IRT "${TestText} took ${ElapsedString}" -Level Warn
             }
         }
 
@@ -183,7 +173,6 @@ function Show-SignInLog {
         if ($Script:Test) {
             $TestText = "Row loop"
             $TimerStart = $Stopwatch.Elapsed
-            Write-Host @Yellow "${Function}: ${TestText} started at $(Get-Date -Format 'hh:mm:sstt')" | Out-Host
         }
 
         $RowCount = ($Log | Measure-Object).Count
@@ -255,14 +244,13 @@ function Show-SignInLog {
             Write-Progress -Id 1 -Activity 'Row loop' -Completed
 
             $ElapsedString = ($StopWatch.Elapsed - $TimerStart).ToString('mm\:ss')
-            Write-Host @Yellow "${Function}: ${TestText} took ${ElapsedString}" | Out-Host
+            Write-IRT "${TestText} took ${ElapsedString}" -Level Warn
         }
 
         #region EXPORT SPREADSHEET
         if ($Script:Test) {
             $TestText = "Exporting to excel"
             $TimerStart = $Stopwatch.Elapsed
-            Write-Host @Yellow "${Function}: ${TestText} started at $(Get-Date -Format 'hh:mm:sstt')" | Out-Host
         }
 
         $ExcelParams = @{
@@ -292,7 +280,7 @@ function Show-SignInLog {
 
         if ($Script:Test) {
             $ElapsedString = ($StopWatch.Elapsed - $TimerStart).ToString('mm\:ss')
-            Write-Host @Yellow "${Function}: ${TestText} took ${ElapsedString}" | Out-Host
+            Write-IRT "${TestText} took ${ElapsedString}" -Level Warn
         }
 
         # get table ranges
@@ -423,9 +411,9 @@ function Show-SignInLog {
         #region OUTPUT
 
         # save and close
-        Write-Host @Blue "Exporting to: ${ExcelOutputPath}"
+        Write-IRT "Exporting to: ${ExcelOutputPath}"
         if ($Open) {
-            Write-Host @Blue "Opening Excel."
+            Write-IRT "Opening Excel."
             $Workbook | Close-ExcelPackage -Show
         }
         else {

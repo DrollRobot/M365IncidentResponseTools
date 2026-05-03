@@ -1,5 +1,3 @@
-New-Alias -Name 'FindDevice' -Value 'Find-Device' 
-New-Alias -Name 'FindDevices' -Value 'Find-Device' 
 function Find-Device {
     <#
     .SYNOPSIS
@@ -16,6 +14,7 @@ function Find-Device {
     .NOTES
     Version: 1.1.0
     #>
+    [Alias('FindDevice', 'FindDevices')]
     [CmdletBinding()]
     param (
         [Parameter( Position = 0, Mandatory )]
@@ -35,10 +34,6 @@ function Find-Device {
             'OwnerUPN'
             'DeviceId'
         )
-
-        # colors
-        $Blue = @{ForegroundColor = 'Blue'}
-        $Red = @{ForegroundColor = 'Red'}
 
         # get all combined device objects from cache
         $AllDevices = Request-GraphDevice -Cached
@@ -78,7 +73,7 @@ function Find-Device {
                 if (-not $Script) {
 
                     # show device info
-                    Write-Host @Blue "Showing results for search: ${SearchString}"
+                    Write-IRT "Showing results for search: ${SearchString}"
                     $MatchingDevices | Format-Table $DisplayProperties
                 }
 
@@ -90,14 +85,14 @@ function Find-Device {
                 if (-not $Script) {
 
                     # show device info
-                    Write-Host @Blue "Showing results for search: ${SearchString}"
+                    Write-IRT "Showing results for search: ${SearchString}"
                     $MatchingDevices | Format-Table $DisplayProperties
-                    Write-Host @Red 'Multiple devices found. Refine search.'
+                    Write-IRT 'Multiple devices found. Refine search.' -Level Warn
                 }
             }
             else {
                 if (-not $Script) {
-                    Write-Host @Red "$SearchString not found. Try a different search."
+                    Write-IRT "$SearchString not found. Try a different search." -Level Error
                 }
             }
         }
@@ -116,7 +111,7 @@ function Find-Device {
                 Force = $true
             }
             New-Variable @VariableParams
-            Write-Host @Blue "`nCreated `$IRT_${VarPrefix}DeviceObjects"
+            Write-IRT "`nCreated `$IRT_${VarPrefix}DeviceObjects"
 
             if ( $ScriptDeviceObjects.Count -gt 1 ) {
                 $ScriptDeviceObjects | Format-Table $DisplayProperties

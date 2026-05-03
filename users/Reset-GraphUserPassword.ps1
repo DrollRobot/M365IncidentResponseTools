@@ -1,5 +1,3 @@
-New-Alias -Name 'ResetPassword' -Value 'Reset-GraphUserPassword' 
-New-Alias -Name 'ResetPasswords' -Value 'Reset-GraphUserPassword' 
 function Reset-GraphUserPassword {
     <#
 	.SYNOPSIS
@@ -9,6 +7,7 @@ function Reset-GraphUserPassword {
 	Version: 1.0.1
     1.0.1 - Updated to output password in safe way. Fixed bug preventing password reset. Updated variable names.
 	#>
+    [Alias('ResetPassword', 'ResetPasswords')]
     [CmdletBinding( DefaultParameterSetName = 'RandomCharacters' )]
     param(
         [Parameter( Position = 0 )]
@@ -28,7 +27,6 @@ function Reset-GraphUserPassword {
     )
 
     begin {
-
         # if not passed directly, find global
         if ( -not $UserObject -or $UserObject.Count -eq 0 ) {
 
@@ -64,10 +62,6 @@ function Reset-GraphUserPassword {
             'OnPremisesSamAccountName'
             'UserPrincipalName'
         )
-
-        # colors
-        $Blue = @{ ForegroundColor = 'Blue' }
-        $Red = @{ ForegroundColor = 'Red' }
     }
 
     process {
@@ -81,7 +75,7 @@ function Reset-GraphUserPassword {
                 'RandomCharacters' {
                     $UserEmail = $LoopObject.UserPrincipalName
                     $Password = Get-RandomPassword 30
-                    Write-Host @Green "`n${UserEmail} new password:"
+                    Write-IRT "`n${UserEmail} new password:"
                     # Console WriteLine prevents password from bring recorded in transcripts
                     [Console]::WriteLine($Password)
                 }
@@ -96,7 +90,7 @@ function Reset-GraphUserPassword {
             Update-MgUser -UserId $LoopObject.Id -PasswordProfile $PasswordProfile
 
             # get new user object
-            Write-Host @Blue "`nGetting updated user information."
+            Write-IRT "`nGetting updated user information."
             $FullUserObject = Get-MgUser -UserId $LoopObject.Id -Property $GetProperties
             try {
                 $FullUserObject.LastPasswordChangeDateTime = $FullUserObject.LastPasswordChangeDateTime.ToLocalTime()
@@ -108,7 +102,7 @@ function Reset-GraphUserPassword {
 
             # warn user if onpremsynced
             if ( $FullUserObject.OnPremisesSyncEnabled ) {
-                Write-Host @Red "`nUser is synced from on-premises. Reset password in local AD too!"
+                Write-IRT "`nUser is synced from on-premises. Reset password in local AD too!" -Level Error
             }
         }
     }

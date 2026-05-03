@@ -1,4 +1,3 @@
-New-Alias -Name 'OpenMailbox' -Value 'Open-MailboxInOWA' 
 function Open-MailboxInOWA {
     <#
 	.SYNOPSIS
@@ -8,6 +7,7 @@ function Open-MailboxInOWA {
 	Version: 1.1.0
     1.1.0 - Added Clipboard option.
 	#>
+    [Alias('OpenMailbox')]
     [CmdletBinding()]
     param (
         [Parameter( Position = 0 )]
@@ -18,23 +18,10 @@ function Open-MailboxInOWA {
         [string] $Browser = $Global:IRT_Config.Browser,
         [switch] $Private,
 
-        [switch] $Clipboard
+        [switch] $ToClipboard
     )
 
     begin {
-
-        #region BEGIN
-
-        # constants
-        $Function = $MyInvocation.MyCommand.Name
-
-        # colors
-        $Blue = @{ ForegroundColor = 'Blue' }
-        # $Cyan = @{ ForegroundColor = 'Cyan' }
-        # $Green = @{ ForegroundColor = 'Green' }
-        $Red = @{ ForegroundColor = 'Red' }
-        # $Magenta = @{ ForegroundColor = 'Magenta' }
-
         # if users passed via script argument:
         if (($UserObject | Measure-Object).Count -gt 0) {
             $ScriptUserObjects = $UserObject
@@ -47,7 +34,7 @@ function Open-MailboxInOWA {
 
             # if none found, exit
             if ( -not $ScriptUserObjects -or $ScriptUserObjects.Count -eq 0 ) {
-                Write-Host @Red "${Function}: No user objects passed or found in global variables."
+                Write-IRT "No user objects passed or found in global variables." -Level Error
                 return
             }
             if (($ScriptUserObjects | Measure-Object).Count -eq 0) {
@@ -77,28 +64,27 @@ function Open-MailboxInOWA {
     process {
 
         foreach ($ScriptUserObject in $ScriptUserObjects) {
-
             $UserEmail = $ScriptUserObject.UserPrincipalName
 
             # verify user has mailbox
             try { $Mailbox = Get-EXOMailbox -UserPrincipalName $UserEmail -ErrorAction Stop }
             catch { $Mailbox = $null }
             if (-not $Mailbox) {
-                Write-Host @Red "${Function}: No mailbox for ${UserEmail}"
+                Write-IRT "No mailbox for ${UserEmail}" -Level Warn
                 continue
             }
 
-            $MailboxUrl = "https://outlook.office.com/mail/${UserEmail}/?offline=disabled"
+            $OwaHost    = if ($Global:IRT_Session.GCCHigh) { 'outlook.office365.us' } else { 'outlook.office.com' }
+            $OWAUrl = "https://${OwaHost}/mail/${UserEmail}/?offline=disabled"
 
-            if ($Clipboard) {
-                $MailboxUrl | Set-Clipboard
-                Write-Host @Green "Mailbox URL for ${UserEmail} copied to clipboard." | Out-Host
+            [pscustomobject]@{
+                OWAUrl = $OWAUrl
             }
-            else {
-                Write-Host @Blue "Opening ${UserEmail}'s mailbox in web browser." | Out-Host
+
+            if (-not $ToClipboard) {
                 $Params = @{
                     Browser = $Browser
-                    Url = $MailboxUrl
+                    Url = $OWAUrl
                 }
                 if ($Private) {
                     $Params['Private'] = $true
@@ -106,8 +92,12 @@ function Open-MailboxInOWA {
                 Open-Browser @Params
             }
         }
+
+        if ($ToClipboard -and ($ScriptUserObjects | Measure-Object).Count -eq 1) {
+            Set-Clipboard -Value $OWAUrl
+            Write-IRT "OWA URL copied to clipboard."
+        }
     }
 }
-
 
 

@@ -1,26 +1,40 @@
-New-Alias -Name 'RiskyApps' -Value 'Find-RiskyApplication' 
-
 function Find-RiskyApplication {
     <#
     .SYNOPSIS
-        Identifies potentially malicious OAuth applications registered in the tenant.
+    Identifies potentially malicious OAuth applications registered in the tenant.
 
     .DESCRIPTION
-        Checks all service principals in the tenant against a configurable list of threat
-        intelligence feeds to find known malicious OAuth app IDs. For each match, displays
-        app details, the source feed, and the users who have granted consent to the app.
+    Checks all service principals in the tenant against a configurable list of threat
+    intelligence feeds to find known malicious OAuth app IDs. For each match, displays
+    app details, the source feed, and the users who have granted consent to the app.
 
-        Also reports on tenant-level app registration and user consent policies.
+    Also reports on tenant-level app registration and user consent policies.
 
-        New feeds can be added to the $ThreatFeeds array in the begin block.
-        Each feed requires: Name, Url, Parser (scriptblock), AppIdField, and DisplayProperties.
+    New feeds can be added to the $ThreatFeeds array in the begin block.
+    Each feed requires: Name, Url, Parser (scriptblock), AppIdField, and DisplayProperties.
 
-        Requires the PSToml module for feeds that use TOML format.
+    Requires the PSToml module for feeds that use TOML format.
+
+    .PARAMETER Cached
+    Use pre-cached Graph service principal and OAuth grant data instead of making new
+    API calls. Speeds up repeated runs during the same session.
+
+    .EXAMPLE
+    Find-RiskyApplication
+    Queries all threat intelligence feeds and reports any matches in the tenant.
+
+    .EXAMPLE
+    Find-RiskyApplication -Cached
+    Same as above but uses cached Graph data from the current session.
+
+    .OUTPUTS
+    None. Results are written to the console.
 
     .NOTES
-        Requires an active Graph connection with appropriate permissions.
-        Threat intelligence feeds are fetched live from GitHub at runtime.
+    Requires an active Graph connection with appropriate permissions.
+    Threat intelligence feeds are fetched live from GitHub at runtime.
     #>
+    [Alias('RiskyApps')]
     param (
         [switch] $Cached
     )
@@ -56,14 +70,11 @@ function Find-RiskyApplication {
         $ServicePrincipals = Request-GraphServicePrincipal -Cached:$Cached
         $PermissionGrants = Request-GraphOauth2Grant -Cached:$Cached
         $Users = Request-GraphUser -Cached:$Cached
-
-        # colors
-        $Blue = @{ForegroundColor = 'Blue'}
     }
 
     process {
         ### show settings
-        Write-Host @Blue "`nTenant App settings:"
+        Write-IRT "`nTenant App settings:"
         $AuthPolicy = Get-MgPolicyAuthorizationPolicy
         $DefaultRolePermissions = $AuthPolicy.DefaultUserRolePermissions
         $Output = [PSCustomObject]@{
@@ -95,7 +106,7 @@ function Find-RiskyApplication {
             $AppGrants = $PermissionGrants | Where-Object {$_.ClientId -eq $RiskyApp.Id}
 
             # show app information
-            Write-Host @Blue "App Information:"
+            Write-IRT "App Information:"
             foreach ($Feed in $ThreatFeeds) {
                 $FeedInfo = $Feed.Apps | Where-Object {$_.$($Feed.AppIdField) -eq $RiskyApp.AppId}
                 if ($FeedInfo) {
@@ -106,7 +117,7 @@ function Find-RiskyApplication {
             }
 
             # show users who have the app
-            Write-Host @Blue "Users who have this app:"
+            Write-IRT "Users who have this app:"
             $Users |
                 Where-Object {$_.Id -in $AppGrants.PrincipalId} |
                 Format-Table $UserDisplayProperties |
@@ -114,7 +125,7 @@ function Find-RiskyApplication {
         }
 
         if ($FoundApps -eq $false) {
-            Write-Host "`nNo risky apps found."
+            Write-IRT "`nNo risky apps found."
             Write-Host ""
         }
     }

@@ -1,6 +1,4 @@
 #region Import-IRTConfig
-New-Alias -Name 'ImportConfig' -Value 'Import-IRTConfig' 
-New-Alias -Name 'IRTConfig'    -Value 'Import-IRTConfig' 
 function Import-IRTConfig {
     <#
     .SYNOPSIS
@@ -14,6 +12,7 @@ function Import-IRTConfig {
     .PARAMETER Force
     Re-read the config file even if $Global:IRT_Config is already populated.
     #>
+    [Alias('ImportConfig', 'IRTConfig')]
     [CmdletBinding()]
     param(
         [switch] $Force
@@ -30,7 +29,7 @@ function Import-IRTConfig {
             New-Item -ItemType Directory -Path $ConfigDir -Force | Out-Null
         }
         Copy-Item -Path $TemplatePath -Destination $ConfigPath
-        Write-Host "Created default config at: $ConfigPath" -ForegroundColor Cyan
+        Write-IRT "Created default config at: $ConfigPath"
     }
 
     if ($Force -or -not $Global:IRT_Config) {
@@ -53,12 +52,12 @@ function Import-IRTConfig {
 
 
 #region Open-IRTConfig
-New-Alias -Name 'OpenConfig'   -Value 'Open-IRTConfig' 
 function Open-IRTConfig {
     <#
     .SYNOPSIS
     Opens the IRT config.json file for editing.
     #>
+    [Alias('OpenConfig')]
     [CmdletBinding()]
     param()
 
@@ -74,7 +73,6 @@ function Open-IRTConfig {
 
 
 #region Set-IRTConfig
-New-Alias -Name 'SetConfig'    -Value 'Set-IRTConfig' 
 function Set-IRTConfig {
     <#
     .SYNOPSIS
@@ -87,6 +85,7 @@ function Set-IRTConfig {
     .PARAMETER Reset
     Reset config to the template defaults without showing the menu.
     #>
+    [Alias('SetConfig')]
     [CmdletBinding(SupportsShouldProcess)]
     param(
         [switch] $Reset
@@ -105,7 +104,7 @@ function Set-IRTConfig {
             }
             Copy-Item -Path $TemplatePath -Destination $ConfigPath -Force
             $Global:IRT_Config = Get-Content -Path $ConfigPath -Raw | ConvertFrom-Json
-            Write-Host "Config reset to defaults." -ForegroundColor Cyan
+            Write-IRT "Config reset to defaults."
             return
         }
         return
@@ -175,6 +174,26 @@ function Set-IRTConfig {
                 'https://techcommunity.microsoft.com/blog/exchange/more-efficient-bulk-operations-with-powershell-parallelism/4409693)'
             Options     = $null  # free text / integer
         }
+        PromptColor = @{
+            Summary     = 'Prompt color'
+            Description = 'Foreground color used for the IRT prompt labels (e.g. "[IRT]", "Graph:", "Exchange:").'
+            Options     = @('Black','DarkBlue','DarkGreen','DarkCyan','DarkRed','DarkMagenta','DarkYellow','Gray','DarkGray','Blue','Green','Cyan','Red','Magenta','Yellow','White')
+        }
+        InfoColor = @{
+            Summary     = 'Informational message color'
+            Description = 'Foreground color used for informational messages throughout IRT.'
+            Options     = @('Black','DarkBlue','DarkGreen','DarkCyan','DarkRed','DarkMagenta','DarkYellow','Gray','DarkGray','Blue','Green','Cyan','Red','Magenta','Yellow','White')
+        }
+        WarnColor = @{
+            Summary     = 'Warning message color'
+            Description = 'Foreground color used for warning messages throughout IRT.'
+            Options     = @('Black','DarkBlue','DarkGreen','DarkCyan','DarkRed','DarkMagenta','DarkYellow','Gray','DarkGray','Blue','Green','Cyan','Red','Magenta','Yellow','White')
+        }
+        ErrorColor = @{
+            Summary     = 'Error message color'
+            Description = 'Foreground color used for error messages throughout IRT.'
+            Options     = @('Black','DarkBlue','DarkGreen','DarkCyan','DarkRed','DarkMagenta','DarkYellow','Gray','DarkGray','Blue','Green','Cyan','Red','Magenta','Yellow','White')
+        }
     }
 
     # main menu loop
@@ -223,8 +242,8 @@ function Set-IRTConfig {
         $CurrentVal = $Config.$SelectedKey
 
         Write-Host ''
-        Write-Host $Setting.Description -ForegroundColor Cyan
-        Write-Host "Current value: $CurrentVal" -ForegroundColor DarkGray
+        Write-IRT $Setting.Description
+        Write-IRT "Current value: $CurrentVal"
         Write-Host ''
 
         if ($Setting.Options) {
@@ -239,7 +258,7 @@ function Set-IRTConfig {
             else {
                 $NewValue = Read-Host "Enter new value (blank to keep current)"
                 if ([string]::IsNullOrWhiteSpace($NewValue)) {
-                    Write-Host "Keeping current value: $CurrentVal" -ForegroundColor DarkGray
+                    Write-IRT "Keeping current value: $CurrentVal"
                     continue
                 }
             }
@@ -265,7 +284,7 @@ function Set-IRTConfig {
         if ($PSCmdlet.ShouldProcess($ConfigPath, "Set $SelectedKey = $NewValue")) {
             $Config | ConvertTo-Json -Depth 10 | Set-Content -Path $ConfigPath -Encoding utf8
             $Global:IRT_Config = $Config
-            Write-Host "$SelectedKey updated to: $NewValue" -ForegroundColor Green
+            Write-IRT "$SelectedKey updated to: $NewValue"
         }
     }
 }

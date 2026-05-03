@@ -1,4 +1,3 @@
-New-Alias -Name 'FullAccess' -Value 'Grant-MailboxFullAccess' 
 function Grant-MailboxFullAccess {
     <#
 	.SYNOPSIS
@@ -7,6 +6,7 @@ function Grant-MailboxFullAccess {
 	.NOTES
 	Version: 1.0.0
 	#>
+    [Alias('FullAccess')]
     [CmdletBinding()]
     param (
         [Parameter( Position = 0 )]
@@ -19,20 +19,7 @@ function Grant-MailboxFullAccess {
     )
 
     begin {
-
-        #region BEGIN
-
-        # constants
-        $Function = $MyInvocation.MyCommand.Name
-
         $GrantAccessToList = [System.Collections.Generic.List[string]]::new()
-
-        # colors
-        $Blue = @{ ForegroundColor = 'Blue' }
-        # $Cyan = @{ ForegroundColor = 'Cyan' }
-        # $Green = @{ ForegroundColor = 'Green' }
-        $Red = @{ ForegroundColor = 'Red' }
-        # $Magenta = @{ ForegroundColor = 'Magenta' }
 
         # if users passed via script argument:
         if (($UserObject | Measure-Object).Count -gt 0) {
@@ -46,7 +33,7 @@ function Grant-MailboxFullAccess {
 
             # if none found, exit
             if ( -not $ScriptUserObjects -or $ScriptUserObjects.Count -eq 0 ) {
-                Write-Host @Red "${Function}: No user objects passed or found in global variables."
+                Write-IRT "No user objects passed or found in global variables." -Level Error
                 return
             }
             if (($ScriptUserObjects | Measure-Object).Count -eq 0) {
@@ -146,13 +133,13 @@ function Grant-MailboxFullAccess {
             try { $Mailbox = Get-EXOMailbox -UserPrincipalName $UserEmail -ErrorAction Stop }
             catch { $Mailbox = $null }
             if (-not $Mailbox) {
-                Write-Host @Red "${Function}: No mailbox for ${UserEmail}"
+                Write-IRT "No mailbox for ${UserEmail}" -Level Warn
                 continue
             }
 
             if ($Remove) {
                 # remove access
-                Write-Host @Blue "Removing access to ${UserEmail} from ${GrantAccessTo}" | Out-Host
+                Write-IRT "Removing access to ${UserEmail} from ${GrantAccessTo}"
                 $Params = @{
                     Identity = $UserEmail
                     User = $GrantAccessTo
@@ -163,7 +150,7 @@ function Grant-MailboxFullAccess {
             }
             else {
                 # add access
-                Write-Host @Blue "Adding access to ${UserEmail} to ${GrantAccessTo}" | Out-Host
+                Write-IRT "Adding access to ${UserEmail} to ${GrantAccessTo}"
                 $Params = @{
                     Identity = $UserEmail
                     User = $GrantAccessTo
@@ -174,7 +161,7 @@ function Grant-MailboxFullAccess {
             }
 
             # show users who have access to target mailbox
-            Write-Host @Blue "Showing users who have access to ${UserEmail}" | Out-Host
+            Write-IRT "Showing users who have access to ${UserEmail}"
             $Properties = @(
                 'User'
                 'AccessRights'

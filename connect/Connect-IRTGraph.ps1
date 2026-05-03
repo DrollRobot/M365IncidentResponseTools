@@ -45,9 +45,6 @@ function Connect-IRTGraph {
     )
 
     begin {
-        $Green = @{ForegroundColor = 'Green'}
-        $Yellow = @{ForegroundColor = 'Yellow'}
-
         $DefaultScopes = @(
             'Application.ReadWrite.All'
             'AuditLog.Read.All'
@@ -212,7 +209,7 @@ function Connect-IRTGraph {
 
         if ($NeedNewToken) {
             if ($Global:IRT_Session -and $Global:IRT_Session.Graph -and $Global:IRT_Session.Graph.Token) {
-                Write-Host @Yellow "Refreshing expired Graph token for tenant $TenantId."
+                Write-IRT "Refreshing expired Graph token for tenant $TenantId." -Level Warn
             }
             $TokenResult = & $AcquireToken
             if (-not $TokenResult.AccessToken) {
@@ -258,8 +255,8 @@ function Connect-IRTGraph {
         }
 
         if ($MissingAdminScopes) {
-            Write-Host @Yellow "Admin consent missing tenant-wide for $($MissingAdminScopes.Count) scope(s):"
-            Write-Host @Yellow "  $($MissingAdminScopes -join ', ')"
+            Write-IRT "Admin consent missing tenant-wide for $($MissingAdminScopes.Count) scope(s):" -Level Warn
+            Write-IRT "  $($MissingAdminScopes -join ', ')" -Level Warn
 
             $ConsentParams = @{
                 TenantId    = $TenantId
@@ -288,12 +285,12 @@ function Connect-IRTGraph {
                 Write-Warning "Tenant-wide grant not yet visible for: $($StillMissing -join ', ')"
                 Write-Warning 'Replication may still be in flight; re-run Connect-IRT shortly to confirm.'
             } else {
-                Write-Host @Green 'Admin consent granted tenant-wide.'
+                Write-IRT 'Admin consent granted tenant-wide.'
             }
         }
 
         if (-not $NeedNewToken -and -not $NeedConnect) {
-            Write-Host @Yellow "Already connected to Graph for tenant $TenantId."
+            Write-IRT "Already connected to Graph for tenant $TenantId." -Level Warn
         }
 
         return [pscustomobject]@{
@@ -375,8 +372,6 @@ function Invoke-IRTAdminConsent {
     )
 
     begin {
-        $Yellow = @{ ForegroundColor = 'Yellow' }
-
         $Listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, 0)
         $Listener.Start()
         $Port        = ([System.Net.IPEndPoint]$Listener.LocalEndpoint).Port
@@ -400,9 +395,9 @@ function Invoke-IRTAdminConsent {
                         "&state=$State" +
                         "&scope=$([uri]::EscapeDataString($ScopeQuery))"
 
-            Write-Host @Yellow 'Opening admin consent page in browser...'
-            Write-Host @Yellow "  Granting tenant-wide consent for $($Scope.Count) scope(s)."
-            Write-Host @Yellow '  Sign in as a Global Administrator and click Accept.'
+            Write-IRT 'Opening admin consent page in browser...' -Level Warn
+            Write-IRT "  Granting tenant-wide consent for $($Scope.Count) scope(s)." -Level Warn
+            Write-IRT '  Sign in as a Global Administrator and click Accept.' -Level Warn
             Open-Browser -Browser $Browser -Url $ConsentUrl -Private:$Private
 
             $AcceptTask = $Listener.AcceptTcpClientAsync()

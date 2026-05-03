@@ -1,17 +1,79 @@
-New-Alias -Name "SILog" -Value "Get-SignInLog" 
-New-Alias -Name "SILogs" -Value "Get-SignInLog" 
-New-Alias -Name "GetSILog" -Value "Get-SignInLog" 
-New-Alias -Name "GetSILogs" -Value "Get-SignInLog" 
 function Get-SignInLog {
     <#
-	.SYNOPSIS
-	Downloads user sign in logs.
+    .SYNOPSIS
+    Downloads user sign in logs.
 
-	.NOTES
-	Version: 1.1.2
+    .DESCRIPTION
+    Retrieves Entra ID interactive sign-in logs via Microsoft Graph for one or more users,
+    a set of IP addresses, or all users in the tenant. Enriches each log entry with
+    IP geolocation data and human-readable Entra error descriptions, then exports results
+    to an Excel workbook.
+
+    Date range defaults to the last 30 days when no -Days, -Start, or -End is specified.
+
+    .PARAMETER UserObject
+    One or more user objects whose sign-in logs to retrieve. Mutually exclusive with
+    -AllUsers and -IpAddress. Falls back to global session objects if omitted.
+
+    .PARAMETER AllUsers
+    Retrieve sign-in logs for all users in the tenant. Mutually exclusive with -UserObject
+    and -IpAddress.
+
+    .PARAMETER IpAddress
+    One or more IP addresses to filter sign-in logs by source IP. Mutually exclusive with
+    -UserObject and -AllUsers.
+
+    .PARAMETER Days
+    Number of days back to search. Cannot be used with -Start / -End.
+
+    .PARAMETER Start
+    Start of date range (parseable date string). Used with -End for an absolute range.
+
+    .PARAMETER End
+    End of date range (parseable date string). Used with -Start for an absolute range.
+
+    .PARAMETER NonInteractive
+    Retrieve non-interactive sign-in logs instead of interactive logs.
+
+    .PARAMETER Beta
+    Use the Microsoft Graph beta endpoint. Default: $true.
+
+    .PARAMETER Excel
+    Export results to an Excel workbook. Default: $true.
+
+    .PARAMETER IpInfo
+    Enrich results with IP geolocation data. Default: $true.
+
+    .PARAMETER Open
+    Open the Excel file immediately after export. Default: $true.
+
+    .PARAMETER Test
+    Enable stopwatch timing output.
+
+    .PARAMETER Xml
+    Export raw XML alongside the Excel file. Defaults to IRT_Config.ExportXml.
+
+    .EXAMPLE
+    Get-SignInLog
+    Downloads the last 30 days of sign-in logs for the user in the global session.
+
+    .EXAMPLE
+    Get-SignInLog -UserObject $User -Days 90
+    Downloads 90 days of sign-in logs for a specific user.
+
+    .EXAMPLE
+    Get-SignInLog -IpAddress '203.0.113.5' -Days 14
+    Finds all sign-ins from a specific IP over the last 14 days.
+
+    .OUTPUTS
+    None. Results are exported to an Excel workbook.
+
+    .NOTES
+    Version: 1.1.2
     1.1.2 - Added graceful exit when no logs are found.
     1.1.1 - Added test timers.
-	#>
+    #>
+    [Alias('GetSILog', 'GetSILogs', 'SILog', 'SILogs')]
     [CmdletBinding(DefaultParameterSetName = 'UserObject')]
     param (
         [Parameter(Position = 0,ParameterSetName='UserObject')]
@@ -45,20 +107,12 @@ function Get-SignInLog {
         #region BEGIN
 
         # constants
-        $Function = $MyInvocation.MyCommand.Name
         $ParameterSet = $PSCmdlet.ParameterSetName
         if ($Test -or $Script:Test) {
             $Script:Test = $true
             # start stopwatch
             $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
         }
-
-        # colors
-        $Blue = @{ForegroundColor = 'Blue'}
-        # $Green = @{ForegroundColor = 'Green'}
-        # $Red = @{ForegroundColor = 'Red'}
-        # $Magenta = @{ForegroundColor = 'Magenta'}
-        $Yellow = @{ForegroundColor = 'Yellow'}
 
         # create user objects depending on parameters used
         switch ( $ParameterSet ) {
@@ -75,7 +129,7 @@ function Get-SignInLog {
 
                     # if none found, exit
                     if ( -not $ScriptUserObjects -or $ScriptUserObjects.Count -eq 0 ) {
-                        Write-Host @Red "${Function}: No user objects passed or found in global variables."
+                        Write-IRT "No user objects passed or found in global variables." -Level Error
                         return
                     }
                     if (($ScriptUserObjects | Measure-Object).Count -eq 0) {
@@ -194,13 +248,13 @@ function Get-SignInLog {
             #region QUERY LOGS
             # user messages
             if ( $NonInteractive ) {
-                Write-Host @Blue "`nRetrieving ${Days} days of noninteractive sign-in logs for ${Target}." | Out-Host
+                Write-IRT "`nRetrieving ${Days} days of noninteractive sign-in logs for ${Target}."
             }
             else {
-                Write-Host @Blue "`nRetrieving ${Days} days of sign-in logs for ${Target}." | Out-Host
+                Write-IRT "`nRetrieving ${Days} days of sign-in logs for ${Target}."
             }
             if ($Script:Test) {
-                Write-Host @Yellow "${Function}: Filter string: '${FilterString}'" | Out-Host
+                Write-IRT "Filter string: '${FilterString}'" -Level Warn
             }
             # Write-Host @Blue "This can take up to 5 minutes, depending on the number of logs." | Out-Host
 
@@ -208,7 +262,6 @@ function Get-SignInLog {
             if ($Script:Test) {
                 $TestText = "Querying sign in logs"
                 $TimerStart = $Stopwatch.Elapsed
-                Write-Host @Yellow "${Function}: ${TestText} started at $(Get-Date -Format 'hh:mm:sstt')" | Out-Host
             }
 
             if ($Beta) { # default is to use beta, which returns more information
@@ -259,11 +312,11 @@ function Get-SignInLog {
 
             if ($Script:Test) {
                 $ElapsedString = ($StopWatch.Elapsed - $TimerStart).ToString('mm\:ss')
-                Write-Host @Yellow "${Function}: ${TestText} took ${ElapsedString}" | Out-Host
+                Write-IRT "${TestText} took ${ElapsedString}" -Level Warn
             }
 
             if (($Logs | Measure-Object).Count -eq 0 ) {
-                Write-Host @Red "${Function}: No logs found for ${Target} for past ${Days} days. Exiting." | Out-Host
+                Write-IRT "No logs found for ${Target} for past ${Days} days. Exiting." -Level Error
                 continue
             }
 
@@ -282,22 +335,21 @@ function Get-SignInLog {
             # show count, export
             $LogCount = ($Logs | Measure-Object).Count
             if ($LogCount -gt 0) {
-                Write-Host @Blue "Retrieved ${LogCount} logs."
+                Write-IRT "Retrieved ${LogCount} logs."
 
                 # export to xml
                 if ($Xml) {
                     if ($Script:Test) {
                         $TestText = "Exporting to xml"
                         $TimerStart = $Stopwatch.Elapsed
-                        Write-Host @Yellow "${Function}: ${TestText} started at $(Get-Date -Format 'hh:mm:sstt')" | Out-Host
                     }
 
-                    Write-Host @Blue "`nSaving logs to: ${XmlOutputPath}"
+                    Write-IRT "`nSaving logs to: ${XmlOutputPath}"
                     $Logs | Export-Clixml -Depth 10 -Path $XmlOutputPath
 
                     if ($Script:Test) {
                         $ElapsedString = ($StopWatch.Elapsed - $TimerStart).ToString('mm\:ss')
-                        Write-Host @Yellow "${Function}: ${TestText} took ${ElapsedString}" | Out-Host
+                        Write-IRT "${TestText} took ${ElapsedString}" -Level Warn
                     }
                 }
 
@@ -312,7 +364,7 @@ function Get-SignInLog {
                 }
             }
             else {
-                Write-Host @Red "Retrieved 0 logs."
+                Write-IRT "Retrieved 0 logs." -Level Error
             }
         }
     }

@@ -1,6 +1,3 @@
-New-Alias -Name 'CopyIRT' -Value 'Copy-IRTFunctions' 
-New-Alias -Name 'CopyIRTFunctions' -Value 'Copy-IRTFunctions' 
-
 function Copy-IRTFunctions {
     <#
     .SYNOPSIS
@@ -40,6 +37,7 @@ function Copy-IRTFunctions {
     .NOTES
     Version: 1.0.3
     #>
+    [Alias('CopyIRTFunctions', 'CopyIRT')]
     [CmdletBinding()]
     param (
         [Parameter(Position = 0, ValueFromPipeline, ValueFromPipelineByPropertyName)]
@@ -53,6 +51,7 @@ function Copy-IRTFunctions {
         $ModuleRoot = Split-Path -Path $PSScriptRoot -Parent
 
         $HardcodedPaths = @(
+            @{ Path = Join-Path $ModuleRoot 'modules' 'Write-IRT.ps1'; IsDirectory = $false }
             @{ Path = Join-Path $ModuleRoot 'onprem_ad'; IsDirectory = $true }
         )
 
@@ -109,7 +108,27 @@ function Copy-IRTFunctions {
             return
         }
 
+        # Resolve current color values (or fallbacks) at copy-time so the pasted
+        # code carries the user's preferences onto the remote machine.
+        $infoColor  = if ($Global:IRT_Config?.InfoColor)  { $Global:IRT_Config.InfoColor }  else { 'DarkCyan' }
+        $warnColor  = if ($Global:IRT_Config?.WarnColor)  { $Global:IRT_Config.WarnColor }  else { 'Yellow'   }
+        $errorColor = if ($Global:IRT_Config?.ErrorColor) { $Global:IRT_Config.ErrorColor } else { 'Red'      }
+
+        $bootstrap = @"
+# ---- IRT color config (auto-prepended by Copy-IRTFunctions) ----
+if (-not `$Global:IRT_Config) {
+    `$Global:IRT_Config = [PSCustomObject]@{
+        InfoColor  = '$infoColor'
+        WarnColor  = '$warnColor'
+        ErrorColor = '$errorColor'
+    }
+}
+# ----------------------------------------------------------------
+
+"@
+
         $Builder = [System.Text.StringBuilder]::new()
+        $null = $Builder.AppendLine($bootstrap)
         foreach ($F in $Files) {
             $null = $Builder.AppendLine("===== $($F.FullName) =====")
             $Content = Get-Content -LiteralPath $F.FullName -Raw -ErrorAction SilentlyContinue
@@ -120,6 +139,6 @@ function Copy-IRTFunctions {
         }
 
         Set-Clipboard -Value $Builder.ToString()
-        Write-Host "Copied contents of $($Files.Count) file(s) to clipboard." -ForegroundColor Green
+        Write-IRT "Copied contents of $($Files.Count) file(s) to clipboard."
     }
 }

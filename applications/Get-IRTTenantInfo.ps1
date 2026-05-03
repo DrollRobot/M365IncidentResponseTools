@@ -71,25 +71,25 @@ function Get-IRTTenantInfo {
 
     begin {
         # --- Cache setup ---
-        $cacheTable      = @{}
-        $newCacheEntries = [System.Collections.Generic.List[psobject]]::new()
-        $cachePath       = $null
+        $CacheTable      = @{}
+        $NewCacheEntries = [System.Collections.Generic.List[psobject]]::new()
+        $CachePath       = $null
 
         if (-not $NoCache) {
-            $moduleName = $MyInvocation.MyCommand.ModuleName
-            $cachePath = Join-Path $env:APPDATA $moduleName 'tenant_owner_info.csv'
-            $cacheDir  = Split-Path $cachePath -Parent
+            $ModuleName = $MyInvocation.MyCommand.ModuleName
+            $CachePath = Join-Path $env:APPDATA $ModuleName 'tenant_owner_info.csv'
+            $CacheDir  = Split-Path $CachePath -Parent
 
-            if (-not (Test-Path $cacheDir)) {
-                $null = New-Item -ItemType Directory -Path $cacheDir -Force
+            if (-not (Test-Path $CacheDir)) {
+                $null = New-Item -ItemType Directory -Path $CacheDir -Force
             }
 
-            if (Test-Path $cachePath) {
+            if (Test-Path $CachePath) {
                 try {
-                    Import-Csv -Path $cachePath | ForEach-Object {
-                        $cacheTable[$_.TenantId] = $_
+                    Import-Csv -Path $CachePath | ForEach-Object {
+                        $CacheTable[$_.TenantId] = $_
                     }
-                    Write-Verbose "Loaded $($cacheTable.Count) cached tenant(s) from $cachePath"
+                    Write-Verbose "Loaded $($CacheTable.Count) cached tenant(s) from $CachePath"
                 }
                 catch {
                     Write-Verbose "Could not load tenant cache: $($_.Exception.Message)"
@@ -98,14 +98,14 @@ function Get-IRTTenantInfo {
         }
 
         # --- Pre-check for an active Graph session once, not per pipeline item ---
-        $graphAvailable = $false
+        $GraphAvailable = $false
 
         if (-not $SkipGraph) {
             try {
-                $mgCtx = Get-MgContext -ErrorAction Stop
-                if ($mgCtx) {
-                    $graphAvailable = $true
-                    Write-Verbose "Graph session active as $($mgCtx.Account)"
+                $MgContext = Get-MgContext -ErrorAction Stop
+                if ($MgContext) {
+                    $GraphAvailable = $true
+                    Write-Verbose "Graph session active as $($MgContext.Account)"
                 }
             }
             catch {
@@ -116,20 +116,20 @@ function Get-IRTTenantInfo {
 
     process {
 
-        foreach ($tid in $TenantId) {
+        foreach ($Tid in $TenantId) {
 
             # --- Validate GUID ---
             $guidParsed = [guid]::Empty
-            if (-not [guid]::TryParse($tid, [ref] $guidParsed)) {
-                Write-Error "TenantId '$tid' is not a valid GUID."
+            if (-not [guid]::TryParse($Tid, [ref] $guidParsed)) {
+                Write-Error "TenantId '$Tid' is not a valid GUID."
                 continue
             }
-            $tid = $guidParsed.ToString()
+            $Tid = $guidParsed.ToString()
 
             # --- Cache lookup ---
-            if (-not $NoCache -and -not $ForceRefresh -and $cacheTable.ContainsKey($tid)) {
-                $cached = $cacheTable[$tid]
-                Write-Verbose "Cache hit for '$tid' (cached $( $cached.CachedAt ))"
+            if (-not $NoCache -and -not $ForceRefresh -and $CacheTable.ContainsKey($Tid)) {
+                $cached = $CacheTable[$Tid]
+                Write-Verbose "Cache hit for '$Tid' (cached $( $cached.CachedAt ))"
                 [pscustomobject]@{
                     TenantId            = $cached.TenantId
                     Exists              = $true
@@ -152,13 +152,13 @@ function Get-IRTTenantInfo {
 
             # --- Graph Cross-Tenant Lookup ---
             # This is the only way to resolve a tenant GUID to its org name and domain.
-            if ($graphAvailable) {
+            if ($GraphAvailable) {
 
-                $graphUri = "v1.0/tenantRelationships/findTenantInformationByTenantId(tenantId='$tid')"
-                Write-Verbose "Graph lookup: $graphUri"
+                $GraphUri = "v1.0/tenantRelationships/findTenantInformationByTenantId(tenantId='$Tid')"
+                Write-Verbose "Graph lookup: $GraphUri"
 
                 try {
-                    $info = Invoke-MgGraphRequest -Method GET -Uri $graphUri -ErrorAction Stop
+                    $info = Invoke-MgGraphRequest -Method GET -Uri $GraphUri -ErrorAction Stop
 
                     $displayName   = $info.displayName
                     $defaultDomain = $info.defaultDomainName
@@ -166,7 +166,7 @@ function Get-IRTTenantInfo {
                     $graphSource   = $true
                 }
                 catch {
-                    Write-Warning "Graph cross-tenant lookup failed for '$tid': $( $_.Exception.Message )"
+                    Write-Warning "Graph cross-tenant lookup failed for '$Tid': $( $_.Exception.Message )"
                 }
             }
 
@@ -183,11 +183,11 @@ function Get-IRTTenantInfo {
 
             foreach ($cloud in $CloudEndpoints.GetEnumerator()) {
 
-                $url = "https://$( $cloud.Value )/$tid/v2.0/.well-known/openid-configuration"
-                Write-Verbose "Probing $( $cloud.Key ): $url"
+                $Url = "https://$( $cloud.Value )/$Tid/v2.0/.well-known/openid-configuration"
+                Write-Verbose "Probing $( $cloud.Key ): $Url"
 
                 try {
-                    $oidc      = Invoke-RestMethod -Uri $url -ErrorAction Stop
+                    $oidc      = Invoke-RestMethod -Uri $Url -ErrorAction Stop
                     $cloudName = $cloud.Key
                     break
                 }
@@ -197,8 +197,8 @@ function Get-IRTTenantInfo {
             }
 
             if (-not $oidc -and -not $graphSource) {
-                Write-Warning "Tenant '$tid' was not found."
-                [pscustomobject]@{ TenantId = $tid; Exists = $false }
+                Write-Warning "Tenant '$Tid' was not found."
+                [pscustomobject]@{ TenantId = $Tid; Exists = $false }
                 continue
             }
 

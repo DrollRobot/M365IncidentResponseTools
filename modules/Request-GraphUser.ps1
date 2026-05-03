@@ -1,11 +1,17 @@
 function Request-GraphUser {
     <#
-	.SYNOPSIS
+    .SYNOPSIS
     Requests users from Microsoft Graph. Caches in global variable.
 
-	.NOTES
-	Version: 2.0.0
-	#>
+    .DESCRIPTION
+    Internal helper. Fetches all Entra ID users from Microsoft Graph and caches the
+    result in a session-scoped global variable keyed by object ID. Subsequent callers
+    that pass -Cached skip the API call. Used by the playbook and admin role functions
+    to resolve user identities without repeated Graph requests.
+
+    .NOTES
+    Version: 2.0.0
+    #>
     [CmdletBinding()]
     param (
         [switch] $Cached,

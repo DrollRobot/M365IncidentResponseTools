@@ -1,4 +1,3 @@
-New-Alias -Name 'RemoveFullAccess' -Value 'Remove-MailboxFullAccess' 
 function Remove-MailboxFullAccess {
     <#
 	.SYNOPSIS
@@ -7,6 +6,7 @@ function Remove-MailboxFullAccess {
 	.NOTES
 	Version: 1.0.0
 	#>
+    [Alias('RemoveFullAccess')]
     [CmdletBinding()]
     param (
         [Parameter( Position = 0 )]
@@ -32,6 +32,5 @@ function Remove-MailboxFullAccess {
         Grant-MailboxFullAccess @Params
     }
 }
-
 
 

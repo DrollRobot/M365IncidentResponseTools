@@ -1,11 +1,17 @@
 function Request-GraphOauth2Grant {
     <#
-	.SYNOPSIS
+    .SYNOPSIS
     Requests OAuth2 permission grants from Microsoft Graph. Caches in global variable.
 
-	.NOTES
-	Version: 2.0.0
-	#>
+    .DESCRIPTION
+    Internal helper. Fetches all delegated OAuth2 permission grants from Microsoft Graph
+    and caches them in a session-scoped global variable keyed by client ID. Used by
+    Get-UserApplication and Find-RiskyApplication to resolve which users have consented
+    to which applications without repeated Graph requests.
+
+    .NOTES
+    Version: 2.0.0
+    #>
     [CmdletBinding()]
     param (
         [switch] $Cached,

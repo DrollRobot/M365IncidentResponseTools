@@ -12,7 +12,7 @@
     RootModule = 'M365IncidentResponseTools.psm1'
 
     # Version number of this module.
-    ModuleVersion     = '2.6.2.0'
+    ModuleVersion     = '2.6.2'
 
     # Supported PSEditions
     # CompatiblePSEditions = @()
@@ -66,9 +66,9 @@
         @{ModuleName = 'Microsoft.Graph.Users'; RequiredVersion = '2.33.0'}
         @{ModuleName = 'Microsoft.Graph.Users.Actions'; RequiredVersion = '2.33.0'}
 
-        'ExchangeOnlineManagement'
-        'ImportExcel'
-        'PSToml'
+        @{ModuleName = 'ExchangeOnlineManagement'; ModuleVersion = '3.4.0'}
+        @{ModuleName = 'ImportExcel';             ModuleVersion = '7.8.0'}
+        @{ModuleName = 'PSToml';                  ModuleVersion = '0.3.0'}
     )
 
     # Assemblies that must be loaded prior to importing this module
@@ -121,7 +121,7 @@
         'onprem_ad\Show-AdUserInfo.ps1'
 
         'mailbox\Get-IRTInboxRule.ps1'
-        'mailbox\Get-MailboxUserHasFullAccessTo.ps1'
+        'mailbox\Get-UserMailboxPermissions.ps1'
         'mailbox\Grant-MailboxFullAccess.ps1'
         'mailbox\Open-MailboxInOWA.ps1'
         'mailbox\Remove-MailboxFullAccess.ps1'
@@ -155,6 +155,7 @@
         'modules\Request-GraphServicePrincipal.ps1'
         'modules\Request-GraphUser.ps1'
         'modules\Add-IpAddressConditionalFormatting.ps1'
+        'modules\Write-IRT.ps1'
         'modules\Request-GraphDevice.ps1'
         'modules\Request-IntuneDevice.ps1'
         'modules\Resolve-IRTDateRange.ps1'
@@ -239,7 +240,7 @@
 
         ### mailbox
         'Get-IRTInboxRule'
-        'Get-MailboxUserHasFullAccessTo'
+        'Get-UserMailboxPermissions'
         'Grant-MailboxFullAccess'
         'Open-MailboxInOWA'
         'Remove-MailboxFullAccess'
@@ -268,6 +269,7 @@
         'Request-GraphUser'
         'Resolve-IRTDateRange'
         'Set-IRTConfig'
+        'Write-IRT'
 
         ### roles
         'Get-AdminRole'

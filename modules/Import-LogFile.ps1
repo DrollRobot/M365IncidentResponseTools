@@ -1,5 +1,3 @@
-New-Alias -Name "ImportLogs" -Value "Import-LogFile" 
-New-Alias -Name "ImportLog" -Value "Import-LogFile" 
 function Import-LogFile {
     <#
 	.SYNOPSIS
@@ -8,6 +6,7 @@ function Import-LogFile {
 	.NOTES
 	Version: 1.0.0
 	#>
+    [Alias('ImportLogs', 'ImportLog')]
     [CmdletBinding()]
     param (
         [string] $Pattern,
@@ -36,7 +35,7 @@ function Import-LogFile {
         if ( @( $FileNames ).Count -eq 1 ) {
 
             # if only one file, import that one
-            Write-Host @Cyan "Only one file found in the current directory. Importing ${FileNames}."
+            Write-IRT "Only one file found in the current directory. Importing ${FileNames}."
             $ResolvedXmlPath = Join-Path -Path $CurrentPath -ChildPath $FileNames
         }
         # if more than one file, present user with a menu

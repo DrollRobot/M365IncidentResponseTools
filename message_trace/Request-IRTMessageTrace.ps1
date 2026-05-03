@@ -18,20 +18,10 @@ function Request-IRTMessageTrace {
     )
 
     begin {
-
-        #region BEGIN
-        $Function = $MyInvocation.MyCommand.Name
         $MaxPageSize = 5000
         $AbsoluteEnd   = Get-Date
         $AbsoluteStart = $AbsoluteEnd.AddDays(-1 * $Days)
         $AllMessages = [System.Collections.Generic.List[psobject]]::new()
-
-        # colors
-        $Blue = @{ForegroundColor = 'Blue'}
-        # $Green = @{ForegroundColor = 'Green'}
-        # $Magenta = @{ForegroundColor = 'Magenta'}
-        $Red = @{ForegroundColor = 'Red'}
-        $Yellow = @{ForegroundColor = 'Yellow'}
 
         # # adjust start date if older than 90 days.
         # $90DaysAgo = (Get-Date).AddDays(-90).ToUniversalTime()
@@ -81,7 +71,7 @@ function Request-IRTMessageTrace {
 
             $StartDateString = $LoopParams.StartDate.ToString("MM/dd/yy")
             $EndDateString = $LoopParams.EndDate.ToString("MM/dd/yy")
-            if (-not $Quiet) { Write-Host @Blue "Requesting message trace from ${StartDateString} to ${EndDateString}" }
+            if (-not $Quiet) { Write-IRT "Requesting message trace from ${StartDateString} to ${EndDateString}" }
 
             # request first page in this chunk
             $SleepCount = 0
@@ -96,14 +86,14 @@ function Request-IRTMessageTrace {
                     $IsRateLimit = $_.Exception.Message -match 'surpassed the permitted limit|try again later'
                     $IsWriteError       = $_.FullyQualifiedErrorId -match 'Write-ErrorMessage'
                     if ($IsRateLimit -and $IsWriteError -and $SleepCount -lt 5) {
-                        Write-Host @Red "${Function}: $($_.Exception.Message)" | Out-Host
-                        Write-Host @Yellow "${Function}: Pausing for 60 seconds..." | Out-Host
+                        Write-IRT "$($_.Exception.Message)" -Level Error
+                        Write-IRT "Pausing for 60 seconds..." -Level Warn
                         $SleepCount++
                         Start-Sleep -Seconds 60
                         continue
                     }
                     else {
-                        Write-Host @Yellow "${Function}: Unable to complete operation. Returning."
+                        Write-IRT "Unable to complete operation. Returning." -Level Warn
                         Write-Output $AllMessages
                         return
                     }
@@ -163,7 +153,7 @@ function Request-IRTMessageTrace {
                 # next page for this chunk
                 $StartDateString = $LoopParams.StartDate.ToString("MM/dd/yy")
                 $EndDateString = $LoopParams.EndDate.ToString("MM/dd/yy")
-                if (-not $Quiet) { Write-Host @Blue "Requesting message trace from ${StartDateString} to ${EndDateString}" }
+                if (-not $Quiet) { Write-IRT "Requesting message trace from ${StartDateString} to ${EndDateString}" }
 
                 $SleepCount = 0
                 while ($true) {
@@ -177,14 +167,14 @@ function Request-IRTMessageTrace {
                         $IsRateLimit = $_.Exception.Message -match 'surpassed the permitted limit|try again later'
                         $IsWriteError       = $_.FullyQualifiedErrorId -match 'Write-ErrorMessage'
                         if ($IsRateLimit -and $IsWriteError -and $SleepCount -lt 5) {
-                            Write-Host @Red "${Function}: $($_.Exception.Message)" | Out-Host
-                            Write-Host @Yellow "${Function}: Pausing for 60 seconds..." | Out-Host
+                            Write-IRT "$($_.Exception.Message)" -Level Error
+                            Write-IRT "Pausing for 60 seconds..." -Level Warn
                             $SleepCount++
                             Start-Sleep -Seconds 60
                             continue
                         }
                         else {
-                            Write-Host @Yellow "${Function}: Unable to complete operation. Returning."
+                            Write-IRT "Unable to complete operation. Returning." -Level Warn
                             Write-Output $AllMessages
                             return
                         }
