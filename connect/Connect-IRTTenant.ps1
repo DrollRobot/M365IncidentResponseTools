@@ -1,5 +1,3 @@
-New-Alias -Name 'IRTTenant' -Value 'Connect-IRTTenant' -Force
-
 function Connect-IRTTenant {
     <#
     .SYNOPSIS
@@ -56,8 +54,10 @@ function Connect-IRTTenant {
     Version: 1.1.0
     1.1.0 - Updated to use xlsx file instead of csv.
     #>
+    [Alias('IRTTenant')]
     [CmdletBinding()]
-    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingPlainTextForPassword', 'PasswordBrowser')] # suppress annoying warning
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+        'PSAvoidUsingPlainTextForPassword', 'PasswordBrowser')]
 
     param (
         [Parameter( Mandatory, Position = 0 )]
@@ -85,11 +85,8 @@ function Connect-IRTTenant {
 
         # validate tenant file exists
         if (-not ( Test-Path $TenantFile )) {
-
-            $Message  = "Tenant file not found: ${TenantFile}`n"
-            $Message += "Run Open-IRTTenantWorksheet to create it and edit with your tenant information."
-
-            throw $Message
+            throw ("Tenant file not found: ${TenantFile}`nRun Open-IRTTenantWorksheet to create it and edit " +
+            "with your tenant information.")
         }
 
         # import and search for matching tenant
@@ -115,7 +112,7 @@ function Connect-IRTTenant {
 
         $MatchedTenant = $MatchedTenants[0]
 
-        Write-Host "Matched tenant: $($MatchedTenant.TenantName)" -ForegroundColor Cyan
+        Write-IRT "Matched tenant: $($MatchedTenant.TenantName)"
 
         # build connection parameters
         $ConnectParams = @{
@@ -170,6 +167,7 @@ function Open-IRTTenantWorksheet {
     .NOTES
     Version: 1.0.0
     #>
+    [Alias('OpenIRTTenantWorksheet', 'Open-IRTTenantSheet', 'OpenIRTTenantSheet', 'IRTTenantSheet')]
     [CmdletBinding()]
     param (
         [string] $TenantFile = $(if ($Global:IRT_Config.TenantsSheetPath) { $Global:IRT_Config.TenantsSheetPath } else { Join-Path $env:APPDATA 'M365IncidentResponseTools\tenants.xlsx' })
@@ -188,7 +186,7 @@ function Open-IRTTenantWorksheet {
             }
 
             Copy-Item -Path $TemplateFile -Destination $TenantFile
-            Write-Host "Created tenants worksheet file from template: ${TenantFile}" -ForegroundColor Green
+            Write-IRT "Created tenants worksheet file from template: ${TenantFile}"
         }
 
         Invoke-Item $TenantFile

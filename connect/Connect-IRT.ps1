@@ -1,5 +1,3 @@
-New-Alias -Name 'ConnectIRT' -Value 'Connect-IRT' -Force
-
 function Connect-IRT {
     <#
     .SYNOPSIS
@@ -49,6 +47,7 @@ function Connect-IRT {
     .NOTES
     Version: 1.0.0
     #>
+    [Alias('ConnectIRT')]
     [CmdletBinding()]
     param (
         [Parameter( Mandatory )]

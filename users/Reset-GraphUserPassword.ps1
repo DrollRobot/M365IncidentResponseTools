@@ -1,5 +1,3 @@
-New-Alias -Name 'ResetPassword' -Value 'Reset-GraphUserPassword' -Force
-New-Alias -Name 'ResetPasswords' -Value 'Reset-GraphUserPassword' -Force
 function Reset-GraphUserPassword {
     <#
 	.SYNOPSIS
@@ -9,26 +7,26 @@ function Reset-GraphUserPassword {
 	Version: 1.0.1
     1.0.1 - Updated to output password in safe way. Fixed bug preventing password reset. Updated variable names.
 	#>
-    [CmdletBinding( DefaultParameterSetName = 'RandomCharacters' )]
+    [Alias('ResetPassword', 'ResetPasswords')]
+    [CmdletBinding(SupportsShouldProcess = $true, DefaultParameterSetName = 'RandomCharacters')]
     param(
         [Parameter( Position = 0 )]
         [Alias('UserObjects')]
         [psobject[]] $UserObject,
 
-        [Parameter( ParameterSetName = 'RandomCharacters' )]
-        [Alias( 'Random' )]
+        [Parameter(ParameterSetName = 'RandomCharacters')]
+        [Alias('Random')]
         [switch] $RandomCharacters,
 
-        # [Parameter( ParameterSetName = 'PassPhrase' )]
-        # [Alias( 'Phrase' )]
+        # [Parameter(ParameterSetName = 'PassPhrase')]
+        # [Alias('Phrase')]
         # [switch] $PassPhrase,
 
-        [Parameter( ParameterSetName = 'Custom' )]
+        [Parameter(ParameterSetName = 'Custom')]
         [switch] $Custom
     )
 
     begin {
-
         # if not passed directly, find global
         if ( -not $UserObject -or $UserObject.Count -eq 0 ) {
 
@@ -64,24 +62,21 @@ function Reset-GraphUserPassword {
             'OnPremisesSamAccountName'
             'UserPrincipalName'
         )
-
-        # colors
-        $Blue = @{ ForegroundColor = 'Blue' }
-        $Red = @{ ForegroundColor = 'Red' }
     }
 
     process {
 
         foreach ( $LoopObject in $LoopObjects ) {
 
-            switch ( $PSCmdlet.ParameterSetName ) {
-                'Custom' {
-                    $Password = Read-Host -Prompt "`nEnter new password"
+            switch ($true) {
+                $Custom {
+                    $Password = Read-Host -Prompt "Enter new password"
+                    break
                 }
-                'RandomCharacters' {
+                default {
                     $UserEmail = $LoopObject.UserPrincipalName
                     $Password = Get-RandomPassword 30
-                    Write-Host @Green "`n${UserEmail} new password:"
+                    Write-IRT "${UserEmail} new password:"
                     # Console WriteLine prevents password from bring recorded in transcripts
                     [Console]::WriteLine($Password)
                 }
@@ -93,10 +88,12 @@ function Reset-GraphUserPassword {
                 ForceChangePasswordNextSignIn = $false
                 ForceChangePasswordNextSignInWithMfa = $false
             }
-            Update-MgUser -UserId $LoopObject.Id -PasswordProfile $PasswordProfile
+            if ($PSCmdlet.ShouldProcess($LoopObject.UserPrincipalName, 'Reset password')) {
+                Update-MgUser -UserId $LoopObject.Id -PasswordProfile $PasswordProfile
+            }
 
             # get new user object
-            Write-Host @Blue "`nGetting updated user information."
+            Write-IRT "Getting updated user information."
             $FullUserObject = Get-MgUser -UserId $LoopObject.Id -Property $GetProperties
             try {
                 $FullUserObject.LastPasswordChangeDateTime = $FullUserObject.LastPasswordChangeDateTime.ToLocalTime()
@@ -108,7 +105,7 @@ function Reset-GraphUserPassword {
 
             # warn user if onpremsynced
             if ( $FullUserObject.OnPremisesSyncEnabled ) {
-                Write-Host @Red "`nUser is synced from on-premises. Reset password in local AD too!"
+                Write-IRT "User is synced from on-premises. Reset password in local AD too!" -Level Error
             }
         }
     }

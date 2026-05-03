@@ -2,23 +2,39 @@
 #region Disable-AdUser
 
 # new aliases
-New-Alias -Name 'DisableAdUser'  -Value 'Disable-AdUser' -Force
-New-Alias -Name 'DisableAdUsers' -Value 'Disable-AdUser' -Force
 
 # old aliases
-New-Alias -Name 'Lock-AdUser'  -Value 'Disable-AdUser' -Force
-New-Alias -Name 'Lock-AdUsers' -Value 'Disable-AdUser' -Force
-New-Alias -Name 'LockAdUser'   -Value 'Disable-AdUser' -Force
-New-Alias -Name 'LockAdUsers'  -Value 'Disable-AdUser' -Force
 
 function Disable-AdUser {
     <#
     .SYNOPSIS
     Disable on-premises AD user account(s).
 
+    .DESCRIPTION
+    Thin wrapper around Set-AdUserEnabled that sets Enabled = $false. Disables one or
+    more AD user accounts, re-fetches each account to confirm the change, then triggers
+    AD replication and an Azure AD delta sync if the relevant services are available.
+
+    Falls back to $Global:UserObjects if no -UserObject is passed.
+
+    .PARAMETER UserObject
+    One or more AD user objects to disable. Falls back to global session objects if omitted.
+
+    .EXAMPLE
+    Disable-AdUser
+    Disables the user(s) in the global session.
+
+    .EXAMPLE
+    Disable-AdUser -UserObject $AdUser
+    Disables a specific user.
+
+    .OUTPUTS
+    None. Status is written to the console.
+
     .NOTES
     Version: 2.0.0
     #>
+    [Alias('DisableAdUser', 'DisableAdUsers', 'Lock-AdUser', 'Lock-AdUsers', 'LockAdUser', 'LockAdUsers')]
     [CmdletBinding()]
     param(
         [Parameter( Position = 0 )]
@@ -41,23 +57,39 @@ function Disable-AdUser {
 #region Enable-AdUser
 
 # new aliases
-New-Alias -Name 'EnableAdUser'  -Value 'Enable-AdUser' -Force
-New-Alias -Name 'EnableAdUsers' -Value 'Enable-AdUser' -Force
 
 # old aliases
-New-Alias -Name 'Unlock-AdUser'  -Value 'Enable-AdUser' -Force
-New-Alias -Name 'Unlock-AdUsers' -Value 'Enable-AdUser' -Force
-New-Alias -Name 'UnlockAdUser'   -Value 'Enable-AdUser' -Force
-New-Alias -Name 'UnlockAdUsers'  -Value 'Enable-AdUser' -Force
 
 function Enable-AdUser {
     <#
     .SYNOPSIS
     Enable on-premises AD user account(s).
 
+    .DESCRIPTION
+    Thin wrapper around Set-AdUserEnabled that sets Enabled = $true. Re-enables one or
+    more disabled AD user accounts, re-fetches each to confirm the change, then triggers
+    AD replication and an Azure AD delta sync if the relevant services are available.
+
+    Falls back to $Global:UserObjects if no -UserObject is passed.
+
+    .PARAMETER UserObject
+    One or more AD user objects to enable. Falls back to global session objects if omitted.
+
+    .EXAMPLE
+    Enable-AdUser
+    Re-enables the user(s) in the global session.
+
+    .EXAMPLE
+    Enable-AdUser -UserObject $AdUser
+    Re-enables a specific user.
+
+    .OUTPUTS
+    None. Status is written to the console.
+
     .NOTES
     Version: 2.0.0
     #>
+    [Alias('EnableAdUser', 'EnableAdUsers', 'Unlock-AdUser', 'Unlock-AdUsers', 'UnlockAdUser', 'UnlockAdUsers')]
     [CmdletBinding()]
     param(
         [Parameter( Position = 0 )]
@@ -84,6 +116,26 @@ function Set-AdUserEnabled {
     .SYNOPSIS
     Set Enabled property on on-premises AD user(s). Called by Disable-AdUser and Enable-AdUser.
 
+    .DESCRIPTION
+    Core implementation for enabling or disabling AD user accounts. For each user, calls
+    Enable-AdAccount or Disable-AdAccount using $env:ComputerName as the target DC, then
+    re-fetches the account to confirm the Enabled state changed. Triggers AD replication
+    via repadmin if running on a DC, and Start-ADSyncSyncCycle if the ADSync service is
+    local. Not typically called directly - use Disable-AdUser or Enable-AdUser instead.
+
+    .PARAMETER UserObject
+    One or more AD user objects to modify. Falls back to global session objects if omitted.
+
+    .PARAMETER Enabled
+    Required. $true to enable the account, $false to disable it.
+
+    .EXAMPLE
+    Set-AdUserEnabled -UserObject $AdUser -Enabled $false
+    Disables the specified user account.
+
+    .OUTPUTS
+    None. Status is written to the console.
+
     .NOTES
     Version: 1.0.0
     #>
@@ -98,12 +150,27 @@ function Set-AdUserEnabled {
     )
 
     begin {
+        $OutputObjects = [System.Collections.Generic.List[PsObject]]::new()
+        $UserProperties = @(
+            'Enabled'
+            'DisplayName'
+            'SamAccountName'
+            'UserPrincipalName'
+        )
+
+        # set action string
+        if ( $Enabled ) {
+            $Action = 'Enable'
+        }
+        else {
+            $Action = 'Disable'
+        }
 
         # if not passed directly, find global
         if ( -not $UserObject -or $UserObject.Count -eq 0 ) {
 
             # get from global variables
-            $ScriptUserObjects = Get-AdGlobalUserObjects
+            $ScriptUserObjects = Get-AdGlobalUserObject
 
             # if none found, exit
             if ( -not $ScriptUserObjects -or $ScriptUserObjects.Count -eq 0 ) {
@@ -112,25 +179,6 @@ function Set-AdUserEnabled {
         }
         else {
             $ScriptUserObjects = $UserObject
-        }
-
-        # variables
-        $OutputObjects = [System.Collections.Generic.List[PsObject]]::new()
-        $Properties = @(
-            'Enabled'
-            'DisplayName'
-            'SamAccountName'
-            'UserPrincipalName'
-        )
-        $Cyan = @{ ForegroundColor = 'Cyan' }
-        $Red  = @{ ForegroundColor = 'Red' }
-
-        # set action string
-        if ( $Enabled ) {
-            $Action = 'Enable'
-        }
-        else {
-            $Action = 'Disable'
         }
     }
 
@@ -146,7 +194,7 @@ function Set-AdUserEnabled {
         foreach ( $ScriptUserObject in $ScriptUserObjects ) {
 
             # disable/enable the user object
-            Write-Host @Cyan "`n$($Action.TrimEnd('e'))ing $($ScriptUserObject.SamAccountName)."
+            Write-IRT "`n$($Action.TrimEnd('e'))ing $($ScriptUserObject.SamAccountName)."
             $Params = @{
                 Identity = $ScriptUserObject
                 Server   = $env:ComputerName
@@ -159,10 +207,10 @@ function Set-AdUserEnabled {
             }
 
             # get new object to show result
-            Write-Host @Cyan "`nGetting updated user info."
+            Write-IRT "`nGetting updated user info."
             $Params = @{
                 Identity   = $ScriptUserObject
-                Properties = $Properties
+                Properties = $UserProperties
                 Server     = $env:ComputerName
             }
             $NewObject = Get-AdUser @Params
@@ -170,11 +218,11 @@ function Set-AdUserEnabled {
         }
 
         # show results
-        $OutputObjects | Format-Table $Properties
+        $OutputObjects | Format-Table $UserProperties
 
         # push ad replication
         if ( Test-RunningOnDomainController ) {
-            Write-Host @Cyan "Pushing AD replication."
+            Write-IRT "Pushing AD replication."
             & repadmin /syncall $env:ComputerName /APed *>&1 | Out-Null
         }
         else {
@@ -184,11 +232,11 @@ function Set-AdUserEnabled {
         # push azure sync, if on this server
         $SyncService = Get-Service -Name "adsync" -ErrorAction SilentlyContinue
         if ( $SyncService ) {
-            Write-Host @Cyan "`nPushing Azure sync."
+            Write-IRT "`nPushing Azure sync."
             Start-ADSyncSyncCycle -PolicyType Delta
         }
         else {
-            Write-Host @Red "Azure sync isn't running on this server. Force sync, or duplicate actions in M365."
+            Write-IRT "Azure sync isn't running on this server. Run Push-AdSync, or duplicate actions in M365." -Level Error
         }
     }
 }

@@ -1,5 +1,3 @@
-New-Alias -Name 'FindUser' -Value 'Find-User' -Force
-New-Alias -Name 'FindUsers' -Value 'Find-User' -Force
 function Find-User {
     <#
     .SYNOPSIS
@@ -19,6 +17,7 @@ function Find-User {
     1.1.1 - Bug fix. Script was passing collections rather than user objects.
     1.1.0 - Major rewrite. Renamed to Find-User.
     #>
+    [Alias('FindUser', 'FindUsers')]
     [CmdletBinding()]
     param (
         [Parameter( Position = 0, Mandatory )]
@@ -28,8 +27,6 @@ function Find-User {
     )
 
     begin {
-
-        # variables
         $ScriptUserObjects = [System.Collections.Generic.List[PsObject]]::new()
         $DisplayProperties = @(
             'AccountEnabled'
@@ -39,14 +36,8 @@ function Find-User {
             'Id'
         )
 
-        # colors
-        $Blue = @{ ForegroundColor = 'Blue' }
-        # $Green = @{ ForegroundColor = 'Green' }
-        $Red = @{ ForegroundColor = 'Red' }
-        # $Magenta = @{ ForegroundColor = 'Magenta' }
-
-        # get all users from cache
-        $GraphUsers = Request-GraphUser -Cached
+        # get all users
+        $GraphUsers = Request-GraphUser
     }
 
     process {
@@ -69,7 +60,7 @@ function Find-User {
                 if ( -not $Script ) {
 
                     # show user info
-                    Write-Host @Blue "Showing results for search: ${SearchString}"
+                    Write-IRT "Showing results for search: ${SearchString}"
                     $MatchingUsers | Format-Table $DisplayProperties
                 }
 
@@ -81,14 +72,14 @@ function Find-User {
                 if ( -not $Script ) {
 
                     # show user info
-                    Write-Host @Blue "Showing results for search: ${SearchString}"
+                    Write-IRT "Showing results for search: ${SearchString}"
                     $MatchingUsers | Format-Table $DisplayProperties
-                    Write-Host @Red 'Multiple users found. Refine search.'
+                    Write-IRT 'Multiple users found. Refine search.' -Level Error
                 }
             }
             else {
                 if ( -not $Script ) {
-                    Write-Host @Red "$SearchString not found. Try a different search."
+                    Write-IRT "$SearchString not found. Try a different search." -Level Error
                 }
             }
         }
@@ -107,7 +98,7 @@ function Find-User {
                 Force = $true
             }
             New-Variable @VariableParams
-            Write-Host @Blue "`nCreated `$IRT_${VarPrefix}UserObjects"
+            Write-IRT "Created `$IRT_${VarPrefix}UserObjects"
 
             if ( $ScriptUserObjects.Count -gt 1 ) {
                 $ScriptUserObjects | Format-Table $DisplayProperties

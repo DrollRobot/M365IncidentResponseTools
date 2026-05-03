@@ -20,29 +20,16 @@ function Show-IRTMessageTrace {
     )
 
     begin {
-
-        #region BEGIN
-
-        # constants
-        $Function = $MyInvocation.MyCommand.Name
         $ParameterSet = $PSCmdlet.ParameterSetName
         $TitleDateFormat = "M/d/yy h:mmtt"
         $RawDateProperty = 'Received'
         $DateColumnHeader = 'DateTime'
-
-        # colors
-        $Blue = @{ ForegroundColor = 'Blue' }
-        # $Green = @{ ForegroundColor = 'Green' }
-        $Red = @{ ForegroundColor = 'Red' }
-        # $Magenta = @{ ForegroundColor = 'Magenta' }
-        $Yellow = @{ ForegroundColor = 'Yellow' }
 
         # import from xml
         if ($ParameterSet -eq 'Xml') {
             if ($Script:Test) {
                 $TestText = "Importing from Xml"
                 $TimerStart = $Stopwatch.Elapsed
-                Write-Host @Yellow "${Function}: ${TestText} started at $(Get-Date -Format 'hh:mm:sstt')" | Out-Host
             }
 
             try {
@@ -51,13 +38,13 @@ function Show-IRTMessageTrace {
             }
             catch {
                 $_
-                Write-Host @Red "${Function}: Error importing from ${XmlPath}."
+                Write-IRT "Error importing from ${XmlPath}." -Level Error
                 return
             }
 
             if ($Script:Test) {
                 $ElapsedString = ($StopWatch.Elapsed - $TimerStart).ToString('mm\:ss')
-                Write-Host @Yellow "${Function}: ${TestText} took ${ElapsedString}" | Out-Host
+                Write-IRT "${TestText} took ${ElapsedString}" -Level Warn
             }
         }
 
@@ -77,12 +64,12 @@ function Show-IRTMessageTrace {
             $FileNamePrefix = $Metadata.FileNamePrefix
         }
         else {
-            Write-Error "${Function}: No Metadata found."
+            Write-IRT "No Metadata found." -Level Error
         }
 
         # exit if no messages found
         if (($Message | Measure-Object).Count -eq 0) {
-            Write-Host @Red "${Function}: No messages found. Exiting"
+            Write-IRT "No messages found. Exiting" -Level Error
             return
         }
 
@@ -103,10 +90,9 @@ function Show-IRTMessageTrace {
     }
 
     process {
-
         # exit if no messages
         if (($Message | Measure-Object).Count -eq 0) {
-            Write-Host @Red "${Function}: No messages. Exiting."
+            Write-IRT "No messages. Exiting." -Level Error
         }
 
         #region ROW LOOP
@@ -114,35 +100,34 @@ function Show-IRTMessageTrace {
         if ($Script:Test) {
             $TestText = "Row loop"
             $TimerStart = $Stopwatch.Elapsed
-            Write-Host @Yellow "${Function}: ${TestText} started at $(Get-Date -Format 'hh:mm:sstt')" | Out-Host
         }
 
         $RowCount = $Message.Count
         $Rows = [System.Collections.Generic.List[PSCustomObject]]::new($RowCount)
         for ($i = 0; $i -lt $RowCount; $i++) {
 
-            $MessageEntry = $Message[$i]
+            $m = $Message[$i]
 
             # Raw
-            $Raw = $MessageEntry | ConvertTo-Json -Depth 10
+            $Raw = $m | ConvertTo-Json -Depth 10
 
             # Date/Time
             $DateTime = $null
-            if ($MessageEntry.$RawDateProperty) {
-                $DateTime = $MessageEntry.$RawDateProperty.ToLocalTime()
+            if ($m.$RawDateProperty) {
+                $DateTime = $m.$RawDateProperty.ToLocalTime()
             }
 
             $Rows.Add([pscustomobject]@{
                 Raw               = $Raw
                 $DateColumnHeader = $DateTime
-                Status            = $MessageEntry.Status
-                SenderAddress     = $MessageEntry.SenderAddress
-                RecipientAddress  = $MessageEntry.RecipientAddress
-                Subject           = $MessageEntry.Subject
-                FromIP            = $MessageEntry.FromIP
-                ToIP              = $MessageEntry.ToIP
-                MessageTraceId    = $MessageEntry.MessageTraceId
-                MessageId         = $MessageEntry.MessageId
+                Status            = $m.Status
+                SenderAddress     = $m.SenderAddress
+                RecipientAddress  = $m.RecipientAddress
+                Subject           = $m.Subject
+                FromIP            = $m.FromIP
+                ToIP              = $m.ToIP
+                MessageTraceId    = $m.MessageTraceId
+                MessageId         = $m.MessageId
             })
 
             if ($Script:Test -and ($i % 1000 -eq 0)) {
@@ -161,14 +146,13 @@ function Show-IRTMessageTrace {
             Write-Progress -Id 1 -Activity 'Row loop' -Completed
 
             $ElapsedString = ($StopWatch.Elapsed - $TimerStart).ToString('mm\:ss')
-            Write-Host @Yellow "${Function}: ${TestText} took ${ElapsedString}" | Out-Host
+            Write-IRT "${TestText} took ${ElapsedString}" -Level Warn
         }
 
         #region EXPORT EXCEL
         if ($Script:Test) {
             $TestText = "Exporting to excel"
             $TimerStart = $Stopwatch.Elapsed
-            Write-Host @Yellow "${Function}: ${TestText} started at $(Get-Date -Format 'hh:mm:sstt')" | Out-Host
         }
 
         $ExcelParams = @{
@@ -185,14 +169,14 @@ function Show-IRTMessageTrace {
         }
         catch {
             $_
-            Write-Host @Red "Error while opening Excel document."
+            Write-IRT "Error while opening Excel document." -Level Error
             if ( Get-YesNo "Try again?" ) {
                 try {
                     $Workbook = $Rows | Export-Excel @ExcelParams
                 }
                 catch {
                     $_
-                    Write-Host @Red "Error while opening Excel document. Exiting."
+                    Write-IRT "Error while opening Excel document. Exiting." -Level Error
                     return
                 }
             }
@@ -204,7 +188,7 @@ function Show-IRTMessageTrace {
 
         if ($Script:Test) {
             $ElapsedString = ($StopWatch.Elapsed - $TimerStart).ToString('mm\:ss')
-            Write-Host @Yellow "${Function}: ${TestText} took ${ElapsedString}" | Out-Host
+            Write-IRT "${TestText} took ${ElapsedString}" -Level Warn
         }
 
         # get table ranges
@@ -320,12 +304,7 @@ function Show-IRTMessageTrace {
         #region OUTPUT
 
         # save and close
-        Write-Host @Blue "${Function}: Exporting to: ${ExcelOutputPath}"
+        Write-IRT "Exporting to: ${ExcelOutputPath}"
         $Workbook | Close-ExcelPackage -Show
-
-        if ($Script:Test) {
-            $ElapsedString = ($StopWatch.Elapsed).ToString('mm\:ss')
-            Write-Host @Yellow "${Function} took ${ElapsedString}" | Out-Host
-        }
     }
 }

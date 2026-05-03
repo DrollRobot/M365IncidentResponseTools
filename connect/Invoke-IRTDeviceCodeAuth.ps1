@@ -97,7 +97,7 @@ namespace IRT {
     # All PS-side work runs on the runspace thread.
     if ($CodeResult.Message -match 'enter the code\s+(\S+)') {
         $Matches[1] | Set-Clipboard
-        Write-Host "Device code '$($Matches[1])' copied to clipboard." -ForegroundColor Green
+        Write-IRT "Device code '$($Matches[1])' copied to clipboard." -Level Warn
         Open-Browser -Browser $Browser -Url $CodeResult.VerificationUrl -Private:$Private
     } else {
         Write-Host $CodeResult.Message

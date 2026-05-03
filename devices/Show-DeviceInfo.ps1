@@ -1,6 +1,3 @@
-New-Alias -Name 'ShowDevice'  -Value 'Show-DeviceInfo' -Force
-New-Alias -Name 'ShowDevices' -Value 'Show-DeviceInfo' -Force
-
 #region Show-DeviceInfo
 function Show-DeviceInfo {
     <#
@@ -10,6 +7,7 @@ function Show-DeviceInfo {
     .NOTES
     Version: 1.1.0
     #>
+    [Alias('ShowDevice', 'ShowDevices')]
     [CmdletBinding()]
     param(
         [Parameter( Position = 0 )]
@@ -29,11 +27,6 @@ function Show-DeviceInfo {
         else {
             $ScriptDeviceObjects = $DeviceObject
         }
-
-        # colors
-        $Blue   = @{ForegroundColor = 'Blue'}
-        $Red    = @{ForegroundColor = 'Red'}
-        $Yellow = @{ForegroundColor = 'Yellow'}
     }
 
     process {
@@ -54,15 +47,15 @@ function Show-DeviceInfo {
                     }) -join ', '
                     $FullEntraDevice | Add-Member -NotePropertyName 'RegisteredOwnerUPN' -NotePropertyValue $OwnerUpn -Force
 
-                    Write-Host @Blue "`nShowing Entra device properties for: ${DeviceName}"
+                    Write-IRT "Showing Entra device properties for: ${DeviceName}"
                     $FullEntraDevice | Show-GraphDeviceTree | Out-Host
                 }
                 catch {
-                    Write-Host @Red "`nFailed to get Entra device object: $($_.Exception.Message)"
+                    Write-IRT "Failed to get Entra device object: $($_.Exception.Message)" -Level Error
                 }
             }
             else {
-                Write-Host @Yellow "`nNo Entra record for: ${DeviceName}"
+                Write-IRT "No Entra record for: ${DeviceName}" -Level Warn
             }
 
             # --- Intune device ---
@@ -70,15 +63,15 @@ function Show-DeviceInfo {
                 try {
                     $FullIntuneDevice = Get-MgDeviceManagementManagedDevice -ManagedDeviceId $IntuneId -ErrorAction Stop
 
-                    Write-Host @Blue "`nShowing Intune device properties for: ${DeviceName}"
+                    Write-IRT "Showing Intune device properties for: ${DeviceName}"
                     $FullIntuneDevice | Format-Tree -Depth 5 -OmitNullOrEmpty | Out-Host
                 }
                 catch {
-                    Write-Host @Red "`nFailed to get Intune device object: $($_.Exception.Message)"
+                    Write-IRT "Failed to get Intune device object: $($_.Exception.Message)" -Level Error
                 }
             }
             else {
-                Write-Host @Yellow "`nDevice is not enrolled in Intune."
+                Write-IRT "Device is not enrolled in Intune." -Level Warn
             }
         }
     }

@@ -1,11 +1,16 @@
 function Request-DirectoryRoleTemplate {
     <#
-	.SYNOPSIS
+    .SYNOPSIS
     Requests directory role templates from Microsoft Graph. Caches in global variable.
 
-	.NOTES
-	Version: 2.0.0
-	#>
+    .DESCRIPTION
+    Internal helper. Fetches all Entra ID directory role templates from Microsoft Graph
+    and caches the result in a session-scoped global variable. Used alongside
+    Request-DirectoryRole to resolve role display names during admin role reporting.
+
+    .NOTES
+    Version: 2.0.0
+    #>
     [CmdletBinding()]
     param (
         [switch] $Cached,

@@ -7,5 +7,9 @@
     "AllOperationsSheetPath": null,
     "TenantsSheetPath": null,
     "MaxRunspaces": 25,
-    "MaxExchangeConnections": 10
+    "MaxExchangeConnections": 10,
+    "PromptColor": "DarkYellow",
+    "InfoColor": "DarkCyan",
+    "WarnColor": "Yellow",
+    "ErrorColor": "Red"
 }

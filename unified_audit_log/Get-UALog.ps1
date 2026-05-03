@@ -1,20 +1,87 @@
-New-Alias -Name 'UALog' -Value 'Get-UALog' -Force
-New-Alias -Name 'UALogs' -Value 'Get-UALog' -Force
-New-Alias -Name 'GetUALog' -Value 'Get-UALog' -Force
-New-Alias -Name 'GetUALogs' -Value 'Get-UALog' -Force
 function Get-UALog {
     <#
-	.SYNOPSIS
-    Runs multiple queries to pull all unified audit logs records related to a specific user.
+    .SYNOPSIS
+    Runs multiple queries to pull all Unified Audit Log records related to a specific user.
 
-	.NOTES
-	Version: 1.6.0
-    1.6.0 - Added profile tags to allow generating specific sheets in Show-UALog
+    .DESCRIPTION
+    Queries the Microsoft 365 Unified Audit Log via Exchange Online for activity related
+    to one or more users, a service principal, or all users in the tenant. Runs several
+    categorised queries in parallel (e.g. SharePoint, Exchange, Teams, Azure AD) and
+    exports each category to a separate sheet in an Excel workbook.
+
+    Date range defaults to the last 30 days when no -Days, -Start, or -End is specified.
+    Requires an active Exchange Online connection.
+
+    .PARAMETER UserObject
+    One or more user objects to query. Mutually exclusive with -AllUsers and
+    -ServicePrincipal. Falls back to global session objects if omitted.
+
+    .PARAMETER AllUsers
+    Query the UAL for all users in the tenant. Mutually exclusive with -UserObject and
+    -ServicePrincipal.
+
+    .PARAMETER ServicePrincipal
+    One or more service principal objects to query. Mutually exclusive with -UserObject
+    and -AllUsers.
+
+    .PARAMETER Days
+    Number of days back to search. Cannot be used with -Start / -End.
+
+    .PARAMETER Start
+    Start of date range (parseable date string). Used with -End for an absolute range.
+
+    .PARAMETER End
+    End of date range (parseable date string). Used with -Start for an absolute range.
+
+    .PARAMETER Operation
+    Filter results to specific UAL operation names.
+
+    .PARAMETER RiskyOperation
+    Filter to a predefined list of high-risk operations.
+
+    .PARAMETER SignInLog
+    Filter to only UAL sign-in operations.
+
+    .PARAMETER FreeText
+    One or more free-text search strings passed to Search-UnifiedAuditLog.
+
+    .PARAMETER Excel
+    Export results to an Excel workbook. Default: $true.
+
+    .PARAMETER WaitOnMessageTrace
+    Wait for any pending message trace jobs before querying. Intended for use when running
+    playbook. (running functions in parallel) Default: $false.
+
+    .PARAMETER Xml
+    Export raw XML alongside the Excel file. Defaults to IRT_Config.ExportXml.
+
+    .PARAMETER Cached
+    Use pre-cached Graph data where available.
+
+    .EXAMPLE
+    Get-UALog
+    Queries the UAL for the last 30 days for the user in the global session.
+
+    .EXAMPLE
+    Get-UALog -UserObject $User -Days 90
+    Queries 90 days of UAL activity for a specific user.
+
+    .EXAMPLE
+    Get-UALog -AllUsers -Operation 'FileDeleted' -Start '2026-04-01' -End '2026-04-30'
+    Finds all FileDeleted events for any user during April 2026.
+
+    .OUTPUTS
+    None. Results are exported to an Excel workbook.
+
+    .NOTES
+    Version: 1.6.0
+    1.6.0 - Added profile tags to allow generating specific sheets in Show-UALog.
     1.5.1 - Added function name to all output.
     1.5.0 - Added -AllUsers option, added test timers.
     1.4.0 - Updating to add metadata object, use shorter file names.
     1.3.0 - Updated to output objects.
-	#>
+    #>
+    [Alias('GetUALog', 'GetUALogs', 'UALog', 'UALogs')]
     [CmdletBinding(DefaultParameterSetName = 'UserObject')]
     param (
         [Parameter(Position = 0,ParameterSetName='UserObject')]
@@ -50,21 +117,12 @@ function Get-UALog {
     )
 
     begin {
-
-        #region BEGIN
-
-        # constants
-        $Function = $MyInvocation.MyCommand.Name
         $ParameterSet = $PSCmdlet.ParameterSetName
         if ($Test -or $Script:Test) {
             $Script:Test = $true
             # start stopwatch
             $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
         }
-
-        # colors
-        $Blue = @{ ForegroundColor = 'Blue' }
-        $Red = @{ ForegroundColor = 'Red' }
 
         # query profiles - add new entries here to support additional modes
         $ProfileTable = [ordered]@{
@@ -114,7 +172,7 @@ function Get-UALog {
 
                     # if none found, exit
                     if ( -not $LoopObjects -or $LoopObjects.Count -eq 0 ) {
-                        Write-Host @Red "${Function}: No user objects passed or found in global variables."
+                        Write-IRT "No user objects passed or found in global variables." -Level Error
                         return
                     }
                     if (($LoopObjects | Measure-Object).Count -eq 0) {
@@ -128,6 +186,7 @@ function Get-UALog {
                 }
             }
             'AllUsers' {
+                $null = $AllUsers  # switch controls parameter set; value not needed
                 # build user object with null principal name
                 $LoopObjects = @(
                     [pscustomobject]@{
@@ -238,25 +297,25 @@ function Get-UALog {
                             Params = @{
                                 UserIds = $UserEmail, $UserId, $UserIdNoDashes
                             }
-                            Text   = "${Function}: Running -UserIds query for ${UserEmail}, ${UserId}, ${UserIdNoDashes}"
+                            ConsoleOutput = "Running UserIds query for ${UserEmail}, ${UserId}, ${UserIdNoDashes}"
                         }
                         '2' = @{
                             Params = @{
                                 FreeText = $UserEmail
                             }
-                            Text   = "${Function}: Running -Freetext query for ${UserEmail}"
+                            ConsoleOutput = "Running Freetext query for ${UserEmail}"
                         }
                         '3' = @{
                             Params = @{
                                 FreeText = $UserId
                             }
-                            Text   = "${Function}: Running -Freetext query for ${UserId}"
+                            ConsoleOutput = "Running Freetext query for ${UserId}"
                         }
                         '4' = @{
                             Params = @{
                                 FreeText = $UserIdNoDashes
                             }
-                            Text   = "${Function}: Running -Freetext query for ${UserIdNoDashes}"
+                            ConsoleOutput = "Running Freetext query for ${UserIdNoDashes}"
                         }
                     }
                     if ($FreeText) {
@@ -266,7 +325,7 @@ function Get-UALog {
                                 Params = @{
                                     FreeText = $FreeTextString
                                 }
-                                Text = "${Function}: Running -FreeText '${FreeTextString}' query."
+                                ConsoleOutput = "Running FreeText '${FreeTextString}' query."
                             }
                             $Key++
                         }
@@ -281,7 +340,7 @@ function Get-UALog {
                                 Params = @{
                                     FreeText = $FreeTextString
                                 }
-                                Text = "${Function}: Running FreeText '${FreeTextString}' query for all users."
+                                ConsoleOutput = "Running FreeText '${FreeTextString}' query for all users."
                             }
                             $Key++
                         }
@@ -290,7 +349,7 @@ function Get-UALog {
                         $QueryTable = [ordered]@{
                             '1' = @{
                                 Params = @{}
-                                Text   = "${Function}: Running query for all users."
+                                ConsoleOutput   = "Running query for all users."
                             }
                         }
                     }
@@ -301,31 +360,31 @@ function Get-UALog {
                             Params = @{
                                 UserIds = $ServicePrincipalId, $ServicePrincipalIdNoDash, $AppId, $AppIdNoDash
                             }
-                            Text   = "${Function}: Running -UserIds query for ${ServicePrincipalId}, ${ServicePrincipalIdNoDash}, ${AppId}, ${AppIdNoDash}"
+                            ConsoleOutput = "Running UserIds query for ${ServicePrincipalId}, ${ServicePrincipalIdNoDash}, ${AppId}, ${AppIdNoDash}"
                         }
                         '2' = @{
                             Params = @{
                                 FreeText = $ServicePrincipalId
                             }
-                            Text   = "${Function}: Running -Freetext query for ${ServicePrincipalId}"
+                            ConsoleOutput = "Running Freetext query for ${ServicePrincipalId}"
                         }
                         '3' = @{
                             Params = @{
                                 FreeText = $ServicePrincipalIdNoDash
                             }
-                            Text   = "${Function}: Running -Freetext query for ${ServicePrincipalIdNoDash}"
+                            ConsoleOutput = "Running Freetext query for ${ServicePrincipalIdNoDash}"
                         }
                         '4' = @{
                             Params = @{
                                 FreeText = $AppId
                             }
-                            Text   = "${Function}: Running -Freetext query for ${AppId}"
+                            ConsoleOutput = "Running Freetext query for ${AppId}"
                         }
                         '5' = @{
                             Params = @{
                                 FreeText = $AppIdNoDash
                             }
-                            Text   = "${Function}: Running -Freetext query for ${AppIdNoDash}"
+                            ConsoleOutput = "Running Freetext query for ${AppIdNoDash}"
                         }
                     }
                     if ($FreeText) {
@@ -335,7 +394,7 @@ function Get-UALog {
                                 Params = @{
                                     FreeText = $FreeTextString
                                 }
-                                Text = "${Function}: Running -FreeText '${FreeTextString}' query."
+                                ConsoleOutput = "Running Freetext query for '${FreeTextString}'"
                             }
                             $Key++
                         }
@@ -348,7 +407,6 @@ function Get-UALog {
             if ($Script:Test) {
                 $TestText = "Running queries"
                 $TimerStart = $Stopwatch.Elapsed
-                Write-Host @Yellow "${Function}: ${TestText} started at $(Get-Date -Format 'hh:mm:sstt')" | Out-Host
             }
 
             foreach ( $QueryDict in $QueryTable.GetEnumerator() ) {
@@ -359,16 +417,16 @@ function Get-UALog {
                 $BaseParams.GetEnumerator() | ForEach-Object { $FirstPageParams[$_.Key] = $_.Value }
                 $QueryDict.Value.Params.GetEnumerator() | ForEach-Object { $FirstPageParams[$_.Key] = $_.Value }
 
-                $Text = $QueryDict.Value.Text
+                $ConsoleOutput = $QueryDict.Value.ConsoleOutput
 
                 # run query
-                Write-Host @Blue $Text
+                Write-IRT $ConsoleOutput
                 $Page = Search-UnifiedAuditLog @FirstPageParams
                 $LogCount = ($Page | Measure-Object).Count
 
                 if ($LogCount -gt 0) {
 
-                    Write-Host @Blue "${Function}: Retrieved ${LogCount} logs."
+                    Write-IRT "Retrieved ${LogCount} logs."
 
                     # add to list
                     foreach ($i in $Page) {$AllLogs.Add($i)}
@@ -380,19 +438,19 @@ function Get-UALog {
                     $NextPageParams['SessionId'] = $SessionId
                 }
                 else {
-                    Write-Host @Red "${Function}: Retrieved 0 logs."
+                    Write-IRT "Retrieved 0 logs." -Level Warn
                 }
 
                 # retrieve pages
                 while ($LogCount -eq 5000) {
 
-                    Write-Host @Blue "Requesting page ${PageCount}."
+                    Write-IRT "Requesting page ${PageCount}."
                     $Page = Search-UnifiedAuditLog @NextPageParams
                     $LogCount = @($Page).Count
 
                     if ( $LogCount -gt 0 ) {
 
-                        Write-Host @Blue "${Function}: Retrieved ${LogCount} logs."
+                        Write-IRT "Retrieved ${LogCount} logs."
 
                         # add to list
                         foreach ($i in $Page) {$AllLogs.Add($i)}
@@ -401,7 +459,7 @@ function Get-UALog {
                         $SessionId = $Page[0].SessionId
                     }
                     else {
-                        Write-Host @Red "${Function}: Retrieved 0 logs."
+                        Write-IRT "Retrieved 0 logs." -Level Warn
                     }
 
                     $PageCount++
@@ -410,12 +468,12 @@ function Get-UALog {
 
             if ($Script:Test) {
                 $ElapsedString = ($StopWatch.Elapsed - $TimerStart).ToString('mm\:ss')
-                Write-Host @Yellow "${Function}: ${TestText} took ${ElapsedString}" | Out-Host
+                Write-IRT "${TestText} took ${ElapsedString}" -Level Warn | Out-Host
             }
 
             # exit if no logs returned
             if (($AllLogs | Measure-Object).Count -eq 0) {
-                Write-Host @Red "${Function}: 0 total logs retrieved. Exiting."
+                Write-IRT "0 total logs retrieved." -Level Warn
                 return
             }
 
@@ -423,7 +481,7 @@ function Get-UALog {
             if ($Script:Test) {
                 $TestText = "Removing duplicates and sorting"
                 $TimerStart = $Stopwatch.Elapsed
-                Write-Host @Yellow "${Function}: ${TestText} started at $(Get-Date -Format 'hh:mm:sstt')" | Out-Host
+                Write-IRT "${TestText} started at $(Get-Date -Format 'hh:mm:sstt')" -Level Warn | Out-Host
             }
 
             # remove duplicates
@@ -449,17 +507,17 @@ function Get-UALog {
 
             if ($Script:Test) {
                 $ElapsedString = ($StopWatch.Elapsed - $TimerStart).ToString('mm\:ss')
-                Write-Host @Yellow "${Function}: ${TestText} took ${ElapsedString}" | Out-Host
+                Write-IRT "${TestText} took ${ElapsedString}" -Level Warn | Out-Host
             }
 
             #region OUTPUT
 
             # count actual logs before adding metadata
             if (($Logs | Measure-Object).Count -gt 0) {
-                Write-Host @Blue "${Function}: Retrieved ${LogCount} logs."
+                Write-IRT "Retrieved ${LogCount} logs."
             }
             else {
-                Write-Host @Red "${Function}: Retrieved 0 logs."
+                Write-IRT "Retrieved 0 logs." -Level Warn
                 return
             }
 
@@ -481,15 +539,15 @@ function Get-UALog {
                 if ($Script:Test) {
                     $TestText = "Exporting to xml"
                     $TimerStart = $Stopwatch.Elapsed
-                    Write-Host @Yellow "${Function}: ${TestText} started at $(Get-Date -Format 'hh:mm:sstt')" | Out-Host
+                    Write-IRT "${TestText} started at $(Get-Date -Format 'hh:mm:sstt')" -Level Warn | Out-Host
                 }
 
-                Write-Host @Blue "`n${Function}: Saving logs to: ${XmlOutputPath}"
+                Write-IRT "${Function}: Saving logs to: ${XmlOutputPath}"
                 $Logs | Export-Clixml -Depth 10 -Path $XmlOutputPath
 
                 if ($Script:Test) {
                     $ElapsedString = ($StopWatch.Elapsed - $TimerStart).ToString('mm\:ss')
-                    Write-Host @Yellow "${Function}: ${TestText} took ${ElapsedString}" | Out-Host
+                    Write-IRT "${TestText} took ${ElapsedString}" -Level Warn | Out-Host
                 }
             }
 

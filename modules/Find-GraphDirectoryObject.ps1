@@ -1,28 +1,16 @@
-New-Alias -Name 'FindObject' -Value 'Find-GraphDirectoryObject' -Force
-New-Alias -Name 'FindObjects' -Value 'Find-GraphDirectoryObject' -Force
 function Find-GraphDirectoryObject {
+    [Alias('FindObject', 'FindObjects')]
     param(
         [Parameter( Position = 0 )]
         [string] $Content
     )
 
     begin {
-
-        # variables
         $GuidPattern = "\b[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}\b"
-        $Cyan = @{
-            ForegroundColor = 'Cyan'
-        }
-        $FgGreen = @{
-            ForegroundColor = 'Green'
-        }
-        # $FgRed = @{
-        #     ForegroundColor = 'Red'
-        # }
 
         # get content from clipboard
-        if ( -not $Content ) {
-            Write-Host @FgGreen "`nNo content provided. Pulling from clipboard."
+        if (-not $Content) {
+            Write-IRT "No content provided. Pulling from clipboard."
             $Content = Get-Clipboard
             if ( @( $Content ).Count -eq 0 ) {
                 throw "No content provided, or found in clipboard. Exiting."
@@ -47,7 +35,7 @@ function Find-GraphDirectoryObject {
         # remove duplicates
         $Guids = $Guids | Sort-Object -Unique
 
-        Write-Host @Cyan "`nFound GUIDS:"
+        Write-IRT "Found GUIDS:"
         $Guids
 
         foreach ( $Guid in $Guids ) {
@@ -56,7 +44,7 @@ function Find-GraphDirectoryObject {
             $DirectoryObject = $null
             $ObjectType = $null
 
-            Write-Host @Cyan "`nRunning Get-MgDirectoryObject for ${Guid}"
+            Write-IRT "Running Get-MgDirectoryObject for ${Guid}"
 
             try {
 
@@ -64,7 +52,7 @@ function Find-GraphDirectoryObject {
 
                 $ObjectType = $DirectoryObject.AdditionalProperties.'@odata.type' -replace '#', ''
 
-                Write-Host "`nObjectType: ${ObjectType}"
+                Write-Host "ObjectType: ${ObjectType}"
             }
             catch {
                 if ( $_ -match 'does not exist or one of its queried reference-property objects are not present' ) {

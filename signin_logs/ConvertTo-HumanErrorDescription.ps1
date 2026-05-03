@@ -1,12 +1,29 @@
 function ConvertTo-HumanErrorDescription {
-	<#
-	.SYNOPSIS
-	Helper function for Entra sign in logs. Accepts number, returns "N:DESCRIPTION".
+    <#
+    .SYNOPSIS
+    Helper function for Entra sign in logs. Accepts an error code number and returns a human-readable description string.
 
-	.NOTES
-	Version: 1.1.0
+    .DESCRIPTION
+    Looks up an Entra ID (Azure AD) sign-in error code in the bundled entra_error_codes.csv
+    data file and returns a formatted string in the form "CODE:Description". The lookup
+    table is cached in $Global:IRT_EntraErrorTable after the first call for performance.
+
+    Used internally by Get-SignInLog and Get-NonInteractiveLog to annotate each log row.
+
+    .PARAMETER ErrorCode
+    The integer Entra sign-in error code to look up.
+
+    .EXAMPLE
+    ConvertTo-HumanErrorDescription -ErrorCode 50076
+    Returns '50076:User was required to use multi-factor authentication.'
+
+    .OUTPUTS
+    System.String
+
+    .NOTES
+    Version: 1.1.0
     1.1.0 - Converted from doing the whole sheet to just one log at a time
-	#>
+    #>
     [CmdletBinding()]
     param (
         [int] $ErrorCode

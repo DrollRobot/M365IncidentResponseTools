@@ -44,8 +44,6 @@ function Connect-IRTIPPS {
     )
 
     begin {
-        $Yellow = @{ ForegroundColor = 'Yellow' }
-
         # SearchOnly determines the audience. The same first-party client ID is
         # used either way; only the audience changes.
         $IPPSScope = if ($SearchOnly) {
@@ -163,7 +161,7 @@ function Connect-IRTIPPS {
                 $Global:IRT_Session.IPPS -and
                 $Global:IRT_Session.IPPS.Token
             ) {
-                Write-Host @Yellow "Refreshing expired IPPS token for tenant $TenantId..."
+                Write-IRT "Refreshing expired IPPS token for tenant $TenantId..." -Level Warn
             }
             $TokenResult = & $AcquireToken
             if (-not $TokenResult.AccessToken) {
@@ -206,7 +204,7 @@ function Connect-IRTIPPS {
         }
 
         if (-not $NeedNewToken -and -not $NeedConnect) {
-            Write-Host @Yellow "Already connected to IPPS for tenant $TenantId."
+            Write-IRT "Already connected to IPPS for tenant $TenantId." -Level Warn
         }
 
         return [pscustomobject]@{

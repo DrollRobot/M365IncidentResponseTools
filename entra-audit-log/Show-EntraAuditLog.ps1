@@ -24,9 +24,6 @@ function Show-EntraAuditLog {
     )
 
     begin {
-
-        #region BEGIN
-
         # get logs from file if xml path used
         if ( $XmlPath ) {
 
@@ -62,7 +59,7 @@ function Show-EntraAuditLog {
             $FileNamePrefix = $Metadata.FileNamePrefix
         }
         else {
-            Write-Host @Red "${Function}: No Metadata found."
+            Write-IRT "No Metadata found." -Level Error -FunctionName $Function
         }
 
         # build file name
@@ -108,15 +105,9 @@ function Show-EntraAuditLog {
             'ResultReason'
         )
 
-        # colors
-        $Blue = @{ ForegroundColor = 'Blue' }
-        # $Green = @{ ForegroundColor = 'Green' }
-        $Red = @{ ForegroundColor = 'Red' }
-        # $Magenta = @{ ForegroundColor = 'Magenta' }
     }
 
     process {
-
         $Rows = [System.Collections.Generic.List[PSCustomObject]]::new()
 
         # process each log
@@ -544,9 +535,9 @@ function Show-EntraAuditLog {
         #region OUTPUT
 
         # save and close
-        Write-Host @Blue "Exporting to: ${ExcelOutputPath}"
+        Write-IRT "Exporting to: ${ExcelOutputPath}" -FunctionName $Function
         if ( $Open ) {
-            Write-Host @Blue "Opening Excel."
+            Write-IRT "Opening Excel." -FunctionName $Function
             $Workbook | Close-ExcelPackage -Show
         }
         else {

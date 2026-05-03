@@ -22,7 +22,7 @@ function Merge-ListOnDate {
     }
 
     # determine direction bool once
-    $IsAscending = [bool]$Ascending
+    $IsAscending = $Ascending -and -not $Descending
 
     # build working lists (sorted if needed)
     $WorkingLists = Get-WorkingList -InputList $List -KeyProperty $PropertyName -IsAscending $IsAscending
@@ -236,6 +236,7 @@ function Test-MergeSortedListsOnDate {
 
     # helper: build a strongly-typed list[psobject] from an array of datetimes
     function New-DateList {
+        [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '')]
         param(
             [datetime[]] $Dates,
             [string] $Tag

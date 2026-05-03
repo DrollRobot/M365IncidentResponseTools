@@ -72,14 +72,6 @@ function Build-Menu {
         [string] $TestAnswer
     )
 
-    # variables
-
-    # $Blue = @{ ForegroundColor = 'Blue' }
-    $Red = @{ ForegroundColor = 'Red' }
-    # $Cyan = @{ ForegroundColor = 'Cyan' }
-    # $Green = @{ ForegroundColor = 'Green' }
-    # $Magenta = @{ ForegroundColor = 'Magenta' }
-
     # determine input type
     if ( (
             $Option -is [array] -and
@@ -203,7 +195,7 @@ function Build-Menu {
     else { # if hashtable
         while ( $UserChoice -notin $Option.Keys ) {
             $OptionsString = @( $Option.Keys | Sort-Object ) -join ','
-            Write-Host @Red "Choice must be in ${OptionsString}. Enter Choice"
+            Write-IRT "Choice must be in ${OptionsString}. Enter Choice" -Level Error
             $UserChoice = Read-Host
         }
 

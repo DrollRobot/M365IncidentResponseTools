@@ -1,4 +1,3 @@
-New-Alias -Name 'RemoveFullAccess' -Value 'Remove-MailboxFullAccess' -Force
 function Remove-MailboxFullAccess {
     <#
 	.SYNOPSIS
@@ -7,7 +6,8 @@ function Remove-MailboxFullAccess {
 	.NOTES
 	Version: 1.0.0
 	#>
-    [CmdletBinding()]
+    [Alias('RemoveFullAccess')]
+    [CmdletBinding(SupportsShouldProcess = $true)]
     param (
         [Parameter( Position = 0 )]
         [Alias('UserObjects')]
@@ -29,9 +29,11 @@ function Remove-MailboxFullAccess {
         if ($GrantAccessTo) {
             $Params['GrantAccessTo'] = $GrantAccessTo
         }
-        Grant-MailboxFullAccess @Params
+        $Target = if ($UserObject) { ($UserObject | Select-Object -First 1).UserPrincipalName } else { $GrantAccessTo }
+        if ($PSCmdlet.ShouldProcess($Target, 'Remove full mailbox access')) {
+            Grant-MailboxFullAccess @Params
+        }
     }
 }
-
 
 

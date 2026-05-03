@@ -1,14 +1,82 @@
-New-Alias -Name 'MessageTrace' -Value 'Get-IRTMessageTrace' -Force
 function Get-IRTMessageTrace {
     <#
-	.SYNOPSIS
-	Downloads incoming and outgoing message trace for specified user, or all users.
+    .SYNOPSIS
+    Downloads incoming and outgoing message trace for specified user, or all users.
 
-	.NOTES
-	Version: 1.5.0
+    .DESCRIPTION
+    Retrieves Exchange Online message trace records for one or more users over a configurable
+    date range and exports results to Excel. Accepts user objects, email addresses, or an
+    -AllUsers switch for tenant-wide queries.
+
+    Supports both the modern V2 API (large result sets via background jobs) and the legacy
+    V1 endpoint. Date range defaults to the last 10 days when no -Days, -Start, or -End
+    is specified.
+
+    .PARAMETER UserObject
+    One or more user objects to trace. Mutually exclusive with -UserEmail and -AllUsers.
+    Falls back to global session objects if omitted.
+
+    .PARAMETER UserEmail
+    One or more email addresses to trace. Mutually exclusive with -UserObject and -AllUsers.
+
+    .PARAMETER AllUsers
+    Query message trace for all users in the tenant. Mutually exclusive with -UserObject
+    and -UserEmail.
+
+    .PARAMETER Days
+    Number of days back to search. Cannot be used with -Start / -End.
+
+    .PARAMETER Start
+    Start of date range (parseable date string). Used with -End for an absolute range.
+
+    .PARAMETER End
+    End of date range (parseable date string). Used with -Start for an absolute range.
+
+    .PARAMETER ResultLimit
+    Maximum number of records to return. Default: 50000.
+
+    .PARAMETER Variable
+    Save results to a session variable for downstream use. Default: $true.
+
+    .PARAMETER Excel
+    Export results to an Excel workbook. Default: $true.
+
+    .PARAMETER Quiet
+    Suppress progress output.
+
+    .PARAMETER Test
+    Enable stopwatch timing output.
+
+    .PARAMETER Xml
+    Export raw XML alongside the Excel file. Defaults to IRT_Config.ExportXml.
+
+    .PARAMETER TableStyle
+    Excel table style. Defaults to IRT_Config.ExcelTableStyle.
+
+    .PARAMETER Font
+    Excel font name. Defaults to IRT_Config.ExcelFont.
+
+    .EXAMPLE
+    Get-IRTMessageTrace
+    Downloads message trace for the user in the global session (last 10 days).
+
+    .EXAMPLE
+    Get-IRTMessageTrace -UserObject $User -Days 30
+    Downloads 30 days of message trace for a specific user.
+
+    .EXAMPLE
+    Get-IRTMessageTrace -AllUsers -Start '2026-04-01' -End '2026-04-30'
+    Downloads all tenant message trace for April 2026.
+
+    .OUTPUTS
+    None. Results are exported to Excel and stored in a session variable.
+
+    .NOTES
+    Version: 1.5.0
     1.5.0 - Integrated V1 and V2 into same function.
     1.4.0 - Switched to separate get/show functions. Updated to passing objects, not files. Added global variables.
-	#>
+    #>
+    [Alias('MessageTrace')]
     [CmdletBinding( DefaultParameterSetName = 'UserObject' )]
     param (
         [Parameter(ParameterSetName = 'UserObject', Position = 0)]
@@ -38,21 +106,9 @@ function Get-IRTMessageTrace {
     )
 
     begin {
-
-        #region BEGIN
-
-        # constants
-        $Function = $MyInvocation.MyCommand.Name
         $ParameterSet = $PSCmdlet.ParameterSetName
         $RawDateProperty = 'Received'
         $FileNamePrefix = 'MessageTrace'
-
-        # colors
-        $Blue = @{ForegroundColor = 'Blue' }
-        # $Green = @{ForegroundColor = 'Green'}
-        # $Magenta = @{ForegroundColor = 'Magenta'}
-        $Red = @{ForegroundColor = 'Red'}
-        # $Yellow = @{ForegroundColor = 'Yellow'}
 
         # create user objects depending on parameters used
         switch ( $ParameterSet ) {
@@ -193,7 +249,7 @@ function Get-IRTMessageTrace {
                 }
                 catch {}
                 if (-not $Mailbox) {
-                    Write-Host @Red "${Function}: No mailbox for $($ScriptUserObject.UserPrincipalName)"
+                    Write-IRT "No mailbox for $($ScriptUserObject.UserPrincipalName)" -Level Warn
                     if ($Global:IRT_WaitFlags) {
                         $Global:IRT_WaitFlags.MessageTraceUserDone = $true
                     }
@@ -228,7 +284,7 @@ function Get-IRTMessageTrace {
             ### request message trace records
             if ( $AllUsers ) {
 
-                Write-Host @Blue "Getting message trace records for all users."
+                Write-IRT "Getting message trace records for all users."
                 [System.Collections.Generic.List[psobject]]$AllMessages = if ($V1) {
                     $Params = @{
                         StartDate   = $StartDateUtc
@@ -253,7 +309,7 @@ function Get-IRTMessageTrace {
 
                 foreach ($UserEmail in $LoopUserEmails) {
                     # get sender records
-                    if (-not $Quiet) { Write-Host @Blue "Requesting message trace records with sender: ${UserEmail}" }
+                    if (-not $Quiet) { Write-IRT "Requesting message trace records with sender: ${UserEmail}" }
                     $Messages = if ($V1) {
                         $Params = @{
                             SenderAddress = $UserEmail
@@ -277,7 +333,7 @@ function Get-IRTMessageTrace {
                         $ListOfLists.Add([System.Collections.Generic.List[psobject]]@($Messages))
                     }
                     # get recipient records
-                    if (-not $Quiet) { Write-Host @Blue "Requesting message trace records with recipient: ${UserEmail}" }
+                    if (-not $Quiet) { Write-IRT "Requesting message trace records with recipient: ${UserEmail}" }
                     $Messages = if ($V1) {
                         $Params = @{
                             RecipientAddress = $UserEmail
@@ -304,7 +360,7 @@ function Get-IRTMessageTrace {
 
                 if ($ListOfLists.Count -eq 0) {
                     # exit if no messages returned
-                    Write-Host @Red "0 total messages retrieved. Exiting."
+                    Write-IRT "0 total messages retrieved. Exiting." -Level Warn
                     if ($Global:IRT_WaitFlags) {
                         $Global:IRT_WaitFlags.MessageTraceUserDone = $true
                     }
@@ -326,7 +382,7 @@ function Get-IRTMessageTrace {
 
             # exit if no messages found
             if (($AllMessages | Measure-Object).Count -eq 0) {
-                Write-Host @Red "${Function}: No messages found. Exiting."
+                Write-IRT "No messages found. Exiting." -Level Warn
                 if ($Global:IRT_WaitFlags) {
                     if ($AllUsers) { $Global:IRT_WaitFlags.MessageTraceAllUsersDone = $true }
                     else           { $Global:IRT_WaitFlags.MessageTraceUserDone = $true }
@@ -379,15 +435,14 @@ function Get-IRTMessageTrace {
                     if ($AllUsers) { $Global:IRT_WaitFlags.MessageTraceAllUsersDone = $true }
                     else           { $Global:IRT_WaitFlags.MessageTraceUserDone = $true }
                 }
-                Write-Host @Blue "${Function}: Exporting message trace to `$Global:IRT_MessageTraceTable ($($Global:IRT_MessageTraceTable.Count) entries, source: $(if ($AllUsers) {'AllUsers'} else {$UserName}))"
                 if ($Test) {
-                    Write-Host @Blue "${Function}: Table key count: $($Table.Count)"
+                    Write-IRT "Table key count: $($Table.Count)"
                 }
             }
 
             # export raw data
             if ($Xml) {
-                Write-Host @Blue "Exporting raw data to: ${XmlOutputPath}"
+                Write-IRT "Exporting raw data to: ${XmlOutputPath}"
                 $AllMessages | Export-CliXml -Depth 10 -Path $XmlOutputPath
             }
 

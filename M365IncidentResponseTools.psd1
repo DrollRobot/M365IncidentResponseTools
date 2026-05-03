@@ -12,7 +12,7 @@
     RootModule = 'M365IncidentResponseTools.psm1'
 
     # Version number of this module.
-    ModuleVersion     = '2.6.2.0'
+    ModuleVersion     = '2.6.3'
 
     # Supported PSEditions
     # CompatiblePSEditions = @()
@@ -66,9 +66,9 @@
         @{ModuleName = 'Microsoft.Graph.Users'; RequiredVersion = '2.33.0'}
         @{ModuleName = 'Microsoft.Graph.Users.Actions'; RequiredVersion = '2.33.0'}
 
-        'ExchangeOnlineManagement'
-        'ImportExcel'
-        'PSToml'
+        @{ModuleName = 'ExchangeOnlineManagement'; ModuleVersion = '3.4.0'}
+        @{ModuleName = 'ImportExcel';             ModuleVersion = '7.8.0'}
+        @{ModuleName = 'PSToml';                  ModuleVersion = '0.3.0'}
     )
 
     # Assemblies that must be loaded prior to importing this module
@@ -112,8 +112,8 @@
         'onprem_ad\Helpers.ps1'
         'onprem_ad\Find-AdOu.ps1'
         'onprem_ad\Find-AdUser.ps1'
-        'onprem_ad\Find-AllDomainControllers.ps1'
-        'onprem_ad\Get-AdAdminUsers.ps1'
+        'onprem_ad\Find-AllDomainController.ps1'
+        'onprem_ad\Get-AdAdminUser.ps1'
         'onprem_ad\Set-AdUserEnabled.ps1'
         'onprem_ad\Push-AdSync.ps1'
         'onprem_ad\Reset-AdUserPassword.ps1'
@@ -121,7 +121,7 @@
         'onprem_ad\Show-AdUserInfo.ps1'
 
         'mailbox\Get-IRTInboxRule.ps1'
-        'mailbox\Get-MailboxUserHasFullAccessTo.ps1'
+        'mailbox\Get-UserMailboxPermission.ps1'
         'mailbox\Grant-MailboxFullAccess.ps1'
         'mailbox\Open-MailboxInOWA.ps1'
         'mailbox\Remove-MailboxFullAccess.ps1'
@@ -137,7 +137,7 @@
         'modules\Build-Menu.ps1'
         'modules\Compress-InvestigationFolder.ps1'
         'modules\Convert-DecimalToExcelColumn.ps1'
-        'modules\Copy-IRTFunctions.ps1'
+        'modules\Copy-IRTFunction.ps1'
         'modules\Find-GraphDirectoryObject.ps1'
         'modules\Format-PhoneNumber.ps1'
         'modules\Format-Tree.ps1'
@@ -155,8 +155,11 @@
         'modules\Request-GraphServicePrincipal.ps1'
         'modules\Request-GraphUser.ps1'
         'modules\Add-IpAddressConditionalFormatting.ps1'
+        'modules\Write-IRT.ps1'
         'modules\Request-GraphDevice.ps1'
         'modules\Request-IntuneDevice.ps1'
+        'modules\Get-LicenseFullName.ps1'
+        'modules\Get-LicenseReport.ps1'
         'modules\Resolve-IRTDateRange.ps1'
         'modules\Test-PythonPackage.ps1'
 
@@ -228,8 +231,8 @@
         ### onprem_ad
         'Find-AdOu'
         'Find-AdUser'
-        'Find-AllDomainControllers'
-        'Get-AdAdminUsers'
+        'Find-AllDomainController'
+        'Get-AdAdminUser'
         'Disable-AdUser'
         'Enable-AdUser'
         'Push-AdSync'
@@ -239,7 +242,7 @@
 
         ### mailbox
         'Get-IRTInboxRule'
-        'Get-MailboxUserHasFullAccessTo'
+        'Get-UserMailboxPermission'
         'Grant-MailboxFullAccess'
         'Open-MailboxInOWA'
         'Remove-MailboxFullAccess'
@@ -252,7 +255,7 @@
 
         ### modules
         'Compress-InvestigationFolder'
-        'Copy-IRTFunctions'
+        'Copy-IRTFunction'
         'Find-GraphDirectoryObject'
         'Import-IRTConfig'
         'Open-IRTConfig'
@@ -266,8 +269,10 @@
         'Request-GraphDevice'
         'Request-GraphServicePrincipal'
         'Request-GraphUser'
+        'Get-LicenseReport'
         'Resolve-IRTDateRange'
         'Set-IRTConfig'
+        'Write-IRT'
 
         ### roles
         'Get-AdminRole'
@@ -316,6 +321,20 @@
         'Show-EnterpriseApps'
         'Show-Applications'
 
+        ### connect
+        # Connect-IRT
+        'ConnectIRT'
+        # Connect-IRTTenant
+        'IRTTenant'
+        # Open-IRTTenantWorksheet
+        'OpenIRTTenantWorksheet'
+        'Open-IRTTenantSheet'
+        'OpenIRTTenantSheet'
+        'IRTTenantSheet'
+        # Disconnect-IRT
+        'DisconnectIRT'
+        'IRTDisconnect'
+
         ### devices
         # Find-Devices
         'FindDevice'
@@ -323,15 +342,6 @@
         # Show-DeviceInfo
         'ShowDevice'
         'ShowDevices'
-
-        ### connect
-        # Connect-IRT
-        'ConnectIRT'
-        # Connect-IRTTenant
-        'IRTTenant'
-        # Disconnect-IRT
-        'DisconnectIRT'
-        'IRTDisconnect'
 
         ### entra-audit-log
         # Get-EntraAuditLogs
@@ -349,11 +359,11 @@
         'FindAdUser'
         'FindAdUsers'
         'Find-AdUsers'
-        # Find-AllDomainControllers
+        # Find-AllDomainController
         'FindDCs'
         'FindDomainControllers'
         'Find-DCs'
-        # Get-AdAdminUsers
+        # Get-AdAdminUser
         'GetAdAdmins'
         'AdAdmins'
         # Disable-AdUser
@@ -408,7 +418,7 @@
         'MessageTrace'
 
         ### modules
-        # Copy-IRTFunctions
+        # Copy-IRTFunction
         'CopyIRTFunctions'
         'CopyIRT'
         # Import-IRTConfig / Open-IRTConfig / Set-IRTConfig

@@ -1,16 +1,49 @@
-New-Alias -Name 'InboxRule' -Value 'Get-IRTInboxRule' -Force
-New-Alias -Name 'InboxRules' -Value 'Get-IRTInboxRule' -Force
-
 function Get-IRTInboxRule {
     <#
-	.SYNOPSIS
-	Downloads incoming and outgoing message trace for provided users, merges into one array, saves raw xml, then saves as excel spreadsheet.
+    .SYNOPSIS
+    Retrieves and displays Exchange Online inbox rules for one or more users.
 
-	.NOTES
-	Version: 1.1.6
+    .DESCRIPTION
+    Fetches all inbox rules for each provided user via Exchange Online and exports them
+    to a formatted Excel workbook. Each rule row includes its enabled state, name,
+    description, and a pre-built deletion command for quick remediation.
+
+    Disabled rules are highlighted in the Excel output. Falls back to
+    $Global:IRT_UserObjects if no -UserObject is passed. Requires an active Exchange
+    Online connection.
+
+    .PARAMETER UserObject
+    One or more user objects to query. Falls back to global session objects if omitted.
+
+    .PARAMETER TableStyle
+    Excel table style. Defaults to IRT_Config.ExcelTableStyle.
+
+    .PARAMETER Font
+    Excel font name. Defaults to IRT_Config.ExcelFont.
+
+    .PARAMETER Open
+    Open the Excel file immediately after export. Default: $true.
+
+    .PARAMETER Xml
+    Export raw XML alongside the Excel file. Defaults to IRT_Config.ExportXml.
+
+    .EXAMPLE
+    Get-IRTInboxRule
+    Retrieves and exports inbox rules for the user in the global session.
+
+    .EXAMPLE
+    Get-IRTInboxRule -UserObject $User
+    Retrieves inbox rules for a specific user.
+
+    .OUTPUTS
+    None. Results are exported to an Excel file and optionally displayed in the console.
+
+    .NOTES
+    Version: 1.1.6
     1.1.6 - Added column borders, raw json. Fixed bugs.
     1.1.5 - Added rule to highlight disabled rules.
-	#>
+    #>
+    [Alias('InboxRule', 'InboxRules')]
     [CmdletBinding()]
     param (
         [Parameter( Position = 0 )]
@@ -24,12 +57,6 @@ function Get-IRTInboxRule {
     )
 
     begin {
-
-        #region BEGIN
-
-        # constants
-        $Function = $MyInvocation.MyCommand.Name
-        # $ParameterSet = $PSCmdlet.ParameterSetName
         $WorksheetName = 'InboxRules'
         $FileNameDateFormat = "yy-MM-dd_HH-mm"
         $FileDateString = Get-Date -Format $FileNameDateFormat
@@ -42,8 +69,6 @@ function Get-IRTInboxRule {
             'Description'
             'DeleteCommand'
         )
-        $Blue = @{ForegroundColor = 'Blue'}
-        $Red = @{ForegroundColor = 'Red'}
 
         # if user objects not passed directly, find global
         if ( -not $UserObject -or $UserObject.Count -eq 0 ) {
@@ -68,15 +93,13 @@ function Get-IRTInboxRule {
     process {
 
         foreach ( $ScriptUserObject in $ScriptUserObjects ) {
-
-            # variables
             $UserEmail = $ScriptUserObject.UserPrincipalName
 
             # verify user has mailbox
             try { $Mailbox = Get-EXOMailbox -UserPrincipalName $UserEmail -ErrorAction Stop }
             catch { $Mailbox = $null }
             if (-not $Mailbox) {
-                Write-Host @Red "${Function}: No mailbox for ${UserEmail}"
+                Write-IRT "No mailbox for ${UserEmail}" -Level Warn
                 continue
             }
 
@@ -91,10 +114,10 @@ function Get-IRTInboxRule {
             $WorksheetTitle = "Inbox rules for ${UserEmail} as of ${EventDateString}"
 
             # get rules
-            Write-Host @Blue "Getting Inbox rules for ${UserEmail}"
+            Write-IRT "Getting Inbox rules for ${UserEmail}"
             $OutputTable = Get-InboxRule -Mailbox $UserEmail
             if ( @( $OutputTable ).Count -eq 0 ) {
-                Write-Host @Red "No inbox rules found. Exiting."
+                Write-IRT "No inbox rules found for ${UserEmail}." -Level Warn
                 continue
             }
 
@@ -129,7 +152,7 @@ function Get-IRTInboxRule {
 
             # export raw data
             if ($Xml) {
-                Write-Host @Blue "Exporting raw data to: ${XmlOutputPath}"
+                Write-IRT "Exporting raw data to: ${XmlOutputPath}"
                 $RawOutputTable | Export-CliXml -Depth 10 -Path $XmlOutputPath
             }
 
@@ -260,9 +283,9 @@ function Get-IRTInboxRule {
             #region OUTPUT
 
             # save and close
-            Write-Host @Blue "Exporting to: ${ExcelOutputPath}"
+            Write-IRT "Exporting to: ${ExcelOutputPath}"
             if ( $Open ) {
-                Write-Host "Opening Excel."
+                Write-IRT "Opening Excel."
                 $Workbook | Close-ExcelPackage -Show
             }
             else {
@@ -271,6 +294,5 @@ function Get-IRTInboxRule {
         }
     }
 }
-
 
 

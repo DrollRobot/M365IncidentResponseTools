@@ -1,14 +1,47 @@
-New-Alias -Name 'ShowMFA' -Value 'Show-UserMFA' -Force
-New-Alias -Name 'UserMFA' -Value 'Show-UserMFA' -Force
 function Show-UserMFA {
     <#
     .SYNOPSIS
     Shows a graph user's MFA methods.
 
+    .DESCRIPTION
+    Retrieves all registered authentication methods for one or more Entra ID users and
+    displays them in a formatted table. Each method row includes type, summary details,
+    and a pre-built deletion command for quick remediation.
+
+    Falls back to $Global:IRT_UserObjects if no -UserObject is passed.
+
+    .PARAMETER UserObject
+    One or more Entra ID user objects to query. Falls back to global session objects if
+    omitted. Accepts pipeline input.
+
+    .PARAMETER TableStyle
+    Excel table style. Defaults to IRT_Config.ExcelTableStyle.
+
+    .PARAMETER Font
+    Excel font name. Defaults to IRT_Config.ExcelFont.
+
+    .PARAMETER Xml
+    Export raw XML alongside the Excel file. Defaults to IRT_Config.ExportXml.
+
+    .PARAMETER Open
+    Open the Excel file immediately after export. Default: $true.
+
+    .EXAMPLE
+    Show-UserMFA
+    Displays MFA methods for the user in the global session.
+
+    .EXAMPLE
+    Show-UserMFA -UserObject $User
+    Displays MFA methods for a specific user.
+
+    .OUTPUTS
+    None. Results are displayed in the console and optionally exported to Excel.
+
     .NOTES
-    Inspired by:
-    https://thesysadminchannel.com/get-mfa-methods-using-msgraph-api-and-powershell-sdk/ -
+    Credit to:
+    https://thesysadminchannel.com/get-mfa-methods-using-msgraph-api-and-powershell-sdk/
     #>
+    [Alias('ShowMFA', 'UserMFA')]
     [CmdletBinding()]
     param(
         [Parameter(Position = 0, ValueFromPipeline = $true, ValueFromPipelineByPropertyName = $true)]
@@ -22,13 +55,6 @@ function Show-UserMFA {
     )
 
     begin {
-
-        #region BEGIN
-
-        # constants
-        $Function = $MyInvocation.MyCommand.Name
-        # $ParameterSet = $PSCmdlet.ParameterSetName
-
         $OutputTable = [System.Collections.Generic.List[PSCustomObject]]::new()
         $Properties = [System.Collections.Generic.Hashset[string]]::new()
         $PropertySortOrder = @(
@@ -42,13 +68,6 @@ function Show-UserMFA {
         $FileNameDateFormat = "yy-MM-dd_HH-mm"
         $WorksheetName = 'MFAMethods'
 
-        # colors
-        $Blue = @{ ForegroundColor = 'Blue' }
-        # $Red = @{ ForegroundColor = 'Red' }
-        # $Cyan = @{ ForegroundColor = 'Cyan' }
-        # $Green = @{ ForegroundColor = 'Green' }
-        # $Magenta = @{ ForegroundColor = 'Magenta' }
-        # $Yellow = @{ ForegroundColor = 'Yellow' }
 
         # if user objects not passed directly, find global
         if ( -not $UserObject -or $UserObject.Count -eq 0 ) {
@@ -92,7 +111,7 @@ function Show-UserMFA {
             $DateString = ( Get-Date ).ToString( "M/d/yy h:mmtt" ).ToLower()
             $WorksheetTitle = "MFA methods for ${UserEmail} on ${DateString}."
 
-            Write-Host @Blue "`n${Function}: Getting MFA methods for: ${UserEmail}"
+            Write-IRT "Getting MFA methods for: ${UserEmail}"
             $Methods = Get-MgUserAuthenticationMethod -UserId $ScriptUserObject.Id -ErrorAction Stop
 
             foreach ( $Method in $Methods ) {
@@ -331,7 +350,7 @@ function Show-UserMFA {
 
             if ($Xml) {
                 # export raw data as xml
-                Write-Host @Blue "${Function}: Exporting raw data to: ${XmlOutputPath}"
+                Write-IRT "Exporting raw data to: ${XmlOutputPath}"
                 $Methods | Export-CliXml -Depth 10 -Path $XmlOutputPath
             }
 
@@ -349,13 +368,13 @@ function Show-UserMFA {
                 $Workbook = $OutputTable | Select-Object $SortedProperties | Export-Excel @ExcelParams
             }
             catch {
-                Write-Error "${Function}: Unable to open new Excel document."
-                if ( Get-YesNo "${Function}: Try closing open files." ) {
+                Write-IRT "Unable to open new Excel document." -Level Error
+                if ( Get-YesNo "Try closing open files. Respond y when done." ) {
                     try {
                         $Workbook = $OutputTable | Export-Excel @ExcelParams
                     }
                     catch {
-                        throw "${Function}: Unable to open new Excel document. Exiting."
+                        Write-IRT "Unable to open new Excel document. Exiting." -Level Error
                     }
                 }
             }
@@ -416,9 +435,9 @@ function Show-UserMFA {
             #region OUTPUT
 
             # save and close
-            Write-Host @Blue "Exporting to: ${ExcelOutputPath}"
+            Write-IRT "Exporting to: ${ExcelOutputPath}"
             if ($Open) {
-                Write-Host @Blue "Opening Excel."
+                Write-IRT "Opening Excel."
                 $Workbook | Close-ExcelPackage -Show
             }
             else {

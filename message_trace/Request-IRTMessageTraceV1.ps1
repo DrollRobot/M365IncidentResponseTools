@@ -14,7 +14,6 @@ function Request-IRTMessageTraceV1 {
         [switch] $Quiet
     )
     begin {
-        $Blue = @{ForegroundColor = 'Blue' }
         $PageSize = 5000
         $Page = 1
         $MoreToGet = $true
@@ -37,7 +36,7 @@ function Request-IRTMessageTraceV1 {
             $Params['Page'] = $Page
 
             # retrieve one page
-            if (-not $Quiet) {Write-Host @Blue "Requesting message trace page ${Page}"}
+            if (-not $Quiet) {Write-IRT "Requesting message trace page ${Page}"}
             $PageResults = [psobject[]]@(Get-MessageTrace @Params -WarningAction SilentlyContinue -WarningVariable mtWarnings)
             $mtWarnings | Where-Object { $_ -notlike '*Get-MessageTrace will start deprecating*' } |
                 ForEach-Object { Write-Warning $_ }

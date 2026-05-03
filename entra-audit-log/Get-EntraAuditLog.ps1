@@ -1,15 +1,61 @@
-New-Alias -Name "EALog" -Value "Get-EntraAuditLog" -Force
-New-Alias -Name "EALogs" -Value "Get-EntraAuditLog" -Force
-New-Alias -Name "GetEALog" -Value "Get-EntraAuditLog" -Force
-New-Alias -Name "GetEALogs" -Value "Get-EntraAuditLog" -Force
 function Get-EntraAuditLog {
     <#
-	.SYNOPSIS
-	Downloads user sign in logs.
+    .SYNOPSIS
+    Downloads Entra ID (Azure AD) audit log events for one or more users.
 
-	.NOTES
-	Version: 1.1.0
-	#>
+    .DESCRIPTION
+    Queries the Entra ID directory audit log via Microsoft Graph for activity related
+    to the specified users over a configurable date range. Results are exported to an
+    Excel workbook. Use -AllUsers to pull the full tenant audit log regardless of user.
+
+    Date range defaults to the last 30 days when no -Days, -Start, or -End is specified.
+
+    .PARAMETER UserObject
+    One or more user objects to query. Falls back to global session objects if omitted.
+
+    .PARAMETER Days
+    Number of days back to search. Cannot be used with -Start / -End.
+
+    .PARAMETER Start
+    Start of date range (parseable date string). Used with -End for an absolute range.
+
+    .PARAMETER End
+    End of date range (parseable date string). Used with -Start for an absolute range.
+
+    .PARAMETER AllUsers
+    Pull the full tenant audit log without filtering by user.
+
+    .PARAMETER Beta
+    Use the Microsoft Graph beta endpoint instead of v1.0.
+
+    .PARAMETER Open
+    Open the Excel file immediately after export. Default: $true.
+
+    .PARAMETER Xml
+    Export raw XML alongside the Excel file. Defaults to IRT_Config.ExportXml.
+
+    .PARAMETER Cached
+    Use pre-cached Graph data instead of making new API calls.
+
+    .EXAMPLE
+    Get-EntraAuditLog
+    Downloads the last 30 days of Entra audit events for the user in the global session.
+
+    .EXAMPLE
+    Get-EntraAuditLog -UserObject $User -Days 90
+    Downloads 90 days of audit events for a specific user.
+
+    .EXAMPLE
+    Get-EntraAuditLog -AllUsers -Start '2026-04-01' -End '2026-04-30'
+    Downloads all tenant audit events for April 2026.
+
+    .OUTPUTS
+    None. Results are exported to an Excel workbook.
+
+    .NOTES
+    Version: 1.1.0
+    #>
+    [Alias('EALog', 'EALogs', 'GetEALog', 'GetEALogs')]
     [CmdletBinding()]
     param (
         [Parameter( Position = 0 )]
@@ -28,18 +74,10 @@ function Get-EntraAuditLog {
     )
 
     begin {
-
-        #region BEGIN
-
-        # constants
-        $Function = $MyInvocation.MyCommand.Name
-        # $ParameterSet = $PSCmdlet.ParameterSetName
         $FilterStrings = [System.Collections.Generic.List[string]]::new()
         $FileNameDateFormat = "yy-MM-dd_HH-mm"
         $FileNameDateString = Get-Date -Format $FileNameDateFormat
         $FileNamePrefix = 'EntraAuditLogs'
-        $Blue = @{ForegroundColor = 'Blue'}
-        $Red = @{ForegroundColor = 'Red'}
 
         # parse date ranges
         $DateRangeParams = @{
@@ -115,9 +153,10 @@ function Get-EntraAuditLog {
 
             ### get logs
             # user messages
-            Write-Host @Blue "`n${Function}: Retrieving ${Days} days of Entra audit logs for ${UserEmail}." | Out-Host
-            Write-Verbose "Filter string: ${FilterString}" | Out-Host
-            # Write-Host @Blue "This can take up to 5 minutes, depending on the number of logs." | Out-Host
+            Write-IRT "Retrieving ${Days} days of Entra audit logs for ${UserEmail}."
+            if ($Script:Test) {
+                Write-IRT "Filter string: ${FilterString}" -Level Warn
+            }
 
             # query logs
             $GetParams = @{
@@ -134,10 +173,10 @@ function Get-EntraAuditLog {
             # show count
             $Count = ($Logs | Measure-Object).Count
             if ($Count -gt 0) {
-                Write-Host @Blue "${Function}: Retrieved ${Count} logs."
+                Write-IRT "Retrieved ${Count} logs."
             }
             else {
-                Write-Host @Red "${Function}: Retrieved 0 logs."
+                Write-IRT "Retrieved 0 logs." -Level Warn
                 continue
             }
 
@@ -158,7 +197,7 @@ function Get-EntraAuditLog {
 
             # export to xml
             if ($Xml) {
-                Write-Host @Blue "`n${Function}: Saving logs to: ${XmlOutputPath}"
+                Write-IRT "Saving logs to: ${XmlOutputPath}"
                 $Logs | Export-Clixml -Depth 10 -Path $XmlOutputPath
             }
 
