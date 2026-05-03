@@ -63,11 +63,7 @@ function Connect-IRTTenant {
         [Parameter( Mandatory, Position = 0 )]
         [string] $Alias,
 
-        [string] $TenantFile = $(if ($Global:IRT_Config.TenantsSheetPath) {
-            $Global:IRT_Config.TenantsSheetPath
-        } else {
-            Join-Path $env:APPDATA 'M365IncidentResponseTools\tenants.xlsx'
-        }),
+        [string] $TenantFile,
 
         [switch] $Graph,
         [switch] $Exchange,
@@ -81,7 +77,18 @@ function Connect-IRTTenant {
         [switch] $Private
     )
 
+    begin {
+        if (-not $TenantFile) {
+            $TenantFile = if ($Global:IRT_Config.TenantsSheetPath) {
+                $Global:IRT_Config.TenantsSheetPath
+            } else {
+                Join-Path $env:APPDATA 'M365IncidentResponseTools\tenants.xlsx'
+            }
+        }
+    }
+
     process {
+
 
         # validate tenant file exists
         if (-not ( Test-Path $TenantFile )) {

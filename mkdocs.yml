@@ -7,29 +7,37 @@ repo_name: DrollRobot/M365IncidentResponseTools
 theme:
   name: material
   palette:
-    - scheme: default
-      primary: blue
-      accent: light blue
-      toggle:
-        icon: material/brightness-7
-        name: Switch to dark mode
-    - scheme: slate
-      primary: blue
-      accent: light blue
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: blue grey
+      accent: blue grey
       toggle:
         icon: material/brightness-4
         name: Switch to light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: blue grey
+      accent: blue grey
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
   features:
-    - navigation.tabs
     - navigation.sections
     - navigation.top
     - search.suggest
     - content.code.copy
 
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+
 nav:
   - Home: index.md
   - Getting Started: getting-started.md
-  - Playbook: playbook.md
+  - Connect to M365: connect.md
+  - Investigation: investigation.md
+  - Remediation: remediation.md
   - Command Reference:
     - Overview: commands/M365IncidentResponseTools.md
     - Playbook:

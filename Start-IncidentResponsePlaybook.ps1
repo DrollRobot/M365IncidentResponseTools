@@ -4,17 +4,16 @@ function Start-IncidentResponsePlaybook {
     Runs multiple functions to assist in investigating a user's activity.
 
     .DESCRIPTION
-    The incident response playbook is the primary investigation entry point. It accepts one
-    or more Entra ID user objects and launches up to 13 data-collection steps in parallel
-    using a runspace pool, then writes each result set to the investigation folder.
+    The incident response playbook is the primary investigation entry point.
+    It accepts one or more Entra ID user objects and launches ~15 investigation steps in 
+    parallel, then saves output files to the investigation folder.
 
     Steps include: license report, user info, app assignments, mailbox details, admin roles,
     risky applications, MFA state, message trace, inbox rules, Entra audit log, sign-in logs,
     non-interactive sign-in logs, and Unified Audit Log (UAL).
 
     If -UserObject is omitted the function falls back to $Global:IRT_UserObjects populated
-    by Find-GraphUser or Get-IRTUserObject. A Graph connection is required; Exchange Online
-    is required for mailbox and inbox rule steps.
+    by Find-User.
 
     .PARAMETER UserObject
     One or more Entra ID user objects to investigate. Accepts the objects returned by

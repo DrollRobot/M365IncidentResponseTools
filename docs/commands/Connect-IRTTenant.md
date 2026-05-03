@@ -77,11 +77,7 @@ Aliases:
 
 Required: False
 Position: Named
-Default value: $(if ($Global:IRT_Config.TenantsSheetPath) {
-            $Global:IRT_Config.TenantsSheetPath
-        } else {
-            Join-Path $env:APPDATA 'M365IncidentResponseTools\tenants.xlsx'
-        })
+Default value: None
 Accept pipeline input: False
 Accept wildcard characters: False
 ```

@@ -287,8 +287,10 @@
         'Show-UALog'
 
         ### users
+        'Disable-GraphUser'
+        'Enable-GraphUser'
         'Find-User'
-        'Get-FullUserObject'
+        'Reset-GraphUserPassword'
         'Revoke-UserSession'
         'Set-UsageLocation'
         'Show-UserInfo'
