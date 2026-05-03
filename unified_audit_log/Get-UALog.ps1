@@ -297,25 +297,25 @@ function Get-UALog {
                             Params = @{
                                 UserIds = $UserEmail, $UserId, $UserIdNoDashes
                             }
-                            ConsoleOutput   = "${Function}: Running -UserIds query for ${UserEmail}, ${UserId}, ${UserIdNoDashes}"
+                            ConsoleOutput = "Running UserIds query for ${UserEmail}, ${UserId}, ${UserIdNoDashes}"
                         }
                         '2' = @{
                             Params = @{
                                 FreeText = $UserEmail
                             }
-                            ConsoleOutput   = "${Function}: Running -Freetext query for ${UserEmail}"
+                            ConsoleOutput = "Running Freetext query for ${UserEmail}"
                         }
                         '3' = @{
                             Params = @{
                                 FreeText = $UserId
                             }
-                            ConsoleOutput   = "${Function}: Running -Freetext query for ${UserId}"
+                            ConsoleOutput = "Running Freetext query for ${UserId}"
                         }
                         '4' = @{
                             Params = @{
                                 FreeText = $UserIdNoDashes
                             }
-                            ConsoleOutput   = "${Function}: Running -Freetext query for ${UserIdNoDashes}"
+                            ConsoleOutput = "Running Freetext query for ${UserIdNoDashes}"
                         }
                     }
                     if ($FreeText) {
@@ -325,7 +325,7 @@ function Get-UALog {
                                 Params = @{
                                     FreeText = $FreeTextString
                                 }
-                                ConsoleOutput = "${Function}: Running -FreeText '${FreeTextString}' query."
+                                ConsoleOutput = "Running FreeText '${FreeTextString}' query."
                             }
                             $Key++
                         }
@@ -340,7 +340,7 @@ function Get-UALog {
                                 Params = @{
                                     FreeText = $FreeTextString
                                 }
-                                ConsoleOutput = "${Function}: Running FreeText '${FreeTextString}' query for all users."
+                                ConsoleOutput = "Running FreeText '${FreeTextString}' query for all users."
                             }
                             $Key++
                         }
@@ -349,7 +349,7 @@ function Get-UALog {
                         $QueryTable = [ordered]@{
                             '1' = @{
                                 Params = @{}
-                                ConsoleOutput   = "${Function}: Running query for all users."
+                                ConsoleOutput   = "Running query for all users."
                             }
                         }
                     }
@@ -360,31 +360,31 @@ function Get-UALog {
                             Params = @{
                                 UserIds = $ServicePrincipalId, $ServicePrincipalIdNoDash, $AppId, $AppIdNoDash
                             }
-                            ConsoleOutput   = "${Function}: Running -UserIds query for ${ServicePrincipalId}, ${ServicePrincipalIdNoDash}, ${AppId}, ${AppIdNoDash}"
+                            ConsoleOutput = "Running UserIds query for ${ServicePrincipalId}, ${ServicePrincipalIdNoDash}, ${AppId}, ${AppIdNoDash}"
                         }
                         '2' = @{
                             Params = @{
                                 FreeText = $ServicePrincipalId
                             }
-                            ConsoleOutput   = "${Function}: Running -Freetext query for ${ServicePrincipalId}"
+                            ConsoleOutput = "Running Freetext query for ${ServicePrincipalId}"
                         }
                         '3' = @{
                             Params = @{
                                 FreeText = $ServicePrincipalIdNoDash
                             }
-                            ConsoleOutput   = "${Function}: Running -Freetext query for ${ServicePrincipalIdNoDash}"
+                            ConsoleOutput = "Running Freetext query for ${ServicePrincipalIdNoDash}"
                         }
                         '4' = @{
                             Params = @{
                                 FreeText = $AppId
                             }
-                            ConsoleOutput   = "${Function}: Running -Freetext query for ${AppId}"
+                            ConsoleOutput = "Running Freetext query for ${AppId}"
                         }
                         '5' = @{
                             Params = @{
                                 FreeText = $AppIdNoDash
                             }
-                            ConsoleOutput   = "${Function}: Running -Freetext query for ${AppIdNoDash}"
+                            ConsoleOutput = "Running Freetext query for ${AppIdNoDash}"
                         }
                     }
                     if ($FreeText) {
@@ -394,7 +394,7 @@ function Get-UALog {
                                 Params = @{
                                     FreeText = $FreeTextString
                                 }
-                                ConsoleOutput = "${Function}: Running -FreeText '${FreeTextString}' query."
+                                ConsoleOutput = "Running Freetext query for '${FreeTextString}'"
                             }
                             $Key++
                         }
