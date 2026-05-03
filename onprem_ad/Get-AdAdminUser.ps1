@@ -1,4 +1,4 @@
-function Get-AdAdminUsers {
+function Get-AdAdminUser {
     <#
     .SYNOPSIS
     Displays a list of admin users.
@@ -15,11 +15,11 @@ function Get-AdAdminUsers {
     Export results to a CSV file instead of displaying them in the console.
 
     .EXAMPLE
-    Get-AdAdminUsers
+    Get-AdAdminUser
     Displays all AdminCount=1 users in a formatted table.
 
     .EXAMPLE
-    Get-AdAdminUsers -Csv
+    Get-AdAdminUser -Csv
     Exports the list to AdAdminUsers_<domain>_<date>.csv in C:\Temp.
 
     .OUTPUTS

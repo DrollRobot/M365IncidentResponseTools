@@ -50,7 +50,7 @@ function Get-LicenseNameFromCSV {
 }
 
 
-function Get-LicenseFullNames {
+function Get-LicenseFullName {
     <#
     .SYNOPSIS
     Pipeline function that adds a LicenseFullName property to Graph license objects.
@@ -71,11 +71,11 @@ function Get-LicenseFullNames {
     Reserved for internal pipeline passthrough; not intended for direct use.
 
     .EXAMPLE
-    Get-MgSubscribedSku | Get-LicenseFullNames
+    Get-MgSubscribedSku | Get-LicenseFullName
     Returns enriched license objects with a LicenseFullName property added.
 
     .EXAMPLE
-    Get-LicenseFullNames -SkuId '05e9a617-0261-4cee-bb44-138d3ef5d965'
+    Get-LicenseFullName -SkuId '05e9a617-0261-4cee-bb44-138d3ef5d965'
     Returns the friendly product name for the given SKU GUID.
 
     .OUTPUTS

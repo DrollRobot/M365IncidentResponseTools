@@ -170,7 +170,7 @@ function Set-AdUserEnabled {
         if ( -not $UserObject -or $UserObject.Count -eq 0 ) {
 
             # get from global variables
-            $ScriptUserObjects = Get-AdGlobalUserObjects
+            $ScriptUserObjects = Get-AdGlobalUserObject
 
             # if none found, exit
             if ( -not $ScriptUserObjects -or $ScriptUserObjects.Count -eq 0 ) {

@@ -5,7 +5,7 @@ function Get-LicenseReport {
 
     .DESCRIPTION
     Retrieves all subscribed SKUs from Microsoft Graph, resolves each SKU's friendly
-    product name via Get-LicenseFullNames, and displays a formatted table showing
+    product name via Get-LicenseFullName, and displays a formatted table showing
     capability status, applies-to scope, license name, total enabled units, consumed
     units, and available units. Use -Objects to return raw enriched objects instead.
 
@@ -50,7 +50,7 @@ function Get-LicenseReport {
         # get license objects
         $Licenses = Get-MgSubscribedSku |
             # Where-Object { $_.CapabilityStatus -eq 'Enabled' } |
-            Get-LicenseFullNames
+            Get-LicenseFullName
 
         # colors
         $Blue = @{ ForegroundColor = 'Blue' }

@@ -10,7 +10,7 @@ function Show-AdUserInfo {
     Exchange attributes (msExchHideFromAddressLists, mailNickname, proxyAddresses),
     group memberships, and DistinguishedName. Timestamps are converted to local time.
 
-    Falls back to global session objects (via Get-AdGlobalUserObjects) if no -UserObjects
+    Falls back to global session objects (via Get-AdGlobalUserObject) if no -UserObjects
     is passed.
 
     .PARAMETER UserObjects
@@ -45,7 +45,7 @@ function Show-AdUserInfo {
         if ( -not $UserObjects -or $UserObjects.Count -eq 0 ) {
 
             # get from global variables
-            $ScriptUserObjects = Get-AdGlobalUserObjects
+            $ScriptUserObjects = Get-AdGlobalUserObject
 
             # if none found, exit
             if ( -not $ScriptUserObjects ) {

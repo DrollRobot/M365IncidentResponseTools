@@ -70,7 +70,7 @@ function Reset-AdUserPassword {
         if ( -not $UserObjects -or $UserObjects.Count -eq 0 ) {
 
             # get from global variables
-            $ScriptUserObjects = Get-AdGlobalUserObjects
+            $ScriptUserObjects = Get-AdGlobalUserObject
 
             # if none found, exit
             if ( -not $ScriptUserObjects ) {
@@ -94,11 +94,12 @@ function Reset-AdUserPassword {
         foreach ($ScriptUserObject in $ScriptUserObjects) {
             $Username = $ScriptUserObject.SamAccountName
 
-            switch ($ParameterSet) {
-                'Custom' {
+            switch ($true) {
+                $Custom {
                     $Password = Read-Host -AsSecureString "Enter new password for ${Username}"
+                    break
                 }
-                'RandomCharacters' {
+                $RandomCharacters {
 
                     $PlainTextPassword = Get-RandomPassword 30
                     $ConvertParams = @{

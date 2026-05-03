@@ -1,4 +1,4 @@
-function Find-AllDomainControllers {
+function Find-AllDomainController {
     <#
     .SYNOPSIS
     Lists the names of all domain controllers in the current AD domain.
@@ -9,11 +9,11 @@ function Find-AllDomainControllers {
     a reachable domain controller; exits with an error if AD is unavailable.
 
     .EXAMPLE
-    Find-AllDomainControllers
+    Find-AllDomainController
     Returns the Name of every domain controller in the domain.
 
     .EXAMPLE
-    $DCs = Find-AllDomainControllers
+    $DCs = Find-AllDomainController
     Captures the list of DC names for use in a loop or downstream command.
 
     .OUTPUTS

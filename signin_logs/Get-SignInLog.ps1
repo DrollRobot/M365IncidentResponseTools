@@ -153,6 +153,7 @@ function Get-SignInLog {
                 }
             }
             'AllUsers' {
+                $null = $AllUsers  # switch controls parameter set; value not needed
                 # build user object with null principal name
                 $ScriptUserObjects = @(
                     [pscustomobject]@{

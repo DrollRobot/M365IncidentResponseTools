@@ -22,7 +22,7 @@ function Merge-ListOnDate {
     }
 
     # determine direction bool once
-    $IsAscending = [bool]$Ascending
+    $IsAscending = $Ascending -and -not $Descending
 
     # build working lists (sorted if needed)
     $WorkingLists = Get-WorkingList -InputList $List -KeyProperty $PropertyName -IsAscending $IsAscending

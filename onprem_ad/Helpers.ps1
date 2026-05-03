@@ -51,7 +51,7 @@ function Test-RunningOnDomainController {
     }
 }
 
-function Get-AdGlobalUserObjects {
+function Get-AdGlobalUserObject {
     <#
     .SYNOPSIS
     Gets user objects from global variables. Designed to be used by other scripts.

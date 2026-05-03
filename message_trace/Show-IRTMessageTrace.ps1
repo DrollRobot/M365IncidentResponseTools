@@ -20,8 +20,6 @@ function Show-IRTMessageTrace {
     )
 
     begin {
-        # constants
-        $Function = $MyInvocation.MyCommand.Name
         $ParameterSet = $PSCmdlet.ParameterSetName
         $TitleDateFormat = "M/d/yy h:mmtt"
         $RawDateProperty = 'Received'

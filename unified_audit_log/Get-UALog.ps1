@@ -186,6 +186,7 @@ function Get-UALog {
                 }
             }
             'AllUsers' {
+                $null = $AllUsers  # switch controls parameter set; value not needed
                 # build user object with null principal name
                 $LoopObjects = @(
                     [pscustomobject]@{

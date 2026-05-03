@@ -68,11 +68,12 @@ function Reset-GraphUserPassword {
 
         foreach ( $LoopObject in $LoopObjects ) {
 
-            switch ( $PSCmdlet.ParameterSetName ) {
-                'Custom' {
+            switch ($true) {
+                $Custom {
                     $Password = Read-Host -Prompt "`nEnter new password"
+                    break
                 }
-                'RandomCharacters' {
+                default {
                     $UserEmail = $LoopObject.UserPrincipalName
                     $Password = Get-RandomPassword 30
                     Write-IRT "`n${UserEmail} new password:"

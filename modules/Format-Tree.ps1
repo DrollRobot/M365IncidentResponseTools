@@ -10,6 +10,8 @@ displays a simple tree view of any object (ps 5.1+)
 #>
     [Alias('FTree', 'FTr')]
     [CmdletBinding()]
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', 'Depth',
+        Justification = 'Used by Out-Print helper function via PowerShell dynamic scoping.')]
     param(
         [Parameter(Mandatory, ValueFromPipeline)]
         $InputObject,

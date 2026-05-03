@@ -112,8 +112,8 @@
         'onprem_ad\Helpers.ps1'
         'onprem_ad\Find-AdOu.ps1'
         'onprem_ad\Find-AdUser.ps1'
-        'onprem_ad\Find-AllDomainControllers.ps1'
-        'onprem_ad\Get-AdAdminUsers.ps1'
+        'onprem_ad\Find-AllDomainController.ps1'
+        'onprem_ad\Get-AdAdminUser.ps1'
         'onprem_ad\Set-AdUserEnabled.ps1'
         'onprem_ad\Push-AdSync.ps1'
         'onprem_ad\Reset-AdUserPassword.ps1'
@@ -121,7 +121,7 @@
         'onprem_ad\Show-AdUserInfo.ps1'
 
         'mailbox\Get-IRTInboxRule.ps1'
-        'mailbox\Get-UserMailboxPermissions.ps1'
+        'mailbox\Get-UserMailboxPermission.ps1'
         'mailbox\Grant-MailboxFullAccess.ps1'
         'mailbox\Open-MailboxInOWA.ps1'
         'mailbox\Remove-MailboxFullAccess.ps1'
@@ -137,7 +137,7 @@
         'modules\Build-Menu.ps1'
         'modules\Compress-InvestigationFolder.ps1'
         'modules\Convert-DecimalToExcelColumn.ps1'
-        'modules\Copy-IRTFunctions.ps1'
+        'modules\Copy-IRTFunction.ps1'
         'modules\Find-GraphDirectoryObject.ps1'
         'modules\Format-PhoneNumber.ps1'
         'modules\Format-Tree.ps1'
@@ -158,6 +158,8 @@
         'modules\Write-IRT.ps1'
         'modules\Request-GraphDevice.ps1'
         'modules\Request-IntuneDevice.ps1'
+        'modules\Get-LicenseFullName.ps1'
+        'modules\Get-LicenseReport.ps1'
         'modules\Resolve-IRTDateRange.ps1'
         'modules\Test-PythonPackage.ps1'
 
@@ -229,8 +231,8 @@
         ### onprem_ad
         'Find-AdOu'
         'Find-AdUser'
-        'Find-AllDomainControllers'
-        'Get-AdAdminUsers'
+        'Find-AllDomainController'
+        'Get-AdAdminUser'
         'Disable-AdUser'
         'Enable-AdUser'
         'Push-AdSync'
@@ -240,7 +242,7 @@
 
         ### mailbox
         'Get-IRTInboxRule'
-        'Get-UserMailboxPermissions'
+        'Get-UserMailboxPermission'
         'Grant-MailboxFullAccess'
         'Open-MailboxInOWA'
         'Remove-MailboxFullAccess'
@@ -253,7 +255,7 @@
 
         ### modules
         'Compress-InvestigationFolder'
-        'Copy-IRTFunctions'
+        'Copy-IRTFunction'
         'Find-GraphDirectoryObject'
         'Import-IRTConfig'
         'Open-IRTConfig'
@@ -267,6 +269,7 @@
         'Request-GraphDevice'
         'Request-GraphServicePrincipal'
         'Request-GraphUser'
+        'Get-LicenseReport'
         'Resolve-IRTDateRange'
         'Set-IRTConfig'
         'Write-IRT'
@@ -356,11 +359,11 @@
         'FindAdUser'
         'FindAdUsers'
         'Find-AdUsers'
-        # Find-AllDomainControllers
+        # Find-AllDomainController
         'FindDCs'
         'FindDomainControllers'
         'Find-DCs'
-        # Get-AdAdminUsers
+        # Get-AdAdminUser
         'GetAdAdmins'
         'AdAdmins'
         # Disable-AdUser
@@ -415,7 +418,7 @@
         'MessageTrace'
 
         ### modules
-        # Copy-IRTFunctions
+        # Copy-IRTFunction
         'CopyIRTFunctions'
         'CopyIRT'
         # Import-IRTConfig / Open-IRTConfig / Set-IRTConfig

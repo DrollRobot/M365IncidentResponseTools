@@ -1,4 +1,4 @@
-function Get-UserMailboxPermissions {
+function Get-UserMailboxPermission {
     [CmdletBinding( DefaultParameterSetName = 'UserObject' )]
     param(
         [Parameter(ParameterSetName = 'UserObject', Position = 0)]
@@ -44,9 +44,9 @@ function Get-UserMailboxPermissions {
         }
 
         # -- Step 1: build or reuse the global permissions table --------------
-        if ($Cached -and $Global:IRT_MailboxPermissionsTable) {
+        if ($Cached -and $Global:IRT_MailboxPermissionTable) {
             Write-IRT "Using cached data."
-            $PermissionsTable = $Global:IRT_MailboxPermissionsTable
+            $PermissionsTable = $Global:IRT_MailboxPermissionTable
         } else {
             $Mailboxes = Get-EXOMailbox -ResultSize Unlimited -Properties Identity, Name, PrimarySmtpAddress
             $Total     = $Mailboxes.Count
@@ -88,8 +88,8 @@ function Get-UserMailboxPermissions {
             Write-Progress -Activity "Building mailbox permissions table." -Completed
 
             # Cache for subsequent -Cached calls
-            $Global:IRT_MailboxPermissionsTable = $PermissionsTable
-            Write-IRT "Permissions table cached in `$Global:IRT_MailboxPermissionsTable."
+            $Global:IRT_MailboxPermissionTable = $PermissionsTable
+            Write-IRT "Permissions table cached in `$Global:IRT_MailboxPermissionTable."
         }
 
         # -- Step 2: look up each user in the table and display results --------
