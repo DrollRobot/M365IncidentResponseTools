@@ -76,7 +76,7 @@ function Set-GraphUserAccountEnabled {
 	.NOTES
 	Version: 1.0.0
 	#>
-    [CmdletBinding()]
+    [CmdletBinding(SupportsShouldProcess = $true)]
     param(
         [Parameter( Position = 0 )]
         [Alias('UserObjects')]
@@ -136,12 +136,16 @@ function Set-GraphUserAccountEnabled {
             # if disabling, force sign outs
             if ( -not $Enabled ) {
                 Write-IRT "`nRevoking user sessions..."
-                Revoke-MgUserSignInSession -UserId $ScriptUserObject.Id | Out-Null
+                if ($PSCmdlet.ShouldProcess($ScriptUserObject.UserPrincipalName, 'Revoke sign-in sessions')) {
+                    Revoke-MgUserSignInSession -UserId $ScriptUserObject.Id | Out-Null
+                }
             }
 
             # disable/enable account
             Write-IRT "`n$($Action.TrimEnd('e'))ing user account..."
-            Update-MgUser -UserId $ScriptUserObject.Id -AccountEnabled:$Enabled
+            if ($PSCmdlet.ShouldProcess($ScriptUserObject.UserPrincipalName, "$Action account")) {
+                Update-MgUser -UserId $ScriptUserObject.Id -AccountEnabled:$Enabled
+            }
 
             # get new user object
             Write-IRT "`nGetting updated user properties."

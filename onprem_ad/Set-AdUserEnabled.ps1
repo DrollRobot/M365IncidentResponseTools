@@ -139,7 +139,7 @@ function Set-AdUserEnabled {
     .NOTES
     Version: 1.0.0
     #>
-    [CmdletBinding()]
+    [CmdletBinding(SupportsShouldProcess = $true)]
     param(
         [Parameter( Position = 0 )]
         [Alias('UserObjects')]
@@ -199,11 +199,13 @@ function Set-AdUserEnabled {
                 Identity = $ScriptUserObject
                 Server   = $env:ComputerName
             }
-            if ( $Enabled ) {
-                Enable-AdAccount @Params
-            }
-            else {
-                Disable-AdAccount @Params
+            if ($PSCmdlet.ShouldProcess($ScriptUserObject.SamAccountName, "$Action AD account")) {
+                if ( $Enabled ) {
+                    Enable-AdAccount @Params
+                }
+                else {
+                    Disable-AdAccount @Params
+                }
             }
 
             # get new object to show result

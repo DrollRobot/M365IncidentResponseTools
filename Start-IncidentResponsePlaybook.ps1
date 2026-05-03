@@ -58,7 +58,7 @@ function Start-IncidentResponsePlaybook {
     2.0.0 - Added ability to run mulitple operations in parallel using runspaces.
     #>
     [Alias('Playbook')]
-    [CmdletBinding()]
+    [CmdletBinding(SupportsShouldProcess = $true)]
     param (
         [Parameter( Position = 0 )]
         [Alias('UserObjects')]
@@ -114,6 +114,10 @@ function Start-IncidentResponsePlaybook {
     }
 
     process {
+
+        if (-not $PSCmdlet.ShouldProcess($ScriptUserObjects[0].UserPrincipalName, 'Start incident response playbook')) {
+            return
+        }
 
         if (-not $NoFolder) {
 

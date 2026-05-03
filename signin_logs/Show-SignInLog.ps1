@@ -25,10 +25,6 @@ function Show-SignInLog {
     )
 
     begin {
-
-        #region BEGIN
-
-        # constants
         $ParameterSet = $PSCmdlet.ParameterSetName
         if ($Test -or $Script:Test) {
             $Script:Test = $true

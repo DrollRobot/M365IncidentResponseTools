@@ -236,6 +236,7 @@ function Test-MergeSortedListsOnDate {
 
     # helper: build a strongly-typed list[psobject] from an array of datetimes
     function New-DateList {
+        [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '')]
         param(
             [datetime[]] $Dates,
             [string] $Tag

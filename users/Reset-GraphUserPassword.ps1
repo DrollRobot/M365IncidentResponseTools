@@ -8,21 +8,21 @@ function Reset-GraphUserPassword {
     1.0.1 - Updated to output password in safe way. Fixed bug preventing password reset. Updated variable names.
 	#>
     [Alias('ResetPassword', 'ResetPasswords')]
-    [CmdletBinding( DefaultParameterSetName = 'RandomCharacters' )]
+    [CmdletBinding(SupportsShouldProcess = $true, DefaultParameterSetName = 'RandomCharacters')]
     param(
         [Parameter( Position = 0 )]
         [Alias('UserObjects')]
         [psobject[]] $UserObject,
 
-        [Parameter( ParameterSetName = 'RandomCharacters' )]
-        [Alias( 'Random' )]
+        [Parameter(ParameterSetName = 'RandomCharacters')]
+        [Alias('Random')]
         [switch] $RandomCharacters,
 
-        # [Parameter( ParameterSetName = 'PassPhrase' )]
-        # [Alias( 'Phrase' )]
+        # [Parameter(ParameterSetName = 'PassPhrase')]
+        # [Alias('Phrase')]
         # [switch] $PassPhrase,
 
-        [Parameter( ParameterSetName = 'Custom' )]
+        [Parameter(ParameterSetName = 'Custom')]
         [switch] $Custom
     )
 
@@ -88,7 +88,9 @@ function Reset-GraphUserPassword {
                 ForceChangePasswordNextSignIn = $false
                 ForceChangePasswordNextSignInWithMfa = $false
             }
-            Update-MgUser -UserId $LoopObject.Id -PasswordProfile $PasswordProfile
+            if ($PSCmdlet.ShouldProcess($LoopObject.UserPrincipalName, 'Reset password')) {
+                Update-MgUser -UserId $LoopObject.Id -PasswordProfile $PasswordProfile
+            }
 
             # get new user object
             Write-IRT "`nGetting updated user information."

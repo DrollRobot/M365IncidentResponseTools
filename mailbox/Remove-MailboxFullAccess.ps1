@@ -7,7 +7,7 @@ function Remove-MailboxFullAccess {
 	Version: 1.0.0
 	#>
     [Alias('RemoveFullAccess')]
-    [CmdletBinding()]
+    [CmdletBinding(SupportsShouldProcess = $true)]
     param (
         [Parameter( Position = 0 )]
         [Alias('UserObjects')]
@@ -29,7 +29,10 @@ function Remove-MailboxFullAccess {
         if ($GrantAccessTo) {
             $Params['GrantAccessTo'] = $GrantAccessTo
         }
-        Grant-MailboxFullAccess @Params
+        $Target = if ($UserObject) { ($UserObject | Select-Object -First 1).UserPrincipalName } else { $GrantAccessTo }
+        if ($PSCmdlet.ShouldProcess($Target, 'Remove full mailbox access')) {
+            Grant-MailboxFullAccess @Params
+        }
     }
 }
 

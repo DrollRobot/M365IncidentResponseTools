@@ -59,12 +59,6 @@ function Get-UserApplication {
     )
 
     begin {
-
-        #region BEGIN
-
-        # constants
-        # $Function = $MyInvocation.MyCommand.Name
-        # $ParameterSet = $PSCmdlet.ParameterSetName
         $FileNameDateFormat = "yy-MM-dd_HH-mm"
         $WorksheetName = 'UserAppConsents'
 

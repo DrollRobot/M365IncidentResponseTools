@@ -294,6 +294,7 @@ function Get-AdminRole {
 }
 
 function New-RoleMemberObject {
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '')]
     param(
         [string] $Id,
         [Alias('Roles')] [string] $Role,

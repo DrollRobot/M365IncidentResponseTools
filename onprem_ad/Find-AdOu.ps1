@@ -41,24 +41,22 @@ function Find-AdOu {
     )
 
     begin {
+        $Properties = @(
+            'Name'
+            'CanonicalName'
+            'DistinguishedName'
+        )
+    }
+
+    process {
 
         if ( -not ( Test-AdAvailable ) ) {
             Write-Error 'ActiveDirectory RSAT module not available.'
             return
         }
 
-        # variables
-        $Properties = @(
-            'Name'
-            'CanonicalName'
-            'DistinguishedName'
-        )
-
         # find users whos displayname or email matches search
         $Ous = Get-ADOrganizationalUnit -Filter * -Properties $Properties
-    }
-
-    process {
 
         # find matching ous
         $MatchingOus = $Ous | Where-Object {
@@ -68,9 +66,8 @@ function Find-AdOu {
         }
 
         # if one ou found
-        if ( @( $MatchingOus ).Count -eq 1 ) {
-
-            if ( $Script ) {
+        if (@($MatchingOus).Count -eq 1) {
+            if ($Script) {
                 # return object
                 return $MatchingOus
             }
@@ -81,20 +78,18 @@ function Find-AdOu {
 
                 # set variable
                 New-Variable -Name "OuObject" -Value $MatchingOus -Scope 'Global'
-                Write-Host "Created `$Global:OuObject."
-                Write-Host ''
+                Write-IRT "Created `$Global:OuObject.`n"
             }
         }
         # if multiple ous found
-        elseif ( @( $MatchingOus ).Count -gt 1 ) {
-
-            if ( $Script ) {
+        elseif (@($MatchingOus).Count -gt 1) {
+            if ($Script) {
 
                 # show ou info
                 $MatchingOus | Format-Table $Properties | Out-Default
 
                 # tell user to try again
-                throw 'Multiple Ous found. Search again.'
+                Write-IRT 'Multiple Ous found. Search again.' -Level Error
             }
             else {
 
@@ -102,19 +97,18 @@ function Find-AdOu {
                 $MatchingOus | Format-Table $Properties
 
                 # tell user to try again
-                Write-Host 'Multiple Ous found. Search again.'
+                Write-IRT 'Multiple Ous found. Search again.' -Level Error
             }
         }
         # if no users found, tell user to search again
         else {
-
-            if ( $Script ) {
+            if ($Script) {
                 # tell user to try again
-                throw "$Search not found. Try a different search."
+                Write-IRT "$Search not found. Try a different search." -Level Error
             }
             else {
                 # tell user to try again
-                Write-Host "$Search not found. Try a different search."
+                Write-IRT "$Search not found. Try a different search." -Level Error
             }
         }
     }

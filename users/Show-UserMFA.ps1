@@ -55,13 +55,6 @@ function Show-UserMFA {
     )
 
     begin {
-
-        #region BEGIN
-
-        # constants
-        $Function = $MyInvocation.MyCommand.Name
-        # $ParameterSet = $PSCmdlet.ParameterSetName
-
         $OutputTable = [System.Collections.Generic.List[PSCustomObject]]::new()
         $Properties = [System.Collections.Generic.Hashset[string]]::new()
         $PropertySortOrder = @(
@@ -375,13 +368,13 @@ function Show-UserMFA {
                 $Workbook = $OutputTable | Select-Object $SortedProperties | Export-Excel @ExcelParams
             }
             catch {
-                Write-Error "${Function}: Unable to open new Excel document."
-                if ( Get-YesNo "${Function}: Try closing open files." ) {
+                Write-IRT "Unable to open new Excel document." -Level Error
+                if ( Get-YesNo "Try closing open files. Respond y when done." ) {
                     try {
                         $Workbook = $OutputTable | Export-Excel @ExcelParams
                     }
                     catch {
-                        throw "${Function}: Unable to open new Excel document. Exiting."
+                        Write-IRT "Unable to open new Excel document. Exiting." -Level Error
                     }
                 }
             }

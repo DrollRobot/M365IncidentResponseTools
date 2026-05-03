@@ -24,9 +24,6 @@ function Show-EntraAuditLog {
     )
 
     begin {
-
-        #region BEGIN
-
         # get logs from file if xml path used
         if ( $XmlPath ) {
 
