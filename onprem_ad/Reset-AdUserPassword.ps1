@@ -41,7 +41,7 @@ function Reset-AdUserPassword {
     Version: 1.0.0
     #>
     [Alias('ResetAdPassword', 'ResetAdPasswords', 'Reset-AdPassword')]
-    [CmdletBinding( SupportsShouldProcess = $true, DefaultParameterSetName = 'RandomCharacters' )]
+    [CmdletBinding( DefaultParameterSetName = 'RandomCharacters' )]
     param(
         [Parameter( Position = 0 )]
         [Alias( 'UserObject' )]
@@ -56,6 +56,7 @@ function Reset-AdUserPassword {
     )
 
     begin {
+        $ParameterSet = $PSCmdlet.ParameterSetName
         $OutputObjects = [System.Collections.Generic.List[PsObject]]::new()
         $UserProperties = @(
             'Enabled'
@@ -93,12 +94,11 @@ function Reset-AdUserPassword {
         foreach ($ScriptUserObject in $ScriptUserObjects) {
             $Username = $ScriptUserObject.SamAccountName
 
-            switch ($true) {
-                $Custom {
+            switch ($ParameterSet) {
+                'Custom' {
                     $Password = Read-Host -AsSecureString "Enter new password for ${Username}"
-                    break
                 }
-                $RandomCharacters {
+                'RandomCharacters' {
 
                     $PlainTextPassword = Get-RandomPassword 30
                     $ConvertParams = @{
@@ -108,7 +108,7 @@ function Reset-AdUserPassword {
                     }
                     $Password = ConvertTo-SecureString @ConvertParams
 
-                    Write-IRT "${Username} new password:"
+                    Write-IRT "`n${Username} new password:"
                     # Console WriteLine prevents password from bring recorded in logs/transcripts
                     [Console]::WriteLine($PlainTextPassword)
                 }
@@ -121,12 +121,10 @@ function Reset-AdUserPassword {
                  NewPassword = $Password
                  Server = $Env:ComputerName
             }
-            if ($PSCmdlet.ShouldProcess($Username, 'Reset AD password')) {
-                Set-AdAccountPassword @ResetParams
-            }
+            Set-AdAccountPassword @ResetParams
 
             # get new object to show result
-            Write-IRT "Getting updated user info."
+            Write-IRT "`nGetting updated user info."
             $Params = @{
                 Identity   = $ScriptUserObject
                 Properties = $UserProperties
@@ -151,7 +149,7 @@ function Reset-AdUserPassword {
         # push azure sync, if on this server
         $SyncService = Get-Service -Name "adsync" -ErrorAction SilentlyContinue
         if ( $SyncService ) {
-            Write-IRT "Pushing Azure sync."
+            Write-IRT "`nPushing Azure sync."
             Start-ADSyncSyncCycle -PolicyType Delta
         }
         else {
