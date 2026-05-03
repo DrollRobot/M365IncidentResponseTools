@@ -153,7 +153,7 @@ function Get-EntraAuditLog {
 
             ### get logs
             # user messages
-            Write-IRT "`nRetrieving ${Days} days of Entra audit logs for ${UserEmail}."
+            Write-IRT "Retrieving ${Days} days of Entra audit logs for ${UserEmail}."
             if ($Script:Test) {
                 Write-IRT "Filter string: ${FilterString}" -Level Warn
             }
@@ -197,7 +197,7 @@ function Get-EntraAuditLog {
 
             # export to xml
             if ($Xml) {
-                Write-IRT "`nSaving logs to: ${XmlOutputPath}"
+                Write-IRT "Saving logs to: ${XmlOutputPath}"
                 $Logs | Export-Clixml -Depth 10 -Path $XmlOutputPath
             }
 

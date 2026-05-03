@@ -135,20 +135,20 @@ function Set-GraphUserAccountEnabled {
 
             # if disabling, force sign outs
             if ( -not $Enabled ) {
-                Write-IRT "`nRevoking user sessions..."
+                Write-IRT "Revoking user sessions..."
                 if ($PSCmdlet.ShouldProcess($ScriptUserObject.UserPrincipalName, 'Revoke sign-in sessions')) {
                     Revoke-MgUserSignInSession -UserId $ScriptUserObject.Id | Out-Null
                 }
             }
 
             # disable/enable account
-            Write-IRT "`n$($Action.TrimEnd('e'))ing user account..."
+            Write-IRT "$($Action.TrimEnd('e'))ing user account..."
             if ($PSCmdlet.ShouldProcess($ScriptUserObject.UserPrincipalName, "$Action account")) {
                 Update-MgUser -UserId $ScriptUserObject.Id -AccountEnabled:$Enabled
             }
 
             # get new user object
-            Write-IRT "`nGetting updated user properties."
+            Write-IRT "Getting updated user properties."
             $NewUserObject = Get-MgUser -UserId $ScriptUserObject.Id -Property $GetProperties
 
             # display new object
@@ -156,7 +156,7 @@ function Set-GraphUserAccountEnabled {
 
             # warn user if onpremsynced
             if ($NewUserObject.OnPremisesSyncEnabled) {
-                Write-IRT "`nUser is synced from on-premises. ${Action} user in local AD too!" -Level Error
+                Write-IRT "User is synced from on-premises. ${Action} user in local AD too!" -Level Error
             }
         }
 
@@ -182,7 +182,7 @@ function Set-GraphUserAccountEnabled {
             # add time zone acronym to string
             $DateString = $BuildString + " " + $TimeZoneAcronym
 
-            Write-IRT "`nLast on-premises sync:"
+            Write-IRT "Last on-premises sync:"
             Write-Host $DateString
         }
     }

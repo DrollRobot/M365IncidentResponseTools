@@ -73,7 +73,7 @@ function Push-AdSync {
         # if sync service is running on this server, push sync locally
         $SyncService = Get-Service -Name 'adsync' -ErrorAction SilentlyContinue
         if ($SyncService) {
-            Write-IRT "`nPushing sync."
+            Write-IRT "Pushing sync."
             Start-ADSyncSyncCycle -PolicyType Delta
             return
         }

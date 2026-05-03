@@ -283,7 +283,7 @@ function Get-AdminRole {
 
             # save and close
             if ( $Open ) {
-                Write-Host "Opening Excel."
+                Write-IRT "Opening Excel."
                 $Workbook | Close-ExcelPackage -Show
             }
             else {
@@ -292,6 +292,7 @@ function Get-AdminRole {
         }
     }
 }
+
 
 function New-RoleMemberObject {
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '')]

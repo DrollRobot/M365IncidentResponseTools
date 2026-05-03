@@ -78,7 +78,7 @@ function Find-AdOu {
 
                 # set variable
                 New-Variable -Name "OuObject" -Value $MatchingOus -Scope 'Global'
-                Write-IRT "Created `$Global:OuObject.`n"
+                Write-IRT "Created `$Global:OuObject."
             }
         }
         # if multiple ous found

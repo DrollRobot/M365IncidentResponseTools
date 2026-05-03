@@ -41,7 +41,6 @@ function Get-LicenseReport {
     )
 
     begin {
-
         $Context = Get-MgContext
         if ( -not $Context ) {
             throw "Not connected to Graph. Exiting"
@@ -51,17 +50,11 @@ function Get-LicenseReport {
         $Licenses = Get-MgSubscribedSku |
             # Where-Object { $_.CapabilityStatus -eq 'Enabled' } |
             Get-LicenseFullName
-
-        # colors
-        $Blue = @{ ForegroundColor = 'Blue' }
-        # $Green = @{ ForegroundColor = 'Green' }
-        $Red = @{ ForegroundColor = 'Red' }
-        # $Magenta = @{ ForegroundColor = 'Magenta' }
     }
 
     process {
 
-        Write-Host @Blue "`nRetrieving tenant licenses..."
+        Write-IRT "Retrieving tenant licenses..."
 
         if ( $Objects ) {
             return $Licenses
@@ -70,7 +63,7 @@ function Get-LicenseReport {
         else {
 
             if ( -not $Licenses ) {
-                Write-Host @Red "No Licenses found. Exiting."
+                Write-IRT "No Licenses found. Exiting." -Level Error
                 return
             }
 

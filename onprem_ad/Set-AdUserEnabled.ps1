@@ -194,7 +194,7 @@ function Set-AdUserEnabled {
         foreach ( $ScriptUserObject in $ScriptUserObjects ) {
 
             # disable/enable the user object
-            Write-IRT "`n$($Action.TrimEnd('e'))ing $($ScriptUserObject.SamAccountName)."
+            Write-IRT "$($Action.TrimEnd('e'))ing $($ScriptUserObject.SamAccountName)."
             $Params = @{
                 Identity = $ScriptUserObject
                 Server   = $env:ComputerName
@@ -209,7 +209,7 @@ function Set-AdUserEnabled {
             }
 
             # get new object to show result
-            Write-IRT "`nGetting updated user info."
+            Write-IRT "Getting updated user info."
             $Params = @{
                 Identity   = $ScriptUserObject
                 Properties = $UserProperties
@@ -234,7 +234,7 @@ function Set-AdUserEnabled {
         # push azure sync, if on this server
         $SyncService = Get-Service -Name "adsync" -ErrorAction SilentlyContinue
         if ( $SyncService ) {
-            Write-IRT "`nPushing Azure sync."
+            Write-IRT "Pushing Azure sync."
             Start-ADSyncSyncCycle -PolicyType Delta
         }
         else {

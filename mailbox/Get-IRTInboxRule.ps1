@@ -285,7 +285,7 @@ function Get-IRTInboxRule {
             # save and close
             Write-IRT "Exporting to: ${ExcelOutputPath}"
             if ( $Open ) {
-                Write-Host "Opening Excel."
+                Write-IRT "Opening Excel."
                 $Workbook | Close-ExcelPackage -Show
             }
             else {

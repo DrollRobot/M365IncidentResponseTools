@@ -98,7 +98,7 @@ function Find-User {
                 Force = $true
             }
             New-Variable @VariableParams
-            Write-IRT "`nCreated `$IRT_${VarPrefix}UserObjects"
+            Write-IRT "Created `$IRT_${VarPrefix}UserObjects"
 
             if ( $ScriptUserObjects.Count -gt 1 ) {
                 $ScriptUserObjects | Format-Table $DisplayProperties

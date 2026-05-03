@@ -70,13 +70,13 @@ function Reset-GraphUserPassword {
 
             switch ($true) {
                 $Custom {
-                    $Password = Read-Host -Prompt "`nEnter new password"
+                    $Password = Read-Host -Prompt "Enter new password"
                     break
                 }
                 default {
                     $UserEmail = $LoopObject.UserPrincipalName
                     $Password = Get-RandomPassword 30
-                    Write-IRT "`n${UserEmail} new password:"
+                    Write-IRT "${UserEmail} new password:"
                     # Console WriteLine prevents password from bring recorded in transcripts
                     [Console]::WriteLine($Password)
                 }
@@ -93,7 +93,7 @@ function Reset-GraphUserPassword {
             }
 
             # get new user object
-            Write-IRT "`nGetting updated user information."
+            Write-IRT "Getting updated user information."
             $FullUserObject = Get-MgUser -UserId $LoopObject.Id -Property $GetProperties
             try {
                 $FullUserObject.LastPasswordChangeDateTime = $FullUserObject.LastPasswordChangeDateTime.ToLocalTime()
@@ -105,7 +105,7 @@ function Reset-GraphUserPassword {
 
             # warn user if onpremsynced
             if ( $FullUserObject.OnPremisesSyncEnabled ) {
-                Write-IRT "`nUser is synced from on-premises. Reset password in local AD too!" -Level Error
+                Write-IRT "User is synced from on-premises. Reset password in local AD too!" -Level Error
             }
         }
     }

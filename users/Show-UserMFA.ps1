@@ -111,7 +111,7 @@ function Show-UserMFA {
             $DateString = ( Get-Date ).ToString( "M/d/yy h:mmtt" ).ToLower()
             $WorksheetTitle = "MFA methods for ${UserEmail} on ${DateString}."
 
-            Write-IRT "`nGetting MFA methods for: ${UserEmail}"
+            Write-IRT "Getting MFA methods for: ${UserEmail}"
             $Methods = Get-MgUserAuthenticationMethod -UserId $ScriptUserObject.Id -ErrorAction Stop
 
             foreach ( $Method in $Methods ) {

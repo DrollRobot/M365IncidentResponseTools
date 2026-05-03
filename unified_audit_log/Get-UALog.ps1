@@ -542,7 +542,7 @@ function Get-UALog {
                     Write-IRT "${TestText} started at $(Get-Date -Format 'hh:mm:sstt')" -Level Warn | Out-Host
                 }
 
-                Write-IRT "`n${Function}: Saving logs to: ${XmlOutputPath}"
+                Write-IRT "${Function}: Saving logs to: ${XmlOutputPath}"
                 $Logs | Export-Clixml -Depth 10 -Path $XmlOutputPath
 
                 if ($Script:Test) {

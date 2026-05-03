@@ -111,7 +111,7 @@ function Find-Device {
                 Force = $true
             }
             New-Variable @VariableParams
-            Write-IRT "`nCreated `$IRT_${VarPrefix}DeviceObjects"
+            Write-IRT "Created `$IRT_${VarPrefix}DeviceObjects"
 
             if ( $ScriptDeviceObjects.Count -gt 1 ) {
                 $ScriptDeviceObjects | Format-Table $DisplayProperties

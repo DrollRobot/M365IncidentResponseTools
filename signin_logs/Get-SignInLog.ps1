@@ -249,10 +249,10 @@ function Get-SignInLog {
             #region QUERY LOGS
             # user messages
             if ( $NonInteractive ) {
-                Write-IRT "`nRetrieving ${Days} days of noninteractive sign-in logs for ${Target}."
+                Write-IRT "Retrieving ${Days} days of noninteractive sign-in logs for ${Target}."
             }
             else {
-                Write-IRT "`nRetrieving ${Days} days of sign-in logs for ${Target}."
+                Write-IRT "Retrieving ${Days} days of sign-in logs for ${Target}."
             }
             if ($Script:Test) {
                 Write-IRT "Filter string: '${FilterString}'" -Level Warn
@@ -345,7 +345,7 @@ function Get-SignInLog {
                         $TimerStart = $Stopwatch.Elapsed
                     }
 
-                    Write-IRT "`nSaving logs to: ${XmlOutputPath}"
+                    Write-IRT "Saving logs to: ${XmlOutputPath}"
                     $Logs | Export-Clixml -Depth 10 -Path $XmlOutputPath
 
                     if ($Script:Test) {

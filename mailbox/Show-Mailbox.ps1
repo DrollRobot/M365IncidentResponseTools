@@ -111,7 +111,7 @@ function Show-Mailbox {
             }
             catch {}
 
-            Write-IRT "`nShowing Mailbox information for: ${UserPrincipalName}"
+            Write-IRT "Showing Mailbox information for: ${UserPrincipalName}"
             $OutputTable = [PSCustomObject]@{
                 IsMailboxEnabled      = $Mailbox.IsMailboxEnabled
                 AuditEnabled          = $Mailbox.AuditEnabled
@@ -130,7 +130,7 @@ function Show-Mailbox {
             }
             $OutputTable | Format-List | Out-Host
 
-            Write-IRT "`nShowing users who have delegated access to: ${UserPrincipalName}"
+            Write-IRT "Showing users who have delegated access to: ${UserPrincipalName}"
             $PermissionDisplayProperties = @(
                 "User"
                 "AccessRights"

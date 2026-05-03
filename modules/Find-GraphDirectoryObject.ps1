@@ -10,7 +10,7 @@ function Find-GraphDirectoryObject {
 
         # get content from clipboard
         if (-not $Content) {
-            Write-IRT "`nNo content provided. Pulling from clipboard."
+            Write-IRT "No content provided. Pulling from clipboard."
             $Content = Get-Clipboard
             if ( @( $Content ).Count -eq 0 ) {
                 throw "No content provided, or found in clipboard. Exiting."
@@ -35,7 +35,7 @@ function Find-GraphDirectoryObject {
         # remove duplicates
         $Guids = $Guids | Sort-Object -Unique
 
-        Write-IRT "`nFound GUIDS:"
+        Write-IRT "Found GUIDS:"
         $Guids
 
         foreach ( $Guid in $Guids ) {
@@ -44,7 +44,7 @@ function Find-GraphDirectoryObject {
             $DirectoryObject = $null
             $ObjectType = $null
 
-            Write-IRT "`nRunning Get-MgDirectoryObject for ${Guid}"
+            Write-IRT "Running Get-MgDirectoryObject for ${Guid}"
 
             try {
 
@@ -52,7 +52,7 @@ function Find-GraphDirectoryObject {
 
                 $ObjectType = $DirectoryObject.AdditionalProperties.'@odata.type' -replace '#', ''
 
-                Write-Host "`nObjectType: ${ObjectType}"
+                Write-Host "ObjectType: ${ObjectType}"
             }
             catch {
                 if ( $_ -match 'does not exist or one of its queried reference-property objects are not present' ) {

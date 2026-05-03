@@ -74,7 +74,7 @@ function Find-RiskyApplication {
 
     process {
         ### show settings
-        Write-IRT "`nTenant App settings:"
+        Write-IRT "Tenant App settings:"
         $AuthPolicy = Get-MgPolicyAuthorizationPolicy
         $DefaultRolePermissions = $AuthPolicy.DefaultUserRolePermissions
         $Output = [PSCustomObject]@{
@@ -125,8 +125,7 @@ function Find-RiskyApplication {
         }
 
         if ($FoundApps -eq $false) {
-            Write-IRT "`nNo risky apps found."
-            Write-Host ""
+            Write-IRT "No risky apps found."
         }
     }
 }

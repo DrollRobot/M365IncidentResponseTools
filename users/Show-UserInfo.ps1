@@ -65,16 +65,16 @@ function Show-UserInfo {
             $UserEmail = $ScriptUserObject.UserPrincipalName
 
             # get user object with all possible properties
-            Write-IRT "`nGetting full user object."
+            Write-IRT "Getting full user object."
             $ScriptUserObject = Get-FullUserObject -UserObject $ScriptUserObject
 
             # copy full user object to global variables
             $Global:IRT_UserObjects.Add($ScriptUserObject)
 
-            Write-IRT "`nShowing user properties for: ${UserEmail}"
+            Write-IRT "Showing user properties for: ${UserEmail}"
             $ScriptUserObject | Show-GraphUserTree | Out-Host
 
-            Write-IRT "`nShowing groups for: ${UserEmail}"
+            Write-IRT "Showing groups for: ${UserEmail}"
             $UserGroups = Get-MgUserMemberOfAsGroup -UserId $ScriptUserObject.Id
             if ( $UserGroups ) {
                 $UserGroups |

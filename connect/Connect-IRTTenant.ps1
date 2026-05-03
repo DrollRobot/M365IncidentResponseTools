@@ -56,7 +56,8 @@ function Connect-IRTTenant {
     #>
     [Alias('IRTTenant')]
     [CmdletBinding()]
-    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingPlainTextForPassword', 'PasswordBrowser')] # suppress annoying warning
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+        'PSAvoidUsingPlainTextForPassword', 'PasswordBrowser')]
 
     param (
         [Parameter( Mandatory, Position = 0 )]
@@ -84,11 +85,8 @@ function Connect-IRTTenant {
 
         # validate tenant file exists
         if (-not ( Test-Path $TenantFile )) {
-
-            $Message  = "Tenant file not found: ${TenantFile}`n"
-            $Message += "Run Open-IRTTenantWorksheet to create it and edit with your tenant information."
-
-            throw $Message
+            throw ("Tenant file not found: ${TenantFile}`nRun Open-IRTTenantWorksheet to create it and edit " +
+            "with your tenant information.")
         }
 
         # import and search for matching tenant

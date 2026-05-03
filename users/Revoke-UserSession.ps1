@@ -37,14 +37,14 @@ function Revoke-UserSession {
 
             $UserPrincipalName = $ScriptUserObject.UserPrincipalName
 
-            Write-IRT "`nRevoking user sessions for: ${UserPrincipalName}"
+            Write-IRT "Revoking user sessions for: ${UserPrincipalName}"
             $Result = ( Revoke-MgUserSignInSession -UserId $ScriptUserObject.Id ).Value
 
             if ( $Result -eq $true ) {
-                Write-IRT "`nSessions revoked."
+                Write-IRT "Sessions revoked."
             }
             else {
-                Write-IRT "`nRevoking sessions failed." -Level Error
+                Write-IRT "Revoking sessions failed." -Level Error
             }
         }
     }

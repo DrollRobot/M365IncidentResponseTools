@@ -47,15 +47,15 @@ function Show-DeviceInfo {
                     }) -join ', '
                     $FullEntraDevice | Add-Member -NotePropertyName 'RegisteredOwnerUPN' -NotePropertyValue $OwnerUpn -Force
 
-                    Write-IRT "`nShowing Entra device properties for: ${DeviceName}"
+                    Write-IRT "Showing Entra device properties for: ${DeviceName}"
                     $FullEntraDevice | Show-GraphDeviceTree | Out-Host
                 }
                 catch {
-                    Write-IRT "`nFailed to get Entra device object: $($_.Exception.Message)" -Level Error
+                    Write-IRT "Failed to get Entra device object: $($_.Exception.Message)" -Level Error
                 }
             }
             else {
-                Write-IRT "`nNo Entra record for: ${DeviceName}" -Level Warn
+                Write-IRT "No Entra record for: ${DeviceName}" -Level Warn
             }
 
             # --- Intune device ---
@@ -63,15 +63,15 @@ function Show-DeviceInfo {
                 try {
                     $FullIntuneDevice = Get-MgDeviceManagementManagedDevice -ManagedDeviceId $IntuneId -ErrorAction Stop
 
-                    Write-IRT "`nShowing Intune device properties for: ${DeviceName}"
+                    Write-IRT "Showing Intune device properties for: ${DeviceName}"
                     $FullIntuneDevice | Format-Tree -Depth 5 -OmitNullOrEmpty | Out-Host
                 }
                 catch {
-                    Write-IRT "`nFailed to get Intune device object: $($_.Exception.Message)" -Level Error
+                    Write-IRT "Failed to get Intune device object: $($_.Exception.Message)" -Level Error
                 }
             }
             else {
-                Write-IRT "`nDevice is not enrolled in Intune." -Level Warn
+                Write-IRT "Device is not enrolled in Intune." -Level Warn
             }
         }
     }

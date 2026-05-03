@@ -16,7 +16,7 @@ function Get-LicenseCSVFile {
     # Check if the file exists and if the last modified date is more than a week ago
     if (
         -not ( Test-Path $CsvPath ) -or
-        ( Get-Date ) - ( Get-Item $CsvPath ).LastWriteTime -gt ( New-TimeSpan -Days 6 )
+        ((Get-Date) - (Get-Item $CsvPath).LastWriteTime) -gt (New-TimeSpan -Days 6)
     ) {
         # Download the file
         Invoke-WebRequest -Uri $Url -OutFile $CsvPath
@@ -115,14 +115,15 @@ function Get-LicenseFullName {
         if ($SkuId -and $null -eq $_) {
             # if manually enters, validates good guid
             if ($SkuId -notmatch '^[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}$') {
-                Write-Host "Invalid GUID provided. Please provide a valid GUID."
+                Write-IRT "Invalid GUID provided. Please provide a valid GUID." -Level Error
                 return
             }
 
             # uses the skuid to find the full name in the csv
             $LicenseFullName = Get-LicenseNameFromCSV -SkuId $SkuId -CsvPath $CsvPath | Sort-Object -Unique
 
-            Write-Output "License full name is:`n$LicenseFullName"
+            Write-IRT "License full name is:"
+            Write-IRT $LicenseFullName -NoColor
         }
     }
 }

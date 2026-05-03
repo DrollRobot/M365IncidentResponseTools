@@ -139,4 +139,4 @@ foreach ($Entry in $RequiredModules) {
     }
 }
 
-Write-Host @DarkCyan "`nDone."
+Write-Host @DarkCyan "Done."

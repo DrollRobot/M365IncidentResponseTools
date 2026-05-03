@@ -94,12 +94,12 @@ function Set-UsageLocation {
 
             # set new location
             if ($PSCmdlet.ShouldProcess($ScriptUserObject.UserPrincipalName, "Set usage location to $CountryCode")) {
-                Write-IRT "`nSetting new usage location."
+                Write-IRT "Setting new usage location."
                 Update-MgUser -UserId $ScriptUserObject.Id -Usagelocation $CountryCode
             }
 
             # get new user object
-            Write-IRT "`nGetting new user properties."
+            Write-IRT "Getting new user properties."
             $FullUserObject = Get-MgUser -UserId $ScriptUserObject.Id -Property $UserGetProperties
 
             # display new object

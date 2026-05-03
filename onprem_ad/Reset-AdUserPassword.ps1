@@ -108,7 +108,7 @@ function Reset-AdUserPassword {
                     }
                     $Password = ConvertTo-SecureString @ConvertParams
 
-                    Write-IRT "`n${Username} new password:"
+                    Write-IRT "${Username} new password:"
                     # Console WriteLine prevents password from bring recorded in logs/transcripts
                     [Console]::WriteLine($PlainTextPassword)
                 }
@@ -126,7 +126,7 @@ function Reset-AdUserPassword {
             }
 
             # get new object to show result
-            Write-IRT "`nGetting updated user info."
+            Write-IRT "Getting updated user info."
             $Params = @{
                 Identity   = $ScriptUserObject
                 Properties = $UserProperties
@@ -151,7 +151,7 @@ function Reset-AdUserPassword {
         # push azure sync, if on this server
         $SyncService = Get-Service -Name "adsync" -ErrorAction SilentlyContinue
         if ( $SyncService ) {
-            Write-IRT "`nPushing Azure sync."
+            Write-IRT "Pushing Azure sync."
             Start-ADSyncSyncCycle -PolicyType Delta
         }
         else {

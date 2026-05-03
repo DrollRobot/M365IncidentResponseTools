@@ -26,6 +26,10 @@ function Write-IRT {
     .PARAMETER NoNewline
     Passes -NoNewline through to Write-Host.
 
+    .PARAMETER NoColor
+    Suppresses color output. Useful when writing to a transcript or redirected
+    stream that does not support ANSI color codes.
+
     .EXAMPLE
     Write-IRT "Retrieving sign-in logs for $($User.DisplayName)."
     Writes an Info-level message with the calling function's name prepended.
@@ -48,10 +52,20 @@ function Write-IRT {
         [ValidateSet('Info', 'Warn', 'Error')]
         [string] $Level = 'Info',
 
-        [string] $FunctionName = (Get-PSCallStack)[1].Command,
-
-        [switch] $NoNewline
+        [string] $FunctionName = '',
+        [switch] $NoNewline,
+        [switch] $NoColor
     )
+
+    if (-not $FunctionName) {
+        $FunctionName = (
+            Get-PSCallStack |
+            Select-Object -Skip 1 |
+            Where-Object { $_.Command -notlike '<*>' } |
+            Select-Object -First 1
+        ).Command
+        if (-not $FunctionName) { $FunctionName = '<unknown>' }
+    }
 
     $color = switch ($Level) {
         'Info'  { if ($Global:IRT_Config?.InfoColor)  { $Global:IRT_Config.InfoColor }  else { 'DarkCyan' } }
@@ -60,5 +74,9 @@ function Write-IRT {
     }
 
     $text = if ($Message -eq '') { '' } else { "${FunctionName}: ${Message}" }
-    Write-Host $text -ForegroundColor $color -NoNewline:$NoNewline
+    if ($NoColor) {
+        Write-Host $text -NoNewline:$NoNewline
+    } else {
+        Write-Host $text -ForegroundColor $color -NoNewline:$NoNewline
+    }
 }
