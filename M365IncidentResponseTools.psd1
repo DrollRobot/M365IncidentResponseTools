@@ -12,7 +12,7 @@
     RootModule = 'M365IncidentResponseTools.psm1'
 
     # Version number of this module.
-    ModuleVersion     = '2.6.3'
+    ModuleVersion     = '2.6.4'
 
     # Supported PSEditions
     # CompatiblePSEditions = @()
@@ -287,8 +287,10 @@
         'Show-UALog'
 
         ### users
+        'Disable-GraphUser'
+        'Enable-GraphUser'
         'Find-User'
-        'Get-FullUserObject'
+        'Reset-GraphUserPassword'
         'Revoke-UserSession'
         'Set-UsageLocation'
         'Show-UserInfo'

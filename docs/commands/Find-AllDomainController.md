@@ -13,7 +13,7 @@ Lists the names of all domain controllers in the current AD domain.
 ## SYNTAX
 
 ```
-Find-AllDomainController
+Find-AllDomainController [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -37,6 +37,9 @@ Captures the list of DC names for use in a loop or downstream command.
 ```
 
 ## PARAMETERS
+
+### CommonParameters
+This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable, -InformationAction, -InformationVariable, -OutVariable, -OutBuffer, -PipelineVariable, -Verbose, -WarningAction, and -WarningVariable. For more information, see [about_CommonParameters](http://go.microsoft.com/fwlink/?LinkID=113216).
 
 ## INPUTS
 

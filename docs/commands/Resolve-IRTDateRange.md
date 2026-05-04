@@ -121,12 +121,12 @@ This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable
 ## OUTPUTS
 
 ### [pscustomobject] with properties:
-###     RangeType   - 'Relative' or 'Absolute'
-###     Days        - int: user-specified relative value, or ceiling of absolute span
-###     StartUtc    - [datetime] UTC start
-###     EndUtc      - [datetime] UTC end
-###     StartString - string formatted as "yyyy-MM-ddTHH:mm:ssZ" for API filters
-###     EndString   - string formatted as "yyyy-MM-ddTHH:mm:ssZ" for API filters
+### RangeType   - 'Relative' or 'Absolute'
+### Days        - int: user-specified relative value, or ceiling of absolute span
+### StartUtc    - [datetime] UTC start
+### EndUtc      - [datetime] UTC end
+### StartString - string formatted as "yyyy-MM-ddTHH:mm:ssZ" for API filters
+### EndString   - string formatted as "yyyy-MM-ddTHH:mm:ssZ" for API filters
 ## NOTES
 Version: 1.1.0
 
