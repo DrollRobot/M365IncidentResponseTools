@@ -162,8 +162,7 @@ This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable
 ## OUTPUTS
 
 ### None. Results are displayed in the console and optionally exported to Excel.
+
 ## NOTES
-Version: 1.0.0
-# FIXME - Search UAL for user consent events to show dates?
 
 ## RELATED LINKS

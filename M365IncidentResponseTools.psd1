@@ -188,6 +188,7 @@
         'unified_audit_log\parsing\SearchQueryPerformed.ps1'
         'unified_audit_log\parsing\TeamsSessionStarted.ps1'
         'unified_audit_log\Get-UALog.ps1'
+        'unified_audit_log\Open-IRTAllOperationsSheet.ps1'
         'unified_audit_log\Show-UALog.ps1'
 
         'users\Find-User.ps1'
@@ -222,7 +223,7 @@
         'Connect-IRTTenant'
         'Disconnect-IRT'
         'Test-IRTConnection'
-        'Open-IRTTenantWorksheet'
+        'Open-IRTTenantSheet'
 
         ### entra-audit-log
         'Get-EntraAuditLog'
@@ -284,6 +285,7 @@
 
         ### unified_audit_log
         'Get-UALog'
+        'Open-IRTAllOperationsSheet'
         'Show-UALog'
 
         ### users
@@ -328,9 +330,9 @@
         'ConnectIRT'
         # Connect-IRTTenant
         'IRTTenant'
-        # Open-IRTTenantWorksheet
+        # Open-IRTTenantSheet
+        'Open-IRTTenantWorksheet'
         'OpenIRTTenantWorksheet'
-        'Open-IRTTenantSheet'
         'OpenIRTTenantSheet'
         'IRTTenantSheet'
         # Disconnect-IRT
@@ -457,6 +459,9 @@
         'GetUALogs'
         'UALog'
         'UALogs'
+        # Open-IRTAllOperationsSheet
+        'Open-AllOperationsSheet'
+        'IRTAllOperationsSheet'
 
         ### users
         # Find-Users

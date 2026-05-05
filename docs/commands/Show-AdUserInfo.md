@@ -1,6 +1,6 @@
 ---
-external help file: LocalAdTools-help.xml
-Module Name: LocalAdTools
+external help file: M365IncidentResponseTools-help.xml
+Module Name: M365IncidentResponseTools
 online version:
 schema: 2.0.0
 ---

@@ -92,7 +92,7 @@ function Connect-IRTTenant {
 
         # validate tenant file exists
         if (-not ( Test-Path $TenantFile )) {
-            throw ("Tenant file not found: ${TenantFile}`nRun Open-IRTTenantWorksheet to create it and edit " +
+            throw ("Tenant file not found: ${TenantFile}`nRun Open-IRTTenantSheet to create it and edit " +
             "with your tenant information.")
         }
 
@@ -163,7 +163,7 @@ function Connect-IRTTenant {
     }
 }
 
-function Open-IRTTenantWorksheet {
+function Open-IRTTenantSheet {
     <#
     .SYNOPSIS
     Opens the tenants worksheet for editing. Creates it from the template if it doesn't exist.
@@ -174,7 +174,7 @@ function Open-IRTTenantWorksheet {
     .NOTES
     Version: 1.0.0
     #>
-    [Alias('OpenIRTTenantWorksheet', 'Open-IRTTenantSheet', 'OpenIRTTenantSheet', 'IRTTenantSheet')]
+    [Alias('Open-IRTTenantWorksheet', 'OpenIRTTenantWorksheet', 'OpenIRTTenantSheet', 'IRTTenantSheet')]
     [CmdletBinding()]
     param (
         [string] $TenantFile = $(if ($Global:IRT_Config.TenantsSheetPath) { $Global:IRT_Config.TenantsSheetPath } else { Join-Path $env:APPDATA 'M365IncidentResponseTools\tenants.xlsx' })

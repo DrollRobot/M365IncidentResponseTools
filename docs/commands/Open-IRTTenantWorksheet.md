@@ -13,10 +13,6 @@ Creates it from the template if it doesn't exist.
 
 ## SYNTAX
 
-```
-Open-IRTTenantWorksheet [[-TenantFile] <String>] [-ProgressAction <ActionPreference>] [<CommonParameters>]
-```
-
 ## DESCRIPTION
 {{ Fill in the Description }}
 
@@ -30,37 +26,6 @@ PS C:\> {{ Add example code here }}
 {{ Add example description here }}
 
 ## PARAMETERS
-
-### -TenantFile
-Path to the tenants worksheet.
-Defaults to $env:APPDATA\M365IncidentResponseTools\tenants.xlsx.
-
-```yaml
-Type: String
-Parameter Sets: (All)
-Aliases:
-
-Required: False
-Position: 1
-Default value: $(if ($Global:IRT_Config.TenantsSheetPath) { $Global:IRT_Config.TenantsSheetPath } else { Join-Path $env:APPDATA 'M365IncidentResponseTools\tenants.xlsx' })
-Accept pipeline input: False
-Accept wildcard characters: False
-```
-
-### -ProgressAction
-{{ Fill ProgressAction Description }}
-
-```yaml
-Type: ActionPreference
-Parameter Sets: (All)
-Aliases: proga
-
-Required: False
-Position: Named
-Default value: None
-Accept pipeline input: False
-Accept wildcard characters: False
-```
 
 ### CommonParameters
 This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable, -InformationAction, -InformationVariable, -OutVariable, -OutBuffer, -PipelineVariable, -Verbose, -WarningAction, and -WarningVariable. For more information, see [about_CommonParameters](http://go.microsoft.com/fwlink/?LinkID=113216).

@@ -39,10 +39,6 @@ function Get-UserApplication {
 
     .OUTPUTS
     None. Results are displayed in the console and optionally exported to Excel.
-
-    .NOTES
-    Version: 1.0.0
-    # FIXME - Search UAL for user consent events to show dates?
     #>
     [Alias('UserApps')]
     [CmdletBinding()]
@@ -57,6 +53,8 @@ function Get-UserApplication {
         [boolean] $Open = $true,
         [switch] $Cached
     )
+
+    # FIXME - Search UAL for user consent events to show dates?
 
     begin {
         $FileNameDateFormat = "yy-MM-dd_HH-mm"
