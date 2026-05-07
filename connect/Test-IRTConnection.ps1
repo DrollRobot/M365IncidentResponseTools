@@ -31,6 +31,18 @@ function Test-IRTConnection {
     process {
 
         $GraphCtx  = Get-MgContext -ErrorAction SilentlyContinue
+        $GraphTokenValid = $false
+        if ($GraphCtx) {
+            try {
+                $null = Invoke-MgGraphRequest -Method GET `
+                    -Uri 'https://graph.microsoft.com/v1.0/organization?$select=id&$top=1' `
+                    -ErrorAction Stop
+                $GraphTokenValid = $true
+            } catch {
+                $GraphTokenValid = $false
+            }
+        }
+
         $AllExoConns = Get-ConnectionInformation -ErrorAction SilentlyContinue |
                          Where-Object { $_.State -eq 'Connected' }
         $ExoConn   = $AllExoConns |
@@ -40,7 +52,7 @@ function Test-IRTConnection {
             Where-Object { $_.ConnectionUri -match 'compliance\.protection\.(outlook\.com|office365\.us)' } |
             Select-Object -First 1
 
-        $GraphConnected = $GraphCtx -and $GraphCtx.Account
+        $GraphConnected = $GraphCtx -and $GraphCtx.Account -and $GraphTokenValid
         $ExoConnected   = $null -ne $ExoConn
         $IppsConnected  = $null -ne $IppsConn
 

@@ -68,7 +68,7 @@ function Connect-IRTTenant {
         [switch] $Graph,
         [switch] $Exchange,
 
-        [Alias('AdditionalScopes')]
+        [Alias('AdditionalScopes','Scopes','Scope')]
         [string[]] $AdditionalScope,
         [System.Nullable[bool]] $DeviceCode,
 
