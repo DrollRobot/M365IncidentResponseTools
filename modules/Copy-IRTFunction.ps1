@@ -37,7 +37,7 @@ function Copy-IRTFunction {
     .NOTES
     Version: 1.0.3
     #>
-    [Alias('CopyIRTFunctions', 'CopyIRT')]
+    [Alias('Copy-IRTFunctions','CopyIRTFunctions', 'CopyIRT','IRTFunction','IRTFunctions')]
     [CmdletBinding()]
     param (
         [Parameter(Position = 0, ValueFromPipeline, ValueFromPipelineByPropertyName)]
@@ -115,7 +115,6 @@ function Copy-IRTFunction {
         $errorColor = if ($Global:IRT_Config?.ErrorColor) { $Global:IRT_Config.ErrorColor } else { 'Red'      }
 
         $bootstrap = @"
-# ---- IRT color config (auto-prepended by Copy-IRTFunction) ----
 if (-not `$Global:IRT_Config) {
     `$Global:IRT_Config = [PSCustomObject]@{
         InfoColor  = '$infoColor'
@@ -123,8 +122,6 @@ if (-not `$Global:IRT_Config) {
         ErrorColor = '$errorColor'
     }
 }
-# ----------------------------------------------------------------
-
 "@
 
         $Builder = [System.Text.StringBuilder]::new()
