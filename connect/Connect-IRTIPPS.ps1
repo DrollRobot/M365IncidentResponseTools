@@ -89,8 +89,15 @@ function Connect-IRTIPPS {
             }
 
             try {
-                return $App.AcquireTokenInteractive($Scopes).
-                    ExecuteAsync().GetAwaiter().GetResult()
+                $Cts  = [System.Threading.CancellationTokenSource]::new()
+                $Task = $App.AcquireTokenInteractive($Scopes).ExecuteAsync($Cts.Token)
+                try {
+                    while (-not $Task.IsCompleted) { Start-Sleep -Milliseconds 250 }
+                } finally {
+                    $Cts.Cancel()
+                    $Cts.Dispose()
+                }
+                return $Task.GetAwaiter().GetResult()
             } catch {
                 throw "Interactive token acquisition failed: $_"
             }

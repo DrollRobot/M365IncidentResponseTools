@@ -36,6 +36,9 @@ function Copy-IRTFunction {
 
     .NOTES
     Version: 1.0.3
+
+    #FIXME - Strip comments and blank lines
+    
     #>
     [Alias('Copy-IRTFunctions','CopyIRTFunctions', 'CopyIRT','IRTFunction','IRTFunctions')]
     [CmdletBinding()]
