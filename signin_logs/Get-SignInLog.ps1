@@ -266,49 +266,47 @@ function Get-SignInLog {
             }
 
             if ($Beta) { # default is to use beta, which returns more information
-                $GetProperties = @(
-                    'AppDisplayName'
-                    'AuthenticationProtocol'
-                    'CorrelationID'
-                    'CreatedDateTime'
-                    'DeviceDetail'
-                    'IpAddress'
-                    'Location'
-                    'ResourceId'
-                    'Status'
-                    # 'UniqueTokenIdentifier'
-                    'UserAgent'
-                    'UserPrincipalName'
-                )
+                # $GetProperties = @( # FIXME going to see how much slower pulling all properties is
+                #     'AppDisplayName'
+                #     'AuthenticationProtocol'
+                #     'CorrelationID'
+                #     'CreatedDateTime'
+                #     'DeviceDetail'
+                #     'IpAddress'
+                #     'Location'
+                #     'ResourceId'
+                #     'Status'
+                #     # 'UniqueTokenIdentifier'
+                #     'UserAgent'
+                #     'UserPrincipalName'
+                # )
                 $GetParams = @{
                     Filter = $FilterString
-                    Property = $GetProperties
+                    # Property = $GetProperties
                     All = $true
                 }
-                [System.Collections.Generic.List[PSObject]]$Logs = Get-MgBetaAuditLogSignIn @GetParams |
-                    Select-Object $GetProperties
+                [System.Collections.Generic.List[PSObject]]$Logs = Get-MgBetaAuditLogSignIn @GetParams # | Select-Object $GetProperties
             }
             else { # if $Beta = $false
-                $GetProperties = @(
-                    'AppDisplayName'
-                    'CorrelationID'
-                    'CreatedDateTime'
-                    'DeviceDetail'
-                    'IpAddress'
-                    'Location'
-                    'ResourceId'
-                    'Status'
-                    'UniqueTokenIdentifier'
-                    'UserAgent'
-                    'UserPrincipalName'
-                )
+                # $GetProperties = @( # FIXME going to see how much slower pulling all properties is
+                #     'AppDisplayName'
+                #     'CorrelationID'
+                #     'CreatedDateTime'
+                #     'DeviceDetail'
+                #     'IpAddress'
+                #     'Location'
+                #     'ResourceId'
+                #     'Status'
+                #     'UniqueTokenIdentifier'
+                #     'UserAgent'
+                #     'UserPrincipalName'
+                # )
                 $GetParams = @{
                     Filter = $FilterString
-                    Property = $GetProperties
+                    # Property = $GetProperties
                     All = $true
                 }
-                [System.Collections.Generic.List[PSObject]]$Logs = Get-MgAuditLogSignIn @GetParams |
-                    Select-Object $GetProperties
+                [System.Collections.Generic.List[PSObject]]$Logs = Get-MgAuditLogSignIn @GetParams # | Select-Object $GetProperties
             }
 
             if ($Script:Test) {
