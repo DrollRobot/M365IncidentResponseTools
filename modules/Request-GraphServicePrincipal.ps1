@@ -6,7 +6,7 @@ function Request-GraphServicePrincipal {
     .DESCRIPTION
     Internal helper. Fetches all Entra ID service principals from Microsoft Graph and
     caches the result in a session-scoped global variable keyed by app ID and object ID.
-    Used by Get-UserApplication, Find-RiskyApplication, and Get-AdminRole to resolve
+    Used by Get-UserServicePrincipal, Find-RiskyServicePrincipal, and Get-AdminRole to resolve
     service principal identities without repeated Graph requests.
 
     .NOTES

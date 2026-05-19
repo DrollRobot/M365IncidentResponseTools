@@ -1,4 +1,4 @@
-function Get-UserApplication {
+function Get-UserServicePrincipal {
     <#
     .SYNOPSIS
     Displays user's Oauth2 permission grants. (Applications they have granted consent to)
@@ -30,21 +30,23 @@ function Get-UserApplication {
     Use pre-cached Graph service principal data instead of making new API calls.
 
     .EXAMPLE
-    Get-UserApplication
+    Get-UserServicePrincipal
     Shows OAuth app consents for the user in the global session.
 
     .EXAMPLE
-    Get-UserApplication -UserObject $User
+    Get-UserServicePrincipal -UserObject $User
     Shows OAuth app consents for a specific user.
 
     .OUTPUTS
     None. Results are displayed in the console and optionally exported to Excel.
-
-    .NOTES
-    Version: 1.0.0
-    # FIXME - Search UAL for user consent events to show dates?
     #>
-    [Alias('UserApps')]
+    [Alias('UserApps', 'UserSPs',
+           'GetUserSP', 'GetUserSPs',
+           'GetUserApp', 'GetUserApps',
+           'GetUserApplication', 'GetUserApplications',
+           'GetUserServicePrincipal', 'GetUserServicePrincipals',
+           'GetUserEnterpriseApp', 'GetUserEnterpriseApps',
+           'Get-UserApplication')]
     [CmdletBinding()]
     param(
         [Parameter(Position = 0, ValueFromPipeline = $true, ValueFromPipelineByPropertyName = $true)]
@@ -57,6 +59,8 @@ function Get-UserApplication {
         [boolean] $Open = $true,
         [switch] $Cached
     )
+
+    # FIXME - Search UAL for user consent events to show dates?
 
     begin {
         $FileNameDateFormat = "yy-MM-dd_HH-mm"
@@ -97,8 +101,8 @@ function Get-UserApplication {
 
             # filenames
             $DateStamp        = Get-Date -Format $FileNameDateFormat
-            $XmlOutputPath    = "UserApps_Raw_${DomainName}_${UserName}_${DateStamp}.xml"
-            $ExcelOutputPath  = "UserApps_${DomainName}_${UserName}_${DateStamp}.xlsx"
+            $XmlOutputPath    = "UserSPs_Raw_${DomainName}_${UserName}_${DateStamp}.xml"
+            $ExcelOutputPath  = "UserSPs_${DomainName}_${UserName}_${DateStamp}.xlsx"
 
             # worksheet title
             $TitleStamp     = (Get-Date).ToString("M/d/yy h:mmtt").ToLower()

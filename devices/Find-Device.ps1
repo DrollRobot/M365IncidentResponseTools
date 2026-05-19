@@ -87,7 +87,7 @@ function Find-Device {
                     # show device info
                     Write-IRT "Showing results for search: ${SearchString}"
                     $MatchingDevices | Format-Table $DisplayProperties
-                    Write-IRT 'Multiple devices found. Refine search.' -Level Warn
+                    Write-IRT 'Multiple devices found. Refine search.' -Level Error
                 }
             }
             else {

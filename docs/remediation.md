@@ -7,7 +7,7 @@
 | [Revoke-UserSession](commands/Revoke-UserSession.md) | Revokes all active sessions for the user. |
 | [Disable-GraphUser](commands/Disable-GraphUser.md) | Disables a user's Entra ID account, blocking all cloud sign-ins. |
 | [Enable-GraphUser](commands/Enable-GraphUser.md) | Re-enables a previously disabled Entra ID user account. |
-| [Reset-GraphUserPassword](commands/Reset-GraphUserPassword.md) | Resets a user's Entra ID password using a randomly generated or custom password. |
+| [Reset-IRTUserPassword](commands/Reset-IRTUserPassword.md) | Resets a user's Entra ID password using a randomly generated or custom password. |
 | [Set-UsageLocation](commands/Set-UsageLocation.md) | Sets a user's usage location (ISO 3166 country code), required before assigning M365 licenses. |
 | [Grant-MailboxFullAccess](commands/Grant-MailboxFullAccess.md) | Grants the currently logged-in user full access to the target user's mailbox. |
 | [Remove-MailboxFullAccess](commands/Remove-MailboxFullAccess.md) | Removes full access permissions to a target user's mailbox. |

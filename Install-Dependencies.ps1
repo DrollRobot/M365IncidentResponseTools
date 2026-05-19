@@ -83,16 +83,16 @@ foreach ($Entry in $RequiredModules) {
     $VersionLabel = '(latest)'
 
     if ($Entry -is [hashtable]) {
-        if ($Entry.RequiredVersion) {
+        if ($Entry.ContainsKey('RequiredVersion')) {
             $InstallParams['RequiredVersion'] = $Entry.RequiredVersion
             $VersionLabel = "v$($Entry.RequiredVersion) [exact]"
         }
         else {
-            if ($Entry.ModuleVersion) {
+            if ($Entry.ContainsKey('ModuleVersion')) {
                 $InstallParams['MinimumVersion'] = $Entry.ModuleVersion
                 $VersionLabel = ">= $($Entry.ModuleVersion)"
             }
-            if ($Entry.MaximumVersion) {
+            if ($Entry.ContainsKey('MaximumVersion')) {
                 $InstallParams['MaximumVersion'] = $Entry.MaximumVersion
                 $VersionLabel += " <= $($Entry.MaximumVersion)"
             }
@@ -110,13 +110,13 @@ foreach ($Entry in $RequiredModules) {
 
     $Satisfied = $false
     if ($InstalledVersions.Count -gt 0) {
-        if ($Entry -is [hashtable] -and $Entry.RequiredVersion) {
+        if ($Entry -is [hashtable] -and $Entry.ContainsKey('RequiredVersion')) {
             $Required  = [version]$Entry.RequiredVersion
             $Satisfied = $InstalledVersions -contains $Required
         }
         else {
-            $Min = if ($Entry -is [hashtable] -and $Entry.ModuleVersion)  { [version]$Entry.ModuleVersion  } else { $null }
-            $Max = if ($Entry -is [hashtable] -and $Entry.MaximumVersion) { [version]$Entry.MaximumVersion } else { $null }
+            $Min = if ($Entry -is [hashtable] -and $Entry.ContainsKey('ModuleVersion'))  { [version]$Entry.ModuleVersion  } else { $null }
+            $Max = if ($Entry -is [hashtable] -and $Entry.ContainsKey('MaximumVersion')) { [version]$Entry.MaximumVersion } else { $null }
             $Satisfied = $null -ne (
                 $InstalledVersions | Where-Object {
                     ($null -eq $Min -or $_ -ge $Min) -and

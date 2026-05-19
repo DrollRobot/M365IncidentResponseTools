@@ -5,7 +5,7 @@ online version:
 schema: 2.0.0
 ---
 
-# Find-RiskyApplication
+# Find-RiskyServicePrincipal
 
 ## SYNOPSIS
 Identifies potentially malicious OAuth applications registered in the tenant.
@@ -13,7 +13,7 @@ Identifies potentially malicious OAuth applications registered in the tenant.
 ## SYNTAX
 
 ```
-Find-RiskyApplication [-Cached] [<CommonParameters>]
+Find-RiskyServicePrincipal [-Cached] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -33,13 +33,13 @@ Requires the PSToml module for feeds that use TOML format.
 
 ### EXAMPLE 1
 ```
-Find-RiskyApplication
+Find-RiskyServicePrincipal
 Queries all threat intelligence feeds and reports any matches in the tenant.
 ```
 
 ### EXAMPLE 2
 ```
-Find-RiskyApplication -Cached
+Find-RiskyServicePrincipal -Cached
 Same as above but uses cached Graph data from the current session.
 ```
 

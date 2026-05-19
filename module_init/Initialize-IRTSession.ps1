@@ -30,9 +30,32 @@ if ($env:TERM_PROGRAM -ne 'vscode') {
 
         # Display connection status for Graph and Exchange
         # This is a bit hacky but avoids the need to maintain global state about connection status
-
+        $CheckEveryXSeconds = 15
         $GraphCtx = Get-MgContext -ErrorAction SilentlyContinue
-        $graphDomain = if ($GraphCtx -and $GraphCtx.Account) { ($GraphCtx.Account -split '@')[-1] } else { 'none' }
+        $graphDomain = 'none'
+        if ($GraphCtx -and $GraphCtx.Account) {
+            # Probe the token at most once per $CheckEveryXSeconds seconds to avoid per-prompt latency.
+            $irt_now = [datetime]::UtcNow
+            $irt_cacheStale = (-not $Global:IRT_GraphTokenChecked) -or
+                              (($irt_now - $Global:IRT_GraphTokenChecked).TotalSeconds -gt $CheckEveryXSeconds)
+            if ($irt_cacheStale) {
+                try {
+                    $irt_probe = @{
+                        Method      = 'GET'
+                        Uri         = 'https://graph.microsoft.com/v1.0/organization?$select=id&$top=1'
+                        ErrorAction = 'Stop'
+                    }
+                    $null = Invoke-MgGraphRequest @irt_probe
+                    $Global:IRT_GraphTokenValid = $true
+                } catch {
+                    $Global:IRT_GraphTokenValid = $false
+                }
+                $Global:IRT_GraphTokenChecked = $irt_now
+            }
+            if ($Global:IRT_GraphTokenValid) {
+                $graphDomain = ($GraphCtx.Account -split '@')[-1]
+            }
+        }
 
         $AllExoConns = Get-ConnectionInformation -ErrorAction SilentlyContinue |
         Where-Object { $_.State -eq 'Connected' }

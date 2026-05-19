@@ -170,7 +170,15 @@ function Connect-IRTGraph {
                 if ($Account) {
                     $Builder = $Builder.WithAccount($Account)
                 }
-                return $Builder.ExecuteAsync().GetAwaiter().GetResult()
+                $Cts  = [System.Threading.CancellationTokenSource]::new()
+                $Task = $Builder.ExecuteAsync($Cts.Token)
+                try {
+                    while (-not $Task.IsCompleted) { Start-Sleep -Milliseconds 250 }
+                } finally {
+                    $Cts.Cancel()
+                    $Cts.Dispose()
+                }
+                return $Task.GetAwaiter().GetResult()
             } catch {
                 throw "Interactive token acquisition failed: $_"
             }
@@ -400,11 +408,17 @@ function Invoke-IRTAdminConsent {
             Write-IRT '  Sign in as a Global Administrator and click Accept.' -Level Warn
             Open-Browser -Browser $Browser -Url $ConsentUrl -Private:$Private
 
-            $AcceptTask = $Listener.AcceptTcpClientAsync()
-            if (-not $AcceptTask.Wait($TimeoutSeconds * 1000)) {
-                throw "Timed out after $TimeoutSeconds seconds waiting for admin consent response."
+            $Cts        = [System.Threading.CancellationTokenSource]::new()
+            $AcceptTask = $Listener.AcceptTcpClientAsync($Cts.Token)
+            $Deadline   = [datetime]::UtcNow.AddSeconds($TimeoutSeconds)
+            while (-not $AcceptTask.IsCompleted) {
+                if ([datetime]::UtcNow -gt $Deadline) {
+                    $Cts.Cancel()
+                    throw "Timed out after $TimeoutSeconds seconds waiting for admin consent response."
+                }
+                Start-Sleep -Milliseconds 250
             }
-            $Client = $AcceptTask.Result
+            $Client = $AcceptTask.GetAwaiter().GetResult()
 
             try {
                 $Stream      = $Client.GetStream()
@@ -454,6 +468,7 @@ function Invoke-IRTAdminConsent {
             throw "Unexpected admin consent response: $Query"
         }
         finally {
+            if ($Cts) { $Cts.Cancel(); $Cts.Dispose() }
             $Listener.Stop()
         }
     }

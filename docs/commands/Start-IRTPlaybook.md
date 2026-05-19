@@ -5,7 +5,7 @@ online version:
 schema: 2.0.0
 ---
 
-# Start-IncidentResponsePlaybook
+# Start-IRTPlaybook
 
 ## SYNOPSIS
 Runs multiple functions to assist in investigating a user's activity.
@@ -13,8 +13,8 @@ Runs multiple functions to assist in investigating a user's activity.
 ## SYNTAX
 
 ```
-Start-IncidentResponsePlaybook [[-UserObject] <PSObject[]>] [-Ticket <String>] [-NoFolder]
- [-MaxRunspaces <Int32>] [-Test] [-ProgressAction <ActionPreference>] [-WhatIf] [-Confirm] [<CommonParameters>]
+Start-IRTPlaybook [[-UserObject] <PSObject[]>] [-Ticket <String>] [-NoFolder] [-MaxRunspaces <Int32>] [-Test]
+ [-ProgressAction <ActionPreference>] [-WhatIf] [-Confirm] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -37,19 +37,19 @@ is required for mailbox and inbox rule steps.
 ### EXAMPLE 1
 ```
 Find-GraphUser 'jsmith@contoso.com'
-Start-IncidentResponsePlaybook
+Start-IRTPlaybook
 Look up a user, then run the full playbook using the global user object.
 ```
 
 ### EXAMPLE 2
 ```
-Start-IncidentResponsePlaybook -UserObject $User -Ticket 'INC-1234'
+Start-IRTPlaybook -UserObject $User -Ticket 'INC-1234'
 Run the playbook for an already-resolved user object and name the output folder INC-1234.
 ```
 
 ### EXAMPLE 3
 ```
-Start-IncidentResponsePlaybook -UserObject $User -NoFolder -MaxRunspaces 5
+Start-IRTPlaybook -UserObject $User -NoFolder -MaxRunspaces 5
 Run without writing files, using a limited runspace pool.
 ```
 

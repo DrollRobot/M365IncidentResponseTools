@@ -5,41 +5,47 @@ online version:
 schema: 2.0.0
 ---
 
-# Show-AdOus
+# Open-IRTTenantSheet
 
 ## SYNOPSIS
-Shows a list of all OUs with a count of users and devices.
+Opens the tenants worksheet for editing.
+Creates it from the template if it doesn't exist.
 
 ## SYNTAX
 
 ```
-Show-AdOus [-ProgressAction <ActionPreference>] [<CommonParameters>]
+Open-IRTTenantSheet [[-TenantFile] <String>] [-ProgressAction <ActionPreference>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
-Lists all Organizational Units in the current AD domain, sorted by CanonicalName.
-For each OU, counts users and computers directly inside it (OneLevel scope) and
-displays the results in a formatted table.
-
-Output objects use the custom type 'ShowAdOus' with a DefaultDisplayPropertySet
-so Format-Table shows CanonicalName, Name, Users, Computers, and DistinguishedName
-by default.
+{{ Fill in the Description }}
 
 ## EXAMPLES
 
-### EXAMPLE 1
-```
-Show-AdOus
-Lists all OUs with user and computer counts.
+### Example 1
+```powershell
+PS C:\> {{ Add example code here }}
 ```
 
-### EXAMPLE 2
-```
-Show-AdOus | Where-Object { $_.Users -gt 0 }
-Returns only OUs that contain at least one user.
-```
+{{ Add example description here }}
 
 ## PARAMETERS
+
+### -TenantFile
+Path to the tenants worksheet.
+Defaults to $env:APPDATA\M365IncidentResponseTools\tenants.xlsx.
+
+```yaml
+Type: String
+Parameter Sets: (All)
+Aliases:
+
+Required: False
+Position: 1
+Default value: $(if ($Global:IRT_Config.TenantsSheetPath) { $Global:IRT_Config.TenantsSheetPath } else { Join-Path $env:APPDATA 'M365IncidentResponseTools\tenants.xlsx' })
+Accept pipeline input: False
+Accept wildcard characters: False
+```
 
 ### -ProgressAction
 {{ Fill ProgressAction Description }}
@@ -63,8 +69,7 @@ This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable
 
 ## OUTPUTS
 
-### PSCustomObject[] (type: ShowAdOus)
 ## NOTES
-Version: 1.0.1
+Version: 1.0.0
 
 ## RELATED LINKS

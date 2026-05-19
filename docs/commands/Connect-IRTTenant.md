@@ -118,7 +118,7 @@ Additional Graph scopes to request beyond the default set.
 ```yaml
 Type: String[]
 Parameter Sets: (All)
-Aliases: AdditionalScopes
+Aliases: AdditionalScopes, Scopes, Scope
 
 Required: False
 Position: Named

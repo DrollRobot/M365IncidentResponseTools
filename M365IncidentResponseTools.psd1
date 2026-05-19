@@ -12,7 +12,7 @@
     RootModule = 'M365IncidentResponseTools.psm1'
 
     # Version number of this module.
-    ModuleVersion     = '2.6.4'
+    ModuleVersion     = '2.6.5'
 
     # Supported PSEditions
     # CompatiblePSEditions = @()
@@ -52,7 +52,7 @@
 
     # Modules that must be imported into the global environment prior to importing this module
     RequiredModules   = @(
-        # Microsoft.Graph pinned to 2.33.0 due to auth changes in 2.34.0
+        # Microsoft.Graph pinned to 2.33.0 for now due to auth changes in 2.34.0
         @{ModuleName = 'Microsoft.Graph.Applications'; RequiredVersion = '2.33.0'}
         @{ModuleName = 'Microsoft.Graph.Authentication'; RequiredVersion = '2.33.0'}
         @{ModuleName = 'Microsoft.Graph.DeviceManagement'; RequiredVersion = '2.33.0'}
@@ -66,7 +66,7 @@
         @{ModuleName = 'Microsoft.Graph.Users'; RequiredVersion = '2.33.0'}
         @{ModuleName = 'Microsoft.Graph.Users.Actions'; RequiredVersion = '2.33.0'}
 
-        @{ModuleName = 'ExchangeOnlineManagement'; ModuleVersion = '3.4.0'}
+        @{ModuleName = 'ExchangeOnlineManagement'; ModuleVersion = '3.4.0'} # ModuleVersion = Minimum version
         @{ModuleName = 'ImportExcel';             ModuleVersion = '7.8.0'}
         @{ModuleName = 'PSToml';                  ModuleVersion = '0.3.0'}
     )
@@ -88,129 +88,11 @@
     # FormatsToProcess = @()
 
     # Modules to import as nested modules of the module specified in RootModule/ModuleToProcess
-    NestedModules     = @(
-        'applications\Find-RiskyApplication.ps1'
-        'applications\Get-IRTTenantInfo.ps1'
-        'applications\Get-UserApplication.ps1'
-        'applications\Show-TenantServicePrincipal.ps1'
-
-        'devices\Find-Device.ps1'
-        'devices\Show-DeviceInfo.ps1'
-
-        'connect\Connect-IRT.ps1'
-        'connect\Connect-IRTExchange.ps1'
-        'connect\Connect-IRTGraph.ps1'
-        'connect\Connect-IRTIPPS.ps1'
-        'connect\Connect-IRTTenant.ps1'
-        'connect\Disconnect-IRT.ps1'
-        'connect\Invoke-IRTDeviceCodeAuth.ps1'
-        'connect\Test-IRTConnection.ps1'
-
-        'entra-audit-log\Get-EntraAuditLog.ps1'
-        'entra-audit-log\Show-EntraAuditLog.ps1'
-
-        'onprem_ad\Helpers.ps1'
-        'onprem_ad\Find-AdOu.ps1'
-        'onprem_ad\Find-AdUser.ps1'
-        'onprem_ad\Find-AllDomainController.ps1'
-        'onprem_ad\Get-AdAdminUser.ps1'
-        'onprem_ad\Set-AdUserEnabled.ps1'
-        'onprem_ad\Push-AdSync.ps1'
-        'onprem_ad\Reset-AdUserPassword.ps1'
-        'onprem_ad\Show-AdOus.ps1'
-        'onprem_ad\Show-AdUserInfo.ps1'
-
-        'mailbox\Get-IRTInboxRule.ps1'
-        'mailbox\Get-UserMailboxPermission.ps1'
-        'mailbox\Grant-MailboxFullAccess.ps1'
-        'mailbox\Open-MailboxInOWA.ps1'
-        'mailbox\Remove-MailboxFullAccess.ps1'
-        'mailbox\Show-Mailbox.ps1'
-        'mailbox\Show-MailboxAccess.ps1'
-
-        'message_trace\Get-IRTMessageTrace.ps1'
-        'message_trace\Merge-ListOnDate.ps1'
-        'message_trace\Request-IRTMessageTrace.ps1'
-        'message_trace\Request-IRTMessageTraceV1.ps1'
-        'message_trace\Show-IRTMessageTrace.ps1'
-
-        'modules\Build-Menu.ps1'
-        'modules\Compress-InvestigationFolder.ps1'
-        'modules\Convert-DecimalToExcelColumn.ps1'
-        'modules\Copy-IRTFunction.ps1'
-        'modules\Find-GraphDirectoryObject.ps1'
-        'modules\Format-PhoneNumber.ps1'
-        'modules\Format-Tree.ps1'
-        'modules\Get-IRTUserObject.ps1'
-        'modules\Import-IRTConfig.ps1'
-        'modules\Get-RandomPassword.ps1'
-        'modules\Import-LogFile.ps1'
-        'modules\Initialize-Module.ps1'
-        'modules\New-InvestigationFolder.ps1'
-        'modules\Open-Browser.ps1'
-        'modules\Request-DirectoryRole.ps1'
-        'modules\Request-DirectoryRoleTemplate.ps1'
-        'modules\Request-GraphGroup.ps1'
-        'modules\Request-GraphOauth2Grant.ps1'
-        'modules\Request-GraphServicePrincipal.ps1'
-        'modules\Request-GraphUser.ps1'
-        'modules\Add-IpAddressConditionalFormatting.ps1'
-        'modules\Write-IRT.ps1'
-        'modules\Request-GraphDevice.ps1'
-        'modules\Request-IntuneDevice.ps1'
-        'modules\Get-LicenseFullName.ps1'
-        'modules\Get-LicenseReport.ps1'
-        'modules\Resolve-IRTDateRange.ps1'
-        'modules\Test-PythonPackage.ps1'
-
-        'roles\Get-AdminRole.ps1'
-
-        'signin_logs\Convert-TrustType.ps1'
-        'signin_logs\ConvertTo-HumanErrorDescription.ps1'
-        'signin_logs\Get-NonInteractiveLog.ps1'
-        'signin_logs\Get-SignInLog.ps1'
-        'signin_logs\Show-SignInLog.ps1'
-
-        'unified_audit_log\parsing\AddRemoveRole.ps1'
-        'unified_audit_log\parsing\AllOperations.ps1'
-        'unified_audit_log\parsing\UserLoginOperations.ps1'
-        'unified_audit_log\parsing\UpdateUser.ps1'
-        'unified_audit_log\parsing\InboxRule.ps1'
-        'unified_audit_log\parsing\SetConditionalAccessPolicy.ps1'
-        'unified_audit_log\parsing\AttachmentAccess.ps1'
-        'unified_audit_log\parsing\MailItemsAccessed.ps1'
-        'unified_audit_log\parsing\ExchangeItemCreateSend.ps1'
-        'unified_audit_log\parsing\ExchangeItemUpdate.ps1'
-        'unified_audit_log\parsing\ExchangeItemDelete.ps1'
-        'unified_audit_log\parsing\SharePointFileOperation.ps1'
-        'unified_audit_log\parsing\PageViewed.ps1'
-        'unified_audit_log\parsing\PIMRoleAssigned.ps1'
-        'unified_audit_log\parsing\SearchQueryPerformed.ps1'
-        'unified_audit_log\parsing\TeamsSessionStarted.ps1'
-        'unified_audit_log\Get-UALog.ps1'
-        'unified_audit_log\Show-UALog.ps1'
-
-        'users\Find-User.ps1'
-        'users\Get-FullUserObject.ps1'
-        'users\Set-GraphUserAccountEnabled.ps1'
-        'users\Reset-GraphUserPassword.ps1'
-        'users\Revoke-UserSession.ps1'
-        'users\Set-UsageLocation.ps1'
-        'users\Show-GraphUserTree.ps1'
-        'users\Show-UserInfo.ps1'
-        'users\Show-UserMFA.ps1'
-
-        'Start-IncidentResponsePlaybook.ps1'
-    )
+    # Scripts are dot-sourced dynamically in M365IncidentResponseTools.psm1
+    # NestedModules     = @()
 
     # Functions to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no functions to export.
     FunctionsToExport = @(
-        ### applications
-        'Find-RiskyApplication'
-        'Get-IRTTenantInfo'
-        'Get-UserApplication'
-        'Show-TenantServicePrincipal'
-
         ### devices
         'Show-DeviceInfo'
 
@@ -222,7 +104,7 @@
         'Connect-IRTTenant'
         'Disconnect-IRT'
         'Test-IRTConnection'
-        'Open-IRTTenantWorksheet'
+        'Open-IRTTenantSheet'
 
         ### entra-audit-log
         'Get-EntraAuditLog'
@@ -272,10 +154,19 @@
         'Get-LicenseReport'
         'Resolve-IRTDateRange'
         'Set-IRTConfig'
+        'Start-IRTPlaybook'
         'Write-IRT'
 
         ### roles
         'Get-AdminRole'
+
+        ### service_principals
+        'Find-RiskyServicePrincipal'
+        'Find-ServicePrincipal'
+        'Get-IRTTenantInfo'
+        'Get-UserServicePrincipal'
+        'Show-ServicePrincipalInfo'
+        'Show-TenantServicePrincipal'
 
         ### signin_logs
         'Get-NonInteractiveLog'
@@ -284,20 +175,18 @@
 
         ### unified_audit_log
         'Get-UALog'
+        'Open-IRTAllOperationsSheet'
         'Show-UALog'
 
         ### users
         'Disable-GraphUser'
         'Enable-GraphUser'
         'Find-User'
-        'Reset-GraphUserPassword'
+        'Reset-IRTUserPassword'
         'Revoke-UserSession'
         'Set-UsageLocation'
         'Show-UserInfo'
         'Show-UserMFA'
-
-        ### root
-        'Start-IncidentResponsePlaybook'
     )
 
     # Cmdlets to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no cmdlets to export.
@@ -309,28 +198,14 @@
     # Aliases to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no aliases to export.
     AliasesToExport   = @(
 
-        ### applications
-        # Find-RiskyApplications
-        'RiskyApps'
-        # Get-UserApplications
-        'UserApps'
-        # Show-TenantServicePrincipals
-        'ShowApps'
-        'ShowServicePrincipals'
-        'ShowEnterpriseApps'
-        'Show-Apps'
-        'Show-ServicePrincipals'
-        'Show-EnterpriseApps'
-        'Show-Applications'
-
         ### connect
         # Connect-IRT
         'ConnectIRT'
         # Connect-IRTTenant
         'IRTTenant'
-        # Open-IRTTenantWorksheet
+        # Open-IRTTenantSheet
+        'Open-IRTTenantWorksheet'
         'OpenIRTTenantWorksheet'
-        'Open-IRTTenantSheet'
         'OpenIRTTenantSheet'
         'IRTTenantSheet'
         # Disconnect-IRT
@@ -434,10 +309,53 @@
         # New-InvestigationFolder
         'NewDir'
         'NewFolder'
+        # Start-IRTPlaybook
+        'Playbook'
 
         ### roles
         # Get-AdminRoles
         'GetAdmins'
+
+        ### service_principals
+        # Find-ServicePrincipal
+        'FindServicePrincipal', 'FindServicePrincipals'
+        'FindSP', 'FindSPs'
+        'FindApp', 'FindApps'
+        'FindApplication', 'FindApplications'
+        'FindEnterpriseApp', 'FindEnterpriseApps'
+        'FindEnterpriseApplication', 'FindEnterpriseApplications'
+        # Show-ServicePrincipalInfo
+        'ShowServicePrincipal', 'ShowServicePrincipals'
+        'ShowSP', 'ShowSPs'
+        'ShowApp', 'ShowApps'
+        'ShowApplication', 'ShowApplications'
+        'ShowEnterpriseApp', 'ShowEnterpriseApps'
+        'ShowEnterpriseApplication', 'ShowEnterpriseApplications'
+        # Show-TenantServicePrincipal
+        'ShowTenantServicePrincipal', 'ShowTenantServicePrincipals'
+        'ShowTenantSP', 'ShowTenantSPs'
+        'ShowTenantApp', 'ShowTenantApps'
+        'ShowTenantApplication', 'ShowTenantApplications'
+        'ShowTenantEnterpriseApp', 'ShowTenantEnterpriseApps'
+        'ShowAllServicePrincipals', 'ShowAllSPs'
+        'ShowAllApps', 'ShowAllApplications', 'ShowAllEnterpriseApps'
+        'Show-Apps', 'Show-ServicePrincipals', 'Show-EnterpriseApps', 'Show-Applications'
+        # Find-RiskyServicePrincipal
+        'RiskyApps', 'RiskySPs'
+        'FindRiskySP', 'FindRiskySPs'
+        'FindRiskyApp', 'FindRiskyApps'
+        'FindRiskyApplication', 'FindRiskyApplications'
+        'FindRiskyServicePrincipal', 'FindRiskyServicePrincipals'
+        'FindRiskyEnterpriseApp', 'FindRiskyEnterpriseApps'
+        'Find-RiskyApplication'
+        # Get-UserServicePrincipal
+        'UserApps', 'UserSPs'
+        'GetUserSP', 'GetUserSPs'
+        'GetUserApp', 'GetUserApps'
+        'GetUserApplication', 'GetUserApplications'
+        'GetUserServicePrincipal', 'GetUserServicePrincipals'
+        'GetUserEnterpriseApp', 'GetUserEnterpriseApps'
+        'Get-UserApplication'
 
         ### signin_logs
         # Get-NonInteractiveLogs
@@ -457,6 +375,9 @@
         'GetUALogs'
         'UALog'
         'UALogs'
+        # Open-IRTAllOperationsSheet
+        'Open-AllOperationsSheet'
+        'IRTAllOperationsSheet'
 
         ### users
         # Find-Users
@@ -468,7 +389,7 @@
         'Lock-GraphUsers'
         'LockUser'
         'LockUsers'
-        # Reset-GraphUserPasswords
+        # Reset-IRTUserPassword
         'ResetPassword'
         'ResetPasswords'
         # Revoke-UsersSessions
@@ -488,10 +409,6 @@
         'Unlock-GraphUsers'
         'UnlockUser'
         'UnlockUsers'
-
-        ### root
-        # Start-IncidentResponsePlaybook
-        'Playbook'
     )
 
     # DSC resources to export from this module

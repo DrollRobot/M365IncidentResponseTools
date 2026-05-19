@@ -5,39 +5,30 @@ online version:
 schema: 2.0.0
 ---
 
-# Show-AdOus
+# Open-IRTAllOperationsSheet
 
 ## SYNOPSIS
-Shows a list of all OUs with a count of users and devices.
+Opens the unified audit log all-operations reference spreadsheet.
 
 ## SYNTAX
 
 ```
-Show-AdOus [-ProgressAction <ActionPreference>] [<CommonParameters>]
+Open-IRTAllOperationsSheet [-ProgressAction <ActionPreference>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
-Lists all Organizational Units in the current AD domain, sorted by CanonicalName.
-For each OU, counts users and computers directly inside it (OneLevel scope) and
-displays the results in a formatted table.
-
-Output objects use the custom type 'ShowAdOus' with a DefaultDisplayPropertySet
-so Format-Table shows CanonicalName, Name, Users, Computers, and DistinguishedName
-by default.
+Opens the unified_audit_log-all_operations.xlsx workbook for viewing or editing.
+Uses the path configured in AllOperationsSheetPath (via Set-IRTConfig) when set,
+otherwise opens the default file bundled with the module under the data\ folder.
 
 ## EXAMPLES
 
-### EXAMPLE 1
-```
-Show-AdOus
-Lists all OUs with user and computer counts.
+### Example 1
+```powershell
+PS C:\> {{ Add example code here }}
 ```
 
-### EXAMPLE 2
-```
-Show-AdOus | Where-Object { $_.Users -gt 0 }
-Returns only OUs that contain at least one user.
-```
+{{ Add example description here }}
 
 ## PARAMETERS
 
@@ -63,8 +54,7 @@ This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable
 
 ## OUTPUTS
 
-### PSCustomObject[] (type: ShowAdOus)
 ## NOTES
-Version: 1.0.1
+Version: 1.0.0
 
 ## RELATED LINKS

@@ -6,7 +6,7 @@ function Request-GraphOauth2Grant {
     .DESCRIPTION
     Internal helper. Fetches all delegated OAuth2 permission grants from Microsoft Graph
     and caches them in a session-scoped global variable keyed by client ID. Used by
-    Get-UserApplication and Find-RiskyApplication to resolve which users have consented
+    Get-UserServicePrincipal and Find-RiskyServicePrincipal to resolve which users have consented
     to which applications without repeated Graph requests.
 
     .NOTES

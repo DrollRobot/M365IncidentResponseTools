@@ -5,22 +5,15 @@ online version:
 schema: 2.0.0
 ---
 
-# Get-FullUserObject
+# Disable-GraphUser
 
 ## SYNOPSIS
-retrieves a user with a broad set of properties and augments with optional ones.
+Disable graph user account(s).
 
 ## SYNTAX
 
-### ByObject (Default)
 ```
-Get-FullUserObject -UserObject <MicrosoftGraphUser> [-NoRefresh] [-ProgressAction <ActionPreference>]
- [<CommonParameters>]
-```
-
-### ById
-```
-Get-FullUserObject -UserId <String> [-NoRefresh] [-ProgressAction <ActionPreference>] [<CommonParameters>]
+Disable-GraphUser [[-UserObject] <PSObject[]>] [-ProgressAction <ActionPreference>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -38,46 +31,16 @@ PS C:\> {{ Add example code here }}
 ## PARAMETERS
 
 ### -UserObject
-pipe full user objects
+{{ Fill UserObject Description }}
 
 ```yaml
-Type: MicrosoftGraphUser
-Parameter Sets: ByObject
-Aliases:
-
-Required: True
-Position: Named
-Default value: None
-Accept pipeline input: True (ByValue)
-Accept wildcard characters: False
-```
-
-### -UserId
-{{ Fill UserId Description }}
-
-```yaml
-Type: String
-Parameter Sets: ById
-Aliases: Id
-
-Required: True
-Position: Named
-Default value: None
-Accept pipeline input: True (ByPropertyName, ByValue)
-Accept wildcard characters: False
-```
-
-### -NoRefresh
-{{ Fill NoRefresh Description }}
-
-```yaml
-Type: SwitchParameter
+Type: PSObject[]
 Parameter Sets: (All)
-Aliases:
+Aliases: UserObjects
 
 Required: False
-Position: Named
-Default value: False
+Position: 1
+Default value: None
 Accept pipeline input: False
 Accept wildcard characters: False
 ```
@@ -105,8 +68,6 @@ This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable
 ## OUTPUTS
 
 ## NOTES
-version: 1.0.5
-- add pipeline support (by object or by id/upn)
-- keep signInActivity in initial selection
+Version: 2.0.0
 
 ## RELATED LINKS

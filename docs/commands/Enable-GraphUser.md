@@ -5,16 +5,15 @@ online version:
 schema: 2.0.0
 ---
 
-# Open-IRTTenantWorksheet
+# Enable-GraphUser
 
 ## SYNOPSIS
-Opens the tenants worksheet for editing.
-Creates it from the template if it doesn't exist.
+Enable graph user account(s).
 
 ## SYNTAX
 
 ```
-Open-IRTTenantWorksheet [[-TenantFile] <String>] [-ProgressAction <ActionPreference>] [<CommonParameters>]
+Enable-GraphUser [[-UserObject] <PSObject[]>] [-ProgressAction <ActionPreference>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -31,18 +30,17 @@ PS C:\> {{ Add example code here }}
 
 ## PARAMETERS
 
-### -TenantFile
-Path to the tenants worksheet.
-Defaults to $env:APPDATA\M365IncidentResponseTools\tenants.xlsx.
+### -UserObject
+{{ Fill UserObject Description }}
 
 ```yaml
-Type: String
+Type: PSObject[]
 Parameter Sets: (All)
-Aliases:
+Aliases: UserObjects
 
 Required: False
 Position: 1
-Default value: $(if ($Global:IRT_Config.TenantsSheetPath) { $Global:IRT_Config.TenantsSheetPath } else { Join-Path $env:APPDATA 'M365IncidentResponseTools\tenants.xlsx' })
+Default value: None
 Accept pipeline input: False
 Accept wildcard characters: False
 ```
@@ -70,6 +68,6 @@ This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable
 ## OUTPUTS
 
 ## NOTES
-Version: 1.0.0
+Version: 2.0.0
 
 ## RELATED LINKS
