@@ -12,17 +12,17 @@ If a search returns only one user, the user object will be saved in `$Global:IRT
 
 ## Running the Investigation Playbook
 
-The investigation playbook runs ~15 commands in parallel to return results quickly. By default, it will create a new folder, move into the folder, and save all files there. 
+The investigation playbook runs ~15 commands in parallel to return results quickly. By default, it will create a new folder, move into the folder, and save all files there.
 
 ```powershell
 # run all playbook commands
-Start-IncidentResponsePlaybook
+Start-IRTPlaybook
 
 # run playbook for specific user with ticket number in folder name
-Start-IncidentResponsePlaybook -UserObject $User -Ticket 'INC-1234'
+Start-IRTPlaybook -UserObject $User -Ticket 'INC-1234'
 
 # limit parallelism on slower devices
-Start-IncidentResponsePlaybook -MaxRunspaces 5
+Start-IRTPlaybook -MaxRunspaces 5
 ```
 
 ## Investigation Folder
@@ -70,5 +70,5 @@ The following steps run in parallel.
 | [Show-DeviceInfo](commands/Show-DeviceInfo.md) | Displays Entra ID and Intune device properties for devices found via Find-Device. |
 | [Find-GraphDirectoryObject](commands/Find-GraphDirectoryObject.md) | Extracts GUIDs from text or clipboard and resolves them to their Graph directory objects. |
 
-**Remediation:**  
+**Remediation:**
 [Remediation](remediation.md)

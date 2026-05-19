@@ -200,7 +200,7 @@ Locale: en-US
 ### [Show-UserMFA](Show-UserMFA.md)
 {{ Fill in the Description }}
 
-### [Start-IncidentResponsePlaybook](Start-IncidentResponsePlaybook.md)
+### [Start-IRTPlaybook](Start-IRTPlaybook.md)
 {{ Fill in the Description }}
 
 ### [Test-IRTConnection](Test-IRTConnection.md)

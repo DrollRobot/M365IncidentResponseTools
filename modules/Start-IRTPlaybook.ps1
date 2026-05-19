@@ -1,11 +1,11 @@
-function Start-IncidentResponsePlaybook {
+function Start-IRTPlaybook {
     <#
     .SYNOPSIS
     Runs multiple functions to assist in investigating a user's activity.
 
     .DESCRIPTION
     The incident response playbook is the primary investigation entry point.
-    It accepts one or more Entra ID user objects and launches ~15 investigation steps in 
+    It accepts one or more Entra ID user objects and launches ~15 investigation steps in
     parallel, then saves output files to the investigation folder.
 
     Steps include: license report, user info, app assignments, mailbox details, admin roles,
@@ -36,15 +36,15 @@ function Start-IncidentResponsePlaybook {
 
     .EXAMPLE
     Find-GraphUser 'jsmith@contoso.com'
-    Start-IncidentResponsePlaybook
+    Start-IRTPlaybook
     Look up a user, then run the full playbook using the global user object.
 
     .EXAMPLE
-    Start-IncidentResponsePlaybook -UserObject $User -Ticket 'INC-1234'
+    Start-IRTPlaybook -UserObject $User -Ticket 'INC-1234'
     Run the playbook for an already-resolved user object and name the output folder INC-1234.
 
     .EXAMPLE
-    Start-IncidentResponsePlaybook -UserObject $User -NoFolder -MaxRunspaces 5
+    Start-IRTPlaybook -UserObject $User -NoFolder -MaxRunspaces 5
     Run without writing files, using a limited runspace pool.
 
     .OUTPUTS
@@ -227,7 +227,7 @@ function Start-IncidentResponsePlaybook {
                 )
             }
 
-            @{  Name   = 'Get-UserApplication'
+            @{  Name   = 'Get-UserServicePrincipal'
                 Script = {
                     param(
                         $WorkingPath,
@@ -235,7 +235,7 @@ function Start-IncidentResponsePlaybook {
                     )
                     foreach ($k in $SharedRefs.Keys) { Set-Variable -Scope Global -Name $k -Value $SharedRefs[$k] }
                     Set-Location -Path $WorkingPath
-                    Get-UserApplication -Cached
+                    Get-UserServicePrincipal -Cached
                 }
                 Args  = @(
                     $WorkingPath,
@@ -275,7 +275,7 @@ function Start-IncidentResponsePlaybook {
                 )
             }
 
-            @{  Name   = 'Find-RiskyApplication'
+            @{  Name   = 'Find-RiskyServicePrincipal'
                 Script = {
                     param(
                         $WorkingPath,
@@ -283,7 +283,7 @@ function Start-IncidentResponsePlaybook {
                     )
                     foreach ($k in $SharedRefs.Keys) { Set-Variable -Scope Global -Name $k -Value $SharedRefs[$k] }
                     Set-Location -Path $WorkingPath
-                    Find-RiskyApplication -Cached
+                    Find-RiskyServicePrincipal -Cached
                 }
                 Args  = @(
                     $WorkingPath,

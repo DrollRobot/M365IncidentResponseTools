@@ -1,4 +1,4 @@
-function Find-RiskyApplication {
+function Find-RiskyServicePrincipal {
     <#
     .SYNOPSIS
     Identifies potentially malicious OAuth applications registered in the tenant.
@@ -20,11 +20,11 @@ function Find-RiskyApplication {
     API calls. Speeds up repeated runs during the same session.
 
     .EXAMPLE
-    Find-RiskyApplication
+    Find-RiskyServicePrincipal
     Queries all threat intelligence feeds and reports any matches in the tenant.
 
     .EXAMPLE
-    Find-RiskyApplication -Cached
+    Find-RiskyServicePrincipal -Cached
     Same as above but uses cached Graph data from the current session.
 
     .OUTPUTS
@@ -34,7 +34,13 @@ function Find-RiskyApplication {
     Requires an active Graph connection with appropriate permissions.
     Threat intelligence feeds are fetched live from GitHub at runtime.
     #>
-    [Alias('RiskyApps')]
+    [Alias('RiskyApps', 'RiskySPs',
+           'FindRiskySP', 'FindRiskySPs',
+           'FindRiskyApp', 'FindRiskyApps',
+           'FindRiskyApplication', 'FindRiskyApplications',
+           'FindRiskyServicePrincipal', 'FindRiskyServicePrincipals',
+           'FindRiskyEnterpriseApp', 'FindRiskyEnterpriseApps',
+           'Find-RiskyApplication')]
     param (
         [switch] $Cached
     )

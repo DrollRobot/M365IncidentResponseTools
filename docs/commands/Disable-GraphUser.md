@@ -5,13 +5,16 @@ online version:
 schema: 2.0.0
 ---
 
-# Open-IRTTenantWorksheet
+# Disable-GraphUser
 
 ## SYNOPSIS
-Opens the tenants worksheet for editing.
-Creates it from the template if it doesn't exist.
+Disable graph user account(s).
 
 ## SYNTAX
+
+```
+Disable-GraphUser [[-UserObject] <PSObject[]>] [-ProgressAction <ActionPreference>] [<CommonParameters>]
+```
 
 ## DESCRIPTION
 {{ Fill in the Description }}
@@ -27,6 +30,36 @@ PS C:\> {{ Add example code here }}
 
 ## PARAMETERS
 
+### -UserObject
+{{ Fill UserObject Description }}
+
+```yaml
+Type: PSObject[]
+Parameter Sets: (All)
+Aliases: UserObjects
+
+Required: False
+Position: 1
+Default value: None
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
+### -ProgressAction
+{{ Fill ProgressAction Description }}
+
+```yaml
+Type: ActionPreference
+Parameter Sets: (All)
+Aliases: proga
+
+Required: False
+Position: Named
+Default value: None
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
 ### CommonParameters
 This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable, -InformationAction, -InformationVariable, -OutVariable, -OutBuffer, -PipelineVariable, -Verbose, -WarningAction, and -WarningVariable. For more information, see [about_CommonParameters](http://go.microsoft.com/fwlink/?LinkID=113216).
 
@@ -35,6 +68,6 @@ This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable
 ## OUTPUTS
 
 ## NOTES
-Version: 1.0.0
+Version: 2.0.0
 
 ## RELATED LINKS

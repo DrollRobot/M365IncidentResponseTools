@@ -7,7 +7,15 @@ function Show-TenantServicePrincipal {
 	Version: 1.3.0
 	1.3.0 - Added -Excel export option.
 	#>
-    [Alias('ShowApps', 'ShowServicePrincipals', 'ShowEnterpriseApps', 'Show-Apps', 'Show-ServicePrincipals', 'Show-EnterpriseApps', 'Show-Applications')]
+    [Alias('ShowTenantServicePrincipal', 'ShowTenantServicePrincipals',
+           'ShowTenantSP', 'ShowTenantSPs',
+           'ShowTenantApp', 'ShowTenantApps',
+           'ShowTenantApplication', 'ShowTenantApplications',
+           'ShowTenantEnterpriseApp', 'ShowTenantEnterpriseApps',
+           'ShowAllServicePrincipals', 'ShowAllSPs',
+           'ShowAllApps', 'ShowAllApplications', 'ShowAllEnterpriseApps',
+           'Show-Apps', 'Show-ServicePrincipals', 'Show-EnterpriseApps', 'Show-Applications')]
+    [OutputType([System.Collections.Generic.List[pscustomobject]])]
     [CmdletBinding()]
     param (
         [string] $Search,

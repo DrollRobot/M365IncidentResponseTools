@@ -30,25 +30,25 @@ Set-Location .\M365IncidentResponseTools\
 .\Install-Dependencies.ps1
 ```
 
-**The script will install the following modules:**  
-Microsoft.Graph.Applications  
-Microsoft.Graph.Authentication  
-Microsoft.Graph.Beta.Identity.Signins  
-Microsoft.Graph.Beta.Reports  
-Microsoft.Graph.DeviceManagement  
-Microsoft.Graph.DirectoryObjects  
-Microsoft.Graph.Groups  
-Microsoft.Graph.Identity.DirectoryManagement  
-Microsoft.Graph.Identity.Signins  
-Microsoft.Graph.Reports  
-Microsoft.Graph.Users  
-Microsoft.Graph.Users.Actions  
-ExchangeOnlineManagement  
-ImportExcel  
-PSToml  
+**The script will install the following modules:**
+Microsoft.Graph.Applications
+Microsoft.Graph.Authentication
+Microsoft.Graph.Beta.Identity.Signins
+Microsoft.Graph.Beta.Reports
+Microsoft.Graph.DeviceManagement
+Microsoft.Graph.DirectoryObjects
+Microsoft.Graph.Groups
+Microsoft.Graph.Identity.DirectoryManagement
+Microsoft.Graph.Identity.Signins
+Microsoft.Graph.Reports
+Microsoft.Graph.Users
+Microsoft.Graph.Users.Actions
+ExchangeOnlineManagement
+ImportExcel
+PSToml
 
 !!! warning
     The Graph modules are temporarily pinned to version 2.33.0 due to recent auth workflow changes that forced WAM and broke device code auth.
 
-**Connecting to an M365 tenant:**  
+**Connecting to an M365 tenant:**
 [Connect to M365](connect.md)

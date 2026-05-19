@@ -41,7 +41,7 @@ nav:
   - Command Reference:
     - Overview: commands/M365IncidentResponseTools.md
     - Playbook:
-      - Start-IncidentResponsePlaybook: commands/Start-IncidentResponsePlaybook.md
+      - Start-IRTPlaybook: commands/Start-IRTPlaybook.md
     - Applications:
       - Find-RiskyApplication: commands/Find-RiskyApplication.md
       - Get-IRTTenantInfo: commands/Get-IRTTenantInfo.md

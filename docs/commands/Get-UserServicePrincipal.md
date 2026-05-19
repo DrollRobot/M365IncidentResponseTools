@@ -5,7 +5,7 @@ online version:
 schema: 2.0.0
 ---
 
-# Get-UserApplication
+# Get-UserServicePrincipal
 
 ## SYNOPSIS
 Displays user's Oauth2 permission grants.
@@ -14,7 +14,7 @@ Displays user's Oauth2 permission grants.
 ## SYNTAX
 
 ```
-Get-UserApplication [[-UserObject] <PSObject[]>] [-TableStyle <String>] [-Font <String>] [-Xml <Boolean>]
+Get-UserServicePrincipal [[-UserObject] <PSObject[]>] [-TableStyle <String>] [-Font <String>] [-Xml <Boolean>]
  [-Open <Boolean>] [-Cached] [-ProgressAction <ActionPreference>] [<CommonParameters>]
 ```
 
@@ -30,13 +30,13 @@ Falls back to $Global:IRT_UserObjects if no -UserObject is passed.
 
 ### EXAMPLE 1
 ```
-Get-UserApplication
+Get-UserServicePrincipal
 Shows OAuth app consents for the user in the global session.
 ```
 
 ### EXAMPLE 2
 ```
-Get-UserApplication -UserObject $User
+Get-UserServicePrincipal -UserObject $User
 Shows OAuth app consents for a specific user.
 ```
 
@@ -162,7 +162,6 @@ This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable
 ## OUTPUTS
 
 ### None. Results are displayed in the console and optionally exported to Excel.
-
 ## NOTES
 
 ## RELATED LINKS
