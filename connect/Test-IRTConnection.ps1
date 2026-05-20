@@ -23,6 +23,7 @@ function Test-IRTConnection {
     .NOTES
     Version: 1.0.0
     #>
+    [OutputType([bool])]
     [CmdletBinding()]
     param (
         [switch] $Quiet

@@ -6,6 +6,7 @@ function Request-IntuneDevice {
     .NOTES
     Version: 1.0.0
     #>
+    [OutputType([System.Object[]])]
     [CmdletBinding()]
     param (
         [switch] $Cached

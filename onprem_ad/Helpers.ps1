@@ -11,6 +11,7 @@ function Test-AdAvailable {
     .NOTES
     Version: 2.0.0
     #>
+    [OutputType([bool])]
     [CmdletBinding()]
     param ()
 
@@ -39,11 +40,12 @@ function Test-RunningOnDomainController {
     .NOTES
     Version: 1.0.0
     #>
+    [OutputType([bool])]
     [CmdletBinding()]
     param ()
 
     try {
-        $DomainControllerNames = ( Get-ADDomainController -Filter * ).Name
+        $DomainControllerNames = (Get-ADDomainController -Filter *).Name
         return $env:ComputerName -in $DomainControllerNames
     }
     catch {
@@ -78,15 +80,15 @@ function Get-AdGlobalUserObject {
     process {
 
 		# add userobject
-		if ( $Global:UserObject ) {
-			$ScriptUserObjects.Add( $Global:UserObject )
+		if ($Global:UserObject) {
+			$ScriptUserObjects.Add($Global:UserObject)
 		}
 
 		# add userobjects
-		if ( $Global:UserObjects ) {
-            $IterationList = @( $Global:UserObjects )
-			foreach ( $i in $IterationList ) {
-				$ScriptUserObjects.Add( $i )
+		if ($Global:UserObjects) {
+            $IterationList = @($Global:UserObjects)
+			foreach ($i in $IterationList) {
+				$ScriptUserObjects.Add($i)
 			}
 		}
 

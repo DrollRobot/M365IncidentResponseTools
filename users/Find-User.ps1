@@ -18,6 +18,7 @@ function Find-User {
     1.1.0 - Major rewrite. Renamed to Find-User.
     #>
     [Alias('FindUser', 'FindUsers')]
+    [OutputType([psobject[]])]
     [CmdletBinding()]
     param (
         [Parameter( Position = 0, Mandatory )]

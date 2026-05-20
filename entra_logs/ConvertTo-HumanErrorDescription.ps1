@@ -24,6 +24,7 @@ function ConvertTo-HumanErrorDescription {
     Version: 1.1.0
     1.1.0 - Converted from doing the whole sheet to just one log at a time
     #>
+    [OutputType([string])]
     [CmdletBinding()]
     param (
         [int] $ErrorCode

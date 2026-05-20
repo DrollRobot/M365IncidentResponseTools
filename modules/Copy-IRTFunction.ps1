@@ -30,9 +30,9 @@ function Copy-IRTFunction {
     Copies the hardcoded IRT helper files to the clipboard.
 
     .EXAMPLE
-    Copy-IRTFunction -Path .\signin_logs
+    Copy-IRTFunction -Path .\modules
 
-    Copies hardcoded files plus all .ps1 files in the signin_logs folder.
+    Copies hardcoded files plus all .ps1 files in the modules folder.
 
     .NOTES
     Version: 1.0.3

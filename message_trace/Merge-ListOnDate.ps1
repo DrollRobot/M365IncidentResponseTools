@@ -1,5 +1,6 @@
 function Merge-ListOnDate {
     # merges lists
+    [OutputType([System.Collections.Generic.List[psobject]])]
     [CmdletBinding(DefaultParameterSetName = 'Ascending')]
     param(
         [Parameter(Mandatory = $true)]

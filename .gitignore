@@ -1,7 +1,6 @@
 # testing
 debug/
-test.txt
-test.xml
+/test*
 Get-MailboxesUserHasFullAccessTo.ps1
 
 # investigation files

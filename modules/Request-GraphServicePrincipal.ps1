@@ -12,6 +12,7 @@ function Request-GraphServicePrincipal {
     .NOTES
     Version: 2.0.0
     #>
+    [OutputType([hashtable])]
     [CmdletBinding()]
     param (
         [switch] $Cached,

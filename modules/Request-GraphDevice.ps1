@@ -12,6 +12,7 @@ function Request-GraphDevice {
 	.NOTES
 	Version: 2.0.0
 	#>
+    [OutputType([System.Object[]], [hashtable])]
     [CmdletBinding()]
     param (
         [switch] $Cached,
@@ -152,6 +153,7 @@ function Request-IntuneDevice {
     .NOTES
     Version: 1.1.0
     #>
+    [OutputType([System.Object[]])]
     [CmdletBinding()]
     param ()
 

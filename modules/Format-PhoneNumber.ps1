@@ -19,6 +19,7 @@ function Format-PhoneNumber {
     .NOTES
     Version: 1.0.0
     #>
+    [OutputType([string])]
     [CmdletBinding()]
     param(
         [Parameter( Mandatory, Position = 0, ValueFromPipeline )]

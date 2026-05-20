@@ -9,6 +9,7 @@ function Convert-TrustType {
 
 	Version: 1.0.0
 	#>
+    [OutputType([string])]
     [CmdletBinding()]
     param (
         [psobject] $TrustType

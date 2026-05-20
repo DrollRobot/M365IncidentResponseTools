@@ -106,9 +106,14 @@
         'Test-IRTConnection'
         'Open-IRTTenantSheet'
 
-        ### entra-audit-log
+        ### entra_logs
         'Get-EntraAuditLog'
         'Show-EntraAuditLog'
+        'Get-IRTServicePrincipalSignInLog'
+        'Get-NonInteractiveLog'
+        'Get-SignInLog'
+        'Show-IRTServicePrincipalSignInLog'
+        'Show-SignInLog'
 
         ### onprem_ad
         'Find-AdOu'
@@ -168,11 +173,6 @@
         'Show-ServicePrincipalInfo'
         'Show-TenantServicePrincipal'
 
-        ### signin_logs
-        'Get-NonInteractiveLog'
-        'Get-SignInLog'
-        'Show-SignInLog'
-
         ### unified_audit_log
         'Get-UALog'
         'Open-IRTAllOperationsSheet'
@@ -220,12 +220,27 @@
         'ShowDevice'
         'ShowDevices'
 
-        ### entra-audit-log
+        ### entra_logs
         # Get-EntraAuditLogs
         'EALog'
         'EALogs'
         'GetEALog'
         'GetEALogs'
+        # Get-NonInteractiveLogs
+        'GetNILog'
+        'GetNILogs'
+        'NILog'
+        'NILogs'
+        # Get-SignInLogs
+        'GetSILog'
+        'GetSILogs'
+        'SILog'
+        'SILogs'
+        # Get-IRTServicePrincipalSignInLog
+        'GetSPSILog'
+        'GetSPSILogs'
+        'SPSILog'
+        'SPSILogs'
 
         ### onprem_ad
         # Find-AdOu
@@ -356,18 +371,6 @@
         'GetUserServicePrincipal', 'GetUserServicePrincipals'
         'GetUserEnterpriseApp', 'GetUserEnterpriseApps'
         'Get-UserApplication'
-
-        ### signin_logs
-        # Get-NonInteractiveLogs
-        'GetNILog'
-        'GetNILogs'
-        'NILog'
-        'NILogs'
-        # Get-SignInLogs
-        'GetSILog'
-        'GetSILogs'
-        'SILog'
-        'SILogs'
 
         ### unified_audit_log
         # Get-UALogs

@@ -15,6 +15,7 @@ function Find-Device {
     Version: 1.1.0
     #>
     [Alias('FindDevice', 'FindDevices')]
+    [OutputType([psobject[]])]
     [CmdletBinding()]
     param (
         [Parameter( Position = 0, Mandatory )]

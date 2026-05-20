@@ -41,7 +41,7 @@ function Reset-AdUserPassword {
     Version: 1.0.0
     #>
     [Alias('ResetAdPassword', 'ResetAdPasswords', 'Reset-AdPassword')]
-    [CmdletBinding( DefaultParameterSetName = 'RandomCharacters' )]
+    [CmdletBinding( DefaultParameterSetName = 'RandomCharacters', SupportsShouldProcess = $true )]
     param(
         [Parameter( Position = 0 )]
         [Alias( 'UserObject' )]
@@ -56,7 +56,6 @@ function Reset-AdUserPassword {
     )
 
     begin {
-        $ParameterSet = $PSCmdlet.ParameterSetName
         $OutputObjects = [System.Collections.Generic.List[PsObject]]::new()
         $UserProperties = @(
             'Enabled'
@@ -94,11 +93,11 @@ function Reset-AdUserPassword {
         foreach ($ScriptUserObject in $ScriptUserObjects) {
             $Username = $ScriptUserObject.SamAccountName
 
-            switch ($ParameterSet) {
-                'Custom' {
+            switch ($true) {
+                $Custom {
                     $Password = Read-Host -AsSecureString "Enter new password for ${Username}"
                 }
-                'RandomCharacters' {
+                $RandomCharacters {
 
                     $PlainTextPassword = Get-RandomPassword 30
                     $ConvertParams = @{
@@ -121,7 +120,9 @@ function Reset-AdUserPassword {
                  NewPassword = $Password
                  Server = $Env:ComputerName
             }
-            Set-AdAccountPassword @ResetParams
+            if ($PSCmdlet.ShouldProcess($Username, 'Reset password')) {
+                Set-AdAccountPassword @ResetParams
+            }
 
             # get new object to show result
             Write-IRT "`nGetting updated user info."

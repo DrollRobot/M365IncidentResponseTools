@@ -58,9 +58,12 @@ nav:
       - Test-IRTConnection: commands/Test-IRTConnection.md
     - Devices:
       - Show-DeviceInfo: commands/Show-DeviceInfo.md
-    - Entra Audit Log:
+    - Entra Logs:
       - Get-EntraAuditLog: commands/Get-EntraAuditLog.md
+      - Get-NonInteractiveLog: commands/Get-NonInteractiveLog.md
+      - Get-SignInLog: commands/Get-SignInLog.md
       - Show-EntraAuditLog: commands/Show-EntraAuditLog.md
+      - Show-SignInLog: commands/Show-SignInLog.md
     - Mailbox:
       - Get-IRTInboxRule: commands/Get-IRTInboxRule.md
       - Get-UserMailboxPermission: commands/Get-UserMailboxPermission.md
@@ -74,10 +77,6 @@ nav:
       - Show-IRTMessageTrace: commands/Show-IRTMessageTrace.md
     - Roles:
       - Get-AdminRole: commands/Get-AdminRole.md
-    - Sign-in Logs:
-      - Get-NonInteractiveLog: commands/Get-NonInteractiveLog.md
-      - Get-SignInLog: commands/Get-SignInLog.md
-      - Show-SignInLog: commands/Show-SignInLog.md
     - Unified Audit Log:
       - Get-UALog: commands/Get-UALog.md
       - Show-UALog: commands/Show-UALog.md

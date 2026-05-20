@@ -12,6 +12,7 @@ function Request-GraphUser {
     .NOTES
     Version: 2.0.0
     #>
+    [OutputType([hashtable])]
     [CmdletBinding()]
     param (
         [switch] $Cached,

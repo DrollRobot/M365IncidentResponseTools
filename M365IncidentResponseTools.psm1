@@ -16,14 +16,13 @@ Import-IRTConfig
 $Folders = @(
     "$PSScriptRoot\connect"
     "$PSScriptRoot\devices"
-    "$PSScriptRoot\entra_audit_log"
+    "$PSScriptRoot\entra_logs"
     "$PSScriptRoot\mailbox"
     "$PSScriptRoot\message_trace"
     "$PSScriptRoot\modules"
     "$PSScriptRoot\onprem_ad"
     "$PSScriptRoot\roles"
     "$PSScriptRoot\service_principals"
-    "$PSScriptRoot\signin_logs"
     "$PSScriptRoot\unified_audit_log"
     "$PSScriptRoot\users"
 )

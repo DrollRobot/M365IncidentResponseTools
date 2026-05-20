@@ -47,6 +47,7 @@ function Find-AdUser {
     1.2.0 - Major rewrite.
     #>
     [Alias('FindAdUser', 'FindAdUsers', 'Find-AdUsers')]
+    [OutputType([System.Collections.Generic.List[psobject]])]
     [CmdletBinding()]
     param (
         [Parameter(Position = 0, Mandatory)]

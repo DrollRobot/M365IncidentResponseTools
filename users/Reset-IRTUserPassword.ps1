@@ -152,7 +152,7 @@ function Reset-IRTUserPassword {
 
     process {
 
-        foreach ( $LoopObject in $LoopObjects ) {
+        foreach ($LoopObject in $LoopObjects) {
 
             switch ($true) {
                 $Custom {
@@ -170,7 +170,7 @@ function Reset-IRTUserPassword {
                     }
                     break
                 }
-                default {
+                $RandomCharacters {
                     # RandomCharacters
                     $UserEmail = $LoopObject.UserPrincipalName
                     $Password = Get-RandomPassword $Length
