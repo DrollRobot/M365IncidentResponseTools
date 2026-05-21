@@ -35,9 +35,7 @@ function Copy-IRTFunction {
     Copies hardcoded files plus all .ps1 files in the modules folder.
 
     .NOTES
-    Version: 1.0.3
-
-    #FIXME - Strip comments and blank lines
+    Version: 1.1.0
 
     #>
     [Alias('Copy-IRTFunctions','CopyIRTFunctions', 'CopyIRT','IRTFunction','IRTFunctions')]
@@ -130,15 +128,14 @@ if (-not `$Global:IRT_Config) {
         $Builder = [System.Text.StringBuilder]::new()
         $null = $Builder.AppendLine($bootstrap)
         foreach ($F in $Files) {
-            $null = $Builder.AppendLine("===== $($F.FullName) =====")
             $Content = Get-Content -LiteralPath $F.FullName -Raw -ErrorAction SilentlyContinue
             if ($null -ne $Content) {
                 $null = $Builder.AppendLine($Content)
             }
-            $null = $Builder.AppendLine()
         }
 
-        Set-Clipboard -Value $Builder.ToString()
+        $Formatted = Format-Powershell -Content $Builder.ToString() -Script -Comments -EmptyLines -Whitespace
+        Set-Clipboard -Value $Formatted
         Write-IRT "Copied contents of $($Files.Count) file(s) to clipboard."
     }
 }
