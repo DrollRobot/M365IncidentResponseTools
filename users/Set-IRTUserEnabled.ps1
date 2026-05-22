@@ -28,7 +28,7 @@ function Disable-GraphUser {
         $Params['UserObject'] = $UserObject
     }
 
-    Set-GraphUserAccountEnabled @Params
+    Set-IRTUserEnabled @Params
 }
 
 
@@ -62,13 +62,13 @@ function Enable-GraphUser {
         $Params['UserObject'] = $UserObject
     }
 
-    Set-GraphUserAccountEnabled @Params
+    Set-IRTUserEnabled @Params
 }
 
 ###############################################################################
-#region Set-GraphUserAccountEnabled
+#region Set-IRTUserEnabled
 
-function Set-GraphUserAccountEnabled {
+function Set-IRTUserEnabled {
     <#
 	.SYNOPSIS
 	Set AccountEnabled property on graph user(s). Called by Disable-GraphUser and Enable-GraphUser.
