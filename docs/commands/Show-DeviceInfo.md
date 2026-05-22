@@ -8,7 +8,7 @@ schema: 2.0.0
 # Show-DeviceInfo
 
 ## SYNOPSIS
-Displays Entra and Intune device properties for combined device objects produced by Find-Device.
+Displays Entra and Intune device properties for combined device objects produced by Find-IRTDevice.
 
 ## SYNTAX
 

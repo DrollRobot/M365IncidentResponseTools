@@ -67,7 +67,7 @@ The following steps run in parallel.
 | [Get-IRTTenantInfo](commands/Get-IRTTenantInfo.md) | Looks up an Entra ID tenant by GUID and returns its display name and default domain. |
 | [Get-UserMailboxPermission](commands/Get-UserMailboxPermission.md) | Lists all mailboxes in the tenant that the specified users have access to. |
 | [Show-MailboxAccess](commands/Show-MailboxAccess.md) | Displays all users with access permissions to the target user's mailbox. |
-| [Show-DeviceInfo](commands/Show-DeviceInfo.md) | Displays Entra ID and Intune device properties for devices found via Find-Device. |
+| [Show-DeviceInfo](commands/Show-DeviceInfo.md) | Displays Entra ID and Intune device properties for devices found via Find-IRTDevice. |
 | [Find-GraphDirectoryObject](commands/Find-GraphDirectoryObject.md) | Extracts GUIDs from text or clipboard and resolves them to their Graph directory objects. |
 
 **Remediation:**

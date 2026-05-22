@@ -2,7 +2,7 @@
 function Show-DeviceInfo {
     <#
     .SYNOPSIS
-    Displays Entra and Intune device properties for combined device objects produced by Find-Device.
+    Displays Entra and Intune device properties for combined device objects produced by Find-IRTDevice.
 
     .NOTES
     Version: 1.1.0

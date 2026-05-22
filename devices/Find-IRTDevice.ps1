@@ -1,15 +1,15 @@
-function Find-Device {
+function Find-IRTDevice {
     <#
     .SYNOPSIS
     Finds devices by display name, device ID, operating system, registered owner, serial number, or other
     Entra/Intune identifiers. Creates $IRT_DeviceObjects from combined Entra + Intune device records.
 
     .EXAMPLE
-    Find-Device DESKTOP-ABC123
-    Find-Device -Search DESKTOP-ABC123,LAPTOP-XYZ789
-    Find-Device flast@domain.com
-    Find-Device -Search bf7573a5844f   # partial device id / Entra id / Intune id
-    Find-Device -Search SN1234567890   # serial number (Intune)
+    Find-IRTDevice DESKTOP-ABC123
+    Find-IRTDevice -Search DESKTOP-ABC123,LAPTOP-XYZ789
+    Find-IRTDevice flast@domain.com
+    Find-IRTDevice -Search bf7573a5844f   # partial device id / Entra id / Intune id
+    Find-IRTDevice -Search SN1234567890   # serial number (Intune)
 
     .NOTES
     Version: 1.1.0
