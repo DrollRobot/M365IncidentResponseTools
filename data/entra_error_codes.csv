@@ -204,7 +204,7 @@ Error,CustomDescription,ShortDescription,LongDescription
 90092,,GraphNonRetryableError,""
 90093,,GraphUserUnauthorized,"Graph returned with a forbidden error code for the request."
 90094,,AdminConsentRequired,"Administrator consent is required."
-90095,,,"AdminConsentRequiredRequestAccess- In the Admin Consent Workflow experience, an interrupt that appears when the user is told they need to ask the admin for consent."
+90095,AdminConsentRequired,,"AdminConsentRequiredRequestAccess- In the Admin Consent Workflow experience, an interrupt that appears when the user is told they need to ask the admin for consent."
 90099,,,"The application '{appId}' ({appName}) has not been authorized in the tenant '{tenant}'. Applications must be authorized to access the external tenant before partner delegated administrators can use them. Provide pre-consent or execute the appropriate Partner Center API to authorize the application."
 90100,,InvalidRequestParameter,"The parameter is empty or not valid."
 90101,,InvalidEmailAddress,"The supplied data isn't a valid email address. The email address must be in the format someone@example.com."

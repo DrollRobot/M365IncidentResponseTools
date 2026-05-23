@@ -53,6 +53,7 @@ function Copy-IRTFunction {
 
         $HardcodedPaths = @(
             @{ Path = Join-Path $ModuleRoot 'modules' 'Write-IRT.ps1'; IsDirectory = $false }
+            @{ Path = Join-Path $ModuleRoot 'modules' 'Get-RandomPassword.ps1'; IsDirectory = $false }
             @{ Path = Join-Path $ModuleRoot 'onprem_ad'; IsDirectory = $true }
         )
 

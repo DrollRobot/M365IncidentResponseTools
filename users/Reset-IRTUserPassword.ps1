@@ -21,6 +21,12 @@ function Reset-IRTUserPassword {
                             which forces the user to choose a new password (with MFA
                             verification) on their next login.
 
+      -ClearForceChangePasswordNextSignIn
+                            Clears the force-change flag. Sets both
+                            ForceChangePasswordNextSignIn and
+                            ForceChangePasswordNextSignInWithMfa to $false without
+                            changing the current password.
+
     If no -UserObject is supplied, the function falls back to the global session objects
     stored in $Global:IRT_UserObjects (populated by Get-IRTUserObject). An error is thrown
     if neither source yields a user.
@@ -53,6 +59,11 @@ function Reset-IRTUserPassword {
     current password. The user will be required to set a new password (verified with MFA)
     on their next sign-in.
 
+    .PARAMETER ClearForceChangePasswordNextSignIn
+    Clears the forced-change-on-next-sign-in flag. Sets both ForceChangePasswordNextSignIn
+    and ForceChangePasswordNextSignInWithMfa to $false without changing the current password.
+    Use this to undo a previous -ForceChangePasswordNextSignIn call.
+
     .EXAMPLE
     Reset-IRTUserPassword -RandomCharacters
     Resets the password for the user stored in the global session using a random password.
@@ -79,11 +90,16 @@ function Reset-IRTUserPassword {
     Reset-IRTUserPassword -UserObject $User -RandomCharacters -WhatIf
     Shows what would happen without actually resetting the password.
 
+    .EXAMPLE
+    Reset-IRTUserPassword -UserObject $User -ClearForceChangePasswordNextSignIn
+    Clears the forced-change flag on the user's account.
+
     .OUTPUTS
     None. Updated user properties are displayed as a formatted table in the console.
 
     .NOTES
-    Version: 1.1.0
+    Version: 1.2.0
+    1.2.0 - Added ClearForceChangePasswordNextSignIn parameter set to undo the force-change flag.
     1.1.0 - Added ForceChangePasswordNextSignIn parameter set. Removed default parameter set;
             operator must now explicitly choose a password mode. Renamed to Reset-IRTUserPassword.
     1.0.1 - Updated to output password in safe way. Fixed bug preventing password reset.
@@ -112,7 +128,11 @@ function Reset-IRTUserPassword {
         [switch] $Custom,
 
         [Parameter(ParameterSetName = 'ForceChangePasswordNextSignIn')]
-        [switch] $ForceChangePasswordNextSignIn
+        [switch] $ForceChangePasswordNextSignIn,
+
+        [Parameter(ParameterSetName = 'ClearForceChangePasswordNextSignIn')]
+        [Alias('UndoForceChangePasswordNextSignIn')]
+        [switch] $ClearForceChangePasswordNextSignIn
     )
 
     begin {
@@ -167,6 +187,13 @@ function Reset-IRTUserPassword {
                 $ForceChangePasswordNextSignIn {
                     $PasswordProfile = @{
                         ForceChangePasswordNextSignInWithMfa = $true
+                    }
+                    break
+                }
+                $ClearForceChangePasswordNextSignIn {
+                    $PasswordProfile = @{
+                        ForceChangePasswordNextSignIn = $false
+                        ForceChangePasswordNextSignInWithMfa = $false
                     }
                     break
                 }

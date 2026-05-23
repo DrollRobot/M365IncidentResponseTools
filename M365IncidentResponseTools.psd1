@@ -126,7 +126,7 @@
         'Disable-AdUser'
         'Enable-AdUser'
         'Push-AdSync'
-        'Reset-AdUserPassword'
+        'Reset-IRTAdUserPassword'
         'Show-AdOus'
         'Show-AdUserInfo'
 
@@ -278,7 +278,7 @@
         'PushAdSync'
         'AdSync'
         'SyncAd'
-        # Reset-AdUserPassword
+        # Reset-IRTAdUserPassword
         'ResetAdPassword'
         'ResetAdPasswords'
         'Reset-AdPassword'

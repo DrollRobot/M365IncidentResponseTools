@@ -115,6 +115,6 @@ nav:
       - Find-AllDomainController: commands/Find-AllDomainController.md
       - Get-AdAdminUser: commands/Get-AdAdminUser.md
       - Push-AdSync: commands/Push-AdSync.md
-      - Reset-AdUserPassword: commands/Reset-AdUserPassword.md
+      - Reset-IRTAdUserPassword: commands/Reset-IRTAdUserPassword.md
       - Show-AdOus: commands/Show-AdOus.md
       - Show-AdUserInfo: commands/Show-AdUserInfo.md

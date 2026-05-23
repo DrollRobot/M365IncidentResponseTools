@@ -21,7 +21,7 @@
 | [Show-AdUserInfo](commands/Show-AdUserInfo.md) | Displays comprehensive on-premises AD user attributes including password metadata and group memberships. |
 | [Disable-AdUser](commands/Disable-AdUser.md) | Disables one or more AD user accounts and triggers AD replication and Entra ID delta sync. |
 | [Enable-AdUser](commands/Enable-AdUser.md) | Re-enables one or more disabled AD user accounts and triggers AD replication and Entra ID delta sync. |
-| [Reset-AdUserPassword](commands/Reset-AdUserPassword.md) | Resets one or more on-premises AD user passwords using a randomly generated or custom password. |
+| [Reset-IRTAdUserPassword](commands/Reset-IRTAdUserPassword.md) | Resets one or more on-premises AD user passwords using a randomly generated, custom, or forced-change-at-next-sign-in approach. |
 | [Push-AdSync](commands/Push-AdSync.md) | Forces an Active Directory to Entra ID delta sync cycle, automatically discovering the sync server if needed. |
 | [Find-AdOu](commands/Find-AdOu.md) | Searches Active Directory Organizational Units by name, CanonicalName, or DistinguishedName. |
 | [Show-AdOus](commands/Show-AdOus.md) | Lists all OUs in the domain sorted by CanonicalName with user and computer counts. |

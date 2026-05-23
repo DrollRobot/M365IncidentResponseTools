@@ -149,8 +149,8 @@ Locale: en-US
 ### [Request-GraphUser](Request-GraphUser.md)
 {{ Fill in the Description }}
 
-### [Reset-AdUserPassword](Reset-AdUserPassword.md)
-{{ Fill in the Description }}
+### [Reset-IRTAdUserPassword](Reset-IRTAdUserPassword.md)
+Resets one or more on-premises AD user passwords using a randomly generated, custom, or forced-change-at-next-sign-in approach.
 
 ### [Resolve-IRTDateRange](Resolve-IRTDateRange.md)
 {{ Fill in the Description }}
