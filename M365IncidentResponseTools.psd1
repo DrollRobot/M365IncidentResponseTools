@@ -97,6 +97,7 @@
         'Disable-IRTDevice'
         'Enable-IRTDevice'
         'Find-IRTDevice'
+        'Remove-IRTDevice'
         'Show-DeviceInfo'
 
         ### connect
@@ -173,7 +174,7 @@
         'Find-ServicePrincipal'
         'Get-IRTTenantInfo'
         'Get-UserServicePrincipal'
-        'Show-ServicePrincipalInfo'
+        'Show-IRTServicePrincipalInfo'
         'Show-TenantServicePrincipal'
 
         ### unified_audit_log
@@ -225,6 +226,11 @@
         # Find-IRTDevice
         'FindDevice'
         'FindDevices'
+        # Remove-IRTDevice
+        'DeleteDevice'
+        'DeleteDevices'
+        'RemoveDevice'
+        'RemoveDevices'
         # Show-DeviceInfo
         'ShowDevice'
         'ShowDevices'
@@ -348,7 +354,7 @@
         'FindApplication', 'FindApplications'
         'FindEnterpriseApp', 'FindEnterpriseApps'
         'FindEnterpriseApplication', 'FindEnterpriseApplications'
-        # Show-ServicePrincipalInfo
+        # Show-IRTServicePrincipalInfo
         'ShowServicePrincipal', 'ShowServicePrincipals'
         'ShowSP', 'ShowSPs'
         'ShowApp', 'ShowApps'

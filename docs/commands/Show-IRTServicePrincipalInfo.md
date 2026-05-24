@@ -5,7 +5,7 @@ online version:
 schema: 2.0.0
 ---
 
-# Show-ServicePrincipalInfo
+# Show-IRTServicePrincipalInfo
 
 ## SYNOPSIS
 Displays detailed service principal properties for objects produced by Find-ServicePrincipal.
@@ -13,7 +13,7 @@ Displays detailed service principal properties for objects produced by Find-Serv
 ## SYNTAX
 
 ```
-Show-ServicePrincipalInfo [[-ServicePrincipalObject] <PSObject[]>] [-ProgressAction <ActionPreference>]
+Show-IRTServicePrincipalInfo [[-ServicePrincipalObject] <PSObject[]>] [-ProgressAction <ActionPreference>]
  [<CommonParameters>]
 ```
 
@@ -24,7 +24,7 @@ displays it as a formatted tree in the console via Show-GraphServicePrincipalTre
 Falls back to $Global:IRT_ServicePrincipalObjects if no -ServicePrincipalObject is
 passed.
 This lets you run Find-ServicePrincipal first to select a target, then run
-Show-ServicePrincipalInfo with no arguments to display it.
+Show-IRTServicePrincipalInfo with no arguments to display it.
 
 Properties retrieved include credentials (key and password certificates), OAuth2
 permission scopes, app roles, reply URLs, SSO settings, publisher verification,
@@ -35,19 +35,19 @@ and all standard identity fields.
 ### EXAMPLE 1
 ```
 Find-ServicePrincipal MyApp
-Show-ServicePrincipalInfo
+Show-IRTServicePrincipalInfo
 Two-step workflow: find then display.
 ```
 
 ### EXAMPLE 2
 ```
-Show-ServicePrincipalInfo
+Show-IRTServicePrincipalInfo
 Display info for the service principal already stored in the global session.
 ```
 
 ### EXAMPLE 3
 ```
-Show-ServicePrincipalInfo -ServicePrincipalObject $SP
+Show-IRTServicePrincipalInfo -ServicePrincipalObject $SP
 Display info for a specific service principal object passed directly.
 ```
 

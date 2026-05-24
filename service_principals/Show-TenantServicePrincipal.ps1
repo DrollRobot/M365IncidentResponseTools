@@ -12,7 +12,7 @@ function Show-TenantServicePrincipal {
            'ShowTenantApp', 'ShowTenantApps',
            'ShowTenantApplication', 'ShowTenantApplications',
            'ShowTenantEnterpriseApp', 'ShowTenantEnterpriseApps',
-           'ShowAllServicePrincipals', 'ShowAllSPs',
+           'ShowAllServicePrincipals', 'ShowAllSP', 'ShowAllSPs',
            'ShowAllApps', 'ShowAllApplications', 'ShowAllEnterpriseApps',
            'Show-Apps', 'Show-ServicePrincipals', 'Show-EnterpriseApps', 'Show-Applications')]
     [OutputType([System.Collections.Generic.List[pscustomobject]])]

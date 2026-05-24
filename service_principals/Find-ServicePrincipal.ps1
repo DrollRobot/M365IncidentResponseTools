@@ -28,6 +28,10 @@ function Find-ServicePrincipal {
     $Global:IRT_<VarPrefix>ServicePrincipalObjects. Useful when working with multiple
     service principals simultaneously.
 
+    .PARAMETER Cached
+    Use service principal data already cached in $Global:IRT_ServicePrincipals from a
+    previous call instead of fetching fresh data from Graph.
+
     .PARAMETER Script
     Suppresses all console output and returns matched objects directly as an array.
     Used by playbook scripts that need the objects without interactive display.
@@ -59,9 +63,9 @@ function Find-ServicePrincipal {
     .NOTES
     Version: 1.0.0
 
-    Search data is fetched once from Graph on the first call and cached in
-    $Global:IRT_ServicePrincipals for the remainder of the session. Subsequent
-    calls use the cache automatically.
+    By default, fresh data is fetched from Graph on every call. Pass -Cached to
+    skip the network request and reuse data already stored in
+    $Global:IRT_ServicePrincipals from a previous call.
     #>
     [Alias('FindServicePrincipal', 'FindServicePrincipals',
            'FindSP', 'FindSPs',
@@ -75,6 +79,7 @@ function Find-ServicePrincipal {
         [Parameter( Position = 0, Mandatory )]
         [string[]] $Search,
         [string] $VarPrefix,
+        [switch] $Cached,
         [switch] $Script
     )
 
@@ -88,8 +93,12 @@ function Find-ServicePrincipal {
             'Id'
         )
 
-        # get all service principals (fetch once, use cache on subsequent calls)
-        $AllServicePrincipals = Request-GraphServicePrincipal -Cached
+        # fetch fresh data by default; use cache only when -Cached is specified
+        if ($Cached) {
+            $AllServicePrincipals = Request-GraphServicePrincipal -Cached
+        } else {
+            $AllServicePrincipals = Request-GraphServicePrincipal
+        }
     }
 
     process {

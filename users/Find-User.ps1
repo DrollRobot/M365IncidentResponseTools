@@ -24,6 +24,7 @@ function Find-User {
         [Parameter( Position = 0, Mandatory )]
         [string[]] $Search,
         [string] $VarPrefix,
+        [switch] $Cached,
         [switch] $Script
     )
 
@@ -37,13 +38,11 @@ function Find-User {
             'Id'
         )
 
-        # get all users
-        $GraphUsers = Request-GraphUser
+        # fetch fresh data by default; use cache only when -Cached is specified
+        $GraphUsers = Request-GraphUser -Cached:$Cached
     }
 
     process {
-
-        Write-Host ''
 
         foreach ( $SearchString in $Search ) {
 

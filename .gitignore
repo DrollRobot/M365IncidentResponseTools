@@ -2,6 +2,7 @@
 debug/
 /test*
 Get-MailboxesUserHasFullAccessTo.ps1
+python/
 
 # investigation files
 /*.xml
