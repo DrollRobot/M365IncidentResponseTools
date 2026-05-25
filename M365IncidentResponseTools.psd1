@@ -326,8 +326,11 @@
 
         ### modules
         # Copy-IRTFunction
+        'Copy-IRTFunctions'
         'CopyIRTFunctions'
-        'CopyIRT'
+        'CopyIRTFunction'
+        'IRTFunction'
+        'IRTFunctions'
         # Import-IRTConfig / Open-IRTConfig / Set-IRTConfig
         'ImportConfig'
         'OpenConfig'

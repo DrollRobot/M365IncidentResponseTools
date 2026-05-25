@@ -86,7 +86,7 @@ function Find-User {
 
         # if script, just return objects
         if ($Script) {
-            return @($ScriptUserObjects)
+            return [psobject[]]$ScriptUserObjects
         }
 
         if ( $ScriptUserObjects.Count -gt 0 ) {

@@ -24,6 +24,8 @@ function Format-Powershell {
         [switch] $OneLine
     )
 
+    process {
+
     if ( -not $Script ) {
         $IsClipboardContent = $false
         if ( [string]::IsNullOrWhiteSpace( $Content ) ) {
@@ -53,7 +55,7 @@ function Format-Powershell {
         if ($EmptyLines) {
             $Params["RemoveAllEmptyLines"] = $true
         }
-        $Content = Remove-Comments @Params
+        $Content = Remove-Comment @Params
     }
 
     # insert version number
@@ -70,11 +72,11 @@ function Format-Powershell {
 
     # remove whitespace from each line
     if ($Whitespace) {
-        $Content = Remove-WhitespaceFromLines -Content $Content
+        $Content = Remove-WhitespaceFromLine -Content $Content
     }
 
     if ( $OneLine ) {
-        $Content = Remove-Newlines -Content $Content
+        $Content = Remove-Newline -Content $Content
     }
 
     if ( $IsClipboardContent ) {
@@ -88,21 +90,23 @@ function Format-Powershell {
         # output content if it was provided directly
         Write-Output $Content
     }
+
+    } # end process
 }
 
 
-function Remove-Newlines {
+function Remove-Newline {
 	<#
 	.SYNOPSIS
-	Remove unnecessary newlines from Powershell code.	
-	
+	Remove unnecessary newlines from Powershell code.
+
 	.EXAMPLE
-	
-	
+
+
 	.NOTES
 		Version: 1.0.0
 	#>
-    [CmdletBinding()]
+    [CmdletBinding(SupportsShouldProcess = $true)]
     param (
         [string] $Content
     )
@@ -153,8 +157,8 @@ function Remove-Newlines {
 }
 
 
-function Remove-WhitespaceFromLines {
-    [CmdletBinding()]
+function Remove-WhitespaceFromLine {
+    [CmdletBinding(SupportsShouldProcess = $true)]
     param (
 	    [Parameter(
             Position=0,
@@ -162,6 +166,8 @@ function Remove-WhitespaceFromLines {
         )]
         [string]$Content
     )
+
+    process {
 
     # split the content into individual lines
     $Lines = $Content -split "`n"
@@ -179,10 +185,12 @@ function Remove-WhitespaceFromLines {
     $Output = $Lines -join "`n"
 
     Write-Output $Output
+
+    } # end process
 }
 
 
-function Remove-Comments {
+function Remove-Comment {
     <#
     .SYNOPSIS
     Remove comments from PowerShell file
@@ -220,7 +228,7 @@ function Remove-Comments {
     Most of the work done by Chris Dent, with improvements by Przemyslaw Klys
     https://evotec.xyz/how-to-efficiently-remove-comments-from-your-powershell-script/
     #>
-    [CmdletBinding(DefaultParameterSetName = 'FilePath')]
+    [CmdletBinding(DefaultParameterSetName = 'FilePath', SupportsShouldProcess = $true)]
     param(
         [Parameter(Mandatory, ParameterSetName = 'FilePath')]
         [alias('FilePath', 'Path', 'LiteralPath')]
@@ -385,7 +393,7 @@ function Format-GeneralFunction {
 		RemoveCommentsInParamBlock = $true
 		RemoveCommentsBeforeParamBlock = $true
 	}
-	$OutputRaw = Remove-Comments @CommentParams
+	$OutputRaw = Remove-Comment @CommentParams
 
 	# separate into lines
 	$OutputLines = $OutputRaw -Split "`r?`n"
@@ -402,7 +410,7 @@ function Format-GeneralFunction {
 	# show on screen
 	Write-Host -ForegroundColor Green "`nOutput:"
 	Write-Output $Output
-	
+
 	# put output in clipboard
 	Set-Clipboard $Output
 }

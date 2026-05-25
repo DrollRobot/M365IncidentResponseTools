@@ -38,7 +38,7 @@ function Copy-IRTFunction {
     Version: 1.1.0
 
     #>
-    [Alias('Copy-IRTFunctions','CopyIRTFunctions', 'CopyIRT','IRTFunction','IRTFunctions')]
+    [Alias('Copy-IRTFunctions','CopyIRTFunctions', 'CopyIRTFunction', 'IRTFunction','IRTFunctions')]
     [CmdletBinding()]
     param (
         [Parameter(Position = 0, ValueFromPipeline, ValueFromPipelineByPropertyName)]

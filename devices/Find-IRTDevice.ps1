@@ -100,7 +100,7 @@ function Find-IRTDevice {
 
         # if script, just return objects
         if ($Script) {
-            return @($ScriptDeviceObjects)
+            return [psobject[]]$ScriptDeviceObjects
         }
 
         if ( $ScriptDeviceObjects.Count -gt 0 ) {
