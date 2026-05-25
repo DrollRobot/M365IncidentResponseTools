@@ -70,6 +70,16 @@ function Add-IpAddressConditionalFormatting {
         StopIfTrue = $true
     }
     Add-ConditionalFormatting @CFParams
+    # datacenter
+    $CFParams = @{
+        Worksheet       = $WorkSheet
+        Address         = "${IpAddressColumn}:${IpAddressColumn}"
+        RuleType        = 'ContainsText'
+        ConditionValue  = ' datacenter'
+        BackgroundColor = [System.Drawing.ColorTranslator]::FromHtml('#FACD90')
+        StopIfTrue = $true
+    }
+    Add-ConditionalFormatting @CFParams
     # mobile
     $CFParams = @{
         Worksheet       = $WorkSheet
