@@ -13,8 +13,8 @@ Displays detailed service principal properties for objects produced by Find-Serv
 ## SYNTAX
 
 ```
-Show-IRTServicePrincipalInfo [[-ServicePrincipalObject] <PSObject[]>] [-ProgressAction <ActionPreference>]
- [<CommonParameters>]
+Show-IRTServicePrincipalInfo [[-ServicePrincipalObject] <PSObject[]>] [-Cached]
+ [-ProgressAction <ActionPreference>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -66,6 +66,23 @@ Aliases: ServicePrincipalObjects
 Required: False
 Position: 1
 Default value: None
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
+### -Cached
+Pass -Cached to all Request-* calls so previously fetched Graph data is reused
+instead of making new API calls. Without this switch, each Request-* call fetches
+fresh data from Graph.
+
+```yaml
+Type: SwitchParameter
+Parameter Sets: (All)
+Aliases:
+
+Required: False
+Position: Named
+Default value: False
 Accept pipeline input: False
 Accept wildcard characters: False
 ```

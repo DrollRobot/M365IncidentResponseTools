@@ -30,6 +30,12 @@ Reset-IRTUserPassword [[-UserObject] <PSObject[]>] [-ForceChangePasswordNextSign
  [-ProgressAction <ActionPreference>] [-WhatIf] [-Confirm] [<CommonParameters>]
 ```
 
+### ClearForceChangePasswordNextSignIn
+```
+Reset-IRTUserPassword [[-UserObject] <PSObject[]>] [-ClearForceChangePasswordNextSignIn]
+ [-ProgressAction <ActionPreference>] [-WhatIf] [-Confirm] [<CommonParameters>]
+```
+
 ## DESCRIPTION
 Resets the password for one or more Entra ID users via the Microsoft Graph API.
 Exactly
@@ -184,6 +190,23 @@ on their next sign-in.
 Type: SwitchParameter
 Parameter Sets: ForceChangePasswordNextSignIn
 Aliases:
+
+Required: False
+Position: Named
+Default value: False
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
+### -ClearForceChangePasswordNextSignIn
+Clears the forced-change-on-next-sign-in flag. Sets both ForceChangePasswordNextSignIn
+and ForceChangePasswordNextSignInWithMfa to $false without changing the current password.
+Use this to undo a previous -ForceChangePasswordNextSignIn call.
+
+```yaml
+Type: SwitchParameter
+Parameter Sets: ClearForceChangePasswordNextSignIn
+Aliases: UndoForceChangePasswordNextSignIn
 
 Required: False
 Position: Named

@@ -14,8 +14,8 @@ Creates $IRT_ServicePrincipalObjects.
 ## SYNTAX
 
 ```
-Find-ServicePrincipal [-Search] <String[]> [-VarPrefix <String>] [-Script] [-ProgressAction <ActionPreference>]
- [<CommonParameters>]
+Find-ServicePrincipal [-Search] <String[]> [-VarPrefix <String>] [-Cached] [-Script]
+ [-ProgressAction <ActionPreference>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -102,6 +102,22 @@ Aliases:
 Required: False
 Position: Named
 Default value: None
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
+### -Cached
+Use service principal data already cached in $Global:IRT_ServicePrincipals from a
+previous call instead of fetching fresh data from Graph.
+
+```yaml
+Type: SwitchParameter
+Parameter Sets: (All)
+Aliases:
+
+Required: False
+Position: Named
+Default value: False
 Accept pipeline input: False
 Accept wildcard characters: False
 ```

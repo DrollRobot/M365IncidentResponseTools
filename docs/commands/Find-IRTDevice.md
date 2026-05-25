@@ -5,16 +5,17 @@ online version:
 schema: 2.0.0
 ---
 
-# Find-User
+# Find-IRTDevice
 
 ## SYNOPSIS
-Finds graph user by displayname, email address, or user id guid.
-Creates $UserObjects variable.
+Finds devices by display name, device ID, operating system, registered owner, serial number, or other
+Entra/Intune identifiers.
+Creates $IRT_DeviceObjects from combined Entra + Intune device records.
 
 ## SYNTAX
 
 ```
-Find-User [-Search] <String[]> [-VarPrefix <String>] [-Cached] [-Script] [-ProgressAction <ActionPreference>]
+Find-IRTDevice [-Search] <String[]> [-VarPrefix <String>] [-Script] [-ProgressAction <ActionPreference>]
  [<CommonParameters>]
 ```
 
@@ -25,10 +26,11 @@ Find-User [-Search] <String[]> [-VarPrefix <String>] [-Cached] [-Script] [-Progr
 
 ### EXAMPLE 1
 ```
-Find-User flast
-Find-User -Search flast,flast,flast
-Find-User flast@domain.com
-Find-User -Search bf7573a5844f (partial user id number)
+Find-IRTDevice DESKTOP-ABC123
+Find-IRTDevice -Search DESKTOP-ABC123,LAPTOP-XYZ789
+Find-IRTDevice flast@domain.com
+Find-IRTDevice -Search bf7573a5844f   # partial device id / Entra id / Intune id
+Find-IRTDevice -Search SN1234567890   # serial number (Intune)
 ```
 
 ## PARAMETERS
@@ -59,21 +61,6 @@ Aliases:
 Required: False
 Position: Named
 Default value: None
-Accept pipeline input: False
-Accept wildcard characters: False
-```
-
-### -Cached
-{{ Fill Cached Description }}
-
-```yaml
-Type: SwitchParameter
-Parameter Sets: (All)
-Aliases:
-
-Required: False
-Position: Named
-Default value: False
 Accept pipeline input: False
 Accept wildcard characters: False
 ```
@@ -115,16 +102,8 @@ This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable
 
 ## OUTPUTS
 
+### System.Management.Automation.PSObject[]
 ## NOTES
-Version: 1.1.4
-1.1.4 - Fixed bug with $UserObjects not being a collection.
-Moved getting full object to Show-User function.
-1.1.3 - Removed checks for modules and permissions.
-Checking at module level instead.
-1.1.2 - Added enabled as a displayed field.
-1.1.1 - Bug fix.
-Script was passing collections rather than user objects.
-1.1.0 - Major rewrite.
-Renamed to Find-User.
+Version: 1.1.0
 
 ## RELATED LINKS

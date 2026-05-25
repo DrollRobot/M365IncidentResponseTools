@@ -96,21 +96,6 @@ Accept pipeline input: False
 Accept wildcard characters: False
 ```
 
-### -Custom
-Prompts the operator to enter a custom password via Read-Host -AsSecureString.
-
-```yaml
-Type: SwitchParameter
-Parameter Sets: Custom
-Aliases:
-
-Required: False
-Position: Named
-Default value: False
-Accept pipeline input: False
-Accept wildcard characters: False
-```
-
 ### -RandomCharacters
 Generates a random password of the specified length and applies it to the account.
 The password is written directly to the console (bypassing transcript logging).
@@ -139,6 +124,21 @@ Aliases:
 Required: False
 Position: Named
 Default value: 30
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
+### -Custom
+Prompts the operator to enter a custom password via Read-Host -AsSecureString.
+
+```yaml
+Type: SwitchParameter
+Parameter Sets: Custom
+Aliases:
+
+Required: False
+Position: Named
+Default value: False
 Accept pipeline input: False
 Accept wildcard characters: False
 ```
