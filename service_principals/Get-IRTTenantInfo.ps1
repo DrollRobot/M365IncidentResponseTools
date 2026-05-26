@@ -75,7 +75,12 @@ function Get-IRTTenantInfo {
 
         if (-not $NoCache) {
             $ModuleName = $MyInvocation.MyCommand.ModuleName
-            $CachePath = Join-Path -Path $env:APPDATA -ChildPath $ModuleName -AdditionalChildPath 'tenant_owner_info.csv'
+            $JpParams = @{
+                Path                = $env:APPDATA
+                ChildPath           = $ModuleName
+                AdditionalChildPath = 'tenant_owner_info.csv'
+            }
+            $CachePath = Join-Path @JpParams
             $CacheDir  = Split-Path $CachePath -Parent
             if (-not (Test-Path $CacheDir)) {
                 $null = New-Item -ItemType Directory -Path $CacheDir -Force
@@ -112,7 +117,8 @@ function Get-IRTTenantInfo {
             $Tid = $guidParsed.ToString()
 
             # --- Cache lookup ---
-            if (-not $NoCache -and -not $ForceRefresh -and $Global:IRT_TenantInfoTable.ContainsKey($Tid)) {
+            if (-not $NoCache -and -not $ForceRefresh -and
+                $Global:IRT_TenantInfoTable.ContainsKey($Tid)) {
                 $cached = $Global:IRT_TenantInfoTable[$Tid]
                 Write-Verbose "Cache hit for '$Tid' (cached $( $cached.CachedAt ))"
                 [pscustomobject]@{
@@ -139,7 +145,8 @@ function Get-IRTTenantInfo {
             # This is the only way to resolve a tenant GUID to its org name and domain.
             if ($GraphAvailable) {
 
-                $GraphUri = "v1.0/tenantRelationships/findTenantInformationByTenantId(tenantId='$Tid')"
+                $GraphUri = "v1.0/tenantRelationships/" +
+                    "findTenantInformationByTenantId(tenantId='$Tid')"
                 Write-Verbose "Graph lookup: $GraphUri"
 
                 try {
@@ -151,64 +158,24 @@ function Get-IRTTenantInfo {
                     $graphSource   = $true
                 }
                 catch {
-                    Write-Warning "Graph cross-tenant lookup failed for '$Tid': $( $_.Exception.Message )"
+                    $Msg = "Graph cross-tenant lookup failed for '$Tid': " +
+                        "$( $_.Exception.Message )"
+                    Write-Warning $Msg
                 }
             }
 
-            # --- OIDC Discovery (unauthenticated) ---
+            # --- OIDC Discovery ---
             # Provides cloud, region, Graph host, and confirms the tenant exists.
-            $CloudEndpoints = [ordered]@{
-                Commercial = 'login.microsoftonline.com'
-                USGov      = 'login.microsoftonline.us'
-                China      = 'login.chinacloudapi.cn'
-            }
+            $TenantCloud = Invoke-TenantOIDCLookup -TenantId $Tid
+            $cloudName   = $TenantCloud?.Cloud
 
-            $oidc      = $null
-            $cloudName = $null
-
-            foreach ($cloud in $CloudEndpoints.GetEnumerator()) {
-
-                $Url = "https://$( $cloud.Value )/$Tid/v2.0/.well-known/openid-configuration"
-                Write-Verbose "Probing $( $cloud.Key ): $Url"
-
-                try {
-                    $oidc      = Invoke-RestMethod -Uri $Url -ErrorAction Stop
-                    $cloudName = $cloud.Key
-                    break
-                }
-                catch {
-                    Write-Verbose "Not found in $( $cloud.Key )."
-                }
-            }
-
-            if (-not $oidc -and -not $graphSource) {
+            if (-not $TenantCloud -and -not $graphSource) {
                 Write-Warning "Tenant '$Tid' was not found."
                 [pscustomobject]@{ TenantId = $Tid; Exists = $false }
                 continue
             }
 
-            # --- Derive environment label ---
-            $environment = $null
-            if ($oidc) {
-                $regionScope = $oidc.tenant_region_scope
-                $regionSub   = $oidc.tenant_region_sub_scope
-
-                $environment = switch ($regionScope) {
-                    'WW' {
-                        if ($regionSub -eq 'GCC') { 'GCC' } else { 'Commercial' }
-                    }
-                    'USGov' {
-                        switch ($regionSub) {
-                            'DODCON' { 'GCC High' }
-                            'DOD'    { 'DoD' }
-                            default  { 'USGov' }
-                        }
-                    }
-                    'USG' { 'GCC High' }
-                    'DOD' { 'DoD' }
-                    default { $regionScope }
-                }
-            }
+            $environment = $TenantCloud?.Environment
 
             # --- Output ---
             [pscustomobject]@{
@@ -219,8 +186,8 @@ function Get-IRTTenantInfo {
                 FederationBrandName = $fedBrandName
                 Environment         = $environment
                 Cloud               = $cloudName
-                GraphHost           = if ($oidc) { $oidc.msgraph_host } else { $null }
-                TokenEndpoint       = if ($oidc) { $oidc.token_endpoint } else { $null }
+                GraphHost           = $TenantCloud?.msgraph_host
+                TokenEndpoint       = $TenantCloud?.token_endpoint
                 Source              = if ($graphSource) { 'Graph' } else { 'PublicEndpoints' }
             }
 
@@ -233,8 +200,8 @@ function Get-IRTTenantInfo {
                     FederationBrandName = $fedBrandName
                     Environment         = $environment
                     Cloud               = $cloudName
-                    GraphHost           = if ($oidc) { $oidc.msgraph_host } else { $null }
-                    TokenEndpoint       = if ($oidc) { $oidc.token_endpoint } else { $null }
+                    GraphHost           = $TenantCloud?.msgraph_host
+                    TokenEndpoint       = $TenantCloud?.token_endpoint
                     CachedAt            = (Get-Date -Format 'o')
                 }
                 $Global:IRT_TenantInfoTable[$tid] = $cacheEntry
@@ -248,7 +215,13 @@ function Get-IRTTenantInfo {
         # The global table is already updated - a failed write only affects persistence.
         if (-not $NoCache -and $newCacheEntries.Count -gt 0) {
             try {
-                $newCacheEntries | Export-Csv -Path $cachePath -Append -NoTypeInformation -Encoding UTF8
+                $ExportParams = @{
+                    Path              = $cachePath
+                    Append            = $true
+                    NoTypeInformation = $true
+                    Encoding          = 'UTF8'
+                }
+                $newCacheEntries | Export-Csv @ExportParams
                 Write-Verbose "Appended $( $newCacheEntries.Count ) tenant(s) to $cachePath"
             }
             catch {}
@@ -276,10 +249,17 @@ function Open-IRTTenantInfoCSV {
     param ()
 
     $moduleName = $MyInvocation.MyCommand.ModuleName
-    $cachePath  = Join-Path -Path $env:APPDATA -ChildPath $moduleName -AdditionalChildPath 'tenant_owner_info.csv'
+    $JpParams = @{
+        Path                = $env:APPDATA
+        ChildPath           = $moduleName
+        AdditionalChildPath = 'tenant_owner_info.csv'
+    }
+    $cachePath = Join-Path @JpParams
 
     if (-not (Test-Path $cachePath)) {
-        Write-Warning "Tenant info cache not found at '$cachePath'. Run Get-IRTTenantInfo first to populate it."
+        $Msg = "Tenant info cache not found at '$cachePath'. " +
+            "Run Get-IRTTenantInfo first to populate it."
+        Write-Warning $Msg
         return
     }
 
@@ -289,6 +269,9 @@ function Open-IRTTenantInfoCSV {
 
 # TESTING
 # Get-IRTTenantInfo -TenantId 'f8cdef31-a31e-4b4a-93e4-5f571e91255a' # Microsoft
-# Get-IRTTenantInfo -SkipGraph -TenantId 'f8cdef31-a31e-4b4a-93e4-5f571e91255a' # Microsoft tenant id
-# Get-IRTTenantInfo -TenantId 'f8cdef31-a31e-4b4a-93e4-5f571e91255a' -ForceRefresh # re-query and update cache
-# Get-IRTTenantInfo -TenantId 'f8cdef31-a31e-4b4a-93e4-5f571e91255a' -NoCache     # skip cache entirely
+# Get-IRTTenantInfo -SkipGraph -TenantId 'f8cdef31-a31e-4b4a-93e4-5f571e91255a'
+# ^^ Microsoft tenant id
+# Get-IRTTenantInfo -TenantId 'f8cdef31-a31e-4b4a-93e4-5f571e91255a' -ForceRefresh
+# ^^ re-query and update cache
+# Get-IRTTenantInfo -TenantId 'f8cdef31-a31e-4b4a-93e4-5f571e91255a' -NoCache
+# ^^ skip cache entirely

@@ -42,7 +42,8 @@ function Build-AllOperationSheet {
             $OperationsFromSheet = [System.Collections.Generic.HashSet[string]]::new()
             if ($OperationSheetData) {
                 foreach ($Row in $OperationSheetData) {
-                    [void]$OperationsFromSheet.Add("$($Row.Workload)|$($Row.RecordType)|$($Row.Operation)")
+                    $Op = "$($Row.Workload)|$($Row.RecordType)|$($Row.Operation)"
+                    [void]$OperationsFromSheet.Add($Op)
                 }
             }
             $OperationsFromLog = [System.Collections.Generic.HashSet[string]]::new()
@@ -65,9 +66,9 @@ function Build-AllOperationSheet {
 
             # save operations to create complete list
             if ($Script:Test) {
-                [void]$OperationsFromLog.Add(
-                    "$($LogEntry.AuditData.Workload)|$($LogEntry.AuditData.RecordType)|$($LogEntry.AuditData.Operation)"
-                )
+                $OpKey = "$($LogEntry.AuditData.Workload)|" +
+                    "$($LogEntry.AuditData.RecordType)|$($LogEntry.AuditData.Operation)"
+                [void]$OperationsFromLog.Add($OpKey)
             }
 
             # Raw
@@ -110,7 +111,9 @@ function Build-AllOperationSheet {
                         [void]$IpAddresses.Add($IpObject.ToString())
                     }
                 }
-            $IpText = if ($IpAddresses.Count -gt 0) { ($IpAddresses | Sort-Object) -join ', ' } else { '' }
+            $IpText = if ($IpAddresses.Count -gt 0) {
+                ($IpAddresses | Sort-Object) -join ', '
+            } else { '' }
 
             #region Summary
             $RecordType = $LogEntry.RecordType
@@ -278,11 +281,16 @@ function Build-AllOperationSheet {
             $SheetStartRow = $Worksheet.Dimension.Start.Row
             $EndColumn = $Worksheet.Dimension.End.Column | Convert-DecimalToExcelColumn
             $EndRow = $Worksheet.Dimension.End.Row
-            $TableStartColumn = ($Worksheet.Tables.Address | Select-Object -First 1).Start.Column | Convert-DecimalToExcelColumn
-            $TableStartRow = ($Worksheet.Tables.Address | Select-Object -First 1).Start.Row
+            $TableAddress     = $Worksheet.Tables.Address | Select-Object -First 1
+            $TableStartColumn = $TableAddress.Start.Column | Convert-DecimalToExcelColumn
+            $TableStartRow    = $TableAddress.Start.Row
 
-            $SummaryColumn = ($Worksheet.Tables[0].Columns | Where-Object {$_.Name -eq 'Summary'}).Id | Convert-DecimalToExcelColumn
-            $OperationColumn = ($Worksheet.Tables[0].Columns | Where-Object {$_.Name -eq 'Operation'}).Id | Convert-DecimalToExcelColumn
+            $SummaryColEntry   = $Worksheet.Tables[0].Columns |
+                Where-Object { $_.Name -eq 'Summary' }
+            $SummaryColumn     = $SummaryColEntry.Id | Convert-DecimalToExcelColumn
+            $OperationColEntry = $Worksheet.Tables[0].Columns |
+                Where-Object { $_.Name -eq 'Operation' }
+            $OperationColumn   = $OperationColEntry.Id | Convert-DecimalToExcelColumn
 
             # IP address conditional formatting
             Add-IpAddressConditionalFormatting -Worksheet $Worksheet -ColumnName 'IpAddresses'
@@ -293,7 +301,8 @@ function Build-AllOperationSheet {
                     if ($Row.Risk -eq 'High') {
                         $CFParams = @{
                             Worksheet       = $Worksheet
-                            Address         = "${OperationColumn}${TableStartRow}:${OperationColumn}${EndRow}"
+                            Address         = "${OperationColumn}${TableStartRow}:" +
+                                "${OperationColumn}${EndRow}"
                             RuleType        = 'ContainsText'
                             ConditionValue  = $Row.Operation
                             BackgroundColor = 'LightPink'
@@ -303,7 +312,8 @@ function Build-AllOperationSheet {
                     if ($Row.Risk -eq 'Medium') {
                         $CFParams = @{
                             Worksheet       = $Worksheet
-                            Address         = "${OperationColumn}${TableStartRow}:${OperationColumn}${EndRow}"
+                            Address         = "${OperationColumn}${TableStartRow}:" +
+                                "${OperationColumn}${EndRow}"
                             RuleType        = 'ContainsText'
                             ConditionValue  = $Row.Operation
                             BackgroundColor = 'LightGoldenrodYellow'
@@ -381,13 +391,16 @@ function Build-AllOperationSheet {
                 }
             }
             if (($OperationsToAdd | Measure-Object).Count -gt 0) {
-                $ModuleRoot = $MyInvocation.MyCommand.Module.ModuleBase
-                $AllOperationsConfig = $Global:IRT_Config.AllOperationsSheetPath
-                $OperationsSheetPath = if ($AllOperationsConfig) { $AllOperationsConfig } else { Join-Path -Path $ModuleRoot -ChildPath "data\${AllOperationsFileName}" }
+                $OperationsSheetPath = $Global:IRT_Config.AllOperationsSheetPath
                 Write-IRT "Add to ${AllOperationsFileName}:" -Level Warn
                 $OperationsToAdd | Format-Table | Out-Host
                 Write-IRT "Appending to: ${OperationsSheetPath}" -Level Warn
-                $OperationsToAdd | Export-Excel -Path $OperationsSheetPath -WorksheetName 'Operations' -Append
+                $ExportParams = @{
+                    Path          = $OperationsSheetPath
+                    WorksheetName = 'Operations'
+                    Append        = $true
+                }
+                $OperationsToAdd | Export-Excel @ExportParams
             }
         }
 

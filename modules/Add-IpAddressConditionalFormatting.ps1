@@ -8,7 +8,9 @@ function Add-IpAddressConditionalFormatting {
         [string]$ColumnName
     )
 
-    $IpAddressColumn = ($Worksheet.Tables[0].Columns | Where-Object {$_.Name -eq $ColumnName}).Id | Convert-DecimalToExcelColumn
+    $IpAddressColumn = (
+        $Worksheet.Tables[0].Columns | Where-Object { $_.Name -eq $ColumnName }
+    ).Id | Convert-DecimalToExcelColumn
 
     # microsoft
     $CFParams = @{

@@ -26,14 +26,18 @@ function Get-PIMRoleAssignedSummary {
 
         # User
         $GuidPattern = "\b[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}\b"
-        $UserId = $Log.AuditData.EventData | Select-String -Pattern $GuidPattern -AllMatches | ForEach-Object { $_.Matches.Value }
+        $UserId = $Log.AuditData.EventData |
+            Select-String -Pattern $GuidPattern -AllMatches |
+            ForEach-Object { $_.Matches.Value }
         $UserPrincipalName = ($User | Where-Object {$_.Id -eq $UserId}).UserPrincipalName
         $SummaryLines.Add("User: ${UserPrincipalName}")
 
         # Role
         $ModifiedPropertiesDict = $Log.AuditData.ModifiedProperties
-        $OldValue = ($ModifiedPropertiesDict | Where-Object {$_.Name -eq 'PIMRoleAssigned'}).OldValue
-        $NewValue = ($ModifiedPropertiesDict | Where-Object {$_.Name -eq 'PIMRoleAssigned'}).NewValue
+        $PimProps = $ModifiedPropertiesDict |
+            Where-Object { $_.Name -eq 'PIMRoleAssigned' }
+        $OldValue = $PimProps.OldValue
+        $NewValue = $PimProps.NewValue
         if ($NewValue -and $OldValue) {
             $Role = "New: ${NewValue}, Old: ${OldValue}"
         }

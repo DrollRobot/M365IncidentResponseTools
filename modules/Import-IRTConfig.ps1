@@ -22,7 +22,12 @@ function Import-IRTConfig {
     $ModuleRoot   = $MyInvocation.MyCommand.Module.ModuleBase
     $ConfigDir    = Join-Path $env:APPDATA $ModuleName
     $ConfigPath   = Join-Path $ConfigDir 'config.json'
-    $TemplatePath = Join-Path -Path $ModuleRoot -ChildPath 'module_init' -AdditionalChildPath 'config_TEMPLATE.json'
+    $TplJoin      = @{
+        Path                = $ModuleRoot
+        ChildPath           = 'module_init'
+        AdditionalChildPath = 'config_TEMPLATE.json'
+    }
+    $TemplatePath = Join-Path @TplJoin
 
     if (-not (Test-Path $ConfigPath)) {
         if (-not (Test-Path $ConfigDir)) {
@@ -41,20 +46,21 @@ function Import-IRTConfig {
     $Updated  = $false
     foreach ($Property in $Template.PSObject.Properties) {
         if (-not ($Global:IRT_Config.PSObject.Properties.Name -contains $Property.Name)) {
-            $Global:IRT_Config | Add-Member -NotePropertyName $Property.Name -NotePropertyValue $Property.Value
+            $AddParams = @{
+                NotePropertyName  = $Property.Name
+                NotePropertyValue = $Property.Value
+            }
+            $Global:IRT_Config | Add-Member @AddParams
             $Updated = $true
         }
     }
-
-    # IpInfoAvailable is runtime-detected (not user-configurable) and should not be
-    # persisted in config.json. Strip it if present so the psm1 always controls it.
-    if ($Global:IRT_Config.PSObject.Properties['IpInfoAvailable']) {
-        $Global:IRT_Config.PSObject.Properties.Remove('IpInfoAvailable')
-        $Updated = $true
-    }
-
     if ($Updated) {
         $Global:IRT_Config | ConvertTo-Json -Depth 10 | Set-Content -Path $ConfigPath -Encoding utf8
+    }
+
+    # Resolve null path values to their defaults (in-memory only; defaults are not written back)
+    if (-not $Global:IRT_Config.TenantsSheetPath) {
+        $Global:IRT_Config.TenantsSheetPath = Join-Path $env:APPDATA 'M365IncidentResponseTools\tenants.xlsx'
     }
 }
 
@@ -70,7 +76,12 @@ function Open-IRTConfig {
     param()
 
     $ModuleName = $MyInvocation.MyCommand.Module.Name
-    $ConfigPath = Join-Path -Path $env:APPDATA -ChildPath $ModuleName -AdditionalChildPath 'config.json'
+    $JoinParams = @{
+        Path                = $env:APPDATA
+        ChildPath           = $ModuleName
+        AdditionalChildPath = 'config.json'
+    }
+    $ConfigPath = Join-Path @JoinParams
 
     if (-not (Test-Path $ConfigPath)) {
         Import-IRTConfig
@@ -103,7 +114,12 @@ function Set-IRTConfig {
     $ModuleRoot   = $MyInvocation.MyCommand.Module.ModuleBase
     $ConfigDir    = Join-Path $env:APPDATA $ModuleName
     $ConfigPath   = Join-Path $ConfigDir 'config.json'
-    $TemplatePath = Join-Path -Path $ModuleRoot -ChildPath 'module_init' -AdditionalChildPath 'config_TEMPLATE.json'
+    $TplJoin      = @{
+        Path                = $ModuleRoot
+        ChildPath           = 'module_init'
+        AdditionalChildPath = 'config_TEMPLATE.json'
+    }
+    $TemplatePath = Join-Path @TplJoin
 
     if ($Reset) {
         if ($PSCmdlet.ShouldProcess($ConfigPath, 'Reset to template defaults')) {
@@ -131,43 +147,50 @@ function Set-IRTConfig {
         }
         Browser = @{
             Summary     = 'Browser for opening other URLs'
-            Description = 'Which browser to use when opening device code prompts, OWA links, and other web pages. (where possible)' +
+            Description = 'Which browser to use when opening device code prompts, ' +
+                          'OWA links, and other web pages. (where possible)' +
                           'Set to "default" to use the system default browser.'
             Options     = @('default', 'msedge', 'chrome', 'firefox', 'brave')
         }
         ExcelTableStyle = @{
             Summary     = 'Excel table style'
             Description = 'The table style applied to Excel worksheets exported by IRT. ' +
-                          'Uses ImportExcel style names (e.g. Dark1-Dark11, Medium1-Medium28, Light1-Light21).'
+                'Uses ImportExcel style names (e.g. Dark1-Dark11, ' +
+                'Medium1-Medium28, Light1-Light21).'
             Options     = @(
-                'Dark1','Dark2','Dark3','Dark4','Dark5','Dark6','Dark7','Dark8','Dark9','Dark10','Dark11',
+                'Dark1','Dark2','Dark3','Dark4','Dark5','Dark6',
+                'Dark7','Dark8','Dark9','Dark10','Dark11',
                 'Medium1','Medium2','Medium3','Medium4','Medium5','Medium6','Medium7',
                 'Light1','Light2','Light3','Light4','Light5','Light6','Light7'
             )
         }
         ExcelFont = @{
             Summary     = 'Excel font name'
-            Description = 'The font used across all Excel output. Monospace fonts like Consolas work best for log data. ' +
+            Description = 'The font used across all Excel output. ' +
+                'Monospace fonts like Consolas work best for log data. ' +
                 'Enter any font name installed on your system.'
             Options     = $null  # free text
         }
         ExportXml = @{
             Summary     = 'Export raw XML with log pulls'
-            Description = 'When enabled, log commands (sign-in logs, UAL, message trace) will save ' +
+            Description = 'When enabled, log commands ' +
+                '(sign-in logs, UAL, message trace) will save ' +
                 'the raw XML response alongside the parsed Excel output.'
             Options     = @('true', 'false')
         }
         AllOperationsSheetPath = @{
             Summary     = 'All Operations sheet path'
-            Description = 'Path to the unified_audit_log-all_operations.xlsx file used for operation lookups. ' +
-                'Leave blank (null) to use the default file bundled with the module. Set to an absolute path to ' +
-                'use a custom file outside the module.'
+            Description = 'Path to the unified_audit_log-all_operations.xlsx file ' +
+                'used for operation lookups. ' +
+                'Leave blank (null) to use the default file bundled with the module. ' +
+                'Set to an absolute path to use a custom file outside the module.'
             Options     = $null  # free text / file path
         }
         TenantsSheetPath = @{
             Summary     = 'Tenants worksheet path'
             Description = 'Path to the tenants.xlsx file used by Connect-IRTTenant. ' +
-                'Leave blank (null) to use the default location: $env:APPDATA\M365IncidentResponseTools\tenants.xlsx. ' +
+                'Leave blank (null) to use the default location: ' +
+                '$env:APPDATA\M365IncidentResponseTools\tenants.xlsx. ' +
                 'Set to an absolute path to use a custom file.'
             Options     = $null  # free text / file path
         }
@@ -178,29 +201,47 @@ function Set-IRTConfig {
         }
         MaxExchangeConnections = @{
             Summary     = 'Maximum concurrent Exchange connections'
-            Description = 'Maximum number of concurrent Exchange Online connections. (Recommend 10 or lower:' +
-                'https://techcommunity.microsoft.com/blog/exchange/more-efficient-bulk-operations-with-powershell-parallelism/4409693)'
+            Description = 'Maximum number of concurrent Exchange Online connections. ' +
+                '(Recommend 10 or lower: https://techcommunity.microsoft.com/blog/exchange/' +
+                'more-efficient-bulk-operations-with-powershell-parallelism/4409693)'
             Options     = $null  # free text / integer
         }
         PromptColor = @{
             Summary     = 'Prompt color'
-            Description = 'Foreground color used for the IRT prompt labels (e.g. "[IRT]", "Graph:", "Exchange:").'
-            Options     = @('Black','DarkBlue','DarkGreen','DarkCyan','DarkRed','DarkMagenta','DarkYellow','Gray','DarkGray','Blue','Green','Cyan','Red','Magenta','Yellow','White')
+            Description = 'Foreground color used for the IRT prompt labels ' +
+                '(e.g. "[IRT]", "Graph:", "Exchange:").'
+            Options     = @(
+                'Black', 'DarkBlue', 'DarkGreen', 'DarkCyan', 'DarkRed', 'DarkMagenta',
+                'DarkYellow', 'Gray', 'DarkGray', 'Blue', 'Green', 'Cyan',
+                'Red', 'Magenta', 'Yellow', 'White'
+            )
         }
         InfoColor = @{
             Summary     = 'Informational message color'
             Description = 'Foreground color used for informational messages throughout IRT.'
-            Options     = @('Black','DarkBlue','DarkGreen','DarkCyan','DarkRed','DarkMagenta','DarkYellow','Gray','DarkGray','Blue','Green','Cyan','Red','Magenta','Yellow','White')
+            Options     = @(
+                'Black', 'DarkBlue', 'DarkGreen', 'DarkCyan', 'DarkRed', 'DarkMagenta',
+                'DarkYellow', 'Gray', 'DarkGray', 'Blue', 'Green', 'Cyan',
+                'Red', 'Magenta', 'Yellow', 'White'
+            )
         }
         WarnColor = @{
             Summary     = 'Warning message color'
             Description = 'Foreground color used for warning messages throughout IRT.'
-            Options     = @('Black','DarkBlue','DarkGreen','DarkCyan','DarkRed','DarkMagenta','DarkYellow','Gray','DarkGray','Blue','Green','Cyan','Red','Magenta','Yellow','White')
+            Options     = @(
+                'Black', 'DarkBlue', 'DarkGreen', 'DarkCyan', 'DarkRed', 'DarkMagenta',
+                'DarkYellow', 'Gray', 'DarkGray', 'Blue', 'Green', 'Cyan',
+                'Red', 'Magenta', 'Yellow', 'White'
+            )
         }
         ErrorColor = @{
             Summary     = 'Error message color'
             Description = 'Foreground color used for error messages throughout IRT.'
-            Options     = @('Black','DarkBlue','DarkGreen','DarkCyan','DarkRed','DarkMagenta','DarkYellow','Gray','DarkGray','Blue','Green','Cyan','Red','Magenta','Yellow','White')
+            Options     = @(
+                'Black', 'DarkBlue', 'DarkGreen', 'DarkCyan', 'DarkRed', 'DarkMagenta',
+                'DarkYellow', 'Gray', 'DarkGray', 'Blue', 'Green', 'Cyan',
+                'Red', 'Magenta', 'Yellow', 'White'
+            )
         }
     }
 

@@ -15,14 +15,14 @@ Shows Entra audit logs in terminal, or saves as an excel spreadsheet.
 ### Objects (Default)
 ```
 Show-EntraAuditLog [-Log] <System.Collections.Generic.List`1[System.Management.Automation.PSObject]>
- [-TableStyle <String>] [-Font <String>] [-Open <Boolean>] [-Cached] [-ProgressAction <ActionPreference>]
- [<CommonParameters>]
+ [-TableStyle <String>] [-Font <String>] [-IpInfo <Boolean>] [-Open <Boolean>] [-Cached]
+ [-ProgressAction <ActionPreference>] [<CommonParameters>]
 ```
 
 ### Xml
 ```
-Show-EntraAuditLog -XmlPath <String> [-TableStyle <String>] [-Font <String>] [-Open <Boolean>] [-Cached]
- [-ProgressAction <ActionPreference>] [<CommonParameters>]
+Show-EntraAuditLog -XmlPath <String> [-TableStyle <String>] [-Font <String>] [-IpInfo <Boolean>]
+ [-Open <Boolean>] [-Cached] [-ProgressAction <ActionPreference>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -95,6 +95,21 @@ Aliases:
 Required: False
 Position: Named
 Default value: $Global:IRT_Config.ExcelFont
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
+### -IpInfo
+{{ Fill IpInfo Description }}
+
+```yaml
+Type: Boolean
+Parameter Sets: (All)
+Aliases:
+
+Required: False
+Position: Named
+Default value: [bool]$Global:IRT_Config.IpInfoAvailable
 Accept pipeline input: False
 Accept wildcard characters: False
 ```

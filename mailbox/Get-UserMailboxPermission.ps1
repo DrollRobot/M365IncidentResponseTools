@@ -25,7 +25,8 @@ function Get-UserMailboxPermission {
                 } else {
                     $ScriptUserObjects = Get-IRTUserObject
                     if (-not $ScriptUserObjects -or $ScriptUserObjects.Count -eq 0) {
-                        Write-IRT "No user objects passed or found in global variables." -Level Error
+                        $Msg = 'No user objects passed or found in global variables.'
+                        Write-IRT $Msg -Level Error
                         return
                     }
                 }
@@ -48,10 +49,16 @@ function Get-UserMailboxPermission {
             Write-IRT "Using cached data."
             $PermissionsTable = $Global:IRT_MailboxPermissionTable
         } else {
-            $Mailboxes = Get-EXOMailbox -ResultSize Unlimited -Properties Identity, Name, PrimarySmtpAddress
+            $EXOParams = @{
+                ResultSize = 'Unlimited'
+                Properties = 'Identity', 'Name', 'PrimarySmtpAddress'
+            }
+            $Mailboxes = Get-EXOMailbox @EXOParams
             $Total     = $Mailboxes.Count
             $Index     = 0
-            $PermissionsTable = [System.Collections.Generic.Dictionary[string, object]]::new([System.StringComparer]::OrdinalIgnoreCase)
+            $PermissionsTable = [System.Collections.Generic.Dictionary[string, object]]::new(
+                [System.StringComparer]::OrdinalIgnoreCase
+            )
             $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
 
             foreach ($Mailbox in $Mailboxes) {
@@ -63,17 +70,23 @@ function Get-UserMailboxPermission {
 
                 $ProgressParams = @{
                     Activity        = "Building mailbox permissions table."
-                    Status          = "Processing $($Mailbox.Name) [$Index of $Total] - Est. remaining: $TimeRemaining"
+                    Status          = "Processing $($Mailbox.Name) [$Index of $Total]" +
+                        " - Est. remaining: $TimeRemaining"
                     PercentComplete = ($Index / $Total * 100)
                 }
                 Write-Progress @ProgressParams
 
                 try {
-                    $Permissions = Get-EXOMailboxPermission -Identity $Mailbox.Identity -ErrorAction Stop
+                    $PermParams = @{
+                        Identity    = $Mailbox.Identity
+                        ErrorAction = 'Stop'
+                    }
+                    $Permissions = Get-EXOMailboxPermission @PermParams
                     foreach ($Permission in $Permissions) {
                         $UserKey = $Permission.User.ToString()
                         if (-not $PermissionsTable.ContainsKey($UserKey)) {
-                            $PermissionsTable[$UserKey] = [System.Collections.Generic.List[psobject]]::new()
+                            $NewList = [System.Collections.Generic.List[psobject]]::new()
+                            $PermissionsTable[$UserKey] = $NewList
                         }
                         $PermissionsTable[$UserKey].Add([pscustomobject]@{
                             MailboxName        = $Mailbox.Name

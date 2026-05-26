@@ -13,7 +13,8 @@ function Test-PythonPackage {
     Optional explicit path to python interpreter. if omitted, tries python, python3, then py -3.
 
     .OUTPUTS
-    [pscustomobject] with Present (bool), Source (string), Version (string), Python (string path/command)
+    [pscustomobject] with Present (bool), Source (string), Version (string),
+    Python (string path/command)
     #>
     [CmdletBinding()]
     param(
@@ -70,7 +71,7 @@ function Test-PythonPackage {
             $normalizedName = ($ToolName -replace '[_.\-]+', '-').ToLower()
 
             try {
-                $listOutput = & $uvCmd.Source tool list 2>$null
+                $listOutput = & $uvCmd.Source tool list --no-color 2>$null
                 if ($LASTEXITCODE -ne 0) { return $null }
 
                 $version  = $null
@@ -100,10 +101,14 @@ function Test-PythonPackage {
 
                 $pythonPath = $null
                 foreach ($dir in $dirCandidates) {
+                    $JpParams = @{
+                        Path      = $toolDir
+                        ChildPath = $dir
+                    }
                     $testPath = if ($IsWindows -or $env:OS -match 'Windows') {
-                        Join-Path -Path $toolDir -ChildPath $dir -AdditionalChildPath 'Scripts', 'python.exe'
+                        Join-Path @JpParams -AdditionalChildPath 'Scripts', 'python.exe'
                     } else {
-                        Join-Path -Path $toolDir -ChildPath $dir -AdditionalChildPath 'bin', 'python'
+                        Join-Path @JpParams -AdditionalChildPath 'bin', 'python'
                     }
                     if (Test-Path -LiteralPath $testPath) {
                         $pythonPath = $testPath
@@ -118,7 +123,8 @@ function Test-PythonPackage {
         }
 
         # python snippet: try import, then try to resolve a version
-        # - prefers importlib.metadata (py>=3.8) using the package (distribution) name equal to module name
+        # - prefers importlib.metadata (py>=3.8) using the package (distribution)
+        #   name equal to module name
         # - falls back to module.__version__ if metadata not found
         $PyCode = @"
 import sys, importlib
@@ -161,8 +167,13 @@ except Exception:
             $Exit   = $LASTEXITCODE
 
             $PyPresent = ($Exit -eq 0)
-            $PyVersion = if ($PyPresent) { ($Output | Select-Object -First 1).ToString().Trim() } else { $null }
-            $PyCmd     = $Py.Cmd + ($(if ($Py.PrefixArgs.Count) { ' ' + ($Py.PrefixArgs -join ' ') } else { '' }))
+            if ($PyPresent) {
+                $PyVersion = ($Output | Select-Object -First 1).ToString().Trim()
+            } else {
+                $PyVersion = $null
+            }
+            $PrefixStr = if ($Py.PrefixArgs.Count) { ' ' + ($Py.PrefixArgs -join ' ') } else { '' }
+            $PyCmd     = $Py.Cmd + $PrefixStr
         }
 
         # === uv tool check ===

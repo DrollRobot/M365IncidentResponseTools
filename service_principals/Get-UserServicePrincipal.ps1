@@ -49,7 +49,7 @@ function Get-UserServicePrincipal {
            'Get-UserApplication')]
     [CmdletBinding()]
     param(
-        [Parameter(Position = 0, ValueFromPipeline = $true, ValueFromPipelineByPropertyName = $true)]
+        [Parameter(Position = 0)]
         [Alias('UserObjects')]
         [psobject[]] $UserObject,
 
@@ -163,13 +163,17 @@ function Get-UserServicePrincipal {
                 Passthru      = $true
             }
             try {
-                $Workbook = $OutputTable | Select-Object User,Application,Resource,Scope | Export-Excel @ExcelParams
+                $Workbook = $OutputTable |
+                    Select-Object User, Application, Resource, Scope |
+                    Export-Excel @ExcelParams
             }
             catch {
                 Write-Error "Unable to open new Excel document."
                 if (Get-YesNo "Try closing open files.") {
                     try {
-                        $Workbook = $OutputTable | Select-Object User,Application,Resource,Scope | Export-Excel @ExcelParams
+                        $Workbook = $OutputTable |
+                            Select-Object User, Application, Resource, Scope |
+                            Export-Excel @ExcelParams
                     }
                     catch {
                         throw "Unable to open new Excel document. Exiting."

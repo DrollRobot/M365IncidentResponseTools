@@ -48,7 +48,12 @@ function Request-GraphServicePrincipal {
 
         # return cached data if available
         if ($Cached) {
-            $Variable = Get-Variable -Scope Global -Name 'IRT_ServicePrincipals' -ErrorAction SilentlyContinue
+            $GvParams = @{
+                Scope       = 'Global'
+                Name        = 'IRT_ServicePrincipals'
+                ErrorAction = 'SilentlyContinue'
+            }
+            $Variable = Get-Variable @GvParams
             if ($Variable) {
                 switch ($Return) {
                     'objects'      {return $Global:IRT_ServicePrincipals}
@@ -70,7 +75,12 @@ function Request-GraphServicePrincipal {
         foreach ($o in $Objects) {
             if ($o.AdditionalProperties['createdDateTime']) {
                 $CreatedDateTime = [datetime]::Parse($o.AdditionalProperties['createdDateTime'])
-                $o | Add-Member -NotePropertyName 'CreatedDateTime' -NotePropertyValue $CreatedDateTime -Force
+                $AmParams = @{
+                    NotePropertyName  = 'CreatedDateTime'
+                    NotePropertyValue = $CreatedDateTime
+                    Force             = $true
+                }
+                $o | Add-Member @AmParams
             }
         }
 
@@ -88,7 +98,9 @@ function Request-GraphServicePrincipal {
             $FileName = "ServicePrincipals_Raw_${DomainName}_${FileNameDate}.xml"
             $XmlOutputPath = Join-Path -Path $CurrentPath -ChildPath $FileName
             if ($Test) {
-                $ExportTime = Measure-Command { $Objects | Export-Clixml -Depth 10 -Path $XmlOutputPath }
+                $ExportTime = Measure-Command {
+                    $Objects | Export-Clixml -Depth 10 -Path $XmlOutputPath
+                }
                 Write-IRT "Export-Clixml took $( $ExportTime.TotalSeconds ) seconds"
             }
             else {

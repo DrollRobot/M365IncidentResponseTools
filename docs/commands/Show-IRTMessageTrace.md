@@ -15,12 +15,13 @@ Processes message trace data and creates spreadsheet.
 ### Objects (Default)
 ```
 Show-IRTMessageTrace [-Message] <System.Collections.Generic.List`1[System.Management.Automation.PSObject]>
- [-TableStyle <String>] [-Font <String>] [-ProgressAction <ActionPreference>] [<CommonParameters>]
+ [-TableStyle <String>] [-Font <String>] [-IpInfo <Boolean>] [-ProgressAction <ActionPreference>]
+ [<CommonParameters>]
 ```
 
 ### Xml
 ```
-Show-IRTMessageTrace [-XmlPath] <String> [-TableStyle <String>] [-Font <String>]
+Show-IRTMessageTrace [-XmlPath] <String> [-TableStyle <String>] [-Font <String>] [-IpInfo <Boolean>]
  [-ProgressAction <ActionPreference>] [<CommonParameters>]
 ```
 
@@ -94,6 +95,21 @@ Aliases:
 Required: False
 Position: Named
 Default value: $Global:IRT_Config.ExcelFont
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
+### -IpInfo
+{{ Fill IpInfo Description }}
+
+```yaml
+Type: Boolean
+Parameter Sets: (All)
+Aliases:
+
+Required: False
+Position: Named
+Default value: [bool]$Global:IRT_Config.IpInfoAvailable
 Accept pipeline input: False
 Accept wildcard characters: False
 ```

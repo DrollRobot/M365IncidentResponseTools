@@ -39,7 +39,8 @@ function Grant-MailboxFullAccess {
             if (($ScriptUserObjects | Measure-Object).Count -eq 0) {
                 $ErrorParams = @{
                     Category    = 'InvalidArgument'
-                    Message     = "No -UserObject argument used, no `$Global:IRT_UserObjects present."
+                    Message     = 'No -UserObject argument used, ' +
+                        'no $Global:IRT_UserObjects present.'
                     ErrorAction = 'Stop'
                 }
                 Write-Error @ErrorParams
@@ -77,7 +78,8 @@ function Grant-MailboxFullAccess {
                 $_
                 $ErrorParams = @{
                     Category    = 'InvalidArgument'
-                    Message     = "${Function}: Unable to detect currently connected Exchange account. Specify with -GrantAccessTo."
+                    Message     = "${Function}: Unable to detect currently connected Exchange" +
+                        ' account. Specify with -GrantAccessTo.'
                     ErrorAction = 'Stop'
                 }
                 Write-Error @ErrorParams
@@ -94,7 +96,8 @@ function Grant-MailboxFullAccess {
         if ($GrantAccessToList.Count -lt 1) {
             $ErrorParams = @{
                 Category    = 'InvalidArgument'
-                Message     = "${Function}: Unable to detect currently connected Exchange account. Specify with -GrantAccessTo."
+                Message     = "${Function}: Unable to detect currently connected Exchange" +
+                    ' account. Specify with -GrantAccessTo.'
                 ErrorAction = 'Stop'
             }
             Write-Error @ErrorParams

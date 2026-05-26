@@ -44,7 +44,8 @@ function Show-UALog {
 
             try {
                 $ResolvedXmlPath = Resolve-ScriptPath -Path $XmlPath -File -FileExtension 'xml'
-                [System.Collections.Generic.List[PSObject]]$Log = Import-CliXml -Path $ResolvedXmlPath
+                $RawLog = Import-CliXml -Path $ResolvedXmlPath
+                [System.Collections.Generic.List[PSObject]] $Log = $RawLog
             }
             catch {
                 $_
@@ -90,8 +91,6 @@ function Show-UALog {
 
         # import alloperations sheet
         $OperationsSheetData = $Global:IRT_UalOperationsData
-
-        # ipinfo
     }
 
     process {
@@ -112,17 +111,28 @@ function Show-UALog {
 
             # wait for both user and AllUsers message traces to complete via WaitFlags
             if ($Global:IRT_WaitFlags) {
-                while (-not ($Global:IRT_WaitFlags.MessageTraceUserDone -and $Global:IRT_WaitFlags.MessageTraceAllUsersDone)) {
+                while (-not ($Global:IRT_WaitFlags.MessageTraceUserDone -and
+                    $Global:IRT_WaitFlags.MessageTraceAllUsersDone)) {
                     if ($WaitStopwatch.Elapsed.TotalMinutes -ge $MaxWaitMinutes) {
-                        Write-IRT "Timed out after ${MaxWaitMinutes} minutes waiting on message trace. Continuing without subjects." -Level Error
+                        $Msg = "Timed out after ${MaxWaitMinutes} minutes waiting on " +
+                            "message trace. Continuing without subjects."
+                        Write-IRT $Msg -Level Error
                         if ($Script:Test) {
-                            Write-IRT "WaitFlags.MessageTraceUserDone = $($Global:IRT_WaitFlags.MessageTraceUserDone), WaitFlags.MessageTraceAllUsersDone = $($Global:IRT_WaitFlags.MessageTraceAllUsersDone)" -Level Warn
+                            $UserDone = $Global:IRT_WaitFlags.MessageTraceUserDone
+                            $AllDone  = $Global:IRT_WaitFlags.MessageTraceAllUsersDone
+                            $Msg = "WaitFlags.MessageTraceUserDone = ${UserDone}, " +
+                                "WaitFlags.MessageTraceAllUsersDone = ${AllDone}"
+                            Write-IRT $Msg -Level Warn
                         }
                         break
                     }
                     if ($Script:Test) {
-                        $Elapsed = $WaitStopwatch.Elapsed.ToString('mm\:ss')
-                        Write-IRT "Waiting on message trace (${Elapsed} elapsed). UserDone=$($Global:IRT_WaitFlags.MessageTraceUserDone), AllUsersDone=$($Global:IRT_WaitFlags.MessageTraceAllUsersDone)" -Level Warn
+                        $Elapsed  = $WaitStopwatch.Elapsed.ToString('mm\:ss')
+                        $UserDone = $Global:IRT_WaitFlags.MessageTraceUserDone
+                        $AllDone  = $Global:IRT_WaitFlags.MessageTraceAllUsersDone
+                        $Msg = "Waiting on message trace (${Elapsed} elapsed). " +
+                            "UserDone=${UserDone}, AllUsersDone=${AllDone}"
+                        Write-IRT $Msg -Level Warn
                     }
                     else {
                         Write-IRT "Waiting on message trace..." -Level Warn
@@ -133,19 +143,23 @@ function Show-UALog {
         }
 
         # load message trace table from global
-        if ($Global:IRT_MessageTraceTable -is [hashtable] -and $Global:IRT_MessageTraceTable.Count -gt 0) {
+        if ($Global:IRT_MessageTraceTable -is [hashtable] -and
+            $Global:IRT_MessageTraceTable.Count -gt 0) {
             $MessageTraceTable = $Global:IRT_MessageTraceTable
             if ($Script:Test) {
-                Write-IRT "Using `$Global:IRT_MessageTraceTable ($($MessageTraceTable.Count) entries)" -Level Warn
+                $Msg = "Using `$Global:IRT_MessageTraceTable ($($MessageTraceTable.Count) entries)"
+                Write-IRT $Msg -Level Warn
             }
         }
 
         if ($Script:Test) {
             if ($MessageTraceTable) {
-                Write-IRT "MessageTraceTable resolved with $($MessageTraceTable.Count) entries" -Level Warn
+                $Msg = "MessageTraceTable resolved with $($MessageTraceTable.Count) entries"
+                Write-IRT $Msg -Level Warn
             }
             else {
-                Write-IRT "No MessageTraceTable available - subjects will not be resolved" -Level Warn
+                $Msg = "No MessageTraceTable available - subjects will not be resolved"
+                Write-IRT $Msg -Level Warn
             }
         }
 
@@ -210,8 +224,12 @@ function Show-UALog {
                 }
                 # AllOperations needs extra parameters
                 if ($SheetEntry.BuildFunction -eq 'Build-AllOperationSheet') {
-                    if ($MessageTraceTable) { $SheetParams['MessageTraceTable'] = $MessageTraceTable }
-                    if ($OperationsSheetData)  { $SheetParams['OperationsSheetData'] = $OperationsSheetData }
+                    if ($MessageTraceTable) {
+                        $SheetParams['MessageTraceTable'] = $MessageTraceTable
+                    }
+                    if ($OperationsSheetData) {
+                        $SheetParams['OperationsSheetData'] = $OperationsSheetData
+                    }
                 }
                 $Workbook = & $SheetEntry.BuildFunction @SheetParams
             }

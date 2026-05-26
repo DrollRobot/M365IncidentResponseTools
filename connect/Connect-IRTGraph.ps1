@@ -6,8 +6,9 @@ function Connect-IRTGraph {
     .PARAMETER TenantId
     The TenantId GUID for the environment you want to connect to.
 
-    .PARAMETER GCCHigh
-    Connect to a GCC High tenant environment.
+    .PARAMETER Cloud
+    Cloud to connect to. Valid values: Commercial, USGov, China.
+    When omitted the cloud defaults to Commercial.
 
     .PARAMETER DeviceCode
     Use device code authentication flow.
@@ -32,8 +33,8 @@ function Connect-IRTGraph {
     param (
         [Parameter(Mandatory)]
         [string] $TenantId,
-        [switch] $GCCHigh,
-        [switch] $DeviceCode,
+        [ValidateSet('Commercial', 'USGov', 'USGovDoD', 'China')]
+        [string] $Cloud = 'Commercial',
         [Alias('AdditionalScopes')]
         [string[]] $AdditionalScope,
 
@@ -91,12 +92,9 @@ function Connect-IRTGraph {
             $DefaultScopes
         }
 
-        $GraphBaseUrl = 'https://graph.microsoft.com'
-        $Authority    = "https://login.microsoftonline.com/$TenantId"
-        if ($GCCHigh) {
-            $GraphBaseUrl = 'https://graph.microsoft.us'
-            $Authority    = "https://login.microsoftonline.us/$TenantId"
-        }
+        $CloudConfig  = $Global:IRT_CloudEnvironments[$Cloud]
+        $GraphBaseUrl = $CloudConfig.Graph
+        $Authority    = "$($CloudConfig.LoginHost)/$TenantId"
     }
 
     process {
@@ -252,7 +250,7 @@ function Connect-IRTGraph {
             }
             $Secure = ConvertTo-SecureString -String $Token -AsPlainText -Force
             $Params = @{ AccessToken = $Secure; NoWelcome = $true }
-            if ($GCCHigh) { $Params['Environment'] = 'USGov' }
+            $Params['Environment'] = $CloudConfig.GraphEnv
             Connect-MgGraph @Params
         }
 
@@ -283,7 +281,7 @@ function Connect-IRTGraph {
                 ResourceUri = $GraphBaseUrl
                 Browser     = $Browser
             }
-            if ($GCCHigh) { $ConsentParams['GCCHigh'] = $true }
+            if ($Cloud) { $ConsentParams['Cloud'] = $Cloud }
             if ($Private) { $ConsentParams['Private'] = $true }
 
             $null = Invoke-IRTAdminConsent @ConsentParams
@@ -300,8 +298,8 @@ function Connect-IRTGraph {
             }
 
             if ($StillMissing) {
-                Write-Warning ("Tenant-wide grant not yet visible for: " +
-                    "$($StillMissing -join ', ')")
+                $AllMissing = $StillMissing -join ', '
+                Write-Warning ("Tenant-wide grant not yet visible for: $AllMissing")
                 Write-Warning ('Replication may still be in flight; ' +
                     're-run Connect-IRT shortly to confirm.')
             } else {
@@ -350,10 +348,18 @@ function Test-IRTGraphAdminConsent {
     )
 
     # Resolve SPs (these are tenant-scoped object IDs, not the app IDs)
-    $ClientSp = Invoke-MgGraphRequest -Method GET `
-        -Uri "/v1.0/servicePrincipals(appId='$ClientAppId')" -ErrorAction Stop
-    $ResourceSp = Invoke-MgGraphRequest -Method GET `
-        -Uri "/v1.0/servicePrincipals(appId='$ResourceAppId')" -ErrorAction Stop
+    $ClientSpParams = @{
+        Method      = 'GET'
+        Uri         = "/v1.0/servicePrincipals(appId='$ClientAppId')"
+        ErrorAction = 'Stop'
+    }
+    $ClientSp = Invoke-MgGraphRequest @ClientSpParams
+    $ResourceSpParams = @{
+        Method      = 'GET'
+        Uri         = "/v1.0/servicePrincipals(appId='$ResourceAppId')"
+        ErrorAction = 'Stop'
+    }
+    $ResourceSp = Invoke-MgGraphRequest @ResourceSpParams
 
     # Pull all AllPrincipals grants for this client/resource pair.
     # In practice there's usually one, but multiple are possible if
@@ -362,8 +368,12 @@ function Test-IRTGraphAdminConsent {
               "resourceId eq '$($ResourceSp.id)' and " +
               "consentType eq 'AllPrincipals'"
     $Encoded = [uri]::EscapeDataString($Filter)
-    $Grants  = Invoke-MgGraphRequest -Method GET `
-        -Uri "/v1.0/oauth2PermissionGrants?`$filter=$Encoded" -ErrorAction Stop
+    $GrantsParams = @{
+        Method      = 'GET'
+        Uri         = "/v1.0/oauth2PermissionGrants?`$filter=$Encoded"
+        ErrorAction = 'Stop'
+    }
+    $Grants  = Invoke-MgGraphRequest @GrantsParams
 
     # scope is a space-delimited string per grant; flatten across grants
     $Granted = @($Grants.value | ForEach-Object { $_.scope -split '\s+' } |
@@ -382,9 +392,8 @@ function Invoke-IRTAdminConsent {
         [Parameter(Mandatory)] [string]   $ClientId,
         [Parameter(Mandatory)] [Alias('Scopes')] [string[]] $Scope,
         [string] $ResourceUri = 'https://graph.microsoft.com',
-        [switch] $GCCHigh,
-
-        [ValidateSet('msedge','chrome','firefox','brave','default')]
+        [ValidateSet('Commercial', 'USGov', 'USGovDoD', 'China')]
+        [string] $Cloud,
         [string] $Browser = 'default',
         [switch] $Private,
 
@@ -400,11 +409,7 @@ function Invoke-IRTAdminConsent {
 
     process {
         try {
-            $LoginHost = if ($GCCHigh) {
-                'login.microsoftonline.us'
-            } else {
-                'login.microsoftonline.com'
-            }
+            $LoginHost = $Global:IRT_CloudEnvironments[$Cloud].LoginHost
             $State     = [guid]::NewGuid().ToString('N')
 
             # Fully-qualify each scope with the resource URI, then space-delimit.
@@ -413,7 +418,7 @@ function Invoke-IRTAdminConsent {
             # consent to statically configured permissions (User.Read in this case).
             $ScopeQuery = ($Scope | ForEach-Object { "$ResourceUri/$_" }) -join ' '
 
-            $ConsentUrl = "https://$LoginHost/$TenantId/v2.0/adminconsent" +
+            $ConsentUrl = "$LoginHost/$TenantId/v2.0/adminconsent" +
                         "?client_id=$ClientId" +
                         "&redirect_uri=$([uri]::EscapeDataString($RedirectUri))" +
                         "&state=$State" +

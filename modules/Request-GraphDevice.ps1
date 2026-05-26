@@ -1,11 +1,14 @@
 function Request-GraphDevice {
     <#
 	.SYNOPSIS
-    Requests Entra and Intune devices from Microsoft Graph. Builds combined device objects and caches them.
+    Requests Entra and Intune devices from Microsoft Graph.
+    Builds combined device objects and caches them.
 
-    Combined objects expose a flat set of convenience properties (DisplayName, DeviceId, OwnerUPN, etc.)
-    plus an .Entra property (raw Graph device object) and an .Intune property (raw Intune managed-device
-    object, or $null when the device is not enrolled / the tenant does not use Intune).
+    Combined objects expose a flat set of convenience properties
+    (DisplayName, DeviceId, OwnerUPN, etc.)
+    plus an .Entra property (raw Graph device object) and an .Intune property
+    (raw Intune managed-device object, or $null when the device is not enrolled
+    / the tenant does not use Intune).
 
     Devices that appear only in Intune (no matching Entra record) are included with .Entra = $null.
 
@@ -59,7 +62,9 @@ function Request-GraphDevice {
         $IntuneDevicesByEntraId = @{}
         if ($TenantHasIntune) {
             foreach ($Device in $IntuneDevices) {
-                if ($Device.AzureADDeviceId -and $Device.AzureADDeviceId -ne '00000000-0000-0000-0000-000000000000') {
+                if ($Device.AzureADDeviceId -and
+                    $Device.AzureADDeviceId -ne '00000000-0000-0000-0000-000000000000'
+                ) {
                     $IntuneDevicesByEntraId[$Device.AzureADDeviceId] = $Device
                 }
             }
@@ -75,7 +80,8 @@ function Request-GraphDevice {
                 $_.AdditionalProperties['userPrincipalName']
             }) -join ', '
 
-            $IntuneDevice = $TenantHasIntune ? $IntuneDevicesByEntraId[$EntraDevice.DeviceId] : $null
+            $IntuneDevice = $TenantHasIntune ?
+                $IntuneDevicesByEntraId[$EntraDevice.DeviceId] : $null
             if ($IntuneDevice) {[void]$SeenIntuneIds.Add($IntuneDevice.Id)}
 
             $Combined = [PSCustomObject]@{
@@ -96,7 +102,7 @@ function Request-GraphDevice {
                 if ($SeenIntuneIds.Contains($IntuneDevice.Id)) { continue }
 
                 $AadId = ($IntuneDevice.AzureADDeviceId -and
-                           $IntuneDevice.AzureADDeviceId -ne '00000000-0000-0000-0000-000000000000') ?
+                    $IntuneDevice.AzureADDeviceId -ne '00000000-0000-0000-0000-000000000000') ?
                     $IntuneDevice.AzureADDeviceId : $null
 
                 $Combined = [PSCustomObject]@{
@@ -126,7 +132,9 @@ function Request-GraphDevice {
             $FileName = "Devices_Raw_${DomainName}_${FileNameDate}.xml"
             $XmlOutputPath = Join-Path -Path $CurrentPath -ChildPath $FileName
             if ( $Test ) {
-                $ExportTime = Measure-Command { $Objects | Export-Clixml -Depth 8 -Path $XmlOutputPath }
+                $ExportTime = Measure-Command {
+                    $Objects | Export-Clixml -Depth 8 -Path $XmlOutputPath
+                }
                 Write-IRT "Export-Clixml took $( $ExportTime.TotalSeconds ) seconds"
             }
             else {
@@ -163,7 +171,8 @@ function Request-IntuneDevice {
             return @(Get-MgDeviceManagementManagedDevice -All -ErrorAction Stop)
         }
         catch {
-            Write-Verbose "Intune not available or insufficient permissions: $($_.Exception.Message)"
+            $Message = $_.Exception.Message
+            Write-Verbose "Intune not available or insufficient permissions: $Message"
             return $null
         }
     }

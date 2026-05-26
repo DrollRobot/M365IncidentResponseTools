@@ -16,7 +16,12 @@ function Request-IntuneDevice {
 
         # return cached data if available
         if ( $Cached ) {
-            $Variable = Get-Variable -Scope Global -Name 'IRT_IntuneDevices' -ErrorAction SilentlyContinue
+            $GvParams = @{
+                Scope       = 'Global'
+                Name        = 'IRT_IntuneDevices'
+                ErrorAction = 'SilentlyContinue'
+            }
+            $Variable = Get-Variable @GvParams
             if ( $Variable ) {
                 return $Global:IRT_IntuneDevices
             }
@@ -31,7 +36,8 @@ function Request-IntuneDevice {
         # cache lookup by AzureADDeviceId (skips placeholder all-zeros GUIDs)
         $Global:IRT_IntuneDevicesByEntraId = @{}
         foreach ( $o in $Objects ) {
-            if ( $o.AzureADDeviceId -and $o.AzureADDeviceId -ne '00000000-0000-0000-0000-000000000000' ) {
+            if ( $o.AzureADDeviceId -and
+                 $o.AzureADDeviceId -ne '00000000-0000-0000-0000-000000000000' ) {
                 $Global:IRT_IntuneDevicesByEntraId[$o.AzureADDeviceId] = $o
             }
         }

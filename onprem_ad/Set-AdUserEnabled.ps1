@@ -34,7 +34,8 @@ function Disable-AdUser {
     .NOTES
     Version: 2.0.0
     #>
-    [Alias('DisableAdUser', 'DisableAdUsers', 'Lock-AdUser', 'Lock-AdUsers', 'LockAdUser', 'LockAdUsers')]
+    [Alias('DisableAdUser', 'DisableAdUsers', 'Lock-AdUser',
+        'Lock-AdUsers', 'LockAdUser', 'LockAdUsers')]
     [CmdletBinding()]
     param(
         [Parameter( Position = 0 )]
@@ -89,7 +90,8 @@ function Enable-AdUser {
     .NOTES
     Version: 2.0.0
     #>
-    [Alias('EnableAdUser', 'EnableAdUsers', 'Unlock-AdUser', 'Unlock-AdUsers', 'UnlockAdUser', 'UnlockAdUsers')]
+    [Alias('EnableAdUser', 'EnableAdUsers', 'Unlock-AdUser',
+        'Unlock-AdUsers', 'UnlockAdUser', 'UnlockAdUsers')]
     [CmdletBinding()]
     param(
         [Parameter( Position = 0 )]
@@ -238,7 +240,9 @@ function Set-AdUserEnabled {
             Start-ADSyncSyncCycle -PolicyType Delta
         }
         else {
-            Write-IRT "Azure sync isn't running on this server. Run Push-AdSync, or duplicate actions in M365." -Level Error
+            $Msg = "Azure sync isn't running on this server. " +
+                "Run Push-AdSync, or duplicate actions in M365."
+            Write-IRT $Msg -Level Error
         }
     }
 }

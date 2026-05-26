@@ -172,13 +172,15 @@ function Get-UALog {
 
                     # if none found, exit
                     if ( -not $LoopObjects -or $LoopObjects.Count -eq 0 ) {
-                        Write-IRT "No user objects passed or found in global variables." -Level Error
+                        $Msg = "No user objects passed or found in global variables."
+                        Write-IRT $Msg -Level Error
                         return
                     }
                     if (($LoopObjects | Measure-Object).Count -eq 0) {
                         $ErrorParams = @{
                             Category    = 'InvalidArgument'
-                            Message     = "No -UserObject argument used, no `$Global:IRT_UserObjects present."
+                            Message     = 'No -UserObject argument used, ' +
+                                'no $Global:IRT_UserObjects present.'
                             ErrorAction = 'Stop'
                         }
                         Write-Error @ErrorParams
@@ -224,14 +226,16 @@ function Get-UALog {
         # populate profile operations
         if ($RiskyOperation) {
             # import alloperations sheet
-            $ModuleRoot = $MyInvocation.MyCommand.Module.ModuleBase
-            $AllOperationsFileName = 'unified_audit_log-all_operations.xlsx'
-            $AllOperationsConfig = $Global:IRT_Config.AllOperationsSheetPath
-            $OperationsSheetPath = if ($AllOperationsConfig) { $AllOperationsConfig } else { Join-Path -Path $ModuleRoot -ChildPath "data\${AllOperationsFileName}" }
-            $OperationsSheetData = Import-Excel -Path $OperationsSheetPath -WorksheetName 'Operations'
+            $OperationsSheetPath = $Global:IRT_Config.AllOperationsSheetPath
+            $ExcelParams = @{
+                Path          = $OperationsSheetPath
+                WorksheetName = 'Operations'
+            }
+            $OperationsSheetData = Import-Excel @ExcelParams
 
             # get high risk operations and store in active profile
-            $ActiveProfile.Operations = ($OperationsSheetData | Where-Object {$_.Risk -eq 'High'}).Operation
+            $HighRisk = $OperationsSheetData | Where-Object { $_.Risk -eq 'High' }
+            $ActiveProfile.Operations = $HighRisk.Operation
         }
         # add profile operations to set
         foreach ($o in $ActiveProfile.Operations) {[void]$OperationsSet.Add($o)}
@@ -266,14 +270,16 @@ function Get-UALog {
                 }
             }
             $FileNamePrefix = $ActiveProfile.FilePrefix
-            $FileNameBase = "${FileNamePrefix}_${Days}Days_${DomainName}_${ObjectName}_${FileNameDateString}"
+            $FileNameBase = "${FileNamePrefix}_${Days}Days_${DomainName}" +
+                "_${ObjectName}_${FileNameDateString}"
             $XmlOutputPath = "${FileNameBase}.xml"
 
             # build spreadsheet title
             $TitleDateFormat = "M/d/yy h:mmtt"
             $TitleStartDate = $StartDateUtc.ToLocalTime().ToString($TitleDateFormat)
             $TitleEndDate = $EndDateUtc.ToLocalTime().ToString($TitleDateFormat)
-            $TitleSuffix = " for ${ObjectName}. Covers ${Days} days, ${TitleStartDate} to ${TitleEndDate}."
+            $TitleSuffix = " for ${ObjectName}. Covers ${Days} days, " +
+                "${TitleStartDate} to ${TitleEndDate}."
 
             # build query params
             $BaseParams = @{
@@ -297,7 +303,8 @@ function Get-UALog {
                             Params = @{
                                 UserIds = $UserEmail, $UserId, $UserIdNoDashes
                             }
-                            ConsoleOutput = "Running UserIds query for ${UserEmail}, ${UserId}, ${UserIdNoDashes}"
+                            ConsoleOutput = "Running UserIds query for ${UserEmail}, " +
+                                "${UserId}, ${UserIdNoDashes}"
                         }
                         '2' = @{
                             Params = @{
@@ -340,7 +347,8 @@ function Get-UALog {
                                 Params = @{
                                     FreeText = $FreeTextString
                                 }
-                                ConsoleOutput = "Running FreeText '${FreeTextString}' query for all users."
+                                ConsoleOutput = "Running FreeText '${FreeTextString}' " +
+                                    "query for all users."
                             }
                             $Key++
                         }
@@ -358,9 +366,16 @@ function Get-UALog {
                     $QueryTable = [ordered]@{
                         '1' = @{
                             Params = @{
-                                UserIds = $ServicePrincipalId, $ServicePrincipalIdNoDash, $AppId, $AppIdNoDash
+                                UserIds = @(
+                                    $ServicePrincipalId
+                                    $ServicePrincipalIdNoDash
+                                    $AppId
+                                    $AppIdNoDash
+                                )
                             }
-                            ConsoleOutput = "Running UserIds query for ${ServicePrincipalId}, ${ServicePrincipalIdNoDash}, ${AppId}, ${AppIdNoDash}"
+                            ConsoleOutput = "Running UserIds query for " +
+                                "${ServicePrincipalId}, ${ServicePrincipalIdNoDash}, " +
+                                "${AppId}, ${AppIdNoDash}"
                         }
                         '2' = @{
                             Params = @{
@@ -415,7 +430,8 @@ function Get-UALog {
                 $FirstPageParams = @{}
                 # add params from table
                 $BaseParams.GetEnumerator() | ForEach-Object { $FirstPageParams[$_.Key] = $_.Value }
-                $QueryDict.Value.Params.GetEnumerator() | ForEach-Object { $FirstPageParams[$_.Key] = $_.Value }
+                $QueryDict.Value.Params.GetEnumerator() |
+                    ForEach-Object { $FirstPageParams[$_.Key] = $_.Value }
 
                 $ConsoleOutput = $QueryDict.Value.ConsoleOutput
 
@@ -481,7 +497,8 @@ function Get-UALog {
             if ($Script:Test) {
                 $TestText = "Removing duplicates and sorting"
                 $TimerStart = $Stopwatch.Elapsed
-                Write-IRT "${TestText} started at $(Get-Date -Format 'hh:mm:sstt')" -Level Warn | Out-Host
+                $Msg = "${TestText} started at $(Get-Date -Format 'hh:mm:sstt')"
+                Write-IRT $Msg -Level Warn | Out-Host
             }
 
             # remove duplicates
@@ -539,7 +556,8 @@ function Get-UALog {
                 if ($Script:Test) {
                     $TestText = "Exporting to xml"
                     $TimerStart = $Stopwatch.Elapsed
-                    Write-IRT "${TestText} started at $(Get-Date -Format 'hh:mm:sstt')" -Level Warn | Out-Host
+                    $Msg = "${TestText} started at $(Get-Date -Format 'hh:mm:sstt')"
+                    Write-IRT $Msg -Level Warn | Out-Host
                 }
 
                 Write-IRT "${Function}: Saving logs to: ${XmlOutputPath}"

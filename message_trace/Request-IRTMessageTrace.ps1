@@ -27,7 +27,8 @@ function Request-IRTMessageTrace {
         # $90DaysAgo = (Get-Date).AddDays(-90).ToUniversalTime()
         # if ($StartDateUtc -lt $90DaysAgo) {
         #     $DateString = $StartDateUtc.ToLocalTime().ToString('MM/dd/yy hh:mmtt')
-        #     Write-Host @Yellow "${Function}: ${DateString} is more than max range of 90 days. Setting to 90 days."
+        #     Write-Host @Yellow "${Function}: ${DateString} is more than max range of 90 days."
+        #         # Setting to 90 days.
         #     $StartDateUtc = $90DaysAgo
         # }
 
@@ -71,7 +72,9 @@ function Request-IRTMessageTrace {
 
             $StartDateString = $LoopParams.StartDate.ToString("MM/dd/yy")
             $EndDateString = $LoopParams.EndDate.ToString("MM/dd/yy")
-            if (-not $Quiet) { Write-IRT "Requesting message trace from ${StartDateString} to ${EndDateString}" }
+            if (-not $Quiet) {
+                Write-IRT "Requesting message trace from ${StartDateString} to ${EndDateString}"
+            }
 
             # request first page in this chunk
             $SleepCount = 0
@@ -82,8 +85,10 @@ function Request-IRTMessageTrace {
                     break
                 }
                 catch {
-                    # handle exo throttling with backoff; on any other error, return what we have so far
-                    $IsRateLimit = $_.Exception.Message -match 'surpassed the permitted limit|try again later'
+                    # handle exo throttling with backoff;
+                    # on any other error, return what we have so far
+                    $RatePattern = 'surpassed the permitted limit|try again later'
+                    $IsRateLimit = $_.Exception.Message -match $RatePattern
                     $IsWriteError       = $_.FullyQualifiedErrorId -match 'Write-ErrorMessage'
                     if ($IsRateLimit -and $IsWriteError -and $SleepCount -lt 5) {
                         Write-IRT "$($_.Exception.Message)" -Level Error
@@ -117,12 +122,15 @@ function Request-IRTMessageTrace {
 
             # keep following the service-provided continuation only while we hit the page size limit
             while ($PageCount -eq $MaxPageSize) {
-                $Hint = $Warn | Where-Object { $_ -like '*Get-MessageTraceV2*' } | Select-Object -Last 1
+                $Hint = $Warn |
+                    Where-Object { $_ -like '*Get-MessageTraceV2*' } |
+                    Select-Object -Last 1
                 if (-not $Hint) { break }
                 $NextParams = Build-TraceContinuation -WarningText $Hint
                 if (-not $NextParams) { break }
 
-                # reset any existing -starting* keys, then merge the new Hints (clamped to the chunk)
+                # reset any existing -starting* keys, then merge the new Hints
+                # (clamped to the chunk)
                 foreach ($k in @($LoopParams.Keys)) {
                     if ($k -like 'Starting*') {
                         $null = $LoopParams.Remove($k)
@@ -153,7 +161,9 @@ function Request-IRTMessageTrace {
                 # next page for this chunk
                 $StartDateString = $LoopParams.StartDate.ToString("MM/dd/yy")
                 $EndDateString = $LoopParams.EndDate.ToString("MM/dd/yy")
-                if (-not $Quiet) { Write-IRT "Requesting message trace from ${StartDateString} to ${EndDateString}" }
+                if (-not $Quiet) {
+                    Write-IRT "Requesting message trace from ${StartDateString} to ${EndDateString}"
+                }
 
                 $SleepCount = 0
                 while ($true) {
@@ -163,8 +173,10 @@ function Request-IRTMessageTrace {
                         break
                     }
                     catch {
-                        # handle exo throttling with backoff; on any other error, return what we have so far
-                        $IsRateLimit = $_.Exception.Message -match 'surpassed the permitted limit|try again later'
+                        # handle exo throttling with backoff;
+                        # on any other error, return what we have so far
+                        $RatePattern = 'surpassed the permitted limit|try again later'
+                        $IsRateLimit = $_.Exception.Message -match $RatePattern
                         $IsWriteError       = $_.FullyQualifiedErrorId -match 'Write-ErrorMessage'
                         if ($IsRateLimit -and $IsWriteError -and $SleepCount -lt 5) {
                             Write-IRT "$($_.Exception.Message)" -Level Error
@@ -190,7 +202,8 @@ function Request-IRTMessageTrace {
                 }
             }
 
-            # if we got here, either page count < 5000 (done with this chunk) or no more Hint was provided
+            # if we got here, either page count < 5000 (done with this chunk)
+            # or no more Hint was provided
         }
 
         Write-Output $AllMessages

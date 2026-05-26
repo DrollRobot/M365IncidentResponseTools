@@ -35,7 +35,8 @@ function Show-AdOus {
         # custom output view
         $Params = @{
             TypeName                  = 'ShowAdOus'
-            DefaultDisplayPropertySet = 'CanonicalName','Name','Users','Computers','DistinguishedName'
+            DefaultDisplayPropertySet = 'CanonicalName', 'Name', 'Users',
+                'Computers', 'DistinguishedName'
             Force                     = $true
         }
         Update-TypeData @Params
@@ -49,17 +50,22 @@ function Show-AdOus {
         }
 
         # get all ous
-        $Ous = Get-ADOrganizationalUnit -Properties CanonicalName -Filter * | Sort-Object CanonicalName
+        $Ous = Get-ADOrganizationalUnit -Properties CanonicalName -Filter * |
+            Sort-Object CanonicalName
 
         # create display objects
         foreach ( $Ou in $Ous ) {
 
-            $UserCount = @( Get-AdUser -Filter * -SearchBase $Ou.DistinguishedName -SearchScope OneLevel ).Count
+            $UserCount = @(
+                Get-AdUser -Filter * -SearchBase $Ou.DistinguishedName -SearchScope OneLevel
+            ).Count
             if ( $UserCount -le 0 ) {
                 $UserCount = '-'
             }
 
-            $ComputerCount = @( Get-AdComputer -Filter * -SearchBase $Ou.DistinguishedName -SearchScope OneLevel ).Count
+            $ComputerCount = @(
+                Get-AdComputer -Filter * -SearchBase $Ou.DistinguishedName -SearchScope OneLevel
+            ).Count
             if ( $ComputerCount -le 0 ) {
                 $ComputerCount = '-'
             }

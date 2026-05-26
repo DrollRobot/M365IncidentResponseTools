@@ -29,7 +29,11 @@ function Remove-MailboxFullAccess {
         if ($GrantAccessTo) {
             $Params['GrantAccessTo'] = $GrantAccessTo
         }
-        $Target = if ($UserObject) { ($UserObject | Select-Object -First 1).UserPrincipalName } else { $GrantAccessTo }
+        $Target = if ($UserObject) {
+            ($UserObject | Select-Object -First 1).UserPrincipalName
+        } else {
+            $GrantAccessTo
+        }
         if ($PSCmdlet.ShouldProcess($Target, 'Remove full mailbox access')) {
             Grant-MailboxFullAccess @Params
         }

@@ -37,7 +37,9 @@ function Request-IRTMessageTraceV1 {
 
             # retrieve one page
             if (-not $Quiet) {Write-IRT "Requesting message trace page ${Page}"}
-            $PageResults = [psobject[]]@(Get-MessageTrace @Params -WarningAction SilentlyContinue -WarningVariable mtWarnings)
+            $Params['WarningAction']   = 'SilentlyContinue'
+            $Params['WarningVariable'] = 'mtWarnings'
+            $PageResults = [psobject[]]@(Get-MessageTrace @Params)
             $mtWarnings | Where-Object { $_ -notlike '*Get-MessageTrace will start deprecating*' } |
                 ForEach-Object { Write-Warning $_ }
             foreach ($i in $PageResults) {[void]$AllMessages.Add($i)}

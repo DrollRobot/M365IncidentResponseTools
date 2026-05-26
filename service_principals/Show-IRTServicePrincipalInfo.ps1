@@ -71,7 +71,9 @@ function Show-IRTServicePrincipalInfo {
     begin {
         if ( -not $ServicePrincipalObject -or $ServicePrincipalObject.Count -eq 0 ) {
             $ScriptServicePrincipalObjects = @( $Global:IRT_ServicePrincipalObjects )
-            if ( -not $ScriptServicePrincipalObjects -or $ScriptServicePrincipalObjects.Count -eq 0 ) {
+            if ( -not $ScriptServicePrincipalObjects -or
+                $ScriptServicePrincipalObjects.Count -eq 0
+            ) {
                 throw "No service principal objects passed or found in global variables."
             }
         }
@@ -140,22 +142,34 @@ function Show-IRTServicePrincipalInfo {
                 $FullSP | Show-GraphServicePrincipalTree | Out-Host
             }
             catch {
-                Write-IRT "Failed to get service principal object: $($_.Exception.Message)" -Level Error
+                $Msg = "Failed to get service principal object: $($_.Exception.Message)"
+                Write-IRT $Msg -Level Error
             }
 
             # OAuth2 Permission Grants (delegated permissions)
             try {
-                $GrantsByClientId = Request-GraphOauth2Grant -Cached:$Cached -Return 'tablebyclientid'
+                $GrantsParams = @{
+                    Cached = $Cached
+                    Return = 'tablebyclientid'
+                }
+                $GrantsByClientId = Request-GraphOauth2Grant @GrantsParams
                 $OAuth2Grants     = @( $GrantsByClientId[$ScriptServicePrincipalObject.Id] )
-                $SPsById          = Request-GraphServicePrincipal -Cached:$Cached -Return 'tablebyid'
+                $SPsById = Request-GraphServicePrincipal -Cached:$Cached -Return 'tablebyid'
                 $UsersById        = Request-GraphUser -Cached:$Cached -Return 'tablebyid'
 
                 Write-IRT "OAuth2 Permission Grants (delegated) for: ${SpName}"
                 if ($OAuth2Grants.Count -gt 0) {
                     $OAuth2Grants | ForEach-Object {
-                        $User = if ($_.ConsentType -eq 'Principal') { $UsersById[$_.PrincipalId] } else { $null }
+                        $User = if ($_.ConsentType -eq 'Principal') {
+                            $UsersById[$_.PrincipalId]
+                        } else {
+                            $null
+                        }
+                        $ResourceSP  = $SPsById[$_.ResourceId]
+                        $ResourceVal = ($ResourceSP ? $ResourceSP.DisplayName : $null) ??
+                            $_.ResourceId
                         [PSCustomObject]@{
-                            Resource          = ($SPsById[$_.ResourceId] ? $SPsById[$_.ResourceId].DisplayName : $null) ?? $_.ResourceId
+                            Resource          = $ResourceVal
                             ConsentType       = $_.ConsentType
                             DisplayName       = $User ? $User.DisplayName : $null
                             UserPrincipalName = $User ? $User.UserPrincipalName : $null
@@ -169,7 +183,8 @@ function Show-IRTServicePrincipalInfo {
                 }
             }
             catch {
-                Write-IRT "Failed to get OAuth2 permission grants: $($_.Exception.Message)" -Level Error
+                $Msg = "Failed to get OAuth2 permission grants: $($_.Exception.Message)"
+                Write-IRT $Msg -Level Error
             }
 
             # App Role Assignments (application permissions)
@@ -195,17 +210,19 @@ function Show-IRTServicePrincipalInfo {
                             $RoleLookup[$Assignment.ResourceId] = @{}
                             if ($ResourceSP) {
                                 foreach ($Role in $ResourceSP.AppRoles) {
-                                    $RoleLookup[$Assignment.ResourceId][$Role.Id.ToString()] = $Role.Value
+                                    $RoleIdKey = $Role.Id.ToString()
+                                    $RoleLookup[$Assignment.ResourceId][$RoleIdKey] = $Role.Value
                                 }
                             }
                         }
                     }
 
                     $AppRoleAssignments | ForEach-Object {
-                        $RoleName = $RoleLookup[$_.ResourceId][$_.AppRoleId.ToString()]
+                        $RoleName  = $RoleLookup[$_.ResourceId][$_.AppRoleId.ToString()]
+                        $PermValue = if ($RoleName) { $RoleName } else { $_.AppRoleId.ToString() }
                         [PSCustomObject]@{
                             Resource        = $_.ResourceDisplayName
-                            Permission      = if ($RoleName) { $RoleName } else { $_.AppRoleId.ToString() }
+                            Permission      = $PermValue
                             CreatedDateTime = $_.CreatedDateTime
                         }
                     } | Format-Table -AutoSize | Out-Host
@@ -220,19 +237,26 @@ function Show-IRTServicePrincipalInfo {
 
             # Directory Role Memberships (Entra admin roles assigned to this SP)
             try {
-                $GetRoleAssignmentParams = @{
+                $DirRoleParams = @{
                     Filter      = "principalId eq '$($ScriptServicePrincipalObject.Id)'"
                     All         = $true
                     ErrorAction = 'Stop'
                 }
-                $RoleAssignments   = Get-MgRoleManagementDirectoryRoleAssignment @GetRoleAssignmentParams
-                $RoleTemplatesById = Request-DirectoryRoleTemplate -Cached:$Cached -Return 'tablebyid'
+                $RoleAssignments = Get-MgRoleManagementDirectoryRoleAssignment @DirRoleParams
+                $DrtParams = @{
+                    Cached = $Cached
+                    Return = 'tablebyid'
+                }
+                $RoleTemplatesById = Request-DirectoryRoleTemplate @DrtParams
 
                 Write-IRT "Directory Role Memberships (Entra admin roles) for: ${SpName}"
                 if ($RoleAssignments.Count -gt 0) {
                     $RoleAssignments | ForEach-Object {
+                        $TplEntry = $RoleTemplatesById[$_.RoleDefinitionId]
+                        $RoleName = ($TplEntry ? $TplEntry.DisplayName : $null) ??
+                            $_.RoleDefinitionId
                         [PSCustomObject]@{
-                            DisplayName      = ($RoleTemplatesById[$_.RoleDefinitionId] ? $RoleTemplatesById[$_.RoleDefinitionId].DisplayName : $null) ?? $_.RoleDefinitionId
+                            DisplayName      = $RoleName
                             DirectoryScopeId = $_.DirectoryScopeId
                         }
                     } | Format-Table -AutoSize | Out-Host
@@ -241,7 +265,8 @@ function Show-IRTServicePrincipalInfo {
                 }
             }
             catch {
-                Write-IRT "Failed to get directory role memberships: $($_.Exception.Message)" -Level Error
+                $Msg = "Failed to get directory role memberships: $($_.Exception.Message)"
+                Write-IRT $Msg -Level Error
             }
 
             # App Role Assigned To (users/groups/SPs that have been given access to this app)
@@ -263,11 +288,12 @@ function Show-IRTServicePrincipalInfo {
                     }
 
                     $AssignedTo | ForEach-Object {
-                        $RoleName = $AppRoleLookup[$_.AppRoleId.ToString()]
+                        $RoleName   = $AppRoleLookup[$_.AppRoleId.ToString()]
+                        $AppRoleVal = if ($RoleName) { $RoleName } else { $_.AppRoleId.ToString() }
                         [PSCustomObject]@{
                             PrincipalDisplayName = $_.PrincipalDisplayName
                             PrincipalType        = $_.PrincipalType
-                            AppRole              = if ($RoleName) { $RoleName } else { $_.AppRoleId.ToString() }
+                            AppRole              = $AppRoleVal
                             CreatedDateTime      = $_.CreatedDateTime
                         }
                     } | Format-Table -AutoSize | Out-Host
@@ -326,7 +352,8 @@ function Show-GraphServicePrincipalTree {
         foreach ($ServicePrincipalObjectItem in $ServicePrincipalObject) {
             if ($null -eq $ServicePrincipalObjectItem) { continue }
 
-            $Projected = $ServicePrincipalObjectItem | Select-Object -Property * -ExcludeProperty $Exclude
+            $Projected = $ServicePrincipalObjectItem |
+                Select-Object -Property * -ExcludeProperty $Exclude
 
             $Params = @{
                 Depth           = $Depth

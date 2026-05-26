@@ -74,7 +74,9 @@ function Request-GraphUser {
             $FileName = "Users_Raw_${DomainName}_${FileNameDate}.xml"
             $XmlOutputPath = Join-Path -Path $CurrentPath -ChildPath $FileName
             if ( $Test ) {
-                $ExportTime = Measure-Command { $Objects | Export-Clixml -Depth 5 -Path $XmlOutputPath }
+                $ExportTime = Measure-Command {
+                    $Objects | Export-Clixml -Depth 5 -Path $XmlOutputPath
+                }
                 Write-IRT "Export-Clixml took $( $ExportTime.TotalSeconds ) seconds"
             }
             else {

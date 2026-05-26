@@ -167,7 +167,9 @@ function Get-IRTInboxRule {
                 Passthru      = $true
             }
             try {
-                $Workbook = $OutputTable | Select-Object $DisplayProperties | Export-Excel @ExcelParams
+                $Workbook = $OutputTable |
+                    Select-Object $DisplayProperties |
+                    Export-Excel @ExcelParams
             }
             catch {
                 Write-Error "Unable to open new Excel document."
@@ -185,13 +187,20 @@ function Get-IRTInboxRule {
             # get table ranges
             $SheetStartColumn = $WorkSheet.Dimension.Start.Column | Convert-DecimalToExcelColumn
             $SheetStartRow = $WorkSheet.Dimension.Start.Row
-            # $TableStartColumn = ( $workSheet.Tables.Address | Select-Object -First 1 ).Start.Column | Convert-DecimalToExcelColumn
+            # $TableStartColumn = ( $workSheet.Tables.Address | Select-Object -First 1
+            #     ).Start.Column | Convert-DecimalToExcelColumn
             $TableStartRow = ( $workSheet.Tables.Address | Select-Object -First 1 ).Start.Row
             $EndColumn = $WorkSheet.Dimension.End.Column | Convert-DecimalToExcelColumn
             $EndRow = $WorkSheet.Dimension.End.Row
 
-            $EnabledColumn = ( $Worksheet.Tables[0].Columns | Where-Object { $_.Name -eq 'Enabled' } ).Id | Convert-DecimalToExcelColumn
-            $DescriptionColumn = ( $Worksheet.Tables[0].Columns | Where-Object { $_.Name -eq 'Description' } ).Id | Convert-DecimalToExcelColumn
+            $EnabledColumn = (
+                $Worksheet.Tables[0].Columns |
+                Where-Object { $_.Name -eq 'Enabled' }
+            ).Id | Convert-DecimalToExcelColumn
+            $DescriptionColumn = (
+                $Worksheet.Tables[0].Columns |
+                Where-Object { $_.Name -eq 'Description' }
+            ).Id | Convert-DecimalToExcelColumn
 
             #region CELL COLORING
 
@@ -204,6 +213,8 @@ function Get-IRTInboxRule {
                 BackgroundColor = 'LightBlue'
             }
             Add-ConditionalFormatting @CFParams
+
+            $DescRange = "${DescriptionColumn}${TableStartRow}:${DescriptionColumn}${EndRow}"
 
             # if description column contains text, make background red
             $Strings = @(
@@ -219,7 +230,7 @@ function Get-IRTInboxRule {
 
                 $CFParams = @{
                     Worksheet       = $WorkSheet
-                    Address         = "${DescriptionColumn}${TableStartRow}:${DescriptionColumn}${EndRow}"
+                    Address         = $DescRange
                     RuleType        = 'ContainsText'
                     ConditionValue  = $String
                     BackgroundColor = 'LightPink'
@@ -234,7 +245,7 @@ function Get-IRTInboxRule {
             foreach ( $String in $Strings ) {
                 $CFParams = @{
                     Worksheet       = $WorkSheet
-                    Address         = "${DescriptionColumn}${TableStartRow}:${DescriptionColumn}${EndRow}"
+                    Address         = $DescRange
                     RuleType        = 'ContainsText'
                     ConditionValue  = $String
                     BackgroundColor = 'LightBlue'

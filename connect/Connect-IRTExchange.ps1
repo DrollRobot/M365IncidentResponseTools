@@ -12,8 +12,9 @@ function Connect-IRTExchange {
     Connect-ExchangeOnline. For interactive flows the UPN is derived from the
     MSAL token result automatically.
 
-    .PARAMETER GCCHigh
-    Connect to a GCC High tenant environment.
+    .PARAMETER Cloud
+    Cloud to connect to. Valid values: Commercial, USGov, China.
+    When omitted the cloud defaults to Commercial.
 
     .PARAMETER DeviceCode
     Use device code authentication flow.
@@ -42,7 +43,8 @@ function Connect-IRTExchange {
         [Parameter(Mandatory)]
         [string] $TenantId,
         [string] $UserPrincipalName,
-        [switch] $GCCHigh,
+        [ValidateSet('Commercial', 'USGov', 'USGovDoD', 'China')]
+        [string] $Cloud = 'Commercial',
         [switch] $DeviceCode,
         [string] $AccessToken,
 
@@ -54,12 +56,9 @@ function Connect-IRTExchange {
     )
 
     begin {
-        $ExchangeScope = 'https://outlook.office365.com/.default'
-        $Authority     = "https://login.microsoftonline.com/$TenantId"
-        if ($GCCHigh) {
-            $ExchangeScope = 'https://outlook.office365.us/.default'
-            $Authority     = "https://login.microsoftonline.us/$TenantId"
-        }
+        $CloudConfig   = $Global:IRT_CloudEnvironments[$Cloud]
+        $ExchangeScope = $CloudConfig.Exchange
+        $Authority     = "$($CloudConfig.LoginHost)/$TenantId"
         $Scopes = [string[]]@($ExchangeScope)
 
         $ExoClientId = 'fb78d390-0c51-40cd-8e17-fdbfab77341b'  # EXO first-party app
@@ -193,7 +192,7 @@ function Connect-IRTExchange {
                 UserPrincipalName = $Upn
                 ShowBanner        = $false
             }
-            if ($GCCHigh) { $Params['ExchangeEnvironmentName'] = 'O365USGovGCCHigh' }
+            $Params['ExchangeEnvironmentName'] = $CloudConfig.ExchangeEnv
             Connect-ExchangeOnline @Params
         }
 

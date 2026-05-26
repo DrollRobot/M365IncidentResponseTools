@@ -1,7 +1,8 @@
 function Find-AdUser {
     <#
     .SYNOPSIS
-    Finds local AD user by DisplayName, Name, UserPrincipalName, ProxyAddresses, SamAccountName, or ObjectGUID.
+    Finds local AD user by DisplayName, Name, UserPrincipalName, ProxyAddresses,
+    SamAccountName, or ObjectGUID.
 
     .DESCRIPTION
     Searches Active Directory for users matching one or more search strings. The search is
@@ -177,7 +178,8 @@ function Find-AdUser {
                 Force = $true
             }
             New-Variable @VariableParams
-            Write-IRT "Created `$${VarPrefix}UserObject, `$${VarPrefix}UserObjects, and `$${VarPrefix}UserEmail"
+            Write-IRT ("Created `$${VarPrefix}UserObject, `$${VarPrefix}UserObjects, " +
+                "and `$${VarPrefix}UserEmail")
         }
         elseif (($ScriptUserObjects | Measure-Object).Count -gt 1) {
 

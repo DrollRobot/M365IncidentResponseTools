@@ -182,7 +182,8 @@ function Build-Menu {
     if ( $ArrayOrList ) {
 
         while ( -not ( $UserChoice -ge 1 -and $UserChoice -le @($Option).Count ) ) {
-            Write-Host -NoNewLine @Red "Choice must be a number, 1 to $( @($Option).Count ). Enter Choice"
+            Write-Host -NoNewLine @Red "Choice must be a number, 1 to $( @($Option).Count )."
+            Write-Host -NoNewLine @Red " Enter Choice"
             $UserChoice = Read-Host
         }
 

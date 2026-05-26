@@ -38,6 +38,16 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+# Import the module under test so PSScriptAnalyzer and Pester tests both have
+# access to full parameter metadata for all IRT functions and cmdlets.
+$ManifestPath = Join-Path -Path $PSScriptRoot -ChildPath "$(Split-Path $PSScriptRoot -Leaf).psd1"
+if (Test-Path $ManifestPath) {
+    $ModuleStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+    Import-Module $ManifestPath -Force -ErrorAction SilentlyContinue
+    $ModuleStopwatch.Stop()
+    Write-Host ("Module loaded in {0:F1}s." -f $ModuleStopwatch.Elapsed.TotalSeconds) -ForegroundColor Cyan
+}
+
 $TestsFolder = Join-Path $PSScriptRoot 'tests'
 
 # --- Format ---

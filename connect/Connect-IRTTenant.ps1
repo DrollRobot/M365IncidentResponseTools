@@ -8,6 +8,10 @@ function Connect-IRTTenant {
     each tenant's Aliases regex pattern. Once matched, it passes the tenant's parameters
     to Connect-IRT and opens any configured URLs in the browser.
 
+    If multiple tenants match the alias, a numbered menu is presented so the user can
+    select which tenant to connect to. This allows the same alias patterns to be shared
+    across multiple tenants belonging to the same client.
+
     The tenants worksheet should be stored at $env:APPDATA\M365IncidentResponseTools\tenants.xlsx.
     A template file (tenants_TEMPLATE.xlsx) is included in the module_init folder for reference.
 
@@ -52,7 +56,8 @@ function Connect-IRTTenant {
     Uses the alias to connect to the matching tenant.
 
     .NOTES
-    Version: 1.1.0
+    Version: 1.2.0
+    1.2.0 - Multiple-match now prompts user with a selection menu instead of throwing.
     1.1.0 - Updated to use xlsx file instead of csv.
     #>
     [Alias('IRTTenant')]
@@ -80,11 +85,7 @@ function Connect-IRTTenant {
 
     begin {
         if (-not $TenantFile) {
-            $TenantFile = if ($Global:IRT_Config.TenantsSheetPath) {
-                $Global:IRT_Config.TenantsSheetPath
-            } else {
-                Join-Path $env:APPDATA 'M365IncidentResponseTools\tenants.xlsx'
-            }
+            $TenantFile = $Global:IRT_Config.TenantsSheetPath
         }
     }
 
@@ -93,10 +94,9 @@ function Connect-IRTTenant {
 
         # validate tenant file exists
         if (-not ( Test-Path $TenantFile )) {
-            $NotFoundMsg = "Tenant file not found: ${TenantFile}`n" +
-                           "Run Open-IRTTenantSheet to create it and edit" +
-                           " with your tenant information."
-            throw $NotFoundMsg
+            Write-Error ("Tenant file not found: ${TenantFile}`n" +
+                "Run Open-IRTTenantSheet to create it and edit with your tenant information.")
+            return
         }
 
         # import and search for matching tenant
@@ -112,27 +112,28 @@ function Connect-IRTTenant {
         if ($MatchedTenants.Count -eq 0) {
 
             $AvailableNames = ($Tenants | ForEach-Object {$_.TenantName}) -join ', '
-            throw "No tenant matched alias '${Alias}'. Available tenants: ${AvailableNames}"
+            Write-Error "No tenant matched alias '${Alias}'. Available tenants: ${AvailableNames}"
+            return
         }
         if ($MatchedTenants.Count -gt 1) {
-
-            $MatchedNames = ($MatchedTenants | ForEach-Object {$_.TenantName}) -join ', '
-            $MultiMatchMsg = "Multiple tenants matched alias '${Alias}': ${MatchedNames}. " +
-                             "Refine your alias patterns to avoid overlap."
-            throw $MultiMatchMsg
+            $TenantNames = $MatchedTenants | ForEach-Object { $_.TenantName }
+            $MenuParams = @{
+                Option = $TenantNames
+                Title  = "Multiple tenants matched '${Alias}'. Select a tenant:"
+                List   = $true
+            }
+            $SelectedName = Build-Menu @MenuParams
+            $MatchedTenant = $MatchedTenants | Where-Object { $_.TenantName -eq $SelectedName }
         }
-
-        $MatchedTenant = $MatchedTenants[0]
+        else {
+            $MatchedTenant = $MatchedTenants[0]
+        }
 
         Write-IRT "Matched tenant: $($MatchedTenant.TenantName)"
 
         # build connection parameters
         $ConnectParams = @{
             TenantId = $MatchedTenant.TenantId
-        }
-
-        if ($MatchedTenant.GCCHigh -imatch 'yes|^y$') {
-            $ConnectParams['GCCHigh'] = $true
         }
 
         if ($null -ne $DeviceCode) {
@@ -193,11 +194,7 @@ function Open-IRTTenantSheet {
 
     begin {
         if (-not $TenantFile) {
-            $TenantFile = if ($Global:IRT_Config.TenantsSheetPath) {
-                $Global:IRT_Config.TenantsSheetPath
-            } else {
-                Join-Path $env:APPDATA 'M365IncidentResponseTools\tenants.xlsx'
-            }
+            $TenantFile = $Global:IRT_Config.TenantsSheetPath
         }
     }
 

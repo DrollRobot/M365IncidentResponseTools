@@ -37,7 +37,8 @@ function Resolve-IRTDateRange {
     if ($Days -and ($Start -or $End)) {
         $ErrorParams = @{
             Category    = 'InvalidArgument'
-            Message     = "Choose either relative range with -Days or absolute range with -Start and -End."
+            Message     = 'Choose either relative range with -Days ' +
+                'or absolute range with -Start and -End.'
             ErrorAction = 'Stop'
         }
         Write-Error @ErrorParams

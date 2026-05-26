@@ -1,7 +1,8 @@
 function Get-RandomPassword {
     <#
     .SYNOPSIS
-    Generates passwords of random characters. Guarantees at least one character of each type so password will meet complexity requirements.
+    Generates passwords of random characters. Guarantees at least one character
+    of each type so password will meet complexity requirements.
 
     Usage:
     Get-RandomPassword 10

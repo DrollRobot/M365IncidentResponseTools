@@ -8,11 +8,17 @@ function Connect-IRT {
     When no service switches are specified, both services are connected. Use -Graph
     or -Exchange to connect to specific services only.
 
+    The cloud environment is identified automatically via an unauthenticated OIDC
+    discovery lookup. Pass -Cloud to skip the lookup and connect directly
+    to a known cloud.
+
     .PARAMETER TenantId
     The TenantId GUID for the environment you want to connect to.
 
-    .PARAMETER GCCHigh
-    Connect to a GCC High tenant environment.
+    .PARAMETER Cloud
+    Cloud to connect to. Valid values: Commercial, USGov, China.
+    When omitted the cloud is detected automatically via OIDC discovery. Provide
+    this parameter to skip the lookup or to override the detected value.
 
     .PARAMETER DeviceCode
     Use device code authentication flow instead of interactive browser auth.
@@ -42,8 +48,8 @@ function Connect-IRT {
     Connects to Graph only using device code auth.
 
     .EXAMPLE
-    Connect-IRT -TenantId $tid -Exchange -GCCHigh
-    Connects to Exchange in a GCC High environment.
+    Connect-IRT -TenantId $tid -Exchange -Cloud USGov
+    Connects to Exchange in a USGov cloud, skipping OIDC discovery.
 
     .NOTES
     Version: 1.0.0
@@ -53,7 +59,8 @@ function Connect-IRT {
     param (
         [Parameter( Mandatory )]
         [string] $TenantId,
-        [switch] $GCCHigh,
+        [ValidateSet('Commercial', 'USGov', 'USGovDoD', 'China')]
+        [string] $Cloud,
         [switch] $DeviceCode,
         [Alias('AdditionalScopes')]
         [string[]] $AdditionalScope,
@@ -77,6 +84,19 @@ function Connect-IRT {
         $ConnectExchange = $ConnectAll -or $Exchange
         $ConnectIPPS     = $ConnectAll -or $IPPS
 
+        # --- Resolve cloud ---
+        # Use the OIDC lookup when -Cloud is not specified.
+        $DetectedEnvironment = $Cloud
+        if (-not $Cloud) {
+            $Oidc = Invoke-TenantOIDCLookup -TenantId $TenantId
+            if ($Oidc) {
+                $DetectedEnvironment = $Oidc.Cloud
+            } else {
+                $DetectedEnvironment = 'Commercial'
+                Write-IRT 'OIDC discovery did not find the tenant cloud; using "-Cloud Commercial".' -Level Warn
+            }
+        }
+
         # --- Initialize session global before attempting connections ---
         if ($Global:IRT_Session -and $Global:IRT_Session.TenantId -ne $TenantId) {
             $OldTenant = $Global:IRT_Session.TenantId
@@ -86,11 +106,11 @@ function Connect-IRT {
 
         if (-not $Global:IRT_Session) {
             $Global:IRT_Session = [pscustomobject]@{
-                TenantId = $TenantId
-                GCCHigh  = [bool]$GCCHigh
-                Graph    = $null
-                Exchange = $null
-                IPPS     = $null
+                TenantId    = $TenantId
+                Environment = $DetectedEnvironment
+                Graph       = $null
+                Exchange    = $null
+                IPPS        = $null
             }
         }
 
@@ -100,7 +120,7 @@ function Connect-IRT {
             $GraphParams = @{
                 TenantId = $TenantId
             }
-            if ($GCCHigh)          { $GraphParams['GCCHigh']            = $true }
+            $GraphParams['Cloud'] = $DetectedEnvironment
             if ($DeviceCode)       { $GraphParams['DeviceCode']         = $true }
             if ($Force)            { $GraphParams['Force']              = $true }
             $GraphParams['Browser'] = $Browser
@@ -119,7 +139,7 @@ function Connect-IRT {
             $ExchangeParams = @{
                 TenantId          = $TenantId
             }
-            if ($GCCHigh)    { $ExchangeParams['GCCHigh']    = $true }
+            $ExchangeParams['Cloud'] = $DetectedEnvironment
             if ($DeviceCode) { $ExchangeParams['DeviceCode'] = $true }
             if ($Force)      { $ExchangeParams['Force']      = $true }
             $ExchangeParams['Browser'] = $Browser
@@ -132,7 +152,7 @@ function Connect-IRT {
         # --- IPPS ---
         if ($ConnectIPPS) {
             $IPPSParams = @{ TenantId = $TenantId }
-            if ($GCCHigh)    { $IPPSParams['GCCHigh']    = $true }
+            $IPPSParams['Cloud'] = $DetectedEnvironment
             if ($DeviceCode) { $IPPSParams['DeviceCode'] = $true }
             if ($Force)      { $IPPSParams['Force']      = $true }
             $IPPSParams['Browser'] = $Browser

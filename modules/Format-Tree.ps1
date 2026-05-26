@@ -115,9 +115,12 @@ function Get-Indent([int]$CurrentDepth, [int]$Size) {
 
 function Get-PropertyName($Obj) {
     $Obj.PSObject.Properties |
-        Where-Object { $_.IsGettable -and $_.MemberType -in 'NoteProperty','Property','AliasProperty' } |
-        Select-Object -ExpandProperty Name -Unique |
-        Sort-Object
+        Where-Object {
+            $_.IsGettable -and
+            $_.MemberType -in 'NoteProperty','Property','AliasProperty'
+        } |
+            Select-Object -ExpandProperty Name -Unique |
+            Sort-Object
 }
 
 function Out-Print {
@@ -136,7 +139,10 @@ function Out-Print {
     $Value = Resolve-Json $Value
 
     if ($null -eq $Value) {
-        if (-not $OmitNullOrEmpty) { Write-NameValue $Name '<null>' $CurrentDepth $IndentSize; return $true }
+        if (-not $OmitNullOrEmpty) {
+            Write-NameValue $Name '<null>' $CurrentDepth $IndentSize
+            return $true
+        }
         return $false
     }
 
@@ -170,7 +176,10 @@ function Out-Print {
         }
         foreach ($Key in ($Value.Keys | Sort-Object)) {
             if (Test-HasVisible $Value[$Key] ($CurrentDepth + 1)) {
-                if (-not $Printed) { Write-NameValue $Name '' $CurrentDepth $IndentSize; $Printed = $true }
+                if (-not $Printed) {
+                    Write-NameValue $Name '' $CurrentDepth $IndentSize
+                    $Printed = $true
+                }
                 Out-Print ("[$Key]") $Value[$Key] ($CurrentDepth + 1) | Out-Null
             }
         }
@@ -217,13 +226,18 @@ function Out-Print {
 
 function Resolve-Json($Value) {
 
-    ### if it's a string that looks like json, try to parse it (handles one level of json-in-a-string)
+    ### if it's a string that looks like json, try to parse it
+    ### (handles one level of json-in-a-string)
     # if the value is anything other than string, return it
     if ($Value -isnot [string]) { return $Value }
     $String = $Value.Trim()
-    # if the string starts and ends with brackets or braces, set LooksLikeJson to true
-    $LooksLikeJson = ($String.StartsWith('{') -and $String.EndsWith('}')) -or ($String.StartsWith('[') -and $String.EndsWith(']'))
-    if (-not $LooksLikeJson) { return $Value }
+    if (-not (
+            ($String.StartsWith('{') -and $String.EndsWith('}')) -or
+            ($String.StartsWith('[') -and $String.EndsWith(']'))
+        )
+    ) {
+        return $Value
+    }
 
     try {
         # convert from json
@@ -231,9 +245,12 @@ function Resolve-Json($Value) {
         # if the parsed result is itself a json-looking string, try one more pass
         if ($Parsed -is [string]) {
             $Inner = $Parsed.Trim()
-            $InnerLooksLike = ($Inner.StartsWith('{') -and $Inner.EndsWith('}')) -or ($Inner.StartsWith('[') -and $Inner.EndsWith(']'))
-            if ($InnerLooksLike) {
-                try { return ($Inner | ConvertFrom-Json -ErrorAction Stop) } catch { return $Parsed }
+            if (
+                ($Inner.StartsWith('{') -and $Inner.EndsWith('}')) -or
+                ($Inner.StartsWith('[') -and $Inner.EndsWith(']'))
+            ) {
+                try { return ($Inner | ConvertFrom-Json -ErrorAction Stop) }
+                catch { return $Parsed }
             }
         }
         return $Parsed
@@ -241,7 +258,9 @@ function Resolve-Json($Value) {
 }
 
 
-function Test-IsEmptyScalar($Value) { ($Value -is [string]) -and [string]::IsNullOrWhiteSpace($Value) }
+function Test-IsEmptyScalar($Value) {
+    ($Value -is [string]) -and [string]::IsNullOrWhiteSpace($Value)
+}
 
 function Test-IsScalar($Value) {
     # treat common primitives as scalars (and helpful extras)
@@ -278,7 +297,9 @@ function Test-HasVisible($Value, [int]$CurrentDepth) {
     }
 
     if ($Value -is [System.Collections.IDictionary]) {
-        foreach ($Key in $Value.Keys) { if (Test-HasVisible $Value[$Key] ($CurrentDepth + 1)) { return $true } }
+        foreach ($Key in $Value.Keys) {
+            if (Test-HasVisible $Value[$Key] ($CurrentDepth + 1)) { return $true }
+        }
         return $false
     }
 
@@ -307,10 +328,12 @@ function Write-NameValue([string]$Name, [string]$ValueText, [int]$CurrentDepth, 
     $Indent      = Get-Indent $CurrentDepth $Size
     $PlainPrefix = $Indent + $Name + ': '
     $ContIndent  = ' ' * ($PlainPrefix.Length)
-    $Lines = [regex]::Split($ValueText, '(?:\r\n|\n|\r)'); if ($Lines.Count -eq 0) { $Lines = @('') }
+    $Lines = [regex]::Split($ValueText, '(?:\r\n|\n|\r)')
+    if ($Lines.Count -eq 0) { $Lines = @('') }
 
     if ($PSVersionTable.PSVersion.Major -ge 6 -and $PSStyle) {
-        $First = $Indent + $PSStyle.Foreground.BrightGreen + $Name + $PSStyle.Reset + ': ' + $Lines[0]
+        $First = $Indent + $PSStyle.Foreground.BrightGreen + $Name +
+            $PSStyle.Reset + ': ' + $Lines[0]
         Write-Host $First
         for ($i = 1; $i -lt $Lines.Count; $i++) {
             Write-Host ($ContIndent + $Lines[$i])

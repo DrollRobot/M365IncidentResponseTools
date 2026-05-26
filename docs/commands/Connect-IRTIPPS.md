@@ -13,7 +13,7 @@ Connects to Security & Compliance PowerShell (IPPS).
 ## SYNTAX
 
 ```
-Connect-IRTIPPS [-TenantId] <String> [[-UserPrincipalName] <String>] [-GCCHigh] [-DeviceCode]
+Connect-IRTIPPS [-TenantId] <String> [[-UserPrincipalName] <String>] [[-Cloud] <String>] [-DeviceCode]
  [[-AccessToken] <String>] [[-SearchOnly] <Boolean>] [[-Browser] <String>] [-Private] [-Force]
  [-ProgressAction <ActionPreference>] [<CommonParameters>]
 ```
@@ -66,17 +66,17 @@ Accept pipeline input: False
 Accept wildcard characters: False
 ```
 
-### -GCCHigh
-{{ Fill GCCHigh Description }}
+### -Cloud
+{{ Fill Cloud Description }}
 
 ```yaml
-Type: SwitchParameter
+Type: String
 Parameter Sets: (All)
 Aliases:
 
 Required: False
-Position: Named
-Default value: False
+Position: 3
+Default value: Commercial
 Accept pipeline input: False
 Accept wildcard characters: False
 ```
@@ -105,7 +105,7 @@ Parameter Sets: (All)
 Aliases:
 
 Required: False
-Position: 3
+Position: 4
 Default value: None
 Accept pipeline input: False
 Accept wildcard characters: False
@@ -125,7 +125,7 @@ Parameter Sets: (All)
 Aliases:
 
 Required: False
-Position: 4
+Position: 5
 Default value: True
 Accept pipeline input: False
 Accept wildcard characters: False
@@ -140,7 +140,7 @@ Parameter Sets: (All)
 Aliases:
 
 Required: False
-Position: 5
+Position: 6
 Default value: $Global:IRT_Config.Browser
 Accept pipeline input: False
 Accept wildcard characters: False

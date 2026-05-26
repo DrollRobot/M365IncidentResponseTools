@@ -13,13 +13,22 @@ if ($env:TERM_PROGRAM -ne 'vscode') {
     if (-not $Global:IRT_OriginalPrompt -or $Global:IRT_OriginalPrompt -isnot [scriptblock]) {
         $Global:IRT_OriginalPrompt = (Get-Command prompt -ErrorAction SilentlyContinue).ScriptBlock
         if (-not $Global:IRT_OriginalPrompt) {
-            $Global:IRT_OriginalPrompt = { "PS $($executionContext.SessionState.Path.CurrentLocation)$('>' * ($nestedPromptLevel + 1)) " }
+            $Global:IRT_OriginalPrompt = {
+                "PS $($executionContext.SessionState.Path.CurrentLocation)" +
+                    "$('>' * ($nestedPromptLevel + 1)) "
+            }
         }
     }
 
     function prompt {
-        # Best-effort: read PromptColor from the user config if it exists; fall back to hard-coded default.
-        $irt_configPath = Join-Path -Path $env:APPDATA -ChildPath 'M365IncidentResponseTools' -AdditionalChildPath 'config.json'
+        # Best-effort: read PromptColor from the user config if it exists;
+        # fall back to hard-coded default.
+        $irt_jpParams = @{
+            Path                = $env:APPDATA
+            ChildPath           = 'M365IncidentResponseTools'
+            AdditionalChildPath = 'config.json'
+        }
+        $irt_configPath = Join-Path @irt_jpParams
         $irt_color = try {
             if (Test-Path $irt_configPath) {
                 $c = (Get-Content $irt_configPath -Raw | ConvertFrom-Json).PromptColor
@@ -36,15 +45,16 @@ if ($env:TERM_PROGRAM -ne 'vscode') {
         $GraphCtx = Get-MgContext -ErrorAction SilentlyContinue
         $graphDomain = 'none'
         if ($GraphCtx -and $GraphCtx.Account) {
-            # Probe the token at most once per $CheckEveryXSeconds seconds to avoid per-prompt latency.
+            # Probe the token at most once per $CheckEveryXSeconds seconds
+            # to avoid per-prompt latency.
             $irt_now = [datetime]::UtcNow
             $irt_cacheStale = (-not $Global:IRT_GraphTokenChecked) -or
-                              (($irt_now - $Global:IRT_GraphTokenChecked).TotalSeconds -gt $CheckEveryXSeconds)
+                (($irt_now - $Global:IRT_GraphTokenChecked).TotalSeconds -gt $CheckEveryXSeconds)
             if ($irt_cacheStale) {
                 try {
                     $irt_probe = @{
-                        Method      = 'GET'
-                        Uri         = 'https://graph.microsoft.com/v1.0/organization?$select=id&$top=1'
+                        Method = 'GET'
+                        Uri = 'https://graph.microsoft.com/v1.0/organization?$select=id&$top=1'
                         ErrorAction = 'Stop'
                     }
                     $null = Invoke-MgGraphRequest @irt_probe
@@ -62,11 +72,19 @@ if ($env:TERM_PROGRAM -ne 'vscode') {
         $AllExoConns = Get-ConnectionInformation -ErrorAction SilentlyContinue |
         Where-Object { $_.State -eq 'Connected' }
         $ExoConn = $AllExoConns |
-        Where-Object { $_.ConnectionUri -notmatch 'compliance\.protection\.(outlook\.com|office365\.us)' } |
+        Where-Object {
+            $_.ConnectionUri -notmatch 'compliance\.protection\.(outlook\.com|office365\.us)'
+        } |
         Select-Object -First 1
-        $exoDomain = if ($ExoConn -and $ExoConn.UserPrincipalName) { ($ExoConn.UserPrincipalName -split '@')[-1] } else { 'none' }
+        if ($ExoConn -and $ExoConn.UserPrincipalName) {
+            $exoDomain = ($ExoConn.UserPrincipalName -split '@')[-1]
+        } else {
+            $exoDomain = 'none'
+        }
         $ippsConnected = [bool]($AllExoConns |
-            Where-Object { $_.ConnectionUri -match 'compliance\.protection\.(outlook\.com|office365\.us)' })
+            Where-Object {
+                $_.ConnectionUri -match 'compliance\.protection\.(outlook\.com|office365\.us)'
+            })
 
         Write-Host ''
         Write-Host @PromptColor '[IRT] ' -NoNewline

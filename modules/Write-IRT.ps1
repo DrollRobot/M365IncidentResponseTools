@@ -69,9 +69,27 @@ function Write-IRT {
     }
 
     $color = switch ($Level) {
-        'Info'  { if ($Global:IRT_Config?.InfoColor)  { $Global:IRT_Config.InfoColor }  else { 'DarkCyan' } }
-        'Warn'  { if ($Global:IRT_Config?.WarnColor)  { $Global:IRT_Config.WarnColor }  else { 'Yellow'   } }
-        'Error' { if ($Global:IRT_Config?.ErrorColor) { $Global:IRT_Config.ErrorColor } else { 'Red'      } }
+        'Info'  {
+            if ($Global:IRT_Config?.InfoColor) {
+                $Global:IRT_Config.InfoColor
+            } else {
+                'DarkCyan'
+            }
+        }
+        'Warn'  {
+            if ($Global:IRT_Config?.WarnColor) {
+                $Global:IRT_Config.WarnColor
+            } else {
+                'Yellow'
+            }
+        }
+        'Error' {
+            if ($Global:IRT_Config?.ErrorColor) {
+                $Global:IRT_Config.ErrorColor
+            } else {
+                'Red'
+            }
+        }
     }
 
     $text = if ($Message -eq '') { '' } else { "${FunctionName}: ${Message}" }

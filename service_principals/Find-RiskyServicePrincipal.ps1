@@ -56,15 +56,21 @@ function Find-RiskyServicePrincipal {
         $ThreatFeeds = @(
             @{
                 Name              = 'Huntress RogueApps'
-                Url               = 'https://raw.githubusercontent.com/huntresslabs/rogueapps/refs/heads/main/data/rogueapps.toml'
-                Parser            = {param($r) ($r | ConvertFrom-Toml).apps | ForEach-Object {[PSCustomObject]$_}}
+                Url               = 'https://raw.githubusercontent.com/' +
+                    'huntresslabs/rogueapps/refs/heads/main/data/rogueapps.toml'
+                Parser            = {
+                    param($r)
+                    ($r | ConvertFrom-Toml).apps | ForEach-Object {[PSCustomObject]$_}
+                }
                 AppIdField        = 'appId'
                 DisplayProperties = @('appDisplayName', 'description', 'tags', 'references')
                 Apps              = $null
             }
             @{
                 Name              = 'Syne/randomaccess3'
-                Url               = 'https://raw.githubusercontent.com/randomaccess3/detections/refs/heads/main/M365_Oauth_Apps/MaliciousOauthAppDetections.json'
+                Url               = 'https://raw.githubusercontent.com/' +
+                    'randomaccess3/detections/refs/heads/main/' +
+                    'M365_Oauth_Apps/MaliciousOauthAppDetections.json'
                 Parser            = {param($r) ($r | ConvertFrom-Json).Applications}
                 AppIdField        = 'AppId'
                 DisplayProperties = @('Name', 'Description', 'Categories', 'References')
@@ -83,10 +89,11 @@ function Find-RiskyServicePrincipal {
         Write-IRT "Tenant App settings:"
         $AuthPolicy = Get-MgPolicyAuthorizationPolicy
         $DefaultRolePermissions = $AuthPolicy.DefaultUserRolePermissions
+        $PoliciesAssigned = $DefaultRolePermissions.PermissionGrantPoliciesAssigned |
+            Where-Object {$_ -match 'ManagePermissionGrantsForSelf'}
         $Output = [PSCustomObject]@{
-            UsersAllowedToCreateApps      = $DefaultRolePermissions.AllowedToCreateApps
-            UsersAllowedToConsentForApps  = [bool]( $DefaultRolePermissions.PermissionGrantPoliciesAssigned |
-                Where-Object {$_ -match 'ManagePermissionGrantsForSelf'})
+            UsersAllowedToCreateApps     = $DefaultRolePermissions.AllowedToCreateApps
+            UsersAllowedToConsentForApps = [bool]$PoliciesAssigned
         }
         $Output | Format-List | Out-Host
 
@@ -116,7 +123,11 @@ function Find-RiskyServicePrincipal {
             foreach ($Feed in $ThreatFeeds) {
                 $FeedInfo = $Feed.Apps | Where-Object {$_.$($Feed.AppIdField) -eq $RiskyApp.AppId}
                 if ($FeedInfo) {
-                    $Properties = $Feed.DisplayProperties + @(@{Name = 'Source'; Expression = {$Feed.Name}})
+                    $ExprHash  = @{
+                        Name       = 'Source'
+                        Expression = {$Feed.Name}
+                    }
+                    $Properties = $Feed.DisplayProperties + @($ExprHash)
                     $FeedInfo | Select-Object $Properties | Format-List | Out-Host
                     break
                 }

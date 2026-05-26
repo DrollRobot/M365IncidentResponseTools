@@ -36,7 +36,12 @@ function Request-GraphOauth2Grant {
 
         # return cached data if available
         if ( $Cached ) {
-            $Variable = Get-Variable -Scope Global -Name 'IRT_Oauth2Grants' -ErrorAction SilentlyContinue
+            $GvParams = @{
+                Scope       = 'Global'
+                Name        = 'IRT_Oauth2Grants'
+                ErrorAction = 'SilentlyContinue'
+            }
+            $Variable = Get-Variable @GvParams
             if ( $Variable ) {
                 switch ( $Return ) {
                     'objects'          { return $Global:IRT_Oauth2Grants }
@@ -51,7 +56,7 @@ function Request-GraphOauth2Grant {
         $DomainName = $DefaultDomain.Id -split '\.' | Select-Object -First 1
 
         # query graph
-        $Objects = Get-MgOauth2PermissionGrant -All # -Property $GetProperties | Select-Object $GetProperties # get all properties
+        $Objects = Get-MgOauth2PermissionGrant -All
 
         # store in global variables
         $Global:IRT_Oauth2Grants = $Objects
@@ -71,7 +76,9 @@ function Request-GraphOauth2Grant {
             $FileName = "Oauth2Grants_Raw_${DomainName}_${FileNameDate}.xml"
             $XmlOutputPath = Join-Path -Path $CurrentPath -ChildPath $FileName
             if ( $Test ) {
-                $ExportTime = Measure-Command { $Objects | Export-Clixml -Depth 5 -Path $XmlOutputPath }
+                $ExportTime = Measure-Command {
+                    $Objects | Export-Clixml -Depth 5 -Path $XmlOutputPath
+                }
                 Write-IRT "Export-Clixml took $( $ExportTime.TotalSeconds ) seconds"
             }
             else {

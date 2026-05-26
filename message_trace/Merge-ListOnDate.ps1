@@ -26,12 +26,19 @@ function Merge-ListOnDate {
     $IsAscending = $Ascending -and -not $Descending
 
     # build working lists (sorted if needed)
-    $WorkingLists = Get-WorkingList -InputList $List -KeyProperty $PropertyName -IsAscending $IsAscending
+    $WorkingListParams = @{
+        InputList   = $List
+        KeyProperty = $PropertyName
+        IsAscending = $IsAscending
+    }
+    $WorkingLists = Get-WorkingList @WorkingListParams
 
     # try to use PriorityQueue if available (PowerShell 7+ / .NET 6+)
     $PriorityQueueType = $null
     try {
-        $PriorityQueueType = [System.Collections.Generic.PriorityQueue``2].MakeGenericType([psobject], [long])
+        $PriorityQueueType = [System.Collections.Generic.PriorityQueue``2].MakeGenericType(
+            [psobject], [long]
+        )
     } catch {
         $PriorityQueueType = $null
     }
@@ -44,17 +51,23 @@ function Merge-ListOnDate {
             if ($Asc) { return $Ticks }
             else { return [long]::MaxValue - $Ticks }
         }
-        elseif ($Value -is [int] -or $Value -is [long] -or $Value -is [decimal] -or $Value -is [double] -or $Value -is [single]) {
+        elseif ($Value -is [int] -or $Value -is [long] -or $Value -is [decimal] -or
+            $Value -is [double] -or $Value -is [single]
+        ) {
             $Num = [double]$Value
             if ($Asc) { return [long][math]::Round($Num) }
-            else { return [long][math]::Round([double]::MaxValue - $Num) } # crude reversal for numerics
+            else {
+                # crude reversal for numerics
+                return [long][math]::Round([double]::MaxValue - $Num)
+            }
         }
         else {
             return 0
         }
     }
 
-    # if PriorityQueue is available and the key type is suitable, use it; otherwise use portable k-way scan
+    # if PriorityQueue is available and the key type is suitable, use it;
+    # otherwise use portable k-way scan
     $UsePriorityQueue = $false
     if ($null -ne $PriorityQueueType) {
         # quick probe first non-null key
@@ -65,7 +78,9 @@ function Merge-ListOnDate {
                 if ($null -ne $ProbeKey) { break }
             }
         }
-        if ($ProbeKey -is [datetime] -or $ProbeKey -is [int] -or $ProbeKey -is [long] -or $ProbeKey -is [double] -or $ProbeKey -is [decimal] -or $ProbeKey -is [single]) {
+        if ($ProbeKey -is [datetime] -or $ProbeKey -is [int] -or $ProbeKey -is [long] -or
+            $ProbeKey -is [double] -or $ProbeKey -is [decimal] -or $ProbeKey -is [single]
+        ) {
             $UsePriorityQueue = $true
         }
     }
@@ -166,8 +181,9 @@ function Merge-ListOnDate {
 
         if ($SelectedListIndex -eq -1) { break }
 
-        $MergedList.Add($WorkingLists[$SelectedListIndex][$CurrentPortableIndexes[$SelectedListIndex]])
-        $CurrentPortableIndexes[$SelectedListIndex] = $CurrentPortableIndexes[$SelectedListIndex] + 1
+        $PortIdx = $CurrentPortableIndexes[$SelectedListIndex]
+        $MergedList.Add($WorkingLists[$SelectedListIndex][$PortIdx])
+        $CurrentPortableIndexes[$SelectedListIndex] = $PortIdx + 1
     }
 
     return $MergedList
@@ -202,14 +218,20 @@ function Get-WorkingList {
         [string] $KeyProperty,
         [bool] $IsAscending
     )
-    $Working = New-Object 'System.Collections.Generic.List[System.Collections.Generic.List[psobject]]'
+    $InnerType = 'System.Collections.Generic.List[psobject]'
+    $Working  = New-Object "System.Collections.Generic.List[$InnerType]"
     foreach ($SingleList in $InputList) {
         if (-not $SingleList -or $SingleList.Count -eq 0) {
             $Working.Add([System.Collections.Generic.List[psobject]]::new())
             continue
         }
 
-        if (Test-IsSorted -InputList $SingleList -KeyProperty $KeyProperty -IsAscending $IsAscending) {
+        $IsSortedParams = @{
+            InputList   = $SingleList
+            KeyProperty = $KeyProperty
+            IsAscending = $IsAscending
+        }
+        if (Test-IsSorted @IsSortedParams) {
             # already sorted; reuse as-is
             $Working.Add($SingleList)
         } else {
@@ -237,7 +259,8 @@ function Test-MergeSortedListsOnDate {
 
     # helper: build a strongly-typed list[psobject] from an array of datetimes
     function New-DateList {
-        [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '')]
+        [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+            'PSUseShouldProcessForStateChangingFunctions', '')]
         param(
             [datetime[]] $Dates,
             [string] $Tag

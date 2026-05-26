@@ -153,8 +153,15 @@ function Reset-IRTAdUserPassword {
                 }
                 $ForceChangePasswordNextSignIn {
                     $ResetPassword = $false
-                    if ($PSCmdlet.ShouldProcess($Username, 'Force password change at next sign-in')) {
-                        Set-ADUser -Identity $ScriptUserObject -ChangePasswordAtLogon $true -Server $env:ComputerName
+                    $ShouldChange = $PSCmdlet.ShouldProcess($Username,
+                        'Force password change at next sign-in')
+                    if ($ShouldChange) {
+                        $SetParams = @{
+                            Identity              = $ScriptUserObject
+                            ChangePasswordAtLogon = $true
+                            Server                = $env:ComputerName
+                        }
+                        Set-ADUser @SetParams
                     }
                     break
                 }
@@ -214,7 +221,9 @@ function Reset-IRTAdUserPassword {
             Start-ADSyncSyncCycle -PolicyType Delta
         }
         else {
-            Write-IRT "Azure sync isn't running on this server. Run Push-AdSync, or duplicate actions in M365." -Level Error
+            $Msg = "Azure sync isn't running on this server. " +
+                "Run Push-AdSync, or duplicate actions in M365."
+            Write-IRT $Msg -Level Error
         }
     }
 }

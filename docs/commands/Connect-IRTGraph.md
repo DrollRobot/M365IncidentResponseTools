@@ -13,8 +13,8 @@ Connects to Microsoft Graph with default incident response scopes.
 ## SYNTAX
 
 ```
-Connect-IRTGraph [-TenantId] <String> [-GCCHigh] [-DeviceCode] [[-AdditionalScope] <String[]>]
- [[-Browser] <String>] [-Private] [-Force] [-ProgressAction <ActionPreference>] [<CommonParameters>]
+Connect-IRTGraph [-TenantId] <String> [[-Cloud] <String>] [[-AdditionalScope] <String[]>] [[-Browser] <String>]
+ [-Private] [-Force] [-ProgressAction <ActionPreference>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -46,32 +46,18 @@ Accept pipeline input: False
 Accept wildcard characters: False
 ```
 
-### -GCCHigh
-Connect to a GCC High tenant environment.
+### -Cloud
+Cloud to connect to. Valid values: Commercial, USGov, China.
+When omitted the cloud defaults to Commercial.
 
 ```yaml
-Type: SwitchParameter
+Type: String
 Parameter Sets: (All)
 Aliases:
 
 Required: False
-Position: Named
-Default value: False
-Accept pipeline input: False
-Accept wildcard characters: False
-```
-
-### -DeviceCode
-Use device code authentication flow.
-
-```yaml
-Type: SwitchParameter
-Parameter Sets: (All)
-Aliases:
-
-Required: False
-Position: Named
-Default value: False
+Position: 2
+Default value: Commercial
 Accept pipeline input: False
 Accept wildcard characters: False
 ```
@@ -85,7 +71,7 @@ Parameter Sets: (All)
 Aliases: AdditionalScopes
 
 Required: False
-Position: 2
+Position: 3
 Default value: None
 Accept pipeline input: False
 Accept wildcard characters: False
@@ -101,7 +87,7 @@ Parameter Sets: (All)
 Aliases:
 
 Required: False
-Position: 3
+Position: 4
 Default value: $Global:IRT_Config.Browser
 Accept pipeline input: False
 Accept wildcard characters: False

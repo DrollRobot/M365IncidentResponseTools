@@ -40,19 +40,34 @@ function Get-LoginOperationSummary {
         }
 
         # DeviceProperties
-        $DisplayName = ($Log.AuditData.DeviceProperties | Where-Object {$_.Name -eq 'DisplayName' }).Value
-        if (-not $DisplayName) { $DisplayName = ($Log.AuditData.DeviceProperties | Where-Object {$_.Name -eq 'DeviceName' }).Value }
+        $DispNameEntry = $Log.AuditData.DeviceProperties |
+            Where-Object { $_.Name -eq 'DisplayName' }
+        $DisplayName   = $DispNameEntry.Value
+        if (-not $DisplayName) {
+            $DevNameEntry = $Log.AuditData.DeviceProperties |
+                Where-Object { $_.Name -eq 'DeviceName' }
+            $DisplayName  = $DevNameEntry.Value
+        }
         if ($DisplayName) {$SummaryLines.Add("DeviceDisplayName: $DisplayName")}
         $OS = ($Log.AuditData.DeviceProperties | Where-Object {$_.Name -eq 'OS' }).Value
         if ($OS) { $SummaryLines.Add("OS: $OS") }
-        $Browser = ($Log.AuditData.DeviceProperties | Where-Object {$_.Name -eq 'DeviceBrowser' }).Value
-        if (-not $Browser) { $Browser = ($Log.AuditData.DeviceProperties | Where-Object {$_.Name -eq 'BrowserType' }).Value }
+        $DevBrowserEntry = $Log.AuditData.DeviceProperties |
+            Where-Object { $_.Name -eq 'DeviceBrowser' }
+        $Browser         = $DevBrowserEntry.Value
+        if (-not $Browser) {
+            $BrwTypeEntry = $Log.AuditData.DeviceProperties |
+                Where-Object { $_.Name -eq 'BrowserType' }
+            $Browser      = $BrwTypeEntry.Value
+        }
         if ($Browser) { $SummaryLines.Add("Browser: $Browser") }
-        $TrustType = Convert-TrustType -TrustType ($Log.AuditData.DeviceProperties | Where-Object {$_.Name -eq 'TrustType' }).Value
+        $TrustEntry = $Log.AuditData.DeviceProperties | Where-Object { $_.Name -eq 'TrustType' }
+        $TrustType  = Convert-TrustType -TrustType $TrustEntry.Value
         if ($TrustType) { $SummaryLines.Add("Trust: $TrustType") }
 
         # UserAgent
-        $UserAgent = ($Log.AuditData.ExtendedProperties | Where-Object {$_.Name -eq 'UserAgent'}).Value
+        $UserAgentEntry = $Log.AuditData.ExtendedProperties |
+            Where-Object { $_.Name -eq 'UserAgent' }
+        $UserAgent      = $UserAgentEntry.Value
         if ($UserAgent) {$SummaryLines.Add("UserAgent: $UserAgent")}
 
         # join strings, create return object
@@ -80,8 +95,6 @@ function Build-UserLoginOperationsSheet {
 
         [Parameter(Mandatory)]
         $ExcelPackage,
-
-        [Parameter(Mandatory)]
 
         [Parameter(Mandatory)]
         [string] $WorksheetName,
@@ -132,7 +145,8 @@ function Build-UserLoginOperationsSheet {
             $Operation = $Log.AuditData.Operation
 
             # Error
-            $ErrorDescription = ConvertTo-HumanErrorDescription -ErrorCode $Log.AuditData.ErrorNumber
+            $ErrCode          = $Log.AuditData.ErrorNumber
+            $ErrorDescription = ConvertTo-HumanErrorDescription -ErrorCode $ErrCode
 
             # IpAddress
             $IpAddresses = [System.Collections.Generic.Hashset[string]]::new()
@@ -148,7 +162,9 @@ function Build-UserLoginOperationsSheet {
                 try { $IpObject = [System.Net.IPAddress]$Log.AuditData.ClientIPAddress } catch {}
                 if ($IpObject) { [void]$IpAddresses.Add($IpObject.ToString()) }
             }
-            $IpText = if ($IpAddresses.Count -gt 0) { ($IpAddresses | Sort-Object) -join ', ' } else { '' }
+            $IpText = if ($IpAddresses.Count -gt 0) {
+                ($IpAddresses | Sort-Object) -join ', '
+            } else { '' }
 
             # Application (Target)
             $Application = $null
@@ -160,16 +176,34 @@ function Build-UserLoginOperationsSheet {
             if (-not $Application) { $Application = $TargetId }
 
             # DeviceProperties
-            $DeviceName = ($Log.AuditData.DeviceProperties | Where-Object {$_.Name -eq 'DisplayName'}).Value
-            if (-not $DeviceName) { $DeviceName = ($Log.AuditData.DeviceProperties | Where-Object {$_.Name -eq 'DeviceName'}).Value }
+            $DevDispEntry = $Log.AuditData.DeviceProperties |
+                Where-Object { $_.Name -eq 'DisplayName' }
+            $DeviceName   = $DevDispEntry.Value
+            if (-not $DeviceName) {
+                $DevDevNameEntry = $Log.AuditData.DeviceProperties |
+                    Where-Object { $_.Name -eq 'DeviceName' }
+                $DeviceName      = $DevDevNameEntry.Value
+            }
             $OS = ($Log.AuditData.DeviceProperties | Where-Object {$_.Name -eq 'OS'}).Value
-            $Browser = ($Log.AuditData.DeviceProperties | Where-Object {$_.Name -eq 'DeviceBrowser'}).Value
-            if (-not $Browser) { $Browser = ($Log.AuditData.DeviceProperties | Where-Object {$_.Name -eq 'BrowserType'}).Value }
-            $Trust = Convert-TrustType -TrustType ($Log.AuditData.DeviceProperties | Where-Object {$_.Name -eq 'TrustType'}).Value
-            $SessionId = ($Log.AuditData.DeviceProperties | Where-Object {$_.Name -eq 'SessionId'}).Value
+            $DevBrwEntry = $Log.AuditData.DeviceProperties |
+                Where-Object { $_.Name -eq 'DeviceBrowser' }
+            $Browser     = $DevBrwEntry.Value
+            if (-not $Browser) {
+                $DevBrwTypeEntry = $Log.AuditData.DeviceProperties |
+                    Where-Object { $_.Name -eq 'BrowserType' }
+                $Browser         = $DevBrwTypeEntry.Value
+            }
+            $DevTrustEntry = $Log.AuditData.DeviceProperties |
+                Where-Object { $_.Name -eq 'TrustType' }
+            $Trust         = Convert-TrustType -TrustType $DevTrustEntry.Value
+            $DevSessEntry  = $Log.AuditData.DeviceProperties |
+                Where-Object { $_.Name -eq 'SessionId' }
+            $SessionId     = $DevSessEntry.Value
 
             # UserAgent
-            $UserAgent = ($Log.AuditData.ExtendedProperties | Where-Object {$_.Name -eq 'UserAgent'}).Value
+            $DevUserAgentEntry = $Log.AuditData.ExtendedProperties |
+                Where-Object { $_.Name -eq 'UserAgent' }
+            $UserAgent         = $DevUserAgentEntry.Value
 
             # add to list
             [void]$Rows.Add([PSCustomObject]@{
@@ -208,14 +242,16 @@ function Build-UserLoginOperationsSheet {
             $SheetStartRow = $Worksheet.Dimension.Start.Row
             $EndColumn = $Worksheet.Dimension.End.Column | Convert-DecimalToExcelColumn
             $EndRow = $Worksheet.Dimension.End.Row
-            $TableStartColumn = ($Worksheet.Tables.Address | Select-Object -First 1).Start.Column | Convert-DecimalToExcelColumn
-            $TableStartRow = ($Worksheet.Tables.Address | Select-Object -First 1).Start.Row
+            $TableAddress     = $Worksheet.Tables.Address | Select-Object -First 1
+            $TableStartColumn = $TableAddress.Start.Column | Convert-DecimalToExcelColumn
+            $TableStartRow    = $TableAddress.Start.Row
 
             # IP address conditional formatting
             Add-IpAddressConditionalFormatting -Worksheet $Worksheet -ColumnName 'IpAddress'
 
             # Application conditional formatting - highlight PowerShell/CLI tools
-            $AppColumn = ($Worksheet.Tables[0].Columns | Where-Object {$_.Name -eq 'Application'}).Id | Convert-DecimalToExcelColumn
+            $AppColEntry = $Worksheet.Tables[0].Columns | Where-Object { $_.Name -eq 'Application' }
+            $AppColumn   = $AppColEntry.Id | Convert-DecimalToExcelColumn
             $PsAppStrings = @(
                 'Azure Active Directory PowerShell'
                 'Microsoft Azure CLI'
@@ -275,11 +311,22 @@ function Build-UserLoginOperationsSheet {
 
             # Font
             try {
-                Set-ExcelRange -Worksheet $Worksheet -Range "${SheetStartColumn}${SheetStartRow}:${EndColumn}${EndRow}" -FontName $Font
+                $FontParams = @{
+                    Worksheet = $Worksheet
+                    Range     = "${SheetStartColumn}${SheetStartRow}:${EndColumn}${EndRow}"
+                    FontName  = $Font
+                }
+                Set-ExcelRange @FontParams
             } catch {}
 
             # Left border
-            Set-ExcelRange -Worksheet $Worksheet -Range "${TableStartColumn}${TableStartRow}:${EndColumn}${EndRow}" -BorderLeft 'Thin' -BorderColor 'Black'
+            $BorderParams = @{
+                Worksheet   = $Worksheet
+                Range       = "${TableStartColumn}${TableStartRow}:${EndColumn}${EndRow}"
+                BorderLeft  = 'Thin'
+                BorderColor = 'Black'
+            }
+            Set-ExcelRange @BorderParams
 
         } # end if Tables.Count
 

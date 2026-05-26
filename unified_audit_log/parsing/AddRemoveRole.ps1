@@ -1,7 +1,8 @@
 function Get-AddRemoveRoleSummary {
     <#
 	.SYNOPSIS
-    Parses AzureActiveDirectory "Remove member from role." and "Add member to role." events from UAL.
+    Parses AzureActiveDirectory "Remove member from role." and "Add member to role."
+    events from UAL.
 
 	.NOTES
 	Version: 1.0.0
@@ -28,8 +29,10 @@ function Get-AddRemoveRoleSummary {
         # Role
         $ModifiedPropertiesDict = $Log.AuditData.ModifiedProperties
         if ($ModifiedPropertiesDict.Name -contains 'Role.DisplayName') {
-            $OldValue = ($ModifiedPropertiesDict | Where-Object {$_.Name -eq 'Role.DisplayName'}).OldValue
-            $NewValue = ($ModifiedPropertiesDict | Where-Object {$_.Name -eq 'Role.DisplayName'}).NewValue
+            $RoleProps = $ModifiedPropertiesDict |
+                Where-Object { $_.Name -eq 'Role.DisplayName' }
+            $OldValue = $RoleProps.OldValue
+            $NewValue = $RoleProps.NewValue
             if ($NewValue -and $OldValue) {
                 $Role = "New: ${NewValue}, Old: ${OldValue}"
             }
@@ -44,7 +47,9 @@ function Get-AddRemoveRoleSummary {
             $SummaryLines.Add("Role.DisplayName: ${Role}")
         }
         else {
-            $Role = ($ModifiedPropertiesDict | Where-Object {$_.Name -eq 'Role.TemplateId'}).OldValue
+            $TemplateProps = $ModifiedPropertiesDict |
+                Where-Object { $_.Name -eq 'Role.TemplateId' }
+            $Role = $TemplateProps.OldValue
             $SummaryLines.Add("Role.TemplateId: ${Role}")
         }
 

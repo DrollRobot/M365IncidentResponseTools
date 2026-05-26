@@ -91,7 +91,9 @@ function Push-AdSync {
         else {
             # require AD RSAT for discovery
             if (-not (Test-AdAvailable)) {
-                Write-IRT "Active Directory can't be reached from this device. Specify hostnames with -SyncServer." -Level Error
+                $Msg = "Active Directory can't be reached from this device. " +
+                    "Specify hostnames with -SyncServer."
+                Write-IRT $Msg -Level Error
                 return
             }
 
@@ -100,11 +102,14 @@ function Push-AdSync {
                 Filter     = "OperatingSystem -like '*server*' -and Enabled -eq 'true'"
                 Properties = 'Name', 'OperatingSystem', 'LastLogOnDate'
             }
-            $ServerNames = (Get-AdComputer @QueryParams | Sort-Object LastLogOnDate -Descending).Name
+            $ServerNames = (
+                Get-AdComputer @QueryParams | Sort-Object LastLogOnDate -Descending
+            ).Name
 
             # domain controllers first, then remaining servers by last logon date
             $DomainControllerNames   = (Get-ADDomainController -Filter *).Name
-            $NonDCServerNames        = $ServerNames | Where-Object {$_ -notin $DomainControllerNames}
+            $NonDCServerNames = $ServerNames |
+                Where-Object {$_ -notin $DomainControllerNames}
             $ServerNamesInQueryOrder = $DomainControllerNames + $NonDCServerNames
         }
 
@@ -162,7 +167,12 @@ function Push-AdSync {
 
             # open session
             try {
-                $Result.Session       = New-PSSession -ComputerName $ComputerName -Credential $Credentials -ErrorAction Stop
+                $SessionParams = @{
+                    ComputerName = $ComputerName
+                    Credential   = $Credentials
+                    ErrorAction  = 'Stop'
+                }
+                $Result.Session       = New-PSSession @SessionParams
                 $Result.SessionOpened = $true
             }
             catch {
@@ -189,7 +199,9 @@ function Push-AdSync {
             return $Result
         }
 
-        $Pool      = [System.Management.Automation.Runspaces.RunspaceFactory]::CreateRunspacePool( 1, $ThrottleLimit )
+        $Pool = [System.Management.Automation.Runspaces.RunspaceFactory]::CreateRunspacePool(
+            1, $ThrottleLimit
+        )
         $Runspaces = [System.Collections.Generic.List[hashtable]]::new()
         $Pool.Open()
 
@@ -200,15 +212,22 @@ function Push-AdSync {
 
                 $PS = [System.Management.Automation.PowerShell]::Create()
                 $PS.RunspacePool = $Pool
-                $null = $PS.AddScript($DiscoveryScriptBlock).AddArgument($ComputerName).AddArgument($Credentials)
-                $Runspaces.Add(@{ComputerName = $ComputerName; PS = $PS; Handle = $PS.BeginInvoke()})
+                $null = $PS.AddScript($DiscoveryScriptBlock)
+                $null = $PS.AddArgument($ComputerName).AddArgument($Credentials)
+                $RSEntry = @{
+                    ComputerName = $ComputerName
+                    PS           = $PS
+                    Handle       = $PS.BeginInvoke()
+                }
+                $Runspaces.Add($RSEntry)
             }
 
             $Total  = $Runspaces.Count
             $Done   = 0
             $Synced = $false
 
-            # process runspaces in priority order; EndInvoke blocks per entry while others keep running
+            # process runspaces in priority order;
+            # EndInvoke blocks per entry while others keep running
             foreach ($RS in $Runspaces) {
 
                 $ProgressParams = @{
@@ -231,7 +250,8 @@ function Push-AdSync {
                 }
 
                 if (-not $DiscoveryResult.SessionOpened) {
-                    Write-IRT "Opening session on ${CN} failed: $($DiscoveryResult.Error)" -Level Warn
+                    $Msg = "Opening session on ${CN} failed: $($DiscoveryResult.Error)"
+                    Write-IRT $Msg -Level Warn
                     continue
                 }
 
@@ -266,7 +286,8 @@ function Push-AdSync {
             }
 
             if (-not $Synced) {
-                Write-IRT "No adsync server was found or sync could not be pushed on any server." -Level Error
+                $Msg = 'No adsync server was found or sync could not be pushed on any server.'
+                Write-IRT $Msg -Level Error
             }
         }
         finally {

@@ -1,7 +1,8 @@
 function Format-Powershell {
     <#
     .SYNOPSIS
-    This function will remove all comments, empty lines, and leading whitespace from Powershell content in the clipboard or passed with -Content.
+    This function will remove all comments, empty lines, and leading whitespace from Powershell
+    content in the clipboard or passed with -Content.
 
     .EXAMPLE
     Format-Powershell -Comments -KeepVersion -EmptyLines
@@ -43,7 +44,9 @@ function Format-Powershell {
     # capture version number
     if ( $KeepVersion ) {
         $VersionPattern = "Version:\s?.*"
-        $VersionString = $Content | Select-String -Pattern $VersionPattern -AllMatches | ForEach-Object { $_.Matches.Value }
+        $VersionString = $Content |
+            Select-String -Pattern $VersionPattern -AllMatches |
+            ForEach-Object { $_.Matches.Value }
     }
 
     # remove comments
@@ -65,7 +68,9 @@ function Format-Powershell {
         $SplitContent = $Content -Split "\r?\n"
 
         # insert version into the second line
-        $ContentWithVersion = $SplitContent[0..0] + "    # ${VersionString}" + $SplitContent[1..$SplitContent.Length]
+        $ContentWithVersion = $SplitContent[0..0] +
+            "    # ${VersionString}" +
+            $SplitContent[1..$SplitContent.Length]
 
         # rejoin into one string
         $Content = $ContentWithVersion -Join "`n"
@@ -107,7 +112,8 @@ function Remove-Newline {
 	.NOTES
 		Version: 1.0.0
 	#>
-    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '')]
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+        'PSUseShouldProcessForStateChangingFunctions', '')]
     [CmdletBinding()]
     param (
         [string] $Content
@@ -224,7 +230,10 @@ function Remove-Comment {
     Remove comments before param block. By default comments before param block are not removed
 
     .EXAMPLE
-    Remove-Comments -SourceFilePath 'C:\Support\GitHub\PSPublishModule\Examples\TestScript.ps1' -DestinationFilePath 'C:\Support\GitHub\PSPublishModule\Examples\TestScript1.ps1' -RemoveAllEmptyLines -RemoveCommentsInParamBlock -RemoveCommentsBeforeParamBlock
+    Remove-Comments
+        -SourceFilePath 'C:\Support\GitHub\PSPublishModule\Examples\TestScript.ps1'
+        -DestinationFilePath 'C:\Support\GitHub\PSPublishModule\Examples\TestScript1.ps1'
+        -RemoveAllEmptyLines -RemoveCommentsInParamBlock -RemoveCommentsBeforeParamBlock
 
     .NOTES
     Most of the work done by Chris Dent, with improvements by Przemyslaw Klys
@@ -270,7 +279,9 @@ function Remove-Comment {
     }
 
     $Tokens = $Errors = @()
-    $Ast = [System.Management.Automation.Language.Parser]::ParseInput($Content, [ref]$Tokens, [ref]$Errors)
+    $Ast = [System.Management.Automation.Language.Parser]::ParseInput(
+        $Content, [ref]$Tokens, [ref]$Errors
+    )
     #$functionDefinition = $ast.Find({ $args[0] -is [FunctionDefinitionAst] }, $false)
     $GroupedTokens = $Tokens | Group-Object { $_.Extent.StartLineNumber }
     $DoNotRemove = $false
@@ -332,12 +343,16 @@ function Remove-Comment {
             # kind of useless to not remove signature block if we're not removing comments
             # this changes the structure of a file and signature will be invalid
             if ($DoNotRemoveSignatureBlock) {
-                if ($Token.Kind -eq 'Comment' -and $Token.Text -eq '# SIG # Begin signature block') {
+                if ($Token.Kind -eq 'Comment' -and
+                    $Token.Text -eq '# SIG # Begin signature block'
+                ) {
                     $SignatureBlock = $true
                     continue
                 }
                 if ($SignatureBlock) {
-                    if ($Token.Kind -eq 'Comment' -and $Token.Text -eq '# SIG # End signature block') {
+                    if ($Token.Kind -eq 'Comment' -and
+                        $Token.Text -eq '# SIG # End signature block'
+                    ) {
                         $SignatureBlock = $false
                     }
                     continue
@@ -353,7 +368,8 @@ function Remove-Comment {
         $Content = $Content.Remove($StartIndex, $HowManyChars)
     }
     if ($RemoveEmptyLines) {
-        # Remove empty lines if more than one empty line is found. If it's just one line, leave it as is
+        # Remove empty lines if more than one empty line is found.
+        # If it's just one line, leave it as is.
         #$Content = $Content -replace '(?m)^\s*$', ''
         #$Content = $Content -replace "(`r?`n){2,}", "`r`n"
         # $Content = $Content -replace "(`r?`n){2,}", "`r`n`r`n"
@@ -386,7 +402,9 @@ function Format-GeneralFunction {
 	$Content = Get-Clipboard -Raw
 
 	# extract version
-	$Version = $Content | Select-String -Pattern $VersionPattern -AllMatches | ForEach-Object { $_.Matches.Value }
+	$Version = $Content |
+		Select-String -Pattern $VersionPattern -AllMatches |
+		ForEach-Object { $_.Matches.Value }
 	Write-Host -ForegroundColor Green "`nExtracted version string:"
 	Write-Host $Version
 
@@ -403,7 +421,9 @@ function Format-GeneralFunction {
 	$OutputLines = $OutputRaw -Split "`r?`n"
 
 	# insert version into the second line
-	$OutputLinesWithVersion = $OutputLines[0..0] + "    # ${Version}" + $OutputLines[1..$OutputLines.Length]
+	$OutputLinesWithVersion = $OutputLines[0..0] +
+		"    # ${Version}" +
+		$OutputLines[1..$OutputLines.Length]
 
 	# rejoin into one string
 	$Output = $OutputLinesWithVersion -Join "`r`n"

@@ -30,7 +30,9 @@ function Find-GraphDirectoryObject {
 
     process {
 
-        $Guids = $Content | Select-String -Pattern $GuidPattern -AllMatches | ForEach-Object { $_.Matches.Value }
+        $Guids = $Content |
+            Select-String -Pattern $GuidPattern -AllMatches |
+            ForEach-Object { $_.Matches.Value }
 
         # remove duplicates
         $Guids = $Guids | Sort-Object -Unique
@@ -55,7 +57,9 @@ function Find-GraphDirectoryObject {
                 Write-IRT "ObjectType: ${ObjectType}"
             }
             catch {
-                if ( $_ -match 'does not exist or one of its queried reference-property objects are not present' ) {
+                $Pattern = 'does not exist or one of its queried' +
+                    ' reference-property objects are not present'
+                if ( $_ -match $Pattern ) {
                     Write-IRT "Unable to find object."
                 }
                 else {
@@ -65,7 +69,9 @@ function Find-GraphDirectoryObject {
 
             switch ( $ObjectType ) {
                 'microsoft.graph.user' {
-                    $Object = if ( $Global:IRT_UsersById -and $Global:IRT_UsersById.ContainsKey($Guid) ) {
+                    $Object = if ( $Global:IRT_UsersById -and
+                        $Global:IRT_UsersById.ContainsKey($Guid)
+                    ) {
                         $Global:IRT_UsersById[$Guid]
                     } else {
                         Get-MgUser -UserId $Guid
@@ -73,7 +79,9 @@ function Find-GraphDirectoryObject {
                     $Object | Format-Table
                 }
                 'microsoft.graph.group' {
-                    $Object = if ( $Global:IRT_GroupsById -and $Global:IRT_GroupsById.ContainsKey($Guid) ) {
+                    $Object = if ( $Global:IRT_GroupsById -and
+                        $Global:IRT_GroupsById.ContainsKey($Guid)
+                    ) {
                         $Global:IRT_GroupsById[$Guid]
                     } else {
                         Get-MgGroup -GroupId $Guid
@@ -81,7 +89,9 @@ function Find-GraphDirectoryObject {
                     $Object | Format-Table
                 }
                 'microsoft.graph.servicePrincipal' {
-                    $Object = if ( $Global:IRT_ServicePrincipalsById -and $Global:IRT_ServicePrincipalsById.ContainsKey($Guid) ) {
+                    $Object = if ( $Global:IRT_ServicePrincipalsById -and
+                        $Global:IRT_ServicePrincipalsById.ContainsKey($Guid)
+                    ) {
                         $Global:IRT_ServicePrincipalsById[$Guid]
                     } else {
                         Get-MgServicePrincipal -ServicePrincipalId $Guid

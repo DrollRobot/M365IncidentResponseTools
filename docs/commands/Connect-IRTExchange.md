@@ -13,7 +13,7 @@ Connects to Exchange Online.
 ## SYNTAX
 
 ```
-Connect-IRTExchange [-TenantId] <String> [[-UserPrincipalName] <String>] [-GCCHigh] [-DeviceCode]
+Connect-IRTExchange [-TenantId] <String> [[-UserPrincipalName] <String>] [[-Cloud] <String>] [-DeviceCode]
  [[-AccessToken] <String>] [[-Browser] <String>] [-Private] [-Force] [-ProgressAction <ActionPreference>]
  [<CommonParameters>]
 ```
@@ -69,17 +69,18 @@ Accept pipeline input: False
 Accept wildcard characters: False
 ```
 
-### -GCCHigh
-Connect to a GCC High tenant environment.
+### -Cloud
+Cloud to connect to. Valid values: Commercial, USGov, China.
+When omitted the cloud defaults to Commercial.
 
 ```yaml
-Type: SwitchParameter
+Type: String
 Parameter Sets: (All)
 Aliases:
 
 Required: False
-Position: Named
-Default value: False
+Position: 3
+Default value: Commercial
 Accept pipeline input: False
 Accept wildcard characters: False
 ```
@@ -110,7 +111,7 @@ Parameter Sets: (All)
 Aliases:
 
 Required: False
-Position: 3
+Position: 4
 Default value: None
 Accept pipeline input: False
 Accept wildcard characters: False
@@ -126,7 +127,7 @@ Parameter Sets: (All)
 Aliases:
 
 Required: False
-Position: 4
+Position: 5
 Default value: $Global:IRT_Config.Browser
 Accept pipeline input: False
 Accept wildcard characters: False

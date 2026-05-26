@@ -19,7 +19,9 @@ function Open-Browser {
     if ($Browser -eq 'default') {
 
         # pull default browser from registry
-        $ProgId = Get-ItemProperty -Path "Registry::HKEY_CURRENT_USER\Software\Microsoft\Windows\Shell\Associations\UrlAssociations\https\UserChoice" | Select-Object -ExpandProperty ProgId
+        $RegPath = 'Registry::HKEY_CURRENT_USER\Software\Microsoft\Windows\Shell\' +
+            'Associations\UrlAssociations\https\UserChoice'
+        $ProgId = Get-ItemProperty -Path $RegPath | Select-Object -ExpandProperty ProgId
 
         switch -Regex ($ProgId) {
             '^Firefox' {

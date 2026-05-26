@@ -21,7 +21,8 @@ function Get-SetConditionalAccessPolicySummary {
     process {
 
         # DisplayName
-        $DisplayName = ($Log.AuditData.Parameters | Where-Object { $_.Name -eq 'DisplayName' } ).Value
+        $DisplayEntry = $Log.AuditData.Parameters | Where-Object { $_.Name -eq 'DisplayName' }
+        $DisplayName  = $DisplayEntry.Value
         $SummaryLines.Add("DisplayName: ${DisplayName}")
 
         # join strings, create return object

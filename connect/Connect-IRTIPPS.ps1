@@ -30,7 +30,8 @@ function Connect-IRTIPPS {
         [Parameter(Mandatory)]
         [string] $TenantId,
         [string] $UserPrincipalName,
-        [switch] $GCCHigh,
+        [ValidateSet('Commercial', 'USGov', 'USGovDoD', 'China')]
+        [string] $Cloud = 'Commercial',
         [switch] $DeviceCode,
         [string] $AccessToken,
 
@@ -44,18 +45,10 @@ function Connect-IRTIPPS {
     )
 
     begin {
-        # SearchOnly determines the audience. The same first-party client ID is
-        # used either way; only the audience changes.
-        $IPPSScope = if ($SearchOnly) {
-            'https://dataservice.o365filtering.com/.default'
-        } else {
-            'https://outlook.office365.com/.default'
-        }
-        $Authority = "https://login.microsoftonline.com/$TenantId"
-        if ($GCCHigh) {
-            $Authority = "https://login.microsoftonline.us/$TenantId"
-        }
-        $Scopes = [string[]]@($IPPSScope)
+        $CloudConfig = $Global:IRT_CloudEnvironments[$Cloud]
+        $IPPSScope   = if ($SearchOnly) { $CloudConfig.IPPSSearchOnly } else { $CloudConfig.Exchange }
+        $Authority   = "$($CloudConfig.LoginHost)/$TenantId"
+        $Scopes      = [string[]]@($IPPSScope)
 
         $ExoClientId = 'fb78d390-0c51-40cd-8e17-fdbfab77341b'  # EXO/IPPS first-party app
         $App = $null  # built lazily; not needed when -AccessToken provided
@@ -119,18 +112,22 @@ function Connect-IRTIPPS {
         if ($AccessToken) {
             $Token = $AccessToken
             $Upn   = $UserPrincipalName
-        } elseif (-not $Force -and
-                  $Global:IRT_Session -and
-                  $Global:IRT_Session.IPPS -and
-                  $Global:IRT_Session.TenantId -eq $TenantId -and
-                  $Global:IRT_Session.IPPS.SearchOnly -eq $SearchOnly -and
-                  $Global:IRT_Session.IPPS.Token -and
-                  -not (Test-TokenExpired -Token $Global:IRT_Session.IPPS.Token)) {
+        }
+        elseif (
+            -not $Force -and
+            $Global:IRT_Session -and
+            $Global:IRT_Session.IPPS -and
+            $Global:IRT_Session.TenantId -eq $TenantId -and
+            $Global:IRT_Session.IPPS.SearchOnly -eq $SearchOnly -and
+            $Global:IRT_Session.IPPS.Token -and
+            -not (Test-TokenExpired -Token $Global:IRT_Session.IPPS.Token)
+        ) {
             $Token = $Global:IRT_Session.IPPS.Token
             $Upn   = $Global:IRT_Session.IPPS.UserPrincipalName
             $App   = $Global:IRT_Session.IPPS.PublicClientApplication
             Write-Verbose 'Using cached IPPS token.'
-        } else {
+        }
+        else {
             # MSAL setup, only needed when we actually have to acquire.
             $GraphModule = Get-Module Microsoft.Graph.Authentication -ErrorAction SilentlyContinue
             if (-not $GraphModule) {
@@ -210,10 +207,7 @@ function Connect-IRTIPPS {
             if ($SearchOnly) {
                 $Params['EnableSearchOnlySession'] = $true
             }
-            if ($GCCHigh) {
-                $ComplianceUri = 'https://ps.compliance.protection.office365.us/powershell-liveid/'
-                $Params['ConnectionUri'] = $ComplianceUri
-            }
+            $Params['ConnectionUri'] = $CloudConfig.IPPS
             Connect-IPPSSession @Params
         }
 

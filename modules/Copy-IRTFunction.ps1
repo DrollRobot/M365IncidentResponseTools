@@ -51,9 +51,19 @@ function Copy-IRTFunction {
     begin {
         $ModuleRoot = Split-Path -Path $PSScriptRoot -Parent
 
+        $WriteIRTJoin = @{
+            Path                = $ModuleRoot
+            ChildPath           = 'modules'
+            AdditionalChildPath = 'Write-IRT.ps1'
+        }
+        $RandPwJoin = @{
+            Path                = $ModuleRoot
+            ChildPath           = 'modules'
+            AdditionalChildPath = 'Get-RandomPassword.ps1'
+        }
         $HardcodedPaths = @(
-            @{ Path = Join-Path -Path $ModuleRoot -ChildPath 'modules' -AdditionalChildPath 'Write-IRT.ps1'; IsDirectory = $false }
-            @{ Path = Join-Path -Path $ModuleRoot -ChildPath 'modules' -AdditionalChildPath 'Get-RandomPassword.ps1'; IsDirectory = $false }
+            @{ Path = Join-Path @WriteIRTJoin; IsDirectory = $false }
+            @{ Path = Join-Path @RandPwJoin; IsDirectory = $false }
             @{ Path = Join-Path $ModuleRoot 'onprem_ad'; IsDirectory = $true }
         )
 
@@ -112,9 +122,15 @@ function Copy-IRTFunction {
 
         # Resolve current color values (or fallbacks) at copy-time so the pasted
         # code carries the user's preferences onto the remote machine.
-        $infoColor  = if ($Global:IRT_Config?.InfoColor)  { $Global:IRT_Config.InfoColor }  else { 'DarkCyan' }
-        $warnColor  = if ($Global:IRT_Config?.WarnColor)  { $Global:IRT_Config.WarnColor }  else { 'Yellow'   }
-        $errorColor = if ($Global:IRT_Config?.ErrorColor) { $Global:IRT_Config.ErrorColor } else { 'Red'      }
+        $infoColor  = if ($Global:IRT_Config?.InfoColor) {
+            $Global:IRT_Config.InfoColor
+        } else { 'DarkCyan' }
+        $warnColor  = if ($Global:IRT_Config?.WarnColor) {
+            $Global:IRT_Config.WarnColor
+        } else { 'Yellow' }
+        $errorColor = if ($Global:IRT_Config?.ErrorColor) {
+            $Global:IRT_Config.ErrorColor
+        } else { 'Red' }
 
         $bootstrap = @"
 if (-not `$Global:IRT_Config) {
@@ -135,7 +151,14 @@ if (-not `$Global:IRT_Config) {
             }
         }
 
-        $Formatted = Format-Powershell -Content $Builder.ToString() -Script -Comments -EmptyLines -Whitespace
+        $FmtParams = @{
+            Content    = $Builder.ToString()
+            Script     = $true
+            Comments   = $true
+            EmptyLines = $true
+            Whitespace = $true
+        }
+        $Formatted = Format-Powershell @FmtParams
         Set-Clipboard -Value $Formatted
         Write-IRT "Copied contents of $($Files.Count) file(s) to clipboard."
     }

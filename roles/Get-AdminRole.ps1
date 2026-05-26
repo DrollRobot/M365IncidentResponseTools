@@ -85,16 +85,30 @@ function Get-AdminRole {
 
         foreach ( $MemberId in $MemberIds ) {
 
-            $MemberRoles = ( $RoleObjects | Where-Object { $MemberId -in $_.Members.Id } ).DisplayName -join ', '
+            $MemberRoles = (
+                $RoleObjects | Where-Object { $MemberId -in $_.Members.Id }
+            ).DisplayName -join ', '
             $Object = Get-UnknownObject -Id $MemberId
-            $CustomObject = New-RoleMemberObject -Id $MemberId -Role $MemberRoles -RoleSource 'Direct Assignment' -GraphObject $Object
+            $NrmParams = @{
+                Id          = $MemberId
+                Role        = $MemberRoles
+                RoleSource  = 'Direct Assignment'
+                GraphObject = $Object
+            }
+            $CustomObject = New-RoleMemberObject @NrmParams
             $CustomObjects.Add( $CustomObject )
 
             # expand group members inline (nested groups not possible with M365 role assignments)
             if ( $CustomObject.ObjectType -eq 'Group' ) {
                 foreach ( $GroupMemberId in ( Get-MgGroupMember -GroupId $MemberId ).Id ) {
                     $GroupMember = Get-UnknownObject -Id $GroupMemberId
-                    $CustomObjects.Add( ( New-RoleMemberObject -Id $GroupMemberId -Role $MemberRoles -RoleSource "Group: $($Object.DisplayName)" -GraphObject $GroupMember ) )
+                    $GrpParams = @{
+                        Id          = $GroupMemberId
+                        Role        = $MemberRoles
+                        RoleSource  = "Group: $($Object.DisplayName)"
+                        GraphObject = $GroupMember
+                    }
+                    $CustomObjects.Add( ( New-RoleMemberObject @GrpParams ) )
                 }
             }
         }
@@ -102,7 +116,15 @@ function Get-AdminRole {
 
     end {
 
-        $CustomObjects = $CustomObjects | Sort-Object @{ Expression = 'ObjectType'; Descending = $true }, @{ Expression = 'AccountEnabled'; Descending = $true }
+        $SortObjectType = @{
+            Expression = 'ObjectType'
+            Descending = $true
+        }
+        $SortAccountEnabled = @{
+            Expression = 'AccountEnabled'
+            Descending = $true
+        }
+        $CustomObjects = $CustomObjects | Sort-Object $SortObjectType, $SortAccountEnabled
 
         # add highlight match column
         if ( $Highlight ) {
@@ -111,10 +133,17 @@ function Get-AdminRole {
                 $IsMatch = (
                     ( $Obj.Id -match $HighlightPattern ) -or
                     ( $Obj.DisplayName -match $HighlightPattern ) -or
-                    ( $Obj.PSObject.Properties['UserPrincipalName'] -and $Obj.UserPrincipalName -match $HighlightPattern ) -or
-                    ( $Obj.PSObject.Properties['Description'] -and $Obj.Description -match $HighlightPattern )
+                    ( $Obj.PSObject.Properties['UserPrincipalName'] -and
+                        $Obj.UserPrincipalName -match $HighlightPattern ) -or
+                    ( $Obj.PSObject.Properties['Description'] -and
+                        $Obj.Description -match $HighlightPattern )
                 )
-                $Obj | Add-Member -MemberType NoteProperty -Name 'Match' -Value $( if ( $IsMatch ) { '>>>' } else { '' } )
+                $AddParams = @{
+                    MemberType = 'NoteProperty'
+                    Name       = 'Match'
+                    Value      = $(if ( $IsMatch ) { '>>>' } else { '' })
+                }
+                $Obj | Add-Member @AddParams
             }
         }
 
@@ -124,9 +153,25 @@ function Get-AdminRole {
 
         # display properties per object type
         $DisplayProperties = [ordered]@{
-            'User'             = @( 'AccountEnabled', 'DisplayName', 'UserPrincipalName', 'RoleSource', 'Roles' )
-            'ServicePrincipal' = @( 'AccountEnabled', 'DisplayName', 'ServicePrincipalType', 'RoleSource', 'Roles' )
-            'Group'            = @( 'DisplayName', 'RoleSource', 'Roles' )
+            'User'             = @(
+                'AccountEnabled'
+                'DisplayName'
+                'UserPrincipalName'
+                'RoleSource'
+                'Roles'
+            )
+            'ServicePrincipal' = @(
+                'AccountEnabled'
+                'DisplayName'
+                'ServicePrincipalType'
+                'RoleSource'
+                'Roles'
+            )
+            'Group'            = @(
+                'DisplayName'
+                'RoleSource'
+                'Roles'
+            )
         }
         $TypeLabels = @{
             'User'             = 'Users with admin roles:'
@@ -145,7 +190,9 @@ function Get-AdminRole {
                 Write-IRT "`n$($TypeLabels[$TypeKey])"
                 $TypeObjects = $CustomObjects | Where-Object { $_.ObjectType -eq $TypeKey }
                 if ( $TypeObjects ) {
-                    $TypeObjects | Format-Table -AutoSize -Property $DisplayProperties[$TypeKey] | Out-Host
+                    $TypeObjects |
+                    Format-Table -AutoSize -Property $DisplayProperties[$TypeKey] |
+                    Out-Host
                 }
                 else {
                     Write-IRT "None"
@@ -188,7 +235,9 @@ function Get-AdminRole {
                     }
 
                     try {
-                        $Workbook = $TypeObjects | Select-Object -Property $Columns | Export-Excel @SectionParams
+                        $Workbook = $TypeObjects |
+                            Select-Object -Property $Columns |
+                            Export-Excel @SectionParams
                     }
                     catch {
                         Write-Error "Unable to write Excel section: ${TypeKey}"
@@ -207,12 +256,16 @@ function Get-AdminRole {
 
                     # conditional formatting: Match column
                     if ( $Highlight ) {
-                        $MatchColId = ( $Worksheet.Tables["Table${TypeKey}"].Columns | Where-Object { $_.Name -eq 'Match' } ).Id
+                        $MatchColId = (
+                            $Worksheet.Tables["Table${TypeKey}"].Columns |
+                            Where-Object { $_.Name -eq 'Match' }
+                        ).Id
                         if ( $MatchColId ) {
                             $MatchCol = $MatchColId | Convert-DecimalToExcelColumn
                             $MatchFmtParams = @{
                                 Worksheet       = $Worksheet
-                                Address         = "${MatchCol}${TableStartRow}:${MatchCol}${TableEndRow}"
+                                Address         = "${MatchCol}${TableStartRow}" +
+                                    ":${MatchCol}${TableEndRow}"
                                 RuleType        = 'ContainsText'
                                 ConditionValue  = '>>>'
                                 BackgroundColor = 'LightPink'
@@ -222,7 +275,10 @@ function Get-AdminRole {
                     }
 
                     # conditional formatting: AccountEnabled = FALSE
-                    $AEColId = ( $Worksheet.Tables["Table${TypeKey}"].Columns | Where-Object { $_.Name -eq 'AccountEnabled' } ).Id
+                    $AEColId = (
+                        $Worksheet.Tables["Table${TypeKey}"].Columns |
+                        Where-Object { $_.Name -eq 'AccountEnabled' }
+                    ).Id
                     if ( $AEColId ) {
                         $AECol = $AEColId | Convert-DecimalToExcelColumn
                         $AEFmtParams = @{
@@ -295,7 +351,9 @@ function Get-AdminRole {
 
 
 function New-RoleMemberObject {
-    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '')]
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+        'PSUseShouldProcessForStateChangingFunctions', ''
+    )]
     param(
         [string] $Id,
         [Alias('Roles')] [string] $Role,
@@ -347,7 +405,8 @@ function New-RoleMemberObject {
 function Get-UnknownObject {
     <#
 	.SYNOPSIS
-	Looks up an object by Id using cached ById hashtables. Falls back to Get-MgDirectoryObject if not found in cache.
+	Looks up an object by Id using cached ById hashtables.
+	Falls back to Get-MgDirectoryObject if not found in cache.
 
 	.NOTES
 	Version: 2.0.0
@@ -371,16 +430,28 @@ function Get-UnknownObject {
             $Obj | Add-Member -NotePropertyName 'ObjectType' -NotePropertyValue 'Group' -Force
             return $Obj
         }
-        if ( $Global:IRT_ServicePrincipalsById -and $Global:IRT_ServicePrincipalsById.ContainsKey($Id) ) {
+        if ($Global:IRT_ServicePrincipalsById -and
+            $Global:IRT_ServicePrincipalsById.ContainsKey($Id)
+        ) {
             $Obj = $Global:IRT_ServicePrincipalsById[$Id]
-            $Obj | Add-Member -NotePropertyName 'ObjectType' -NotePropertyValue 'ServicePrincipal' -Force
+            $AmSpParams = @{
+                NotePropertyName  = 'ObjectType'
+                NotePropertyValue = 'ServicePrincipal'
+                Force             = $true
+            }
+            $Obj | Add-Member @AmSpParams
             return $Obj
         }
 
         # fallback to direct Graph lookup
         try {
             $DirectoryObject = Get-MgDirectoryObject -DirectoryObjectId $Id -ErrorAction Stop
-            $DirectoryObject | Add-Member -NotePropertyName 'ObjectType' -NotePropertyValue 'Unknown' -Force
+            $AmUnkParams = @{
+                NotePropertyName  = 'ObjectType'
+                NotePropertyValue = 'Unknown'
+                Force             = $true
+            }
+            $DirectoryObject | Add-Member @AmUnkParams
             return $DirectoryObject
         }
         catch {

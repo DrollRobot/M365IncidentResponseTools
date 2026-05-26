@@ -13,8 +13,9 @@ Connects to Microsoft Graph and Exchange Online for incident response.
 ## SYNTAX
 
 ```
-Connect-IRT [-TenantId] <String> [-GCCHigh] [-DeviceCode] [[-AdditionalScope] <String[]>] [-Graph] [-Exchange]
- [-IPPS] [[-Browser] <String>] [-Private] [-Force] [-ProgressAction <ActionPreference>] [<CommonParameters>]
+Connect-IRT [-TenantId] <String> [[-Cloud] <String>] [-DeviceCode] [[-AdditionalScope] <String[]>] [-Graph]
+ [-Exchange] [-IPPS] [[-Browser] <String>] [-Private] [-Force] [-ProgressAction <ActionPreference>]
+ [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -60,17 +61,19 @@ Accept pipeline input: False
 Accept wildcard characters: False
 ```
 
-### -GCCHigh
-Connect to a GCC High tenant environment.
+### -Cloud
+Cloud to connect to. Valid values: Commercial, USGov, China.
+When omitted the cloud is detected automatically via OIDC discovery. Provide
+this parameter to skip the lookup or to override the detected value.
 
 ```yaml
-Type: SwitchParameter
+Type: String
 Parameter Sets: (All)
 Aliases:
 
 Required: False
-Position: Named
-Default value: False
+Position: 2
+Default value: None
 Accept pipeline input: False
 Accept wildcard characters: False
 ```
@@ -99,7 +102,7 @@ Parameter Sets: (All)
 Aliases: AdditionalScopes
 
 Required: False
-Position: 2
+Position: 3
 Default value: None
 Accept pipeline input: False
 Accept wildcard characters: False
@@ -160,7 +163,7 @@ Parameter Sets: (All)
 Aliases:
 
 Required: False
-Position: 3
+Position: 4
 Default value: $Global:IRT_Config.Browser
 Accept pipeline input: False
 Accept wildcard characters: False

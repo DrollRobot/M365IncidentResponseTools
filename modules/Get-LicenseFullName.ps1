@@ -93,7 +93,9 @@ function Get-LicenseFullName {
         $ModuleName = $MyInvocation.MyCommand.ModuleName
 
         # URL to download csv from
-        $Url = "https://download.microsoft.com/download/e/3/e/e3e9faf2-f28b-490a-9ada-c6089a1fc5b0/Product%20names%20and%20service%20plan%20identifiers%20for%20licensing.csv"
+        $Url = 'https://download.microsoft.com/download/e/3/e/' +
+            'e3e9faf2-f28b-490a-9ada-c6089a1fc5b0/' +
+            'Product%20names%20and%20service%20plan%20identifiers%20for%20licensing.csv'
 
         # Set the destination path
         $CsvPath = "${env:AppData}\${ModuleName}\ProductNamesAndServicePlanIdentifiers.csv"
@@ -101,13 +103,21 @@ function Get-LicenseFullName {
         # download updated list of license names, if needed
         Get-LicenseCSVFile -url $Url -csvpath $CsvPath
 
-        # two if statements take different action depending on whether being use in pipeline or manually
+        # two if statements take different action depending on whether being
+        # used in pipeline or manually
         if ($SkuId -and $_) {
             # uses the skuid to find the full name in the csv
-            $LicenseFullName = Get-LicenseNameFromCSV -SkuId $SkuId -CsvPath $CsvPath | Sort-Object -Unique
+            $LicenseFullName = Get-LicenseNameFromCSV -SkuId $SkuId -CsvPath $CsvPath |
+                Sort-Object -Unique
 
             # adds attributes
-            $OutputObject = $_ | Add-Member -MemberType NoteProperty -Name "LicenseFullName" -Value $LicenseFullName -PassThru
+            $AmParams = @{
+                MemberType = 'NoteProperty'
+                Name       = 'LicenseFullName'
+                Value      = $LicenseFullName
+                PassThru   = $true
+            }
+            $OutputObject = $_ | Add-Member @AmParams
 
             Write-Output $OutputObject
         }
@@ -120,7 +130,8 @@ function Get-LicenseFullName {
             }
 
             # uses the skuid to find the full name in the csv
-            $LicenseFullName = Get-LicenseNameFromCSV -SkuId $SkuId -CsvPath $CsvPath | Sort-Object -Unique
+            $LicenseFullName = Get-LicenseNameFromCSV -SkuId $SkuId -CsvPath $CsvPath |
+                Sort-Object -Unique
 
             Write-IRT "License full name is:"
             Write-IRT $LicenseFullName -NoColor

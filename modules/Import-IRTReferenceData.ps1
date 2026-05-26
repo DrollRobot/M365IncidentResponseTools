@@ -13,8 +13,10 @@ function Import-IRTReferenceData {
     Globals populated:
       $Global:IRT_EntraErrorTable   - Hashtable[int -> row] from entra_error_codes.csv
       $Global:IRT_UalOperationsData - Array of rows from unified_audit_log-all_operations.xlsx
-      $Global:IRT_UalUserTypeTable  - Hashtable[int -> 'UserType member name'] from unified_audit_log-user_type.csv
-      $Global:IRT_TenantInfoTable   - Hashtable[TenantId -> row] from APPDATA\<ModuleName>\tenant_owner_info.csv
+      $Global:IRT_UalUserTypeTable  - Hashtable[int -> 'UserType member name']
+        from unified_audit_log-user_type.csv
+      $Global:IRT_TenantInfoTable   - Hashtable[TenantId -> row]
+        from APPDATA\<ModuleName>\tenant_owner_info.csv
 
     The AllOperations path can be overridden by setting AllOperationsSheetPath in config.json.
 
@@ -40,18 +42,20 @@ function Import-IRTReferenceData {
     $Global:IRT_EntraErrorTable = $EntraTable
 
     # UAL operation risk metadata (xlsx, path configurable via IRT_Config.AllOperationsSheetPath)
-    $AllOperationsFileName = 'unified_audit_log-all_operations.xlsx'
-    $AllOperationsConfig = $Global:IRT_Config.AllOperationsSheetPath
-    $AllOperationsPath = if ($AllOperationsConfig) {
-        $AllOperationsConfig
-    } else {
-        Join-Path $ModuleRoot "data\${AllOperationsFileName}"
+    $AllOperationsPath = $Global:IRT_Config.AllOperationsSheetPath
+    if (-not $AllOperationsPath) {
+        $AllOperationsPath = Join-Path $ModuleRoot 'data\unified_audit_log-all_operations.xlsx'
     }
     if (Test-Path -LiteralPath $AllOperationsPath) {
-        $Global:IRT_UalOperationsData = @(Import-Excel -Path $AllOperationsPath -WorksheetName 'Operations')
+        $IeParams = @{
+            Path          = $AllOperationsPath
+            WorksheetName = 'Operations'
+        }
+        $Global:IRT_UalOperationsData = @(Import-Excel @IeParams)
     } else {
         $Global:IRT_UalOperationsData = @()
-        Write-Warning "Import-IRTReferenceData: AllOperations sheet not found at: $AllOperationsPath"
+        Write-Warning ('Import-IRTReferenceData: AllOperations sheet not found at: ' +
+            $AllOperationsPath)
     }
 
     # UAL user type lookup
@@ -63,8 +67,13 @@ function Import-IRTReferenceData {
     $Global:IRT_UalUserTypeTable = $UserTypeTable
 
     # Tenant owner info cache (keyed by TenantId GUID string)
-    $ModuleName = $MyInvocation.MyCommand.ModuleName
-    $TenantCachePath = Join-Path -Path $env:APPDATA -ChildPath $ModuleName -AdditionalChildPath 'tenant_owner_info.csv'
+    $ModuleName  = $MyInvocation.MyCommand.ModuleName
+    $TcJoin = @{
+        Path                = $env:APPDATA
+        ChildPath           = $ModuleName
+        AdditionalChildPath = 'tenant_owner_info.csv'
+    }
+    $TenantCachePath = Join-Path @TcJoin
     $TenantTable = [hashtable]::Synchronized(@{})
     if (Test-Path -LiteralPath $TenantCachePath) {
         foreach ($Row in (Import-Csv -Path $TenantCachePath)) {

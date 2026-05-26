@@ -17,18 +17,20 @@ param(
     [switch] $Recurse
 )
 
-# Rules to suppress entirely (entire rule category is not relevant to this project).
-$ExcludeRules = @(
-    'PSAvoidGlobalVars'
-    'PSAvoidUsingEmptyCatchBlock'
-)
-
-# Conditions to filter out specific results after analysis.
-# Each entry is a scriptblock that receives a result object; return $true to exclude it.
-# Example: { $_.RuleName -eq 'PSUseShouldProcessForStateChangingFunctions' -and $_.ScriptName -eq 'Set-IRTDeviceEnabled.ps1' }
-$ExcludeResults = @(
-    # { condition }
-)
+# All analyzer configuration lives here.
+# PSScriptAnalyzer reads: ExcludeRules, Rules (and any other native keys).
+$AnalyzerSettings = @{
+    ExcludeRules = @(
+        'PSAvoidGlobalVars'
+        'PSAvoidUsingEmptyCatchBlock'
+    )
+    Rules        = @{
+        PSAvoidUsingPositionalParameters = @{
+            Enable           = $true
+            CommandAllowList = @('Write-IRT')
+        }
+    }
+}
 
 # The PS Extension terminal hosts its own PSScriptAnalyzer assembly, which conflicts
 # with the installed module. Detect and skip rather than error out.
@@ -43,18 +45,27 @@ if (-not (Get-Module -ListAvailable -Name PSScriptAnalyzer)) {
     return
 }
 
-$AnalyzerParams = @{
-    Path        = $Path
-    Recurse     = $Recurse.IsPresent
-    ExcludeRule = $ExcludeRules
-}
-
-Write-Host "Running PSScriptAnalyzer against $Path (recurse: $($Recurse.IsPresent))..." -ForegroundColor Cyan
+Get-Module PSScriptAnalyzer | Select-Object Path, Version | Format-List
+Write-Host "Running PSScriptAnalyzer against $Path..." -ForegroundColor Cyan
 Write-Host "This could take multiple minutes. Please wait..." -ForegroundColor Cyan
 Write-Host ("NOTE FOR AI: Do not poll or call get_terminal_output. Wait for terminal " +
     "completion notification.") -ForegroundColor Yellow
+$InvokeParams = @{
+    Path     = $Path
+    Recurse  = $Recurse.IsPresent
+    Settings = $AnalyzerSettings
+    Verbose  = $true
+}
 try {
-    $Results = Invoke-ScriptAnalyzer @AnalyzerParams
+    $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+    # 4>&1 merges the verbose stream into output so we can capture it.
+    $AllOutput = Invoke-ScriptAnalyzer @InvokeParams 4>&1
+    $Stopwatch.Stop()
+    $Results   = $AllOutput | Where-Object { $_ -isnot [System.Management.Automation.VerboseRecord] }
+    $FileCount = ($AllOutput | Where-Object {
+        $_ -is [System.Management.Automation.VerboseRecord] -and $_.Message -like 'Analyzing file: *'
+    }).Count
+    Write-Host ("Completed in {0:F1}s." -f $Stopwatch.Elapsed.TotalSeconds) -ForegroundColor Cyan
 }
 catch {
     Write-Warning "PSScriptAnalyzer failed: $_"
@@ -62,20 +73,20 @@ catch {
     return
 }
 
-foreach ($Condition in $ExcludeResults) {
-    $Results = $Results | Where-Object { -not (& $Condition $_) }
-}
-
 if (-not $Results) {
-    Write-Host "PSScriptAnalyzer found no issues."
+    Write-Host "All $FileCount file(s) checked. No PSScriptAnalyzer issues found."
     return
 }
 
 if (($Results | Measure-Object).Count -gt 0){
+
     Write-Host "Results" -ForegroundColor Cyan
     $Results | Format-Table -AutoSize
-    Write-Host "Results grouped by rule:" -ForegroundColor Cyan
-    $Results | Group-Object RuleName | Format-Table Count, Name, Group -AutoSize
+
+    if (($Results | Measure-Object).Count -gt 5){
+        Write-Host "Results grouped by rule:" -ForegroundColor Cyan
+        $Results | Group-Object RuleName | Format-Table Count, Name, Group -AutoSize
+    }
 }
 
 Write-Host "$(($Results | Measure-Object).Count) issue(s) found."

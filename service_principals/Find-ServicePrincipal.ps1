@@ -123,7 +123,9 @@ function Find-ServicePrincipal {
                     $MatchingServicePrincipals | Format-Table $DisplayProperties
                 }
 
-                $ScriptServicePrincipalObjects.Add( ( $MatchingServicePrincipals | Select-Object -First 1 ) )
+                $ScriptServicePrincipalObjects.Add(
+                    ($MatchingServicePrincipals | Select-Object -First 1)
+                )
             }
             elseif (($MatchingServicePrincipals | Measure-Object).Count -gt 1) {
 

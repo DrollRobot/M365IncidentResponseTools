@@ -37,7 +37,12 @@ function Request-DirectoryRoleTemplate {
 
         # return cached data if available
         if ( $Cached ) {
-            $Variable = Get-Variable -Scope Global -Name 'IRT_DirectoryRoleTemplates' -ErrorAction SilentlyContinue
+            $GvParams = @{
+                Scope       = 'Global'
+                Name        = 'IRT_DirectoryRoleTemplates'
+                ErrorAction = 'SilentlyContinue'
+            }
+            $Variable = Get-Variable @GvParams
             if ( $Variable ) {
                 switch ( $Return ) {
                     'objects'   { return $Global:IRT_DirectoryRoleTemplates }
@@ -52,7 +57,11 @@ function Request-DirectoryRoleTemplate {
         $DomainName = $DefaultDomain.Id -split '\.' | Select-Object -First 1
 
         # query graph
-        $Objects = Get-MgDirectoryRoleTemplate -All -Property $GetProperties | Select-Object $GetProperties
+        $GdrtParams = @{
+            All      = $true
+            Property = $GetProperties
+        }
+        $Objects = Get-MgDirectoryRoleTemplate @GdrtParams | Select-Object $GetProperties
 
         # store in global variables
         $Global:IRT_DirectoryRoleTemplates = $Objects
@@ -66,7 +75,9 @@ function Request-DirectoryRoleTemplate {
             $FileName = "DirectoryRoleTemplates_Raw_${DomainName}_${FileNameDate}.xml"
             $XmlOutputPath = Join-Path -Path $CurrentPath -ChildPath $FileName
             if ( $Test ) {
-                $ExportTime = Measure-Command { $Objects | Export-Clixml -Depth 5 -Path $XmlOutputPath }
+                $ExportTime = Measure-Command {
+                    $Objects | Export-Clixml -Depth 5 -Path $XmlOutputPath
+                }
                 Write-IRT "Export-Clixml took $( $ExportTime.TotalSeconds ) seconds"
             }
             else {

@@ -38,8 +38,13 @@ function Initialize-Module {
             $MsalCandidates = foreach ( $Name in $ModuleName ) {
                 $InstalledModules = Get-Module $Name -ListAvailable -ErrorAction SilentlyContinue
                 foreach ( $Mod in $InstalledModules ) {
-                    $Dll = Get-ChildItem $Mod.ModuleBase -Recurse -Filter 'Microsoft.Identity.Client.dll' -ErrorAction SilentlyContinue |
-                        Select-Object -First 1
+                    $GciParams = @{
+                        Path        = $Mod.ModuleBase
+                        Recurse     = $true
+                        Filter      = 'Microsoft.Identity.Client.dll'
+                        ErrorAction = 'SilentlyContinue'
+                    }
+                    $Dll = Get-ChildItem @GciParams | Select-Object -First 1
                     if ( $Dll ) {
                         [PSCustomObject]@{
                             Module  = $Name
@@ -51,12 +56,14 @@ function Initialize-Module {
             }
 
             if ( -not $MsalCandidates ) {
-                throw 'Could not find Microsoft.Identity.Client.dll in any installed module (Microsoft.Graph.Authentication, ExchangeOnlineManagement).'
+                throw 'Could not find Microsoft.Identity.Client.dll in any installed module ' +
+                    '(Microsoft.Graph.Authentication, ExchangeOnlineManagement).'
             }
 
             $Winner = $MsalCandidates | Sort-Object Version -Descending | Select-Object -First 1
 
-            Write-Verbose "Pre-loading Microsoft.Identity.Client $( $Winner.Version ) from $( $Winner.Module )"
+            $Client = "Microsoft.Identity.Client $( $Winner.Version )"
+            Write-Verbose "Pre-loading $Client from $( $Winner.Module )"
             Write-Verbose "  Path: $( $Winner.Path )"
 
             Add-Type -Path $Winner.Path

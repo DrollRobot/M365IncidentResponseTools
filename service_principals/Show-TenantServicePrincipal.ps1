@@ -50,7 +50,9 @@ function Show-TenantServicePrincipal {
         if ($foreignOwnerIds) {
             $foreignOwnerIds | Get-IRTTenantInfo -ErrorAction SilentlyContinue | ForEach-Object {
                 # Prefer DisplayName; fall back to GUID if Graph was unavailable
-                $ownerDisplayNames[$_.TenantId] = if ($_.DisplayName) { $_.DisplayName } else { $_.TenantId }
+                $ownerDisplayNames[$_.TenantId] = if ($_.DisplayName) {
+                    $_.DisplayName } else { $_.TenantId
+                }
             }
         }
     }
@@ -59,7 +61,8 @@ function Show-TenantServicePrincipal {
 
         if ( $Search ) {
             Write-IRT "Service principals matching: ${Search}"
-            $MatchingServicePrincipals = $ServicePrincipals | Where-Object { $_.DisplayName -match $Search }
+            $MatchingServicePrincipals = $ServicePrincipals |
+                Where-Object { $_.DisplayName -match $Search }
         }
         else {
             Write-IRT "All service principals:"

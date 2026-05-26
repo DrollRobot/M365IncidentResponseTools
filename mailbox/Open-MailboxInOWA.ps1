@@ -40,7 +40,8 @@ function Open-MailboxInOWA {
             if (($ScriptUserObjects | Measure-Object).Count -eq 0) {
                 $ErrorParams = @{
                     Category    = 'InvalidArgument'
-                    Message     = "No -UserObject argument used, no `$Global:IRT_UserObjects present."
+                    Message     = 'No -UserObject argument used, ' +
+                        'no $Global:IRT_UserObjects present.'
                     ErrorAction = 'Stop'
                 }
                 Write-Error @ErrorParams
@@ -74,7 +75,11 @@ function Open-MailboxInOWA {
                 continue
             }
 
-            $OwaHost    = if ($Global:IRT_Session.GCCHigh) { 'outlook.office365.us' } else { 'outlook.office.com' }
+            $OwaHost = if ($Global:IRT_Session.Environment -in @('GCC High', 'DoD', 'USGov')) {
+                'outlook.office365.us'
+            } else {
+                'outlook.office.com'
+            }
             $OWAUrl = "https://${OwaHost}/mail/${UserEmail}/?offline=disabled"
 
             [pscustomobject]@{

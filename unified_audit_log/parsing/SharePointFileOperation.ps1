@@ -20,7 +20,8 @@ function Get-SharePointFileOperationSummary {
 
     process {
 
-        # ObjectId. the full web url for the file. it seems like this property is present on every sharepoint operation
+        # ObjectId. the full web url for the file. it seems like this property is present
+        # on every sharepoint operation
         $ObjectId = $Log.AuditData.ObjectID
         if ($ObjectId) {
             $SummaryLines.Add( "ObjectId: ${ObjectId}" )

@@ -35,7 +35,9 @@ function Show-IRTMessageTrace {
 
             try {
                 $ResolvedXmlPath = Resolve-ScriptPath -Path $XmlPath -File -FileExtension 'xml'
-                [System.Collections.Generic.List[PSObject]]$Message = Import-CliXml -Path $ResolvedXmlPath
+                $Message = [System.Collections.Generic.List[PSObject]](
+                    Import-CliXml -Path $ResolvedXmlPath
+                )
             }
             catch {
                 $_
@@ -83,10 +85,12 @@ function Show-IRTMessageTrace {
         $StartString = $StartDate.ToString($TitleDateFormat).ToLower()
         $EndString = $EndDate.ToString($TitleDateFormat).ToLower()
         if ($null -eq $Username) {
-            $WorksheetTitle = "Message Trace for ${DomainName}. Covers ${Days} days, from ${StartString} to ${EndString}."
+            $WorksheetTitle = "Message Trace for ${DomainName}. Covers ${Days} days," +
+                " from ${StartString} to ${EndString}."
         }
         else {
-            $WorksheetTitle = "Message Trace for ${Username}. Covers ${Days} days, from ${StartString} to ${EndString}."
+            $WorksheetTitle = "Message Trace for ${Username}. Covers ${Days} days," +
+                " from ${StartString} to ${EndString}."
         }
     }
 
@@ -197,18 +201,25 @@ function Show-IRTMessageTrace {
         # get table ranges
         $SheetStartColumn = $WorkSheet.Dimension.Start.Column | Convert-DecimalToExcelColumn
         $SheetStartRow = $WorkSheet.Dimension.Start.Row
-        $TableStartColumn = ($Worksheet.Tables.Address | Select-Object -First 1).Start.Column | Convert-DecimalToExcelColumn
+        $TableStartColumn = (
+            $Worksheet.Tables.Address | Select-Object -First 1
+        ).Start.Column | Convert-DecimalToExcelColumn
         $TableStartRow = ($Worksheet.Tables | Select-Object -First 1).Address.Start.Row + 1
         $EndColumn = $WorkSheet.Dimension.End.Column | Convert-DecimalToExcelColumn
         $EndRow = $WorkSheet.Dimension.End.Row
 
-        $SenderColumn = ($Worksheet.Tables[0].Columns | Where-Object {$_.Name -eq 'SenderAddress'}).Id | Convert-DecimalToExcelColumn
-        $RecipientColumn = ($Worksheet.Tables[0].Columns | Where-Object {$_.Name -eq 'RecipientAddress'}).Id | Convert-DecimalToExcelColumn
+        $SenderColumn = (
+            $Worksheet.Tables[0].Columns | Where-Object { $_.Name -eq 'SenderAddress' }
+        ).Id | Convert-DecimalToExcelColumn
+        $RecipientColumn = (
+            $Worksheet.Tables[0].Columns | Where-Object { $_.Name -eq 'RecipientAddress' }
+        ).Id | Convert-DecimalToExcelColumn
 
         #region BOLD OTHER EMAIL
 
         if ($UserEmails) {
-            # # helper: make "=AND(LEN($A2)>0, $A2<>\"me1\", $A2<>\"me2\", ...)" for a column's anchor cell
+            # # helper: make "=AND(LEN($A2)>0, $A2<>\"me1\", $A2<>\"me2\", ...)" for
+            # #     a column's anchor cell
             # function New-CfNotMeFormula {
             #     param([Parameter(Mandatory)][string]$ColumnLetter,
             #         [Parameter(Mandatory)][int]$StartRow)
@@ -226,7 +237,8 @@ function Show-IRTMessageTrace {
             # }
 
             # # sender column rule
-            # $FormulaSender = New-CfNotMeFormula -ColumnLetter $SenderColumn -StartRow $TableStartRow
+            # $FormulaSender = New-CfNotMeFormula -ColumnLetter $SenderColumn
+            #     -StartRow $TableStartRow
             # $CfParamsSender = @{
             #     WorkSheet      = $Worksheet
             #     Address        = "${SenderColumn}${TableStartRow}:${SenderColumn}${EndRow}"
@@ -237,7 +249,8 @@ function Show-IRTMessageTrace {
             # Add-ConditionalFormatting @CfParamsSender
 
             # # recipient column rule
-            # $FormulaRecipient = New-CfNotMeFormula -ColumnLetter $RecipientColumn -StartRow $TableStartRow
+            # $FormulaRecipient = New-CfNotMeFormula -ColumnLetter $RecipientColumn
+            #     -StartRow $TableStartRow
             # $CfParamsRecipient = @{
             #     WorkSheet      = $Worksheet
             #     Address        = "${RecipientColumn}${TableStartRow}:${RecipientColumn}${EndRow}"
@@ -254,7 +267,8 @@ function Show-IRTMessageTrace {
             WorkSheet        = $Worksheet
             Address          = "${SenderColumn}${TableStartRow}:${RecipientColumn}${EndRow}"
             RuleType         = 'Expression'
-            ConditionValue   = "=`$${SenderColumn}${TableStartRow}=`$${RecipientColumn}${TableStartRow}"
+            ConditionValue   = "=`$${SenderColumn}${TableStartRow}" +
+                "=`$${RecipientColumn}${TableStartRow}"
             BackgroundColor  = 'LightYellow'
         }
         Add-ConditionalFormatting @CfParams

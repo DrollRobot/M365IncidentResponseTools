@@ -16,10 +16,7 @@ function Open-IRTAllOperationsSheet {
     param ()
 
     process {
-        $ModuleRoot = $MyInvocation.MyCommand.Module.ModuleBase
-        $AllOperationsFileName = 'unified_audit_log-all_operations.xlsx'
-        $AllOperationsConfig = $Global:IRT_Config.AllOperationsSheetPath
-        $SheetPath = if ($AllOperationsConfig) { $AllOperationsConfig } else { Join-Path -Path $ModuleRoot -ChildPath "data\${AllOperationsFileName}" }
+        $SheetPath = $Global:IRT_Config.AllOperationsSheetPath
 
         if (-not (Test-Path $SheetPath)) {
             throw "All-operations spreadsheet not found: ${SheetPath}"
