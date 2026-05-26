@@ -72,7 +72,8 @@ function Show-IRTServicePrincipalSignInLog {
 
             try {
                 $ResolvedXmlPath = Resolve-ScriptPath -Path $XmlPath -File -FileExtension 'xml'
-                [System.Collections.Generic.List[PSObject]]$Log = Import-CliXml -Path $ResolvedXmlPath
+                [System.Collections.Generic.List[PSObject]]$Log =
+                    Import-CliXml -Path $ResolvedXmlPath
             }
             catch {
                 $_
@@ -130,13 +131,14 @@ function Show-IRTServicePrincipalSignInLog {
                 $DateTime = $LogEntry.$RawDateProperty.ToLocalTime()
             }
 
+            $ErrorDesc = ConvertTo-HumanErrorDescription -ErrorCode $LogEntry.Status.ErrorCode
             [void]$Rows.Add([PSCustomObject]@{
                 Raw                  = $Raw
                 $DateColumnHeader    = $DateTime
                 ServicePrincipalName = $LogEntry.ServicePrincipalName
                 AppDisplayName       = $LogEntry.AppDisplayName
                 ResourceDisplayName  = $LogEntry.ResourceDisplayName
-                Error                = ConvertTo-HumanErrorDescription -ErrorCode $LogEntry.Status.ErrorCode
+                Error                = $ErrorDesc
                 IpAddress            = $LogEntry.IpAddress
                 City                 = $LogEntry.Location.City
                 State                = $LogEntry.Location.State
@@ -204,12 +206,15 @@ function Show-IRTServicePrincipalSignInLog {
         # get table ranges
         $SheetStartColumn = $WorkSheet.Dimension.Start.Column | Convert-DecimalToExcelColumn
         $SheetStartRow    = $WorkSheet.Dimension.Start.Row
-        $TableStartColumn = ($workSheet.Tables.Address | Select-Object -First 1).Start.Column | Convert-DecimalToExcelColumn
+        $TableStartColumn = ($workSheet.Tables.Address | Select-Object -First 1).Start.Column |
+            Convert-DecimalToExcelColumn
         $TableStartRow    = ($workSheet.Tables.Address | Select-Object -First 1).Start.Row
         $EndColumn        = $WorkSheet.Dimension.End.Column | Convert-DecimalToExcelColumn
         $EndRow           = $WorkSheet.Dimension.End.Row
 
-        $IpAddressColumn = ($Worksheet.Tables[0].Columns | Where-Object { $_.Name -eq 'IpAddress' }).Id | Convert-DecimalToExcelColumn
+        $IpAddressColumn = ($Worksheet.Tables[0].Columns |
+            Where-Object { $_.Name -eq 'IpAddress' }).Id |
+            Convert-DecimalToExcelColumn
 
         #region CELL COLORING
 

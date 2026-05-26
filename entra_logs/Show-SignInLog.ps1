@@ -44,7 +44,8 @@ function Show-SignInLog {
 
             try {
                 $ResolvedXmlPath = Resolve-ScriptPath -Path $XmlPath -File -FileExtension 'xml'
-                [System.Collections.Generic.List[PSObject]]$Log = Import-CliXml -Path $ResolvedXmlPath
+                [System.Collections.Generic.List[PSObject]]$Log =
+                    Import-CliXml -Path $ResolvedXmlPath
             }
             catch {
                 $_
@@ -197,14 +198,21 @@ function Show-SignInLog {
         # get table ranges
         $SheetStartColumn = $WorkSheet.Dimension.Start.Column | Convert-DecimalToExcelColumn
         $SheetStartRow = $WorkSheet.Dimension.Start.Row
-        $TableStartColumn = ( $workSheet.Tables.Address | Select-Object -First 1 ).Start.Column | Convert-DecimalToExcelColumn
+        $TableStartColumn = ( $workSheet.Tables.Address | Select-Object -First 1 ).Start.Column |
+            Convert-DecimalToExcelColumn
         $TableStartRow = ( $workSheet.Tables.Address | Select-Object -First 1 ).Start.Row
         $EndColumn = $WorkSheet.Dimension.End.Column | Convert-DecimalToExcelColumn
         $EndRow = $WorkSheet.Dimension.End.Row
 
-        $IpAddressColumn = ($Worksheet.Tables[0].Columns | Where-Object {$_.Name -eq 'IpAddress'}).Id | Convert-DecimalToExcelColumn
-        $ApplicationColumn = ($Worksheet.Tables[0].Columns | Where-Object {$_.Name -eq 'Application'}).Id | Convert-DecimalToExcelColumn
-        $UserAgentColumn = ($Worksheet.Tables[0].Columns | Where-Object {$_.Name -eq 'UserAgent'}).Id | Convert-DecimalToExcelColumn
+        $IpAddressColumn = ($Worksheet.Tables[0].Columns |
+            Where-Object { $_.Name -eq 'IpAddress' }).Id |
+            Convert-DecimalToExcelColumn
+        $ApplicationColumn = ($Worksheet.Tables[0].Columns |
+            Where-Object { $_.Name -eq 'Application' }).Id |
+            Convert-DecimalToExcelColumn
+        $UserAgentColumn = ($Worksheet.Tables[0].Columns |
+            Where-Object { $_.Name -eq 'UserAgent' }).Id |
+            Convert-DecimalToExcelColumn
 
         #region CELL COLORING
 

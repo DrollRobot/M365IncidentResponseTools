@@ -76,7 +76,8 @@ function Show-EntraAuditLog {
         if ( $UserName -eq 'AllUsers' ) {
             $UserName = $DomainName
         }
-        $WorksheetTitle = "Entra audit logs for ${UserName}. Covers ${Days} days, ${TitleStartDate} to ${TitleEndDate}."
+        $WorksheetTitle = "Entra audit logs for ${UserName}." +
+            " Covers ${Days} days, ${TitleStartDate} to ${TitleEndDate}."
 
         #region CONSTANTS
 
@@ -197,7 +198,8 @@ function Show-EntraAuditLog {
 
             }
             elseif ( $LogEntry.InitiatedBy.App.ServicePrincipalId ) {
-                $ServicePrincipal = $ServicePrincipals | Where-Object { $_.Id -eq $LogEntry.InitiatedBy.App.ServicePrincipalId }
+                $ServicePrincipal = $ServicePrincipals |
+                    Where-Object { $_.Id -eq $LogEntry.InitiatedBy.App.ServicePrincipalId }
                 if ( $ServicePrincipal ) {
                     $InitiatedByString = $ServicePrincipal.DisplayName
                 }
@@ -272,7 +274,8 @@ function Show-EntraAuditLog {
                                 $Target = $Resource.DisplayName
                             }
                             else {
-                                $ServicePrincipal = $ServicePrincipals | Where-Object { $_.Id -eq $Resource.Id }
+                                $ServicePrincipal = $ServicePrincipals |
+                                    Where-Object { $_.Id -eq $Resource.Id }
                                 $Target = $ServicePrincipal.DisplayName
                             }
                         }
@@ -338,7 +341,8 @@ function Show-EntraAuditLog {
                 switch ( $Key ) {
                     'AppId' {
                         $AppId = $Detail.Value
-                        $Value = ( $ServicePrincipals | Where-Object { $_.AppId -eq $AppId } ).DisplayName
+                        $Value = ( $ServicePrincipals |
+                            Where-Object { $_.AppId -eq $AppId } ).DisplayName
                     }
                     'AppOwnerOrganizationId' {
                         $AppOwnerOrganizationId = $Detail.Value
@@ -430,7 +434,8 @@ function Show-EntraAuditLog {
 
         if ($Worksheet.Tables.Count -gt 0) {
 
-        $TableStartColumn = ( $workSheet.Tables.Address | Select-Object -First 1 ).Start.Column | Convert-DecimalToExcelColumn
+        $TableStartColumn = ( $workSheet.Tables.Address | Select-Object -First 1 ).Start.Column |
+            Convert-DecimalToExcelColumn
         $TableStartRow = ( $workSheet.Tables.Address | Select-Object -First 1 ).Start.Row
 
         #region CELL COLORING

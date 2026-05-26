@@ -27,7 +27,8 @@ function Connect-IRT {
     Connect to Exchange Online only.
 
     .PARAMETER Browser
-    Browser to use for device code login and URL opening. Valid values: msedge, chrome, firefox, brave, default.
+    Browser to use for device code login and URL opening. Valid values: msedge, chrome, firefox,
+    brave, default.
 
     .PARAMETER Private
     Open the browser in private/incognito mode.
@@ -78,7 +79,8 @@ function Connect-IRT {
 
         # --- Initialize session global before attempting connections ---
         if ($Global:IRT_Session -and $Global:IRT_Session.TenantId -ne $TenantId) {
-            Write-Warning "TenantId mismatch (current: $($Global:IRT_Session.TenantId)). Disconnecting existing session."
+            $OldTenant = $Global:IRT_Session.TenantId
+            Write-Warning "TenantId mismatch (current: $OldTenant). Disconnecting existing session."
             Disconnect-IRT
         }
 
@@ -141,7 +143,10 @@ function Connect-IRT {
         }
 
         # display status if at least one connection succeeded
-        if ($Global:IRT_Session.Graph -or $Global:IRT_Session.Exchange -or $Global:IRT_Session.IPPS) {
+        if ($Global:IRT_Session.Graph -or
+            $Global:IRT_Session.Exchange -or
+            $Global:IRT_Session.IPPS
+        ) {
             Test-IRTConnection
         }
     }
@@ -180,7 +185,8 @@ function Test-TokenExpired {
             3 { $padded += '='  }
         }
 
-        $json   = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($padded))
+        $bytes  = [System.Convert]::FromBase64String($padded)
+        $json   = [System.Text.Encoding]::UTF8.GetString($bytes)
         $claims = $json | ConvertFrom-Json
 
         if (-not $claims.exp) { return $true }

@@ -189,7 +189,7 @@ function Set-AdUserEnabled {
             return
         }
 
-        Write-Host ''
+        Write-IRT ''
 
         foreach ( $ScriptUserObject in $ScriptUserObjects ) {
 

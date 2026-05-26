@@ -2,7 +2,8 @@
 function Show-DeviceInfo {
     <#
     .SYNOPSIS
-    Displays Entra and Intune device properties for combined device objects produced by Find-IRTDevice.
+    Displays Entra and Intune device properties for combined device objects produced by
+    Find-IRTDevice.
 
     .NOTES
     Version: 1.1.0
@@ -34,24 +35,35 @@ function Show-DeviceInfo {
         foreach ($ScriptDeviceObject in $ScriptDeviceObjects) {
 
             $DeviceName  = $ScriptDeviceObject.DisplayName
-            $EntraId     = $ScriptDeviceObject.Entra?.Id    # Entra directory object ID (null for Intune-only devices)
+            $EntraId     = $ScriptDeviceObject.Entra?.Id    # null for Intune-only devices
             $IntuneId    = $ScriptDeviceObject.Intune?.Id   # Intune managed device ID
 
             # --- Entra device ---
             if ( $EntraId ) {
                 try {
-                    $FullEntraDevice = Get-MgDevice -DeviceId $EntraId -ExpandProperty 'RegisteredOwners' -ErrorAction Stop
+                    $GetDeviceParams = @{
+                        DeviceId       = $EntraId
+                        ExpandProperty = 'RegisteredOwners'
+                        ErrorAction    = 'Stop'
+                    }
+                    $FullEntraDevice = Get-MgDevice @GetDeviceParams
 
                     $OwnerUpn = ($FullEntraDevice.RegisteredOwners | ForEach-Object {
                         $_.AdditionalProperties['userPrincipalName']
                     }) -join ', '
-                    $FullEntraDevice | Add-Member -NotePropertyName 'RegisteredOwnerUPN' -NotePropertyValue $OwnerUpn -Force
+                    $AddMemberParams = @{
+                        NotePropertyName  = 'RegisteredOwnerUPN'
+                        NotePropertyValue = $OwnerUpn
+                        Force             = $true
+                    }
+                    $FullEntraDevice | Add-Member @AddMemberParams
 
                     Write-IRT "Showing Entra device properties for: ${DeviceName}"
                     $FullEntraDevice | Show-GraphDeviceTree | Out-Host
                 }
                 catch {
-                    Write-IRT "Failed to get Entra device object: $($_.Exception.Message)" -Level Error
+                    $ErrMsg = $_.Exception.Message
+                    Write-IRT "Failed to get Entra device object: $ErrMsg" -Level Error
                 }
             }
             else {
@@ -61,13 +73,18 @@ function Show-DeviceInfo {
             # --- Intune device ---
             if ( $IntuneId ) {
                 try {
-                    $FullIntuneDevice = Get-MgDeviceManagementManagedDevice -ManagedDeviceId $IntuneId -ErrorAction Stop
+                    $GetIntuneParams = @{
+                        ManagedDeviceId = $IntuneId
+                        ErrorAction     = 'Stop'
+                    }
+                    $FullIntuneDevice = Get-MgDeviceManagementManagedDevice @GetIntuneParams
 
                     Write-IRT "Showing Intune device properties for: ${DeviceName}"
                     $FullIntuneDevice | Format-Tree -Depth 5 -OmitNullOrEmpty | Out-Host
                 }
                 catch {
-                    Write-IRT "Failed to get Intune device object: $($_.Exception.Message)" -Level Error
+                    $ErrMsg = $_.Exception.Message
+                    Write-IRT "Failed to get Intune device object: $ErrMsg" -Level Error
                 }
             }
             else {

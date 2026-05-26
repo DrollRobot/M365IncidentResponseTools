@@ -28,12 +28,13 @@ function Connect-IRTTenant {
     Additional Graph scopes to request beyond the default set.
 
     .PARAMETER DeviceCode
-    Use device code authentication. Requires the tenant's DeviceAuthAllowed column to be set to 'yes'.
-    Interactive authentication is used by default. An error is thrown if device code is requested
-    but the tenant does not allow it.
+    Use device code authentication. Requires the tenant's DeviceAuthAllowed column to be
+    set to 'yes'. Interactive authentication is used by default. An error is thrown if
+    device code is requested but the tenant does not allow it.
 
     .PARAMETER Browser
-    Browser to use for device code login and URL opening. Valid values: msedge, chrome, firefox, brave, default.
+    Browser to use for device code login and URL opening. Valid values: msedge, chrome,
+    firefox, brave, default.
 
     .PARAMETER Private
     Open the browser in private/incognito mode.
@@ -92,8 +93,10 @@ function Connect-IRTTenant {
 
         # validate tenant file exists
         if (-not ( Test-Path $TenantFile )) {
-            throw ("Tenant file not found: ${TenantFile}`nRun Open-IRTTenantSheet to create it and edit " +
-            "with your tenant information.")
+            $NotFoundMsg = "Tenant file not found: ${TenantFile}`n" +
+                           "Run Open-IRTTenantSheet to create it and edit" +
+                           " with your tenant information."
+            throw $NotFoundMsg
         }
 
         # import and search for matching tenant
@@ -114,7 +117,9 @@ function Connect-IRTTenant {
         if ($MatchedTenants.Count -gt 1) {
 
             $MatchedNames = ($MatchedTenants | ForEach-Object {$_.TenantName}) -join ', '
-            throw "Multiple tenants matched alias '${Alias}': ${MatchedNames}. Refine your alias patterns to avoid overlap."
+            $MultiMatchMsg = "Multiple tenants matched alias '${Alias}': ${MatchedNames}. " +
+                             "Refine your alias patterns to avoid overlap."
+            throw $MultiMatchMsg
         }
 
         $MatchedTenant = $MatchedTenants[0]
@@ -131,9 +136,12 @@ function Connect-IRTTenant {
         }
 
         if ($null -ne $DeviceCode) {
-            if ($DeviceCode -eq $true -and $MatchedTenant.DeviceAuthAllowed -notmatch 'yes|^y$') {
-                throw ("Device code authentication is not allowed for tenant '$($MatchedTenant.TenantName)'. " +
-                       "Set DeviceAuthAllowed to 'yes' in the tenants worksheet to permit it.")
+            if ($DeviceCode -eq $true -and
+                $MatchedTenant.DeviceAuthAllowed -notmatch 'yes|^y$'
+            ) {
+                throw 'Device code authentication is not allowed for tenant ' +
+                    "'$($MatchedTenant.TenantName)'. " +
+                    "Set DeviceAuthAllowed to 'yes' in the tenants worksheet to permit it."
             }
             $ConnectParams['DeviceCode'] = $DeviceCode
         }
@@ -174,11 +182,24 @@ function Open-IRTTenantSheet {
     .NOTES
     Version: 1.0.0
     #>
-    [Alias('Open-IRTTenantWorksheet', 'OpenIRTTenantWorksheet', 'OpenIRTTenantSheet', 'IRTTenantSheet')]
+    [Alias(
+        'Open-IRTTenantWorksheet', 'OpenIRTTenantWorksheet',
+        'OpenIRTTenantSheet', 'IRTTenantSheet'
+    )]
     [CmdletBinding()]
     param (
-        [string] $TenantFile = $(if ($Global:IRT_Config.TenantsSheetPath) { $Global:IRT_Config.TenantsSheetPath } else { Join-Path $env:APPDATA 'M365IncidentResponseTools\tenants.xlsx' })
+        [string] $TenantFile
     )
+
+    begin {
+        if (-not $TenantFile) {
+            $TenantFile = if ($Global:IRT_Config.TenantsSheetPath) {
+                $Global:IRT_Config.TenantsSheetPath
+            } else {
+                Join-Path $env:APPDATA 'M365IncidentResponseTools\tenants.xlsx'
+            }
+        }
+    }
 
     process {
 
@@ -186,7 +207,12 @@ function Open-IRTTenantSheet {
 
             $ConfigDir    = Split-Path $TenantFile
             $ModuleRoot   = $MyInvocation.MyCommand.Module.ModuleBase
-            $TemplateFile = Join-Path $ModuleRoot 'module_init' 'tenants_TEMPLATE.xlsx'
+            $TemplateParams = @{
+                Path                = $ModuleRoot
+                ChildPath           = 'module_init'
+                AdditionalChildPath = 'tenants_TEMPLATE.xlsx'
+            }
+            $TemplateFile = Join-Path @TemplateParams
 
             if (-not (Test-Path $ConfigDir)) {
                 New-Item -ItemType Directory -Path $ConfigDir -Force | Out-Null

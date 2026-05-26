@@ -88,8 +88,9 @@ function Remove-IRTDevice {
 
             # --- manual name confirmation (unless -Force) ---
             if ( -not $Force ) {
-                $Confirmation = Read-Host "Type the device name exactly to confirm deletion (or press Enter to skip)"
 
+                $Confirmation = Read-Host ('Type the device name exactly to confirm deletion' +
+                    ' (or press Enter to skip)')
                 if ( $Confirmation -ne $DisplayName ) {
                     Write-IRT "Confirmation did not match '$DisplayName'. Skipping." -Level Warn
                     continue

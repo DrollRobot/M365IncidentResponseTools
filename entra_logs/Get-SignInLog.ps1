@@ -129,13 +129,15 @@ function Get-SignInLog {
 
                     # if none found, exit
                     if ( -not $ScriptUserObjects -or $ScriptUserObjects.Count -eq 0 ) {
-                        Write-IRT "No user objects passed or found in global variables." -Level Error
+                        $Msg = 'No user objects passed or found in global variables.'
+                        Write-IRT $Msg -Level Error
                         return
                     }
                     if (($ScriptUserObjects | Measure-Object).Count -eq 0) {
                         $ErrorParams = @{
                             Category    = 'InvalidArgument'
-                            Message     = "No -UserObject argument used, no `$Global:IRT_UserObjects present."
+                            Message     = 'No -UserObject argument used,' +
+                                ' no $Global:IRT_UserObjects present.'
                             ErrorAction = 'Stop'
                         }
                         Write-Error @ErrorParams
@@ -170,7 +172,7 @@ function Get-SignInLog {
         #region DATE RANGE
 
         # API bug with filters may be fixed?
-        # https://github.com/microsoftgraph/msgraph-sdk-powershell/issues/3146#issuecomment-2752675332
+        # https://github.com/microsoftgraph/msgraph-sdk-powershell/issues/3146
         $DefaultDays = if ($NonInteractive) { 3 } else { 30 } # DEFAULTDAYS
 
         $DateRangeParams = @{
@@ -197,7 +199,8 @@ function Get-SignInLog {
             # users
             switch ( $ParameterSet ) {
                 'UserObject' {
-                    $Target = $ScriptUserObject.UserPrincipalName -split '@' | Select-Object -First 1
+                    $Target = $ScriptUserObject.UserPrincipalName -split '@' |
+                        Select-Object -First 1
                     $FilterStrings.Add( "UserId eq '$($ScriptUserObject.Id)'" )
                 }
                 'IpAddress' {
@@ -219,15 +222,17 @@ function Get-SignInLog {
             }
             $FileNameDateFormat = "yy-MM-dd_HH-mm"
             $FileNameDateString = Get-Date -Format $FileNameDateFormat
-            $FileNameBase = "${FileNamePrefix}_${Days}Days_${DomainName}_${Target}_${FileNameDateString}"
+            $FileNameBase = "${FileNamePrefix}_${Days}Days_${DomainName}" +
+                "_${Target}_${FileNameDateString}"
             $XmlOutputPath = "${FileNameBase}.xml"
 
             # build spreadsheet title
             $TitleDateFormat = "M/d/yy h:mmtt"
             $TitleStartDate = $StartDateUtc.ToLocalTime().ToString($TitleDateFormat)
             $TitleEndDate = $EndDateUtc.ToLocalTime().ToString($TitleDateFormat)
-            $TitleType = if ($FileNamePrefix -eq 'NonInteractiveLogs') { 'Non-Interactive' } else { 'Interactive' }
-            $SheetTitle = "${TitleType} sign-in logs for ${Target}. Covers ${Days} days, ${TitleStartDate} to ${TitleEndDate}."
+            $TitleType = if ($NonInteractive) { 'Non-Interactive' } else { 'Interactive' }
+            $SheetTitle = "${TitleType} sign-in logs for ${Target}." +
+                " Covers ${Days} days, ${TitleStartDate} to ${TitleEndDate}."
 
             # time range
             if ($DateRangeType -eq 'Relative') {
@@ -257,7 +262,6 @@ function Get-SignInLog {
             if ($Script:Test) {
                 Write-IRT "Filter string: '${FilterString}'" -Level Warn
             }
-            # Write-Host @Blue "This can take up to 5 minutes, depending on the number of logs." | Out-Host
 
             # query logs
             if ($Script:Test) {
@@ -285,7 +289,8 @@ function Get-SignInLog {
                     # Property = $GetProperties
                     All = $true
                 }
-                [System.Collections.Generic.List[PSObject]]$Logs = Get-MgBetaAuditLogSignIn @GetParams # | Select-Object $GetProperties
+                [System.Collections.Generic.List[PSObject]]$Logs =
+                    Get-MgBetaAuditLogSignIn @GetParams  # | Select-Object $GetProperties
             }
             else { # if $Beta = $false
                 # $GetProperties = @( # FIXME going to see how much slower pulling all properties is
@@ -306,7 +311,8 @@ function Get-SignInLog {
                     # Property = $GetProperties
                     All = $true
                 }
-                [System.Collections.Generic.List[PSObject]]$Logs = Get-MgAuditLogSignIn @GetParams # | Select-Object $GetProperties
+                [System.Collections.Generic.List[PSObject]]$Logs =
+                    Get-MgAuditLogSignIn @GetParams  # | Select-Object $GetProperties
             }
 
             if ($Script:Test) {

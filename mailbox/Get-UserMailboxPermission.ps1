@@ -99,7 +99,7 @@ function Get-UserMailboxPermission {
 
             Write-IRT "Mailboxes ${TargetUpn} has permissions on:"
             if (($Entries | Measure-Object).Count -eq 0) {
-                Write-Host "None"
+                Write-IRT "None"
             } else {
                 $Entries | Select-Object MailboxName, PrimarySmtpAddress, AccessRights
             }

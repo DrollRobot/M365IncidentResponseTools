@@ -12,6 +12,7 @@ function Format-Powershell {
     .NOTES
     Version: 1.0.3
     #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '')]
     [CmdletBinding()]
     param (
         [Parameter( Position = 0, ValueFromPipeline = $true )]
@@ -106,7 +107,8 @@ function Remove-Newline {
 	.NOTES
 		Version: 1.0.0
 	#>
-    [CmdletBinding(SupportsShouldProcess = $true)]
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '')]
+    [CmdletBinding()]
     param (
         [string] $Content
     )
@@ -374,6 +376,8 @@ function Remove-Comment {
 
 
 function Format-GeneralFunction {
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '')]
+    param()
 
 	# variables
 	$VersionPattern = "Version: .*"

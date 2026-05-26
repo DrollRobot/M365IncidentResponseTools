@@ -107,7 +107,12 @@ function Connect-IRTGraph {
         if (-not $GraphModule) {
             throw 'Microsoft.Graph.Authentication must be imported before connecting to Graph.'
         }
-        $MsalDll = Join-Path $GraphModule.ModuleBase 'Dependencies' 'Core' 'Microsoft.Identity.Client.dll'
+        $MsalDllParams = @{
+            Path                = $GraphModule.ModuleBase
+            ChildPath           = 'Dependencies'
+            AdditionalChildPath = 'Core', 'Microsoft.Identity.Client.dll'
+        }
+        $MsalDll = Join-Path @MsalDllParams
         if (-not ([System.AppDomain]::CurrentDomain.GetAssemblies() |
             Where-Object { $_.FullName -like 'Microsoft.Identity.Client,*' })) {
             Add-Type -Path $MsalDll
@@ -142,8 +147,9 @@ function Connect-IRTGraph {
                 $Cached = $App.GetAccountsAsync().GetAwaiter().GetResult()
                 if ($Cached) {
                     try {
-                        return $App.AcquireTokenSilent($MsalScopes, ($Cached | Select-Object -First 1)).
-                            ExecuteAsync().GetAwaiter().GetResult()
+                        return $App.AcquireTokenSilent(
+                            $MsalScopes, ($Cached | Select-Object -First 1)
+                        ).ExecuteAsync().GetAwaiter().GetResult()
                     } catch {
                         Write-Verbose "Silent Graph token refresh failed: $_"
                     }
@@ -216,7 +222,10 @@ function Connect-IRTGraph {
         }
 
         if ($NeedNewToken) {
-            if ($Global:IRT_Session -and $Global:IRT_Session.Graph -and $Global:IRT_Session.Graph.Token) {
+            if ($Global:IRT_Session -and
+                $Global:IRT_Session.Graph -and
+                $Global:IRT_Session.Graph.Token
+            ) {
                 Write-IRT "Refreshing expired Graph token for tenant $TenantId." -Level Warn
             }
             $TokenResult = & $AcquireToken
@@ -263,7 +272,8 @@ function Connect-IRTGraph {
         }
 
         if ($MissingAdminScopes) {
-            Write-IRT "Admin consent missing tenant-wide for $($MissingAdminScopes.Count) scope(s):" -Level Warn
+            $ScopeCount = $MissingAdminScopes.Count
+            Write-IRT "Admin consent missing tenant-wide for $ScopeCount scope(s):" -Level Warn
             Write-IRT "  $($MissingAdminScopes -join ', ')" -Level Warn
 
             $ConsentParams = @{
@@ -290,8 +300,10 @@ function Connect-IRTGraph {
             }
 
             if ($StillMissing) {
-                Write-Warning "Tenant-wide grant not yet visible for: $($StillMissing -join ', ')"
-                Write-Warning 'Replication may still be in flight; re-run Connect-IRT shortly to confirm.'
+                Write-Warning ("Tenant-wide grant not yet visible for: " +
+                    "$($StillMissing -join ', ')")
+                Write-Warning ('Replication may still be in flight; ' +
+                    're-run Connect-IRT shortly to confirm.')
             } else {
                 Write-IRT 'Admin consent granted tenant-wide.'
             }
@@ -388,7 +400,11 @@ function Invoke-IRTAdminConsent {
 
     process {
         try {
-            $LoginHost = if ($GCCHigh) { 'login.microsoftonline.us' } else { 'login.microsoftonline.com' }
+            $LoginHost = if ($GCCHigh) {
+                'login.microsoftonline.us'
+            } else {
+                'login.microsoftonline.com'
+            }
             $State     = [guid]::NewGuid().ToString('N')
 
             # Fully-qualify each scope with the resource URI, then space-delimit.
@@ -414,7 +430,8 @@ function Invoke-IRTAdminConsent {
             while (-not $AcceptTask.IsCompleted) {
                 if ([datetime]::UtcNow -gt $Deadline) {
                     $Cts.Cancel()
-                    throw "Timed out after $TimeoutSeconds seconds waiting for admin consent response."
+                    throw "Timed out after $TimeoutSeconds seconds" +
+                        " waiting for admin consent response."
                 }
                 Start-Sleep -Milliseconds 250
             }
@@ -425,7 +442,8 @@ function Invoke-IRTAdminConsent {
                 $Reader      = [System.IO.StreamReader]::new($Stream)
                 $RequestLine = $Reader.ReadLine()
 
-                $Body = '<html><body style="font-family:sans-serif;text-align:center;padding-top:4em">' +
+                $Body = '<html>' +
+                        '<body style="font-family:sans-serif;text-align:center;padding-top:4em">' +
                         '<h2>Admin consent received.</h2>' +
                         '<p>You may close this window and return to PowerShell.</p>' +
                         '</body></html>'
@@ -460,7 +478,9 @@ function Invoke-IRTAdminConsent {
                 throw 'Admin consent response state mismatch - possible CSRF or stale request.'
             }
             if ($Params['error']) {
-                throw "Admin consent denied or failed: $($Params['error']) - $($Params['error_description'])"
+                $ErrCode = $Params['error']
+                $ErrDesc = $Params['error_description']
+                throw "Admin consent denied or failed: $ErrCode - $ErrDesc"
             }
             if ($Params['admin_consent'] -eq 'True') {
                 return $true

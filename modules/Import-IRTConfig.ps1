@@ -22,7 +22,7 @@ function Import-IRTConfig {
     $ModuleRoot   = $MyInvocation.MyCommand.Module.ModuleBase
     $ConfigDir    = Join-Path $env:APPDATA $ModuleName
     $ConfigPath   = Join-Path $ConfigDir 'config.json'
-    $TemplatePath = Join-Path $ModuleRoot 'module_init' 'config_TEMPLATE.json'
+    $TemplatePath = Join-Path -Path $ModuleRoot -ChildPath 'module_init' -AdditionalChildPath 'config_TEMPLATE.json'
 
     if (-not (Test-Path $ConfigPath)) {
         if (-not (Test-Path $ConfigDir)) {
@@ -62,7 +62,7 @@ function Open-IRTConfig {
     param()
 
     $ModuleName = $MyInvocation.MyCommand.Module.Name
-    $ConfigPath = Join-Path $env:APPDATA $ModuleName 'config.json'
+    $ConfigPath = Join-Path -Path $env:APPDATA -ChildPath $ModuleName -AdditionalChildPath 'config.json'
 
     if (-not (Test-Path $ConfigPath)) {
         Import-IRTConfig
@@ -95,7 +95,7 @@ function Set-IRTConfig {
     $ModuleRoot   = $MyInvocation.MyCommand.Module.ModuleBase
     $ConfigDir    = Join-Path $env:APPDATA $ModuleName
     $ConfigPath   = Join-Path $ConfigDir 'config.json'
-    $TemplatePath = Join-Path $ModuleRoot 'module_init' 'config_TEMPLATE.json'
+    $TemplatePath = Join-Path -Path $ModuleRoot -ChildPath 'module_init' -AdditionalChildPath 'config_TEMPLATE.json'
 
     if ($Reset) {
         if ($PSCmdlet.ShouldProcess($ConfigPath, 'Reset to template defaults')) {
@@ -241,10 +241,10 @@ function Set-IRTConfig {
         $Setting = $Settings[$SelectedKey]
         $CurrentVal = $Config.$SelectedKey
 
-        Write-Host ''
+        Write-IRT ''
         Write-IRT $Setting.Description
         Write-IRT "Current value: $CurrentVal"
-        Write-Host ''
+        Write-IRT ''
 
         if ($Setting.Options) {
             # Build a selection menu from predefined options

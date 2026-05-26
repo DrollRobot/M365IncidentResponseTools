@@ -75,7 +75,7 @@ function Get-IRTTenantInfo {
 
         if (-not $NoCache) {
             $ModuleName = $MyInvocation.MyCommand.ModuleName
-            $CachePath = Join-Path $env:APPDATA $ModuleName 'tenant_owner_info.csv'
+            $CachePath = Join-Path -Path $env:APPDATA -ChildPath $ModuleName -AdditionalChildPath 'tenant_owner_info.csv'
             $CacheDir  = Split-Path $CachePath -Parent
             if (-not (Test-Path $CacheDir)) {
                 $null = New-Item -ItemType Directory -Path $CacheDir -Force
@@ -276,7 +276,7 @@ function Open-IRTTenantInfoCSV {
     param ()
 
     $moduleName = $MyInvocation.MyCommand.ModuleName
-    $cachePath  = Join-Path $env:APPDATA $moduleName 'tenant_owner_info.csv'
+    $cachePath  = Join-Path -Path $env:APPDATA -ChildPath $moduleName -AdditionalChildPath 'tenant_owner_info.csv'
 
     if (-not (Test-Path $cachePath)) {
         Write-Warning "Tenant info cache not found at '$cachePath'. Run Get-IRTTenantInfo first to populate it."

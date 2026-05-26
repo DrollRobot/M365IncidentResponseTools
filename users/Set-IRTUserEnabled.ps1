@@ -183,7 +183,7 @@ function Set-IRTUserEnabled {
             $DateString = $BuildString + " " + $TimeZoneAcronym
 
             Write-IRT "Last on-premises sync:"
-            Write-Host $DateString
+            Write-IRT $DateString
         }
     }
 }

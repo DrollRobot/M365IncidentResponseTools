@@ -23,6 +23,7 @@
 .EXAMPLE
     .\Install-Dependencies.ps1 -Scope AllUsers -WhatIf
 #>
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '')]
 [CmdletBinding(SupportsShouldProcess)]
 param(
     [ValidateSet('CurrentUser', 'AllUsers')]
@@ -115,8 +116,13 @@ foreach ($Entry in $RequiredModules) {
             $Satisfied = $InstalledVersions -contains $Required
         }
         else {
-            $Min = if ($Entry -is [hashtable] -and $Entry.ContainsKey('ModuleVersion'))  { [version]$Entry.ModuleVersion  } else { $null }
-            $Max = if ($Entry -is [hashtable] -and $Entry.ContainsKey('MaximumVersion')) { [version]$Entry.MaximumVersion } else { $null }
+            $Min = if ($Entry -is [hashtable] -and $Entry.ContainsKey('ModuleVersion'))  {
+                [version]$Entry.ModuleVersion
+            }
+            else { $null }
+            $Max = if ($Entry -is [hashtable] -and $Entry.ContainsKey('MaximumVersion')) {
+                [version]$Entry.MaximumVersion
+            } else { $null }
             $Satisfied = $null -ne (
                 $InstalledVersions | Where-Object {
                     ($null -eq $Min -or $_ -ge $Min) -and

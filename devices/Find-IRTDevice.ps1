@@ -1,8 +1,9 @@
 function Find-IRTDevice {
     <#
     .SYNOPSIS
-    Finds devices by display name, device ID, operating system, registered owner, serial number, or other
-    Entra/Intune identifiers. Creates $IRT_DeviceObjects from combined Entra + Intune device records.
+    Finds devices by display name, device ID, operating system, registered owner, serial number,
+    or other Entra/Intune identifiers. Creates $IRT_DeviceObjects from combined Entra + Intune
+    device records.
 
     .EXAMPLE
     Find-IRTDevice DESKTOP-ABC123
@@ -42,7 +43,7 @@ function Find-IRTDevice {
 
     process {
 
-        Write-Host ''
+        Write-IRT ''
 
         foreach ($SearchString in $Search) {
 

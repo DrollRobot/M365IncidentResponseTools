@@ -54,6 +54,7 @@ function Build-Menu {
     1.01 - Changed hashtable format to allow colors.
     0.02 - Convert to allow building menu based on hashtable.
     #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '')]
     param(
         [parameter( Mandatory )]
         [Alias('Options')]

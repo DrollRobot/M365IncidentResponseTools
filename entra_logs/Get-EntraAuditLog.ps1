@@ -134,7 +134,8 @@ function Get-EntraAuditLog {
             $UserId = $ScriptUserObject.Id
 
             # build file names
-            $XmlOutputPath = "${FileNamePrefix}_${Days}Days_${DomainName}_${UserName}_${FileNameDateString}.xml"
+            $XmlOutputPath =
+                "${FileNamePrefix}_${Days}Days_${DomainName}_${UserName}_${FileNameDateString}.xml"
 
             # build filter string
             if (-not $AllUsers) {
@@ -164,10 +165,12 @@ function Get-EntraAuditLog {
                 Filter = $FilterString
             }
             if ($Beta) {
-                [System.Collections.Generic.List[PSObject]]$Logs = Get-MgBetaAuditLogDirectoryAudit @GetParams
+                [System.Collections.Generic.List[PSObject]]$Logs =
+                    Get-MgBetaAuditLogDirectoryAudit @GetParams
             }
             else {
-                [System.Collections.Generic.List[PSObject]]$Logs = Get-MgAuditLogDirectoryAudit @GetParams
+                [System.Collections.Generic.List[PSObject]]$Logs =
+                    Get-MgAuditLogDirectoryAudit @GetParams
             }
 
             # show count

@@ -85,6 +85,7 @@ function Reset-IRTAdUserPassword {
     1.0.0 - Initial version as Reset-AdUserPassword.
     #>
     [Alias('ResetAdPassword', 'ResetAdPasswords', 'Reset-AdPassword')]
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '')]
     [CmdletBinding(SupportsShouldProcess = $true)]
     param(
         [Parameter(Position = 0)]
@@ -139,7 +140,7 @@ function Reset-IRTAdUserPassword {
             return
         }
 
-        Write-Host ''
+        Write-IRT ''
 
         foreach ($ScriptUserObject in $ScriptUserObjects) {
             $Username = $ScriptUserObject.SamAccountName

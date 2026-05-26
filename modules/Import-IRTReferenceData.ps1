@@ -64,7 +64,7 @@ function Import-IRTReferenceData {
 
     # Tenant owner info cache (keyed by TenantId GUID string)
     $ModuleName = $MyInvocation.MyCommand.ModuleName
-    $TenantCachePath = Join-Path $env:APPDATA $ModuleName 'tenant_owner_info.csv'
+    $TenantCachePath = Join-Path -Path $env:APPDATA -ChildPath $ModuleName -AdditionalChildPath 'tenant_owner_info.csv'
     $TenantTable = [hashtable]::Synchronized(@{})
     if (Test-Path -LiteralPath $TenantCachePath) {
         foreach ($Row in (Import-Csv -Path $TenantCachePath)) {

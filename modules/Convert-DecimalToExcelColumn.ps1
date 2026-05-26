@@ -31,10 +31,12 @@ function Convert-DecimalToExcelColumn {
         # initialize result variable
         $ColumnLetters = [System.Collections.Generic.List[char]]::new()
 
-        while ( $Number -gt 0 ) {
+        # Use a local variable so [ValidateRange] on $Number is not re-evaluated
+        $Current = $Number
+        while ( $Current -gt 0 ) {
 
             # divide by 26
-            [int]$Remainder = ($Number - 1) % 26
+            [int]$Remainder = ($Current - 1) % 26
 
             # determine the corresponding letter (a=0 maps to A)
             $Letter = [char]([int][char]'A' + $Remainder)
@@ -43,7 +45,7 @@ function Convert-DecimalToExcelColumn {
             $ColumnLetters.Insert(0,$Letter)
 
             # update the number for next iteration
-            $Number = [int][math]::Floor(($Number - 1) / 26)
+            $Current = [int][math]::Floor(($Current - 1) / 26)
         }
 
         return ($ColumnLetters -join '')

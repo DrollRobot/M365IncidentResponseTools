@@ -1,4 +1,6 @@
 # ScriptsToProcess - runs in the CALLER's scope (not the module's) on every Import-Module.
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '')]
+param()
 # Because this runs outside the module scope, the prompt function defined here is NOT
 # tracked by the module and will NOT be removed when the module is reimported with -Force.
 
@@ -17,7 +19,7 @@ if ($env:TERM_PROGRAM -ne 'vscode') {
 
     function prompt {
         # Best-effort: read PromptColor from the user config if it exists; fall back to hard-coded default.
-        $irt_configPath = Join-Path $env:APPDATA 'M365IncidentResponseTools' 'config.json'
+        $irt_configPath = Join-Path -Path $env:APPDATA -ChildPath 'M365IncidentResponseTools' -AdditionalChildPath 'config.json'
         $irt_color = try {
             if (Test-Path $irt_configPath) {
                 $c = (Get-Content $irt_configPath -Raw | ConvertFrom-Json).PromptColor

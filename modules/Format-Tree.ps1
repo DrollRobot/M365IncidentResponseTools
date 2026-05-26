@@ -1,3 +1,8 @@
+# suppress PSScriptAnalyzer warnings for all functions
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '')]
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingPositionalParameters', '')]
+param()
+
 #region Format-Tree
 function Format-Tree {
 <#

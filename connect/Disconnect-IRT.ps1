@@ -48,14 +48,20 @@ function Disconnect-IRT {
         # --- Exchange ---
         # Disconnect-ExchangeOnline -ConnectionId allows targeting one session
         # without taking down sibling EXO/IPPS sessions.
+        $IppsPattern = 'compliance\.protection\.(outlook\.com|office365\.us)'
         if ($DisconnectExchange) {
             $ExoConns = Get-ConnectionInformation -ErrorAction SilentlyContinue |
                 Where-Object {
                     $_.State -eq 'Connected' -and
-                    $_.ConnectionUri -notmatch 'compliance\.protection\.(outlook\.com|office365\.us)'
+                    $_.ConnectionUri -notmatch $IppsPattern
                 }
             foreach ($Conn in $ExoConns) {
-                Disconnect-ExchangeOnline -ConnectionId $Conn.ConnectionId -Confirm:$false -ErrorAction SilentlyContinue
+                $ExoDisconParams = @{
+                    ConnectionId = $Conn.ConnectionId
+                    Confirm      = $false
+                    ErrorAction  = 'SilentlyContinue'
+                }
+                Disconnect-ExchangeOnline @ExoDisconParams
             }
             if ($ExoConns) {
                 Write-IRT 'Disconnected from Exchange Online.' -Level Warn
@@ -67,10 +73,15 @@ function Disconnect-IRT {
             $IppsConns = Get-ConnectionInformation -ErrorAction SilentlyContinue |
                 Where-Object {
                     $_.State -eq 'Connected' -and
-                    $_.ConnectionUri -match 'compliance\.protection\.(outlook\.com|office365\.us)'
+                    $_.ConnectionUri -match $IppsPattern
                 }
             foreach ($Conn in $IppsConns) {
-                Disconnect-ExchangeOnline -ConnectionId $Conn.ConnectionId -Confirm:$false -ErrorAction SilentlyContinue
+                $IppsDisconParams = @{
+                    ConnectionId = $Conn.ConnectionId
+                    Confirm      = $false
+                    ErrorAction  = 'SilentlyContinue'
+                }
+                Disconnect-ExchangeOnline @IppsDisconParams
             }
             if ($IppsConns) {
                 Write-IRT 'Disconnected from IPPS (Security & Compliance).' -Level Warn

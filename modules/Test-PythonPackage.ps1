@@ -101,9 +101,9 @@ function Test-PythonPackage {
                 $pythonPath = $null
                 foreach ($dir in $dirCandidates) {
                     $testPath = if ($IsWindows -or $env:OS -match 'Windows') {
-                        Join-Path $toolDir $dir 'Scripts' 'python.exe'
+                        Join-Path -Path $toolDir -ChildPath $dir -AdditionalChildPath 'Scripts', 'python.exe'
                     } else {
-                        Join-Path $toolDir $dir 'bin' 'python'
+                        Join-Path -Path $toolDir -ChildPath $dir -AdditionalChildPath 'bin', 'python'
                     }
                     if (Test-Path -LiteralPath $testPath) {
                         $pythonPath = $testPath

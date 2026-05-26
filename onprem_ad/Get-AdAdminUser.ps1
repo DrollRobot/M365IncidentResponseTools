@@ -88,7 +88,7 @@ function Get-AdAdminUser {
 
         # if csv, output table to file
         if ( $Csv ) {
-            Write-Host "Exporting CSV to: ${ExportPath}"
+            Write-IRT "Exporting CSV to: ${ExportPath}"
             $CustomObjects | Export-Csv -Path $ExportPath -NoTypeInformation
         }
     }

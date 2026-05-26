@@ -111,7 +111,8 @@ function Get-IRTServicePrincipalSignInLog {
                 else {
                     $ScriptSPObjects = @($Global:IRT_ServicePrincipalObjects)
                     if (-not $ScriptSPObjects -or $ScriptSPObjects.Count -eq 0) {
-                        Write-IRT "No service principal objects passed or found in global variables." -Level Error
+                        $Msg = 'No service principal objects passed or found in global variables.'
+                        Write-IRT $Msg -Level Error
                         return
                     }
                 }
@@ -171,14 +172,16 @@ function Get-IRTServicePrincipalSignInLog {
             $FileNamePrefix     = 'SPSignInLogs'
             $FileNameDateFormat = 'yy-MM-dd_HH-mm'
             $FileNameDateString = Get-Date -Format $FileNameDateFormat
-            $FileNameBase       = "${FileNamePrefix}_${Days}Days_${DomainName}_${Target}_${FileNameDateString}"
+            $FileNameBase       =
+                "${FileNamePrefix}_${Days}Days_${DomainName}_${Target}_${FileNameDateString}"
             $XmlOutputPath      = "${FileNameBase}.xml"
 
             # build spreadsheet title
             $TitleDateFormat = 'M/d/yy h:mmtt'
             $TitleStartDate  = $StartDateUtc.ToLocalTime().ToString($TitleDateFormat)
             $TitleEndDate    = $EndDateUtc.ToLocalTime().ToString($TitleDateFormat)
-            $SheetTitle      = "Service principal sign-in logs for ${Target}. Covers ${Days} days, ${TitleStartDate} to ${TitleEndDate}."
+            $SheetTitle = "Service principal sign-in logs for ${Target}." +
+                " Covers ${Days} days, ${TitleStartDate} to ${TitleEndDate}."
 
             # sign-in event type filter
             $FilterStrings.Add( "signInEventTypes/any(t: t eq 'servicePrincipal')" )
@@ -213,7 +216,8 @@ function Get-IRTServicePrincipalSignInLog {
                     Filter = $FilterString
                     All    = $true
                 }
-                [System.Collections.Generic.List[PSObject]]$Logs = Get-MgBetaAuditLogSignIn @GetParams
+                [System.Collections.Generic.List[PSObject]]$Logs =
+                    Get-MgBetaAuditLogSignIn @GetParams
             }
             else {
                 $GetParams = @{

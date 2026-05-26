@@ -128,7 +128,8 @@ function Set-IRTDeviceEnabled {
             $EntraId = $ScriptDeviceObject.Entra?.Id
 
             if ( -not $EntraId ) {
-                Write-IRT "No Entra record for: $($ScriptDeviceObject.DisplayName). Skipping." -Level Warn
+                $DevName = $ScriptDeviceObject.DisplayName
+                Write-IRT "No Entra record for: $DevName. Skipping." -Level Warn
                 continue
             }
 

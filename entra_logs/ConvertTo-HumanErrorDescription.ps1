@@ -1,7 +1,8 @@
 function ConvertTo-HumanErrorDescription {
     <#
     .SYNOPSIS
-    Helper function for Entra sign in logs. Accepts an error code number and returns a human-readable description string.
+    Helper function for Entra sign in logs. Accepts an error code number and returns
+    a human-readable description string.
 
     .DESCRIPTION
     Looks up an Entra ID (Azure AD) sign-in error code in the bundled entra_error_codes.csv

@@ -103,7 +103,7 @@ function Find-ServicePrincipal {
 
     process {
 
-        Write-Host ''
+        Write-IRT ''
 
         foreach ( $SearchString in $Search ) {
 

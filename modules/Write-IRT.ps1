@@ -44,6 +44,7 @@ function Write-IRT {
     .NOTES
     Version: 1.0.0
     #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '')]
     [CmdletBinding()]
     param(
         [Parameter(Position = 0)]

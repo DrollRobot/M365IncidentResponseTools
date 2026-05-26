@@ -92,9 +92,10 @@ function Start-IRTPlaybook {
 
             # if none found, exit
             if ( -not $ScriptUserObjects -or $ScriptUserObjects.Count -eq 0 ) {
+                $ErrMsg = 'No -UserObject argument used, no $Global:IRT_UserObjects present.'
                 $ErrorParams = @{
                     Category    = 'InvalidArgument'
-                    Message     = "No -UserObject argument used, no `$Global:IRT_UserObjects present."
+                    Message     = $ErrMsg
                     ErrorAction = 'Stop'
                 }
                 Write-Error @ErrorParams
@@ -114,7 +115,8 @@ function Start-IRTPlaybook {
 
     process {
 
-        if (-not $PSCmdlet.ShouldProcess($ScriptUserObjects[0].UserPrincipalName, 'Start incident response playbook')) {
+        $Target = $ScriptUserObjects[0].UserPrincipalName
+        if (-not $PSCmdlet.ShouldProcess($Target, 'Start incident response playbook')) {
             return
         }
 
@@ -196,7 +198,9 @@ function Start-IRTPlaybook {
                         $WorkingPath,
                         $SharedRefs
                     )
-                    foreach ($k in $SharedRefs.Keys) { Set-Variable -Scope Global -Name $k -Value $SharedRefs[$k] }
+                    foreach ($k in $SharedRefs.Keys) {
+                        Set-Variable -Scope Global -Name $k -Value $SharedRefs[$k]
+                    }
                     Set-Location -Path $WorkingPath
                     Get-LicenseReport
                 }
@@ -212,7 +216,9 @@ function Start-IRTPlaybook {
                         $WorkingPath,
                         $SharedRefs
                     )
-                    foreach ($k in $SharedRefs.Keys) { Set-Variable -Scope Global -Name $k -Value $SharedRefs[$k] }
+                    foreach ($k in $SharedRefs.Keys) {
+                        Set-Variable -Scope Global -Name $k -Value $SharedRefs[$k]
+                    }
                     Set-Location -Path $WorkingPath
                     Show-UserInfo
                 }
@@ -228,7 +234,9 @@ function Start-IRTPlaybook {
                         $WorkingPath,
                         $SharedRefs
                     )
-                    foreach ($k in $SharedRefs.Keys) { Set-Variable -Scope Global -Name $k -Value $SharedRefs[$k] }
+                    foreach ($k in $SharedRefs.Keys) {
+                        Set-Variable -Scope Global -Name $k -Value $SharedRefs[$k]
+                    }
                     Set-Location -Path $WorkingPath
                     Get-UserServicePrincipal -Cached
                 }
@@ -244,7 +252,9 @@ function Start-IRTPlaybook {
                         $WorkingPath,
                         $SharedRefs
                     )
-                    foreach ($k in $SharedRefs.Keys) { Set-Variable -Scope Global -Name $k -Value $SharedRefs[$k] }
+                    foreach ($k in $SharedRefs.Keys) {
+                        Set-Variable -Scope Global -Name $k -Value $SharedRefs[$k]
+                    }
                     Set-Location -Path $WorkingPath
                     Show-Mailbox -Cached
                 }
@@ -260,9 +270,16 @@ function Start-IRTPlaybook {
                         $WorkingPath,
                         $SharedRefs
                     )
-                    foreach ($k in $SharedRefs.Keys) { Set-Variable -Scope Global -Name $k -Value $SharedRefs[$k] }
+                    foreach ($k in $SharedRefs.Keys) {
+                        Set-Variable -Scope Global -Name $k -Value $SharedRefs[$k]
+                    }
                     Set-Location -Path $WorkingPath
-                    Get-AdminRole -Excel -Highlight $Global:IRT_UserObjects.UserPrincipalName -Cached
+                    $AdminParams = @{
+                        Excel     = $true
+                        Highlight = $Global:IRT_UserObjects.UserPrincipalName
+                        Cached    = $true
+                    }
+                    Get-AdminRole @AdminParams
                 }
                 Args  = @(
                     $WorkingPath,
@@ -276,7 +293,9 @@ function Start-IRTPlaybook {
                         $WorkingPath,
                         $SharedRefs
                     )
-                    foreach ($k in $SharedRefs.Keys) { Set-Variable -Scope Global -Name $k -Value $SharedRefs[$k] }
+                    foreach ($k in $SharedRefs.Keys) {
+                        Set-Variable -Scope Global -Name $k -Value $SharedRefs[$k]
+                    }
                     Set-Location -Path $WorkingPath
                     Find-RiskyServicePrincipal -Cached
                 }
@@ -292,7 +311,9 @@ function Start-IRTPlaybook {
                         $WorkingPath,
                         $SharedRefs
                     )
-                    foreach ($k in $SharedRefs.Keys) { Set-Variable -Scope Global -Name $k -Value $SharedRefs[$k] }
+                    foreach ($k in $SharedRefs.Keys) {
+                        Set-Variable -Scope Global -Name $k -Value $SharedRefs[$k]
+                    }
                     Set-Location -Path $WorkingPath
                     Show-UserMFA
                 }
@@ -309,7 +330,9 @@ function Start-IRTPlaybook {
                         $SharedRefs,
                         $ExoConnectParams
                     )
-                    foreach ($k in $SharedRefs.Keys) { Set-Variable -Scope Global -Name $k -Value $SharedRefs[$k] }
+                    foreach ($k in $SharedRefs.Keys) {
+                        Set-Variable -Scope Global -Name $k -Value $SharedRefs[$k]
+                    }
                     Set-Location -Path $WorkingPath
                     Connect-ExchangeOnline @ExoConnectParams
                     $Params = @{
@@ -333,7 +356,9 @@ function Start-IRTPlaybook {
                         $SharedRefs,
                         $ExoConnectParams
                     )
-                    foreach ($k in $SharedRefs.Keys) { Set-Variable -Scope Global -Name $k -Value $SharedRefs[$k] }
+                    foreach ($k in $SharedRefs.Keys) {
+                        Set-Variable -Scope Global -Name $k -Value $SharedRefs[$k]
+                    }
                     Set-Location -Path $WorkingPath
                     Connect-ExchangeOnline @ExoConnectParams
                     Get-IRTInboxRule
@@ -351,7 +376,9 @@ function Start-IRTPlaybook {
                         $WorkingPath,
                         $SharedRefs
                     )
-                    foreach ($k in $SharedRefs.Keys) { Set-Variable -Scope Global -Name $k -Value $SharedRefs[$k] }
+                    foreach ($k in $SharedRefs.Keys) {
+                        Set-Variable -Scope Global -Name $k -Value $SharedRefs[$k]
+                    }
                     Set-Location -Path $WorkingPath
                     Get-EntraAuditLog -Cached
                 }
@@ -367,7 +394,9 @@ function Start-IRTPlaybook {
                         $WorkingPath,
                         $SharedRefs
                     )
-                    foreach ($k in $SharedRefs.Keys) { Set-Variable -Scope Global -Name $k -Value $SharedRefs[$k] }
+                    foreach ($k in $SharedRefs.Keys) {
+                        Set-Variable -Scope Global -Name $k -Value $SharedRefs[$k]
+                    }
                     Set-Location -Path $WorkingPath
                     Get-SignInLog
                 }
@@ -384,7 +413,9 @@ function Start-IRTPlaybook {
                         $SharedRefs,
                         $ExoConnectParams
                     )
-                    foreach ($k in $SharedRefs.Keys) { Set-Variable -Scope Global -Name $k -Value $SharedRefs[$k] }
+                    foreach ($k in $SharedRefs.Keys) {
+                        Set-Variable -Scope Global -Name $k -Value $SharedRefs[$k]
+                    }
                     Set-Location -Path $WorkingPath
                     Connect-ExchangeOnline @ExoConnectParams
                     $UAParams = @{
@@ -408,7 +439,9 @@ function Start-IRTPlaybook {
                         $SharedRefs,
                         $ExoConnectParams
                     )
-                    foreach ($k in $SharedRefs.Keys) { Set-Variable -Scope Global -Name $k -Value $SharedRefs[$k] }
+                    foreach ($k in $SharedRefs.Keys) {
+                        Set-Variable -Scope Global -Name $k -Value $SharedRefs[$k]
+                    }
                     Set-Location -Path $WorkingPath
                     Connect-ExchangeOnline @ExoConnectParams
                     $UAParams = @{
@@ -433,7 +466,9 @@ function Start-IRTPlaybook {
                         $SharedRefs,
                         $ExoConnectParams
                     )
-                    foreach ($k in $SharedRefs.Keys) { Set-Variable -Scope Global -Name $k -Value $SharedRefs[$k] }
+                    foreach ($k in $SharedRefs.Keys) {
+                        Set-Variable -Scope Global -Name $k -Value $SharedRefs[$k]
+                    }
                     Set-Location -Path $WorkingPath
                     Connect-ExchangeOnline @ExoConnectParams
                     $UAParams = @{
@@ -456,7 +491,9 @@ function Start-IRTPlaybook {
                         $WorkingPath,
                         $SharedRefs
                     )
-                    foreach ($k in $SharedRefs.Keys) { Set-Variable -Scope Global -Name $k -Value $SharedRefs[$k] }
+                    foreach ($k in $SharedRefs.Keys) {
+                        Set-Variable -Scope Global -Name $k -Value $SharedRefs[$k]
+                    }
                     Set-Location -Path $WorkingPath
                     Get-NonInteractiveLog
                 }
@@ -473,7 +510,9 @@ function Start-IRTPlaybook {
                         $SharedRefs,
                         $ExoConnectParams
                     )
-                    foreach ($k in $SharedRefs.Keys) { Set-Variable -Scope Global -Name $k -Value $SharedRefs[$k] }
+                    foreach ($k in $SharedRefs.Keys) {
+                        Set-Variable -Scope Global -Name $k -Value $SharedRefs[$k]
+                    }
                     Set-Location -Path $WorkingPath
                     Connect-ExchangeOnline @ExoConnectParams
                     $Params = @{
@@ -499,7 +538,8 @@ function Start-IRTPlaybook {
             $Global:IRT_Playbook_RunspacePool = $null
 
             ### build a runspace pool
-            $InitialSessionState = [System.Management.Automation.Runspaces.InitialSessionState]::CreateDefault()
+            $IssType             = [System.Management.Automation.Runspaces.InitialSessionState]
+            $InitialSessionState = $IssType::CreateDefault()
                 $InitialSessionState.ImportPSModule(
                     'ExchangeOnlineManagement',
                     'M365IncidentResponseTools',
@@ -508,7 +548,9 @@ function Start-IRTPlaybook {
                     'Microsoft.Graph.Beta.Reports',
                     'Microsoft.Graph.Users'
                 )
-            $Global:IRT_Playbook_RunspacePool = [RunspaceFactory]::CreateRunspacePool(1, $MaxRunspaces, $InitialSessionState, $Host)
+            $Global:IRT_Playbook_RunspacePool = [RunspaceFactory]::CreateRunspacePool(
+                1, $MaxRunspaces, $InitialSessionState, $Host
+            )
             $Global:IRT_Playbook_RunspacePool.Open()
 
             ### queue tasks
@@ -557,10 +599,18 @@ function Start-IRTPlaybook {
                 }
 
                 $TotalJobs      = $Global:IRT_Playbook_JobList.Count
-                $CompletedCount = ($Global:IRT_Playbook_JobList | Where-Object { $_.Completed }).Count
-                $RemainingNames = $Global:IRT_Playbook_JobList | Where-Object { -not $_.Completed } | Select-Object -ExpandProperty Name
+                $CompletedJobs  = $Global:IRT_Playbook_JobList | Where-Object { $_.Completed }
+                $CompletedCount = $CompletedJobs.Count
+                $RemainingNames = $Global:IRT_Playbook_JobList |
+                    Where-Object { -not $_.Completed } |
+                    Select-Object -ExpandProperty Name
                 $PercentComplete = [int](($CompletedCount / $TotalJobs) * 100)
-                Write-Progress -Activity 'Playbook Running' -Status "Waiting on: $($RemainingNames -join ', ')" -PercentComplete $PercentComplete
+                $WpParams = @{
+                    Activity        = 'Playbook Running'
+                    Status          = "Waiting on: $($RemainingNames -join ', ')"
+                    PercentComplete = $PercentComplete
+                }
+                Write-Progress @WpParams
                 Start-Sleep -Seconds 10
             }
             Write-Progress -Activity 'Playbook Running' -Completed
@@ -584,7 +634,7 @@ function Start-IRTPlaybook {
 
         if ($Stopwatch) {
             $Stopwatch.Stop()
-            Write-Host "Playbook complete. Elapsed time: $($Stopwatch.Elapsed.ToString())"
+            Write-IRT "Playbook complete. Elapsed time: $($Stopwatch.Elapsed.ToString())"
         }
     }
 }

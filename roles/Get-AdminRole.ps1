@@ -148,7 +148,7 @@ function Get-AdminRole {
                     $TypeObjects | Format-Table -AutoSize -Property $DisplayProperties[$TypeKey] | Out-Host
                 }
                 else {
-                    Write-Host "None"
+                    Write-IRT "None"
                 }
             }
         }
@@ -253,7 +253,7 @@ function Get-AdminRole {
             }
 
             if ( $null -eq $Workbook ) {
-                Write-Host "No admin role members found. No Excel file written."
+                Write-IRT "No admin role members found." -Level Warn
                 return
             }
 

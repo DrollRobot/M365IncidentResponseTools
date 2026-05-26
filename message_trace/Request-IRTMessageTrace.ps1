@@ -100,7 +100,7 @@ function Request-IRTMessageTrace {
                 }
             }
             $PageCount = ($Page | Measure-Object).Count
-            if (-not $Quiet) { Write-Host "Retrieved ${PageCount} messages." }
+            if (-not $Quiet) { Write-IRT "Retrieved ${PageCount} messages." }
 
             # add page messages to AllMessages
             if ($PageCount) {
@@ -182,7 +182,7 @@ function Request-IRTMessageTrace {
                 }
 
                 $PageCount = ($Page | Measure-Object).Count
-                if (-not $Quiet) { Write-Host "Retrieved ${PageCount} messages." }
+                if (-not $Quiet) { Write-IRT "Retrieved ${PageCount} messages." }
                 foreach ($m in $Page) {$AllMessages.Add($m)}
                 if (($AllMessages | Measure-Object).Count -ge $ResultLimit) {
                     Write-Output ($AllMessages | Select-Object -First $ResultLimit)

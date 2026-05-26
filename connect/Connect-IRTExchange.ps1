@@ -133,9 +133,15 @@ function Connect-IRTExchange {
             # MSAL setup, only needed when we actually have to acquire.
             $GraphModule = Get-Module Microsoft.Graph.Authentication -ErrorAction SilentlyContinue
             if (-not $GraphModule) {
-                throw 'Microsoft.Graph.Authentication must be imported before acquiring an Exchange token.'
+                throw 'Microsoft.Graph.Authentication must be imported' +
+                    ' before acquiring an Exchange token.'
             }
-            $MsalDll = Join-Path $GraphModule.ModuleBase 'Dependencies' 'Core' 'Microsoft.Identity.Client.dll'
+            $MsalDllParams = @{
+                Path                = $GraphModule.ModuleBase
+                ChildPath           = 'Dependencies'
+                AdditionalChildPath = 'Core', 'Microsoft.Identity.Client.dll'
+            }
+            $MsalDll = Join-Path @MsalDllParams
             if (-not ([System.AppDomain]::CurrentDomain.GetAssemblies() |
                 Where-Object { $_.FullName -like 'Microsoft.Identity.Client,*' })) {
                 Add-Type -Path $MsalDll

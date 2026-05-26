@@ -24,7 +24,7 @@ function Find-GraphDirectoryObject {
                     $_
                 }
             }
-            Write-Host $TruncatedLines
+            Write-IRT $TruncatedLines
         }
     }
 
@@ -52,11 +52,11 @@ function Find-GraphDirectoryObject {
 
                 $ObjectType = $DirectoryObject.AdditionalProperties.'@odata.type' -replace '#', ''
 
-                Write-Host "ObjectType: ${ObjectType}"
+                Write-IRT "ObjectType: ${ObjectType}"
             }
             catch {
                 if ( $_ -match 'does not exist or one of its queried reference-property objects are not present' ) {
-                    Write-Host "Unable to find object."
+                    Write-IRT "Unable to find object."
                 }
                 else {
                     $_

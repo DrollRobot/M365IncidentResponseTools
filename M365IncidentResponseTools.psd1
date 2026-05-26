@@ -41,10 +41,12 @@
     # Minimum version of the PowerShell host required by this module
     # PowerShellHostVersion = ''
 
-    # Minimum version of Microsoft .NET Framework required by this module. This prerequisite is valid for the PowerShell Desktop edition only.
+    # Minimum version of Microsoft .NET Framework required by this module. This prerequisite is
+    # valid for the PowerShell Desktop edition only.
     # DotNetFrameworkVersion = ''
 
-    # Minimum version of the common language runtime (CLR) required by this module. This prerequisite is valid for the PowerShell Desktop edition only.
+    # Minimum version of the common language runtime (CLR) required by this module. This prerequisite is
+    # valid for the PowerShell Desktop edition only.
     # ClrVersion = ''
 
     # Processor architecture (None, X86, Amd64) required by this module
@@ -66,9 +68,13 @@
         @{ModuleName = 'Microsoft.Graph.Users'; RequiredVersion = '2.33.0'}
         @{ModuleName = 'Microsoft.Graph.Users.Actions'; RequiredVersion = '2.33.0'}
 
-        @{ModuleName = 'ExchangeOnlineManagement'; ModuleVersion = '3.4.0'} # ModuleVersion = Minimum version
+        @{ModuleName = 'ExchangeOnlineManagement'; ModuleVersion = '3.4.0'}
         @{ModuleName = 'ImportExcel';             ModuleVersion = '7.8.0'}
         @{ModuleName = 'PSToml';                  ModuleVersion = '0.3.0'}
+
+        # Dev/test dependency -- not required at runtime.
+        # @{ModuleName = 'Pester';  ModuleVersion = '5.0.0'}
+        # @{ModuleName = 'PlatyPS'; ModuleVersion = '0.14.0'}
     )
 
     # Assemblies that must be loaded prior to importing this module
@@ -91,7 +97,8 @@
     # Scripts are dot-sourced dynamically in M365IncidentResponseTools.psm1
     # NestedModules     = @()
 
-    # Functions to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no functions to export.
+    # Functions to export from this module, for best performance, do not use wildcards and
+    # do not delete the entry, use an empty array if there are no functions to export.
     FunctionsToExport = @(
         ### devices
         'Disable-IRTDevice'
@@ -193,13 +200,15 @@
         'Show-UserMFA'
     )
 
-    # Cmdlets to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no cmdlets to export.
+    # Cmdlets to export from this module, for best performance, do not use wildcards and
+    # do not delete the entry, use an empty array if there are no cmdlets to export.
     CmdletsToExport   = @()
 
     # Variables to export from this module
     VariablesToExport = '*'
 
-    # Aliases to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no aliases to export.
+    # Aliases to export from this module, for best performance, do not use wildcards and
+    # do not delete the entry, use an empty array if there are no aliases to export.
     AliasesToExport   = @(
 
         ### connect
@@ -441,7 +450,8 @@
     # List of all files packaged with this module
     # FileList = @()
 
-    # Private data to pass to the module specified in RootModule/ModuleToProcess. This may also contain a PSData hashtable with additional module metadata used by PowerShell.
+    # Private data to pass to the module specified in RootModule/ModuleToProcess. This may also
+    # contain a PSData hashtable with additional module metadata used by PowerShell.
     PrivateData       = @{
 
         PSData = @{
@@ -464,7 +474,8 @@
             # Prerelease string of this module
             # Prerelease = ''
 
-            # Flag to indicate whether the module requires explicit user acceptance for install/update/save
+            # Flag to indicate whether the module requires explicit user acceptance for
+            # install/update/save
             # RequireLicenseAcceptance = $false
 
             # External dependent modules of this module
@@ -477,6 +488,7 @@
     # HelpInfo URI of this module
     # HelpInfoURI = ''
 
-    # Default prefix for commands exported from this module. Override the default prefix using Import-Module -Prefix.
+    # Default prefix for commands exported from this module. Override the default prefix using
+    # Import-Module -Prefix.
     # DefaultCommandPrefix = ''
 }

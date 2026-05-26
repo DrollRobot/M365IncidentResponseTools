@@ -134,9 +134,15 @@ function Connect-IRTIPPS {
             # MSAL setup, only needed when we actually have to acquire.
             $GraphModule = Get-Module Microsoft.Graph.Authentication -ErrorAction SilentlyContinue
             if (-not $GraphModule) {
-                throw 'Microsoft.Graph.Authentication must be imported before acquiring an IPPS token.'
+                throw 'Microsoft.Graph.Authentication must be imported' +
+                    ' before acquiring an IPPS token.'
             }
-            $MsalDll = Join-Path $GraphModule.ModuleBase 'Dependencies' 'Core' 'Microsoft.Identity.Client.dll'
+            $MsalDllParams = @{
+                Path                = $GraphModule.ModuleBase
+                ChildPath           = 'Dependencies'
+                AdditionalChildPath = 'Core', 'Microsoft.Identity.Client.dll'
+            }
+            $MsalDll = Join-Path @MsalDllParams
             if (-not ([System.AppDomain]::CurrentDomain.GetAssemblies() |
                 Where-Object { $_.FullName -like 'Microsoft.Identity.Client,*' })) {
                 Add-Type -Path $MsalDll
@@ -205,7 +211,8 @@ function Connect-IRTIPPS {
                 $Params['EnableSearchOnlySession'] = $true
             }
             if ($GCCHigh) {
-                $Params['ConnectionUri'] = 'https://ps.compliance.protection.office365.us/powershell-liveid/'
+                $ComplianceUri = 'https://ps.compliance.protection.office365.us/powershell-liveid/'
+                $Params['ConnectionUri'] = $ComplianceUri
             }
             Connect-IPPSSession @Params
         }

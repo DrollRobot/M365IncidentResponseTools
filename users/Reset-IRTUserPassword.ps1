@@ -106,6 +106,7 @@ function Reset-IRTUserPassword {
             Updated variable names.
     #>
     [Alias('ResetPassword', 'ResetPasswords')]
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '')]
     [CmdletBinding(SupportsShouldProcess = $true)]
     param(
         [Parameter( Position = 0 )]

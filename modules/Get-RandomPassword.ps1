@@ -11,9 +11,8 @@ function Get-RandomPassword {
     Version 0.02
     #>
     param (
-        [Parameter(Mandatory)]
         [ValidateRange(4,[int]::MaxValue)]
-        [int] $Length
+        [int] $Length = 15
     )
 
     $upperChars = 'ABCDEFGHJKLMNPQRSTUVWXYZ'.ToCharArray()
@@ -29,7 +28,8 @@ function Get-RandomPassword {
     $result = @($upper, $lower, $number, $symbol)
 
     # Calculate the remaining length for random characters
-    $length = $length - 4
+    # Use a separate variable so [ValidateRange] on $Length is not re-evaluated
+    $remaining = $Length - 4
 
     # Define the character set for the remaining random characters
     $charSet = $upperChars + $lowerChars + $numberChars + $symbolChars
@@ -38,9 +38,9 @@ function Get-RandomPassword {
     $rng = New-Object System.Security.Cryptography.RNGCryptoServiceProvider
 
     # generate more characters to fill array
-    $bytes = New-Object byte[]($length)
+    $bytes = New-Object byte[]($remaining)
     $rng.GetBytes($bytes)
-    for ( $i = 0; $i -lt $length; $i++ ) {
+    for ( $i = 0; $i -lt $remaining; $i++ ) {
         $result += $charSet[$bytes[$i] % $charSet.Length]
     }
 

@@ -65,7 +65,11 @@ namespace IRT {
         private readonly SemaphoreSlim _signal = new SemaphoreSlim(0, 1);
         public Func<object, Task> Callback { get; }
         public DeviceCodeHelper() {
-            Callback = result => { _result = result; _signal.Release(); return Task.CompletedTask; };
+            Callback = result => {
+                _result = result;
+                _signal.Release();
+                return Task.CompletedTask;
+            };
         }
         public object WaitForResult(int timeoutMs) {
             return _signal.Wait(timeoutMs) ? _result : null;
@@ -100,7 +104,7 @@ namespace IRT {
         Write-IRT "Device code '$($Matches[1])' copied to clipboard." -Level Warn
         Open-Browser -Browser $Browser -Url $CodeResult.VerificationUrl -Private:$Private
     } else {
-        Write-Host $CodeResult.Message
+        Write-IRT $CodeResult.Message
     }
 
     try {
