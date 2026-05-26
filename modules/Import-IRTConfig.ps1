@@ -45,6 +45,14 @@ function Import-IRTConfig {
             $Updated = $true
         }
     }
+
+    # IpInfoAvailable is runtime-detected (not user-configurable) and should not be
+    # persisted in config.json. Strip it if present so the psm1 always controls it.
+    if ($Global:IRT_Config.PSObject.Properties['IpInfoAvailable']) {
+        $Global:IRT_Config.PSObject.Properties.Remove('IpInfoAvailable')
+        $Updated = $true
+    }
+
     if ($Updated) {
         $Global:IRT_Config | ConvertTo-Json -Depth 10 | Set-Content -Path $ConfigPath -Encoding utf8
     }

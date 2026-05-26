@@ -19,7 +19,7 @@ function Show-EntraAuditLog {
 
         [string] $TableStyle = $Global:IRT_Config.ExcelTableStyle,
         [string] $Font = $Global:IRT_Config.ExcelFont,
-        [boolean] $IpInfo = $Global:IRT_Config.IpInfoAvailable,
+        [boolean] $IpInfo = [bool]$Global:IRT_Config.IpInfoAvailable,
         [boolean] $Open = $true,
         [switch] $Cached
     )

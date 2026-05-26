@@ -49,10 +49,14 @@ foreach ($VarName in 'IRT_IpInfo', 'IRT_MessageTraceTable') {
 }
 
 # Check ip_info availability once at module load and cache in config.
-$Global:IRT_Config | Add-Member @{
-    NotePropertyName  = 'IpInfoAvailable'
-    NotePropertyValue = (Test-PythonPackage -Name 'ip_info').Present
-} -Force
+# Wrapped in try/catch: if detection throws (e.g. in a child runspace with limited PATH)
+# we fall back to $false rather than leaving the stale string value from config.json.
+$IpInfoDetected = try {
+    [bool](Test-PythonPackage -Name 'ip_info').Present
+} catch {
+    $false
+}
+$Global:IRT_Config | Add-Member -NotePropertyName 'IpInfoAvailable' -NotePropertyValue $IpInfoDetected -Force
 
 # Load static reference data (error codes, UAL operation metadata, UAL user types).
 Import-IRTReferenceData

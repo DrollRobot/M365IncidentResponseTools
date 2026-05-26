@@ -86,7 +86,7 @@ function Get-IRTServicePrincipalSignInLog {
 
         [boolean] $Beta    = $true,
         [boolean] $Excel   = $true,
-        [boolean] $IpInfo = $Global:IRT_Config.IpInfoAvailable,
+        [boolean] $IpInfo = [bool]$Global:IRT_Config.IpInfoAvailable,
         [boolean] $Open    = $true,
         [switch]  $Test,
         [boolean] $Xml     = $Global:IRT_Config.ExportXml

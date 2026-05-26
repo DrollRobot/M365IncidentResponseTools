@@ -11,5 +11,6 @@
     "PromptColor": "DarkYellow",
     "InfoColor": "DarkCyan",
     "WarnColor": "Yellow",
-    "ErrorColor": "Red"
+    "ErrorColor": "Red",
+    "IpInfoAvailable": false
 }

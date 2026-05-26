@@ -19,7 +19,7 @@ function Show-UALog {
         [string] $TableStyle = $Global:IRT_Config.ExcelTableStyle,
         [string] $Font = $Global:IRT_Config.ExcelFont,
 
-        [boolean] $IpInfo = $Global:IRT_Config.IpInfoAvailable,
+        [boolean] $IpInfo = [bool]$Global:IRT_Config.IpInfoAvailable,
         [boolean] $Open = $true,
         [boolean] $WaitOnMessageTrace = $false,
         [int] $MaxWaitMinutes = 15,
