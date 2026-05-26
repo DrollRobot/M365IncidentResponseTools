@@ -15,9 +15,6 @@ function Build-AllOperationSheet {
         [Parameter(Mandatory)]
         $ExcelPackage,
 
-        [Parameter(Mandatory)]
-        [hashtable] $IpInfoTable,
-
         [hashtable] $MessageTraceTable,
 
         [Parameter(Mandatory)]
@@ -86,7 +83,6 @@ function Build-AllOperationSheet {
             }
 
             #region IPADDRESSES
-            $CellLines = $null
             $IpAddresses = [System.Collections.Generic.Hashset[string]]::new()
                 if ( $LogEntry.AuditData.ClientIP ) {
                     try {
@@ -114,14 +110,7 @@ function Build-AllOperationSheet {
                         [void]$IpAddresses.Add($IpObject.ToString())
                     }
                 }
-            if (($IpAddresses | Measure-Object).Count -gt 0) {
-                $CellLines = [System.Collections.Generic.List[string]]::new()
-                $CellLines.Add((($IpAddresses | Sort-Object) -join ', ') + (' ' * 20))
-                foreach ($Ipaddress in $IpAddresses) {
-                    $CellLines.Add($IpInfoTable[$Ipaddress])
-                }
-            }
-            $IpText = $CellLines -join "`n`n"
+            $IpText = if ($IpAddresses.Count -gt 0) { ($IpAddresses | Sort-Object) -join ', ' } else { '' }
 
             #region Summary
             $RecordType = $LogEntry.RecordType

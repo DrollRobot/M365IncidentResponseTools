@@ -16,7 +16,8 @@ function Show-IRTMessageTrace {
         [string] $XmlPath,
 
         [string] $TableStyle = $Global:IRT_Config.ExcelTableStyle,
-        [string] $Font = $Global:IRT_Config.ExcelFont
+        [string] $Font = $Global:IRT_Config.ExcelFont,
+        [boolean] $IpInfo = $Global:IRT_Config.IpInfoAvailable
     )
 
     begin {
@@ -185,6 +186,8 @@ function Show-IRTMessageTrace {
             }
         }
         $Worksheet = $Workbook.Workbook.Worksheets[$ExcelParams.WorksheetName]
+
+        if ($IpInfo) { Add-IpInfoToSheet -Worksheet $Worksheet -ColumnName 'FromIP', 'ToIP' }
 
         if ($Script:Test) {
             $ElapsedString = ($StopWatch.Elapsed - $TimerStart).ToString('mm\:ss')

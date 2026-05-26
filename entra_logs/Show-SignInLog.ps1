@@ -19,7 +19,7 @@ function Show-SignInLog {
         [string] $TableStyle = $Global:IRT_Config.ExcelTableStyle,
         [string] $Font = $Global:IRT_Config.ExcelFont,
 
-        [boolean] $IpInfo = $true,
+        [boolean] $IpInfo = $Global:IRT_Config.IpInfoAvailable,
         [boolean] $Open = $true,
         [switch] $Test
     )
@@ -78,76 +78,9 @@ function Show-SignInLog {
 
         # get worksheet title from metadata
         $WorksheetTitle = $Metadata.Title
-
-        # ipinfo
-        if ($IpInfo) {
-            $IpInfoAddresses = [System.Collections.Generic.HashSet[string]]::new()
-
-            # check for presence of ip_info package
-            $IpInfoPackage = Test-PythonPackage -Name 'ip_info'
-        }
-
-        # resolve ip info table
-        $IpInfoTable = $Global:IRT_IpInfo
     }
 
     process {
-
-        #region FIRST LOOP
-
-        foreach ($LogEntry in $Log) {
-            # collect ip addresses
-            if ($IpInfo) {
-                if ($LogEntry.IpAddress) {
-                    try {
-                        $IpObject = [System.Net.IPAddress]$LogEntry.IpAddress
-                    }
-                    catch {}
-                    if ($IpObject) {
-                        [void]$IpInfoAddresses.Add($IpObject.ToString())
-                    }
-                }
-            }
-        }
-
-        #region QUERY IPS
-        if ($IpInfo -and
-            $IpInfoPackage.Present -and
-            ($IpInfoAddresses | Measure-Object).Count -gt 0
-        ) {
-
-            if ($Script:Test) {
-                $TestText = "Querying ip info"
-                $TimerStart = $Stopwatch.Elapsed
-            }
-
-            $UnseenIps = @($IpInfoAddresses | Where-Object { -not $IpInfoTable.ContainsKey($_) })
-            if ($UnseenIps.Count -gt 0) {
-                $env:PYTHONUTF8 = '1'
-                $RawOutput = @(& ip_info --apis bulk --output_format jsontable --ip_addresses $UnseenIps)
-                if ($LASTEXITCODE -ne 0) {
-                    Write-IRT "ip_info query failed." -Level Error
-                }
-                $JsonStart = -1
-                for ($i = 0; $i -lt $RawOutput.Length; $i++) {
-                    if ($RawOutput[$i] -match '^\{') { $JsonStart = $i; break }
-                }
-                if ($JsonStart -ge 0) {
-                    $JsonText = ($RawOutput[$JsonStart..($RawOutput.Length - 1)]) -join "`n"
-                    $JsonData = $JsonText | ConvertFrom-Json -ErrorAction SilentlyContinue
-                    if ($JsonData) {
-                        foreach ($Prop in $JsonData.PSObject.Properties) {
-                            $IpInfoTable[$Prop.Name] = $Prop.Value
-                        }
-                    }
-                }
-            }
-
-            if ($Script:Test) {
-                $ElapsedString = ($StopWatch.Elapsed - $TimerStart).ToString('mm\:ss')
-                Write-IRT "${TestText} took ${ElapsedString}" -Level Warn
-            }
-        }
 
         #region ROW LOOP
 
@@ -172,12 +105,7 @@ function Show-SignInLog {
             }
 
             # IpAddress
-            $IpText = if ($IpInfoTable -and $IpInfoTable.ContainsKey($LogEntry.IpAddress)) {
-                $LogEntry.IpAddress + (' ' * 20) + "`n`n" + $IpInfoTable[$LogEntry.IpAddress]
-            }
-            else {
-                $LogEntry.IpAddress
-            }
+            $IpText = $LogEntry.IpAddress
 
             # application display name / resource id
             if ( $LogEntry.AppDisplayName ) {
@@ -259,6 +187,8 @@ function Show-SignInLog {
         }
         $Worksheet = $Workbook.Workbook.Worksheets[$ExcelParams.WorksheetName]
 
+        if ($IpInfo) { Add-IpInfoToSheet -Worksheet $Worksheet -ColumnName 'IpAddress' }
+
         if ($Script:Test) {
             $ElapsedString = ($StopWatch.Elapsed - $TimerStart).ToString('mm\:ss')
             Write-IRT "${TestText} took ${ElapsedString}" -Level Warn
@@ -277,9 +207,6 @@ function Show-SignInLog {
         $UserAgentColumn = ($Worksheet.Tables[0].Columns | Where-Object {$_.Name -eq 'UserAgent'}).Id | Convert-DecimalToExcelColumn
 
         #region CELL COLORING
-
-        # ip addresses
-        Add-IpAddressConditionalFormatting -Worksheet $WorkSheet -ColumnName 'IpAddress'
 
         # applications
         $Strings = @(

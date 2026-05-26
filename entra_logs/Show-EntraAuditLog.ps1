@@ -19,6 +19,7 @@ function Show-EntraAuditLog {
 
         [string] $TableStyle = $Global:IRT_Config.ExcelTableStyle,
         [string] $Font = $Global:IRT_Config.ExcelFont,
+        [boolean] $IpInfo = $Global:IRT_Config.IpInfoAvailable,
         [boolean] $Open = $true,
         [switch] $Cached
     )
@@ -421,7 +422,7 @@ function Show-EntraAuditLog {
         }
         $Worksheet = $Workbook.Workbook.Worksheets[$ExcelParams.WorksheetName]
 
-        # get table ranges
+        if ($IpInfo) { Add-IpInfoToSheet -Worksheet $Worksheet -ColumnName 'InitiatedByIp' }
         $SheetStartColumn = $WorkSheet.Dimension.Start.Column | Convert-DecimalToExcelColumn
         $SheetStartRow = $WorkSheet.Dimension.Start.Row
         $EndColumn = $WorkSheet.Dimension.End.Column | Convert-DecimalToExcelColumn

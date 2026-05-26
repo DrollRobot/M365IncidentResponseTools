@@ -82,7 +82,6 @@ function Build-UserLoginOperationsSheet {
         $ExcelPackage,
 
         [Parameter(Mandatory)]
-        [hashtable] $IpInfoTable,
 
         [Parameter(Mandatory)]
         [string] $WorksheetName,
@@ -149,15 +148,7 @@ function Build-UserLoginOperationsSheet {
                 try { $IpObject = [System.Net.IPAddress]$Log.AuditData.ClientIPAddress } catch {}
                 if ($IpObject) { [void]$IpAddresses.Add($IpObject.ToString()) }
             }
-            $CellLines = $null
-            if (($IpAddresses | Measure-Object).Count -gt 0) {
-                $CellLines = [System.Collections.Generic.List[string]]::new()
-                $CellLines.Add((($IpAddresses | Sort-Object) -join ', ') + (' ' * 20))
-                foreach ($Ip in $IpAddresses) {
-                    $CellLines.Add($IpInfoTable[$Ip])
-                }
-            }
-            $IpText = $CellLines -join "`n`n"
+            $IpText = if ($IpAddresses.Count -gt 0) { ($IpAddresses | Sort-Object) -join ', ' } else { '' }
 
             # Application (Target)
             $Application = $null

@@ -19,7 +19,7 @@ function Show-UALog {
         [string] $TableStyle = $Global:IRT_Config.ExcelTableStyle,
         [string] $Font = $Global:IRT_Config.ExcelFont,
 
-        [boolean] $IpInfo = $true,
+        [boolean] $IpInfo = $Global:IRT_Config.IpInfoAvailable,
         [boolean] $Open = $true,
         [boolean] $WaitOnMessageTrace = $false,
         [int] $MaxWaitMinutes = 15,
@@ -92,15 +92,6 @@ function Show-UALog {
         $OperationsSheetData = $Global:IRT_UalOperationsData
 
         # ipinfo
-        if ($IpInfo) {
-            $IpInfoAddresses = [System.Collections.Generic.HashSet[string]]::new()
-
-            # check for presence of ip_info package
-            $IpInfoPackage = Test-PythonPackage -Name 'ip_info'
-        }
-
-        # resolve ip info table
-        $IpInfoTable = $Global:IRT_IpInfo
     }
 
     process {
@@ -110,75 +101,6 @@ function Show-UALog {
         foreach ($LogEntry in $Log) {
             # convert audit data to powershell objects
             $LogEntry.AuditData = $LogEntry.AuditData | ConvertFrom-Json -Depth 10
-
-            # collect ip addresses
-            if ($IpInfo) {
-                if ( $LogEntry.AuditData.ClientIP ) {
-                    try {
-                        $IpObject = [System.Net.IPAddress]$LogEntry.AuditData.ClientIP
-                    }
-                    catch {}
-                    if ($IpObject) {
-                        [void]$IpInfoAddresses.Add($IpObject.ToString())
-                    }
-                }
-                if ( $LogEntry.AuditData.ActorIpAddress ) {
-                    try {
-                        $IpObject = [System.Net.IPAddress]$LogEntry.AuditData.ActorIpAddress
-                    }
-                    catch {}
-                    if ($IpObject) {
-                        [void]$IpInfoAddresses.Add($IpObject.ToString())
-                    }                }
-                if ( $LogEntry.AuditData.ClientIPAddress ) {
-                    try {
-                        $IpObject = [System.Net.IPAddress]$LogEntry.AuditData.ClientIPAddress
-                    }
-                    catch {}
-                    if ($IpObject) {
-                        [void]$IpInfoAddresses.Add($IpObject.ToString())
-                    }
-                }
-            }
-        }
-
-        #region QUERY IPS
-        if ($IpInfo -and
-            $IpInfoPackage.Present -and
-            ($IpInfoAddresses | Measure-Object).Count -gt 0
-        ) {
-
-            if ($Script:Test) {
-                $TestText = "Querying ip info"
-                $TimerStart = $Stopwatch.Elapsed
-            }
-
-            $UnseenIps = @($IpInfoAddresses | Where-Object { -not $IpInfoTable.ContainsKey($_) })
-            if ($UnseenIps.Count -gt 0) {
-                $env:PYTHONUTF8 = '1'
-                $RawOutput = @(& ip_info --apis bulk --output_format jsontable --ip_addresses $UnseenIps)
-                if ($LASTEXITCODE -ne 0) {
-                    Write-IRT "ip_info query failed." -Level Warn
-                }
-                $JsonStart = -1
-                for ($i = 0; $i -lt $RawOutput.Length; $i++) {
-                    if ($RawOutput[$i] -match '^\{') { $JsonStart = $i; break }
-                }
-                if ($JsonStart -ge 0) {
-                    $JsonText = ($RawOutput[$JsonStart..($RawOutput.Length - 1)]) -join "`n"
-                    $JsonData = $JsonText | ConvertFrom-Json -ErrorAction SilentlyContinue
-                    if ($JsonData) {
-                        foreach ($Prop in $JsonData.PSObject.Properties) {
-                            $IpInfoTable[$Prop.Name] = $Prop.Value
-                        }
-                    }
-                }
-            }
-
-            if ($Script:Test) {
-                $ElapsedString = ($StopWatch.Elapsed - $TimerStart).ToString('mm\:ss')
-                Write-IRT "${TestText} took ${ElapsedString}" -Level Warn
-            }
         }
 
         #region WAIT ON MESSAGE TRACE
@@ -280,7 +202,6 @@ function Show-UALog {
                 $SheetParams = @{
                     Logs          = $FilteredLogs
                     ExcelPackage  = $Workbook
-                    IpInfoTable   = $IpInfoTable
                     WorksheetName = $SheetEntry.SheetName
                     Title         = $BuildTitle
                     TableStyle    = $TableStyle
@@ -293,6 +214,13 @@ function Show-UALog {
                     if ($OperationsSheetData)  { $SheetParams['OperationsSheetData'] = $OperationsSheetData }
                 }
                 $Workbook = & $SheetEntry.BuildFunction @SheetParams
+            }
+        }
+
+        # enrich IP addresses with ip_info data
+        if ($IpInfo) {
+            foreach ($ws in $Workbook.Workbook.Worksheets) {
+                Add-IpInfoToSheet -Worksheet $ws -ColumnName 'IpAddresses'
             }
         }
 
