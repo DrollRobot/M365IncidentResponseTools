@@ -425,9 +425,6 @@ function Get-IRTMessageTrace {
                 }
 
                 # merge into global synchronized hashtable
-                if ($Global:IRT_MessageTraceTable -isnot [hashtable]) {
-                    $Global:IRT_MessageTraceTable = [hashtable]::Synchronized(@{})
-                }
                 foreach ($Key in $Table.Keys) {
                     $Global:IRT_MessageTraceTable[$Key] = $Table[$Key]
                 }

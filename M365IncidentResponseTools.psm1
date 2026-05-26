@@ -36,3 +36,17 @@ foreach ($Folder in $Folders) {
         Where-Object { $_.Name -notin $ExcludeFiles } |
         ForEach-Object { . $_.FullName }
 }
+
+# Initialize shared global caches as synchronized hashtables.
+# Using Synchronized everywhere costs nothing measurable and is safe for runspace sharing.
+# Existing data is preserved on module re-import (-Force).
+foreach ($VarName in 'IRT_IpInfo', 'IRT_MessageTraceTable') {
+    $Current = Get-Variable -Name $VarName -Scope Global -ValueOnly -ErrorAction SilentlyContinue
+    if (-not ($Current -is [hashtable] -and $Current.IsSynchronized)) {
+        $Existing = if ($Current -is [hashtable]) { $Current } else { @{} }
+        Set-Variable -Name $VarName -Scope Global -Value ([hashtable]::Synchronized($Existing))
+    }
+}
+
+# Load static reference data (error codes, UAL operation metadata, UAL user types).
+Import-IRTReferenceData

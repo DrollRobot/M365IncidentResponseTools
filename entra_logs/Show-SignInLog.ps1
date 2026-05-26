@@ -88,9 +88,6 @@ function Show-SignInLog {
         }
 
         # resolve ip info table
-        if ($Global:IRT_IpInfo -isnot [hashtable]) {
-            $Global:IRT_IpInfo = [hashtable]::Synchronized(@{})
-        }
         $IpInfoTable = $Global:IRT_IpInfo
     }
 
@@ -119,42 +116,30 @@ function Show-SignInLog {
             ($IpInfoAddresses | Measure-Object).Count -gt 0
         ) {
 
-            # start timer for ip query
             if ($Script:Test) {
                 $TestText = "Querying ip info"
                 $TimerStart = $Stopwatch.Elapsed
             }
 
-            # query information for all IP addresses
-            $env:PYTHONUTF8 = '1'
-            & ip_info --apis bulk --output_format none --ip_addresses $IpInfoAddresses
-            if ($LASTEXITCODE -ne 0) {
-                Write-IRT "ip_info query failed." -Level Error
-            }
-
-            # end timer for ip query
-            if ($Script:Test) {
-                $ElapsedString = ($StopWatch.Elapsed - $TimerStart).ToString('mm\:ss')
-                Write-IRT "${TestText} took ${ElapsedString}" -Level Warn
-            }
-
-            # add ip info to global colection
-            if ($Script:Test) {
-                $TestText = "Creating ip info collection in global scope"
-                $TimerStart = $Stopwatch.Elapsed
-            }
-
-            foreach ($Ip in $IpInfoAddresses) {
-                # if ip doesn't exist in table, add it.
-                if (-not $IpInfoTable.ContainsKey($Ip)) {
-                    $Params = @(
-                        '--apis','none',
-                        '--output_format','table',
-                        '--ip_addresses', $Ip.ToString()
-                    )
-                    $NewLine = [Environment]::NewLine
-                    $Output = ((& ip_info @Params) -join $NewLine).Trim()
-                    $IpInfoTable[$Ip] = $Output
+            $UnseenIps = @($IpInfoAddresses | Where-Object { -not $IpInfoTable.ContainsKey($_) })
+            if ($UnseenIps.Count -gt 0) {
+                $env:PYTHONUTF8 = '1'
+                $RawOutput = @(& ip_info --apis bulk --output_format jsontable --ip_addresses $UnseenIps)
+                if ($LASTEXITCODE -ne 0) {
+                    Write-IRT "ip_info query failed." -Level Error
+                }
+                $JsonStart = -1
+                for ($i = 0; $i -lt $RawOutput.Length; $i++) {
+                    if ($RawOutput[$i] -match '^\{') { $JsonStart = $i; break }
+                }
+                if ($JsonStart -ge 0) {
+                    $JsonText = ($RawOutput[$JsonStart..($RawOutput.Length - 1)]) -join "`n"
+                    $JsonData = $JsonText | ConvertFrom-Json -ErrorAction SilentlyContinue
+                    if ($JsonData) {
+                        foreach ($Prop in $JsonData.PSObject.Properties) {
+                            $IpInfoTable[$Prop.Name] = $Prop.Value
+                        }
+                    }
                 }
             }
 
@@ -188,7 +173,7 @@ function Show-SignInLog {
 
             # IpAddress
             $IpText = if ($IpInfoTable -and $IpInfoTable.ContainsKey($LogEntry.IpAddress)) {
-                $IpInfoTable[$LogEntry.IpAddress]
+                $LogEntry.IpAddress + (' ' * 20) + "`n`n" + $IpInfoTable[$LogEntry.IpAddress]
             }
             else {
                 $LogEntry.IpAddress

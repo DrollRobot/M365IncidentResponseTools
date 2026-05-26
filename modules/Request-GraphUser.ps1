@@ -64,7 +64,7 @@ function Request-GraphUser {
 
         # store in global variables
         $Global:IRT_Users = $Objects
-        $Global:IRT_UsersById = @{}
+        $Global:IRT_UsersById = [hashtable]::Synchronized(@{})
         foreach ( $o in $Objects ) {
             if ( $o.Id ) { $Global:IRT_UsersById[$o.Id] = $o }
         }

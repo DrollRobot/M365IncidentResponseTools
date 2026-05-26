@@ -23,20 +23,15 @@ function Get-TeamsSessionStartedSummary {
     begin {
 
         # variables
-        $ModuleRoot = $MyInvocation.MyCommand.Module.ModuleBase
         $AuditData = $Log.AuditData | ConvertFrom-Json
         $User = Request-GraphUser -Cached:$Cached
-
-        # import user type csv
-        $UserTypePath = Join-Path -Path $ModuleRoot -ChildPath 'data\unified_audit_log-user_type.csv'
-        $UserTypeData = Import-Csv -Path $UserTypePath
     }
 
     process {
 
         # UserType
         $UserTypeNum = $AuditData.UserType
-        $UserTypeWord = ( $UserTypeData | Where-Object { $_.Value = $UserTypeNum } ).'UserType member name'
+        $UserTypeWord = $Global:IRT_UalUserTypeTable[[int]$UserTypeNum]
         $UserTypeString = "${UserTypeNum}:${UserTypeWord}"
         $AddParams = @{
             MemberType = 'NoteProperty'

@@ -72,7 +72,7 @@ function Request-GraphGroup {
 
         # store in global variables
         $Global:IRT_Groups = $Objects
-        $Global:IRT_GroupsById = @{}
+        $Global:IRT_GroupsById = [hashtable]::Synchronized(@{})
         foreach ( $o in $Objects ) {
             if ( $o.Id ) { $Global:IRT_GroupsById[$o.Id] = $o }
         }

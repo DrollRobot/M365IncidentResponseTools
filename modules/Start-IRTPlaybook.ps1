@@ -135,19 +135,12 @@ function Start-IRTPlaybook {
 
         $WorkingPath = Get-Location
 
-        # ensure global caches exist before runspaces start so they all share the same reference
-        if ($Global:IRT_IpInfo -isnot [hashtable]) {
-            $Global:IRT_IpInfo = [hashtable]::Synchronized(@{})
-        }
-        if ($Global:IRT_MessageTraceTable -isnot [hashtable]) {
-            $Global:IRT_MessageTraceTable = [hashtable]::Synchronized(@{})
-        }
-        if ($Global:IRT_WaitFlags -isnot [hashtable]) {
-            $Global:IRT_WaitFlags = [hashtable]::Synchronized(@{
-                MessageTraceUserDone     = $false
-                MessageTraceAllUsersDone = $false
-            })
-        }
+        # reset wait flags for this run (IRT_IpInfo and IRT_MessageTraceTable are
+        # initialized as synchronized hashtables by the module and persist across runs)
+        $Global:IRT_WaitFlags = [hashtable]::Synchronized(@{
+            MessageTraceUserDone     = $false
+            MessageTraceAllUsersDone = $false
+        })
 
         # pre-populate caches in main thread
         Request-DirectoryRole -Return 'none'
@@ -156,7 +149,6 @@ function Start-IRTPlaybook {
         Request-GraphOauth2Grant -Return 'none'
         Request-GraphUser -Return 'none'
         Request-GraphServicePrincipal -Return 'none'
-        $null = ConvertTo-HumanErrorDescription -ErrorCode 0  # trigger lazy-load of error table
 
         # pack references for injection into child runspace globals
         $SharedRefs = @{
@@ -177,6 +169,9 @@ function Start-IRTPlaybook {
             IRT_ServicePrincipalsByAppId   = $Global:IRT_ServicePrincipalsByAppId
             IRT_ServicePrincipalsById      = $Global:IRT_ServicePrincipalsById
             IRT_EntraErrorTable            = $Global:IRT_EntraErrorTable
+            IRT_UalOperationsData          = $Global:IRT_UalOperationsData
+            IRT_UalUserTypeTable           = $Global:IRT_UalUserTypeTable
+            IRT_TenantInfoTable            = $Global:IRT_TenantInfoTable
             IRT_Session                    = $Global:IRT_Session
             IRT_UserObjects                = $ScriptUserObjects
         }
@@ -483,7 +478,7 @@ function Start-IRTPlaybook {
                     Connect-ExchangeOnline @ExoConnectParams
                     $Params = @{
                         AllUsers = $true
-                        Days = 2
+                        Days = 10
                         Quiet = $true
                     }
                     Get-IRTMessageTrace @Params

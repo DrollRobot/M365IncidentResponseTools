@@ -76,8 +76,8 @@ function Request-GraphServicePrincipal {
 
         # store in global variables
         $Global:IRT_ServicePrincipals = $Objects
-        $Global:IRT_ServicePrincipalsByAppId = @{}
-        $Global:IRT_ServicePrincipalsById = @{}
+        $Global:IRT_ServicePrincipalsByAppId = [hashtable]::Synchronized(@{})
+        $Global:IRT_ServicePrincipalsById = [hashtable]::Synchronized(@{})
         foreach ($o in $Objects) {
             if ($o.AppId) {$Global:IRT_ServicePrincipalsByAppId[$o.AppId] = $o}
             if ($o.Id)    {$Global:IRT_ServicePrincipalsById[$o.Id] = $o}

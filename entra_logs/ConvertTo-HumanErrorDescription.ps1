@@ -30,22 +30,6 @@ function ConvertTo-HumanErrorDescription {
         [int] $ErrorCode
     )
 
-    begin {
-
-        # variables
-        $ModuleRoot = $MyInvocation.MyCommand.Module.ModuleBase
-        $CsvPath = Join-Path $ModuleRoot -ChildPath "data\entra_error_codes.csv"
-
-        # import csv table
-        if (($Global:IRT_EntraErrorTable.Keys | Measure-Object).Count -eq 0) {
-            $Csv = Import-Csv -Path $CsvPath
-            $Global:IRT_EntraErrorTable = @{}
-            foreach ($Row in $Csv) {
-                $Global:IRT_EntraErrorTable[[int]$Row.Error] = $Row
-            }
-        }
-	}
-
     process {
 
         if ($Global:IRT_EntraErrorTable.ContainsKey($ErrorCode)) {

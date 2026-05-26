@@ -89,11 +89,7 @@ function Show-UALog {
         $ExcelOutputPath = $Metadata.FileName + ".xlsx"
 
         # import alloperations sheet
-        $ModuleRoot = $MyInvocation.MyCommand.Module.ModuleBase
-        $AllOperationsFileName = 'unified_audit_log-all_operations.xlsx'
-        $AllOperationsConfig = $Global:IRT_Config.AllOperationsSheetPath
-        $OperationsSheetPath = if ($AllOperationsConfig) { $AllOperationsConfig } else { Join-Path -Path $ModuleRoot -ChildPath "data\${AllOperationsFileName}" }
-        $OperationsSheetData = Import-Excel -Path $OperationsSheetPath -WorksheetName 'Operations'
+        $OperationsSheetData = $Global:IRT_UalOperationsData
 
         # ipinfo
         if ($IpInfo) {
@@ -104,9 +100,6 @@ function Show-UALog {
         }
 
         # resolve ip info table
-        if ($Global:IRT_IpInfo -isnot [hashtable]) {
-            $Global:IRT_IpInfo = [hashtable]::Synchronized(@{})
-        }
         $IpInfoTable = $Global:IRT_IpInfo
     }
 
@@ -155,40 +148,30 @@ function Show-UALog {
             ($IpInfoAddresses | Measure-Object).Count -gt 0
         ) {
 
-            # query information for all IP addresses
             if ($Script:Test) {
                 $TestText = "Querying ip info"
                 $TimerStart = $Stopwatch.Elapsed
             }
 
-            $env:PYTHONUTF8 = '1'
-            & ip_info --apis bulk --output_format none --ip_addresses $IpInfoAddresses
-            if ($LASTEXITCODE -ne 0) {
-                Write-IRT "ip_info query failed." -Level Warn
-            }
-
-            if ($Script:Test) {
-                $ElapsedString = ($StopWatch.Elapsed - $TimerStart).ToString('mm\:ss')
-                Write-IRT "${TestText} took ${ElapsedString}" -Level Warn
-            }
-
-            # add ip info to global colection
-            if ($Script:Test) {
-                $TestText = "Creating ip info collection in global scope"
-                $TimerStart = $Stopwatch.Elapsed
-            }
-
-            foreach ($Ip in $IpInfoAddresses) {
-                # if ip doesn't exist in table, add it.
-                if (-not $IpInfoTable.ContainsKey($Ip)) {
-                    $Params = @(
-                        '--apis','none',
-                        '--output_format','table',
-                        '--ip_addresses', $Ip.ToString()
-                    )
-                    $NewLine = [Environment]::NewLine
-                    $Output = ((& ip_info @Params) -join $NewLine).Trim()
-                    $IpInfoTable[$Ip] = $Output
+            $UnseenIps = @($IpInfoAddresses | Where-Object { -not $IpInfoTable.ContainsKey($_) })
+            if ($UnseenIps.Count -gt 0) {
+                $env:PYTHONUTF8 = '1'
+                $RawOutput = @(& ip_info --apis bulk --output_format jsontable --ip_addresses $UnseenIps)
+                if ($LASTEXITCODE -ne 0) {
+                    Write-IRT "ip_info query failed." -Level Warn
+                }
+                $JsonStart = -1
+                for ($i = 0; $i -lt $RawOutput.Length; $i++) {
+                    if ($RawOutput[$i] -match '^\{') { $JsonStart = $i; break }
+                }
+                if ($JsonStart -ge 0) {
+                    $JsonText = ($RawOutput[$JsonStart..($RawOutput.Length - 1)]) -join "`n"
+                    $JsonData = $JsonText | ConvertFrom-Json -ErrorAction SilentlyContinue
+                    if ($JsonData) {
+                        foreach ($Prop in $JsonData.PSObject.Properties) {
+                            $IpInfoTable[$Prop.Name] = $Prop.Value
+                        }
+                    }
                 }
             }
 

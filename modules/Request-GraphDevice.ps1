@@ -116,7 +116,7 @@ function Request-GraphDevice {
 
         # store in global variables
         $Global:IRT_Devices = $Objects
-        $Global:IRT_DevicesById = @{}
+        $Global:IRT_DevicesById = [hashtable]::Synchronized(@{})
         foreach ( $Device in $Objects ) {
             if ( $Device.DeviceId ) { $Global:IRT_DevicesById[$Device.DeviceId] = $Device }
         }

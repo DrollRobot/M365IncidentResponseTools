@@ -55,7 +55,7 @@ function Request-GraphOauth2Grant {
 
         # store in global variables
         $Global:IRT_Oauth2Grants = $Objects
-        $Global:IRT_Oauth2GrantsByClientId = @{}
+        $Global:IRT_Oauth2GrantsByClientId = [hashtable]::Synchronized(@{})
         foreach ( $o in $Objects ) {
             $ClientId = $o.ClientId
             if ( $ClientId ) {

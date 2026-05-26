@@ -56,7 +56,7 @@ function Request-DirectoryRoleTemplate {
 
         # store in global variables
         $Global:IRT_DirectoryRoleTemplates = $Objects
-        $Global:IRT_DirectoryRoleTemplatesById = @{}
+        $Global:IRT_DirectoryRoleTemplatesById = [hashtable]::Synchronized(@{})
         foreach ( $o in $Objects ) {
             if ( $o.Id ) { $Global:IRT_DirectoryRoleTemplatesById[$o.Id] = $o }
         }

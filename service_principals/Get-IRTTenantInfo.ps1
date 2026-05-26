@@ -17,14 +17,14 @@ function Get-IRTTenantInfo {
     Graph session exists), OIDC can still confirm the tenant exists and identify its
     cloud, but the display name and domain will be unavailable.
 
-    Results are cached locally at:
+    Results are cached in $Global:IRT_TenantInfoTable, pre-loaded at module import from:
         $env:APPDATA\<ModuleName>\tenant_owner_info.csv
 
-    Where <ModuleName> is resolved at runtime from the module that contains this function.
-
-    Cached entries are returned immediately on subsequent calls, skipping all network
-    lookups. Use -ForceRefresh to re-query a tenant and update its cache entry, or
-    -NoCache to bypass the cache entirely for a single call.
+    New results are added to the in-memory table immediately and appended to the CSV on
+    a best-effort basis (silently skipped if the file is busy). Use -ForceRefresh to
+    re-query a tenant and update its cache entry, or -NoCache to bypass the cache
+    entirely for a single call. Call Import-IRTReferenceData to reload the CSV into the
+    global table without reimporting the module.
 
     .PARAMETER TenantId
     One or more Entra ID tenant GUIDs to look up.
@@ -70,8 +70,6 @@ function Get-IRTTenantInfo {
     )
 
     begin {
-        # --- Cache setup ---
-        $CacheTable      = @{}
         $NewCacheEntries = [System.Collections.Generic.List[psobject]]::new()
         $CachePath       = $null
 
@@ -79,21 +77,8 @@ function Get-IRTTenantInfo {
             $ModuleName = $MyInvocation.MyCommand.ModuleName
             $CachePath = Join-Path $env:APPDATA $ModuleName 'tenant_owner_info.csv'
             $CacheDir  = Split-Path $CachePath -Parent
-
             if (-not (Test-Path $CacheDir)) {
                 $null = New-Item -ItemType Directory -Path $CacheDir -Force
-            }
-
-            if (Test-Path $CachePath) {
-                try {
-                    Import-Csv -Path $CachePath | ForEach-Object {
-                        $CacheTable[$_.TenantId] = $_
-                    }
-                    Write-Verbose "Loaded $($CacheTable.Count) cached tenant(s) from $CachePath"
-                }
-                catch {
-                    Write-Verbose "Could not load tenant cache: $($_.Exception.Message)"
-                }
             }
         }
 
@@ -127,8 +112,8 @@ function Get-IRTTenantInfo {
             $Tid = $guidParsed.ToString()
 
             # --- Cache lookup ---
-            if (-not $NoCache -and -not $ForceRefresh -and $CacheTable.ContainsKey($Tid)) {
-                $cached = $CacheTable[$Tid]
+            if (-not $NoCache -and -not $ForceRefresh -and $Global:IRT_TenantInfoTable.ContainsKey($Tid)) {
+                $cached = $Global:IRT_TenantInfoTable[$Tid]
                 Write-Verbose "Cache hit for '$Tid' (cached $( $cached.CachedAt ))"
                 [pscustomobject]@{
                     TenantId            = $cached.TenantId
@@ -239,9 +224,9 @@ function Get-IRTTenantInfo {
                 Source              = if ($graphSource) { 'Graph' } else { 'PublicEndpoints' }
             }
 
-            # --- Queue for cache write ---
+            # --- Update global table and queue for cache write ---
             if (-not $NoCache) {
-                $newCacheEntries.Add([pscustomobject]@{
+                $cacheEntry = [pscustomobject]@{
                     TenantId            = $tid
                     DisplayName         = $displayName
                     DefaultDomain       = $defaultDomain
@@ -251,34 +236,22 @@ function Get-IRTTenantInfo {
                     GraphHost           = if ($oidc) { $oidc.msgraph_host } else { $null }
                     TokenEndpoint       = if ($oidc) { $oidc.token_endpoint } else { $null }
                     CachedAt            = (Get-Date -Format 'o')
-                })
+                }
+                $Global:IRT_TenantInfoTable[$tid] = $cacheEntry
+                $newCacheEntries.Add($cacheEntry)
             }
         }
     }
 
     end {
-        # --- Persist cache (single write for the entire call) ---
+        # Best-effort append; silently skip if the file is busy or inaccessible.
+        # The global table is already updated - a failed write only affects persistence.
         if (-not $NoCache -and $newCacheEntries.Count -gt 0) {
             try {
-                # Merge: keep existing entries unless we have a fresh replacement
-                $refreshedIds = $newCacheEntries | Select-Object -ExpandProperty TenantId
-                $merged = [System.Collections.Generic.List[psobject]]::new()
-
-                foreach ($entry in $cacheTable.Values) {
-                    if ($entry.TenantId -notin $refreshedIds) {
-                        $merged.Add($entry)
-                    }
-                }
-                foreach ($entry in $newCacheEntries) {
-                    $merged.Add($entry)
-                }
-
-                $merged | Export-Csv -Path $cachePath -NoTypeInformation -Encoding UTF8
-                Write-Verbose "Cache updated: $( $merged.Count ) tenant(s) written to $cachePath"
+                $newCacheEntries | Export-Csv -Path $cachePath -Append -NoTypeInformation -Encoding UTF8
+                Write-Verbose "Appended $( $newCacheEntries.Count ) tenant(s) to $cachePath"
             }
-            catch {
-                Write-Warning "Could not update tenant cache: $( $_.Exception.Message )"
-            }
+            catch {}
         }
     }
 }

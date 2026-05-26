@@ -59,7 +59,7 @@ function Request-DirectoryRole {
 
         # store in global variables
         $Global:IRT_DirectoryRoles = $Objects
-        $Global:IRT_DirectoryRolesById = @{}
+        $Global:IRT_DirectoryRolesById = [hashtable]::Synchronized(@{})
         foreach ( $o in $Objects ) {
             if ( $o.Id ) { $Global:IRT_DirectoryRolesById[$o.Id] = $o }
         }
