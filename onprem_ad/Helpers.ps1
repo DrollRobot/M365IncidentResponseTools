@@ -59,9 +59,9 @@ function Get-AdGlobalUserObject {
     Gets user objects from global variables. Designed to be used by other scripts.
 
     .DESCRIPTION
-    Internal helper. Combines $Global:UserObject and $Global:UserObjects into a
-    de-duplicated, DisplayName-sorted list. Used by onprem_ad functions as the fallback
-    user-resolution mechanism when no -UserObject parameter is supplied directly.
+    Internal helper. Returns $Global:IRT_UserObject as a list. Used by onprem_ad functions
+    as the fallback user-resolution mechanism when no -UserObject parameter is supplied
+    directly.
 
     .NOTES
     Version: 1.0.0
@@ -79,20 +79,10 @@ function Get-AdGlobalUserObject {
 
     process {
 
-		# add userobject
-		if ($Global:UserObject) {
-			$ScriptUserObjects.Add($Global:UserObject)
-		}
+        if ($Global:IRT_UserObject) {
+            $ScriptUserObjects.Add($Global:IRT_UserObject)
+        }
 
-		# add userobjects
-		if ($Global:UserObjects) {
-            $IterationList = @($Global:UserObjects)
-			foreach ($i in $IterationList) {
-				$ScriptUserObjects.Add($i)
-			}
-		}
-
-		# return user objects
-		return $ScriptUserObjects | Sort-Object Id -Unique | Sort-Object DisplayName
+        return $ScriptUserObjects
     }
 }

@@ -127,6 +127,7 @@
         'Show-SignInLog'
 
         ### onprem_ad
+        'Find-AdDevice'
         'Find-AdOu'
         'Find-AdUser'
         'Find-AllDomainController'
@@ -135,6 +136,7 @@
         'Enable-AdUser'
         'Push-AdSync'
         'Reset-IRTAdUserPassword'
+        'Show-AdDeviceInfo'
         'Show-AdOus'
         'Show-AdUserInfo'
 
@@ -267,6 +269,10 @@
         'SPSILogs'
 
         ### onprem_ad
+        # Find-AdDevice
+        'FindAdDevice'
+        'FindAdDevices'
+        'Find-AdDevices'
         # Find-AdOu
         'FindAdOu'
         'FindAdOus'
@@ -300,6 +306,10 @@
         # Show-AdOus
         'ShowAdOus'
         'AdOus'
+        # Show-AdDeviceInfo
+        'ShowAdDevice'
+        'ShowAdDevices'
+        'AdDeviceInfo'
         # Show-AdUserInfo
         'ShowAdUser'
         'ShowAdUsers'

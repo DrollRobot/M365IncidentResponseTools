@@ -61,27 +61,34 @@ function Copy-IRTFunction {
             ChildPath           = 'modules'
             AdditionalChildPath = 'Get-RandomPassword.ps1'
         }
+        $FormatTreeJoin = @{
+            Path                = $ModuleRoot
+            ChildPath           = 'modules'
+            AdditionalChildPath = 'Format-Tree.ps1'
+        }
         $HardcodedPaths = @(
-            @{ Path = Join-Path @WriteIRTJoin; IsDirectory = $false }
-            @{ Path = Join-Path @RandPwJoin; IsDirectory = $false }
-            @{ Path = Join-Path $ModuleRoot 'onprem_ad'; IsDirectory = $true }
+            Join-Path @WriteIRTJoin
+            Join-Path @RandPwJoin
+            Join-Path @FormatTreeJoin
+            Join-Path $ModuleRoot 'onprem_ad'
         )
 
         $Files = [System.Collections.Generic.List[System.IO.FileSystemInfo]]::new()
 
         foreach ($Target in $HardcodedPaths) {
-            if (-not (Test-Path -LiteralPath $Target.Path)) {
-                Write-Warning "Hardcoded path not found: $($Target.Path)"
+            if (-not (Test-Path -LiteralPath $Target)) {
+                Write-Warning "Hardcoded path not found: $Target"
                 continue
             }
 
-            if ($Target.IsDirectory) {
-                foreach ($C in (Get-ChildItem -LiteralPath $Target.Path -File)) {
+            $Item = Get-Item -LiteralPath $Target
+            if ($Item.PSIsContainer) {
+                foreach ($C in (Get-ChildItem -LiteralPath $Target -File)) {
                     $Files.Add($C)
                 }
             }
             else {
-                $Files.Add((Get-Item -LiteralPath $Target.Path))
+                $Files.Add($Item)
             }
         }
     }

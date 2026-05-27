@@ -10,8 +10,9 @@ function Find-AdUser {
     by regex), SamAccountName, and ObjectGUID.
 
     If a single user is found, the full AD object is retrieved and stored in
-    $Global:UserObject, $Global:UserObjects, and $Global:UserEmail. For multiple matches
-    only $Global:UserObjects is populated. Use -Script to suppress global side effects and
+    $Global:IRT_UserObject. Use -VarPrefix to change the variable name
+    (e.g. 'Admin' > $Global:IRT_AdminUserObject). For multiple matches the results are
+    displayed but no global is set. Use -Script to suppress global side effects and
     return objects directly.
 
     .PARAMETER Search
@@ -19,8 +20,9 @@ function Find-AdUser {
     fields.
 
     .PARAMETER VarPrefix
-    Optional prefix for the global variable names (e.g. 'Admin' > $Global:AdminUserObject).
-    Useful when working with multiple users simultaneously.
+    Optional prefix inserted after 'IRT_' in the global variable name
+    (e.g. 'Admin' > $Global:IRT_AdminUserObject). Useful when working with multiple users
+    simultaneously.
 
     .PARAMETER Script
     Return objects directly and suppress global variable assignment. Use when calling from
@@ -158,40 +160,17 @@ function Find-AdUser {
 
             # set objects
             $VariableParams = @{
-                Name  = "${VarPrefix}UserObject"
+                Name  = "IRT_${VarPrefix}UserObject"
                 Value = $ScriptUserObjects | Select-Object -First 1
                 Scope = 'Global'
                 Force = $true
             }
             New-Variable @VariableParams
-            $VariableParams = @{
-                Name  = "${VarPrefix}UserObjects"
-                Value = $ScriptUserObjects | Select-Object -First 1
-                Scope = 'Global'
-                Force = $true
-            }
-            New-Variable @VariableParams
-            $VariableParams = @{
-                Name  = "${VarPrefix}UserEmail"
-                Value = $ScriptUserObjects.UserPrincipalName
-                Scope = 'Global'
-                Force = $true
-            }
-            New-Variable @VariableParams
-            Write-IRT ("Created `$${VarPrefix}UserObject, `$${VarPrefix}UserObjects, " +
-                "and `$${VarPrefix}UserEmail")
+            Write-IRT "Created `$Global:IRT_${VarPrefix}UserObject"
         }
         elseif (($ScriptUserObjects | Measure-Object).Count -gt 1) {
 
-            # set objects
-            $VariableParams = @{
-                Name  = "${VarPrefix}UserObjects"
-                Value = @( $ScriptUserObjects )
-                Scope = 'Global'
-                Force = $true
-            }
-            New-Variable @VariableParams
-            Write-IRT "Created `$${VarPrefix}UserObjects"
+            Write-IRT 'Multiple users found. Refine search.' -Level Error
             $ScriptUserObjects | Format-Table $DisplayProperties
         }
     }

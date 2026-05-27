@@ -23,6 +23,8 @@
 | [Enable-AdUser](commands/Enable-AdUser.md) | Re-enables one or more disabled AD user accounts and triggers AD replication and Entra ID delta sync. |
 | [Reset-IRTAdUserPassword](commands/Reset-IRTAdUserPassword.md) | Resets one or more on-premises AD user passwords using a randomly generated, custom, or forced-change-at-next-sign-in approach. |
 | [Push-AdSync](commands/Push-AdSync.md) | Forces an Active Directory to Entra ID delta sync cycle, automatically discovering the sync server if needed. |
+| [Find-AdDevice](commands/Find-AdDevice.md) | Finds an on-premises AD computer by Name, DNSHostName, SamAccountName, Description, or ObjectGUID. |
+| [Show-AdDeviceInfo](commands/Show-AdDeviceInfo.md) | Displays all on-premises AD computer properties for the device in `$Global:IRT_DeviceObject`. |
 | [Find-AdOu](commands/Find-AdOu.md) | Searches Active Directory Organizational Units by name, CanonicalName, or DistinguishedName. |
 | [Show-AdOus](commands/Show-AdOus.md) | Lists all OUs in the domain sorted by CanonicalName with user and computer counts. |
 | [Find-AllDomainController](commands/Find-AllDomainController.md) | Returns the names of all domain controllers in the current AD domain. |
