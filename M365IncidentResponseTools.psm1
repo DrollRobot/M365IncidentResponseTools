@@ -33,8 +33,8 @@ $ExcludeFiles = @(
 )
 foreach ($Folder in $Folders) {
     Get-ChildItem -Path $Folder -Filter "*.ps1" -Recurse |
-    Where-Object { $_.Name -notin $ExcludeFiles } |
-    ForEach-Object { . $_.FullName }
+        Where-Object { $_.Name -notin $ExcludeFiles } |
+        ForEach-Object { . $_.FullName }
 }
 
 # Initialize shared global caches as synchronized hashtables.
@@ -91,10 +91,7 @@ $Global:IRT_CloudEnvironments = [ordered]@{
 }
 
 # Check ip_info availability once at module load and cache in config.
-$Global:IRT_Config | Add-Member @{
-    NotePropertyName  = 'IpInfoAvailable'
-    NotePropertyValue = (Test-PythonPackage -Name 'ip_info').Present
-} -Force
+$Global:IRT_Config.IpInfoAvailable = (Test-PythonPackage -Name 'ip_info').Present
 
 # Load static reference data (error codes, UAL operation metadata, UAL user types).
 Import-IRTReferenceData
