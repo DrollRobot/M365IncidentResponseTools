@@ -48,8 +48,8 @@ if (-not (Get-Module -ListAvailable -Name PSScriptAnalyzer)) {
 Get-Module PSScriptAnalyzer | Select-Object Path, Version | Format-List
 Write-Host "Running PSScriptAnalyzer against $Path..." -ForegroundColor Cyan
 Write-Host "This could take multiple minutes. Please wait..." -ForegroundColor Cyan
-Write-Host ("NOTE FOR AI: Do not poll or call get_terminal_output. Wait for terminal " +
-    "completion notification.") -ForegroundColor Yellow
+Write-Host ("NOTE FOR AI: Loading PSScriptAnalyzer can take up to 3 minutes. Do not poll or call " +
+    "get_terminal_output. Wait for terminal completion notification.") -ForegroundColor Yellow
 $InvokeParams = @{
     Path     = $Path
     Recurse  = $Recurse.IsPresent

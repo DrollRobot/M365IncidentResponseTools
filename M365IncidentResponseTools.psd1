@@ -72,7 +72,7 @@
         @{ModuleName = 'ImportExcel';             ModuleVersion = '7.8.0'}
         @{ModuleName = 'PSToml';                  ModuleVersion = '0.3.0'}
 
-        # Dev/test dependency -- not required at runtime.
+        # Dev/test dependencies -- not required at runtime.
         # @{ModuleName = 'Pester';  ModuleVersion = '5.0.0'}
         # @{ModuleName = 'PlatyPS'; ModuleVersion = '0.14.0'}
     )

@@ -67,6 +67,7 @@ function Get-AdGlobalUserObject {
     Version: 1.0.0
     #>
 	#>
+    [OutputType([System.Collections.Generic.List[System.Management.Automation.PSObject]])]
     [CmdletBinding()]
     param (
     )
