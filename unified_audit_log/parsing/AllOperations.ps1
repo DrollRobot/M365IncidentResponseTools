@@ -229,7 +229,7 @@ function Build-AllOperationSheet {
                 Workload = $LogEntry.AuditData.Workload
                 RecordType = $LogEntry.RecordType
                 Operation = $LogEntry.AuditData.Operation
-                IpAddresses = $IpText
+                IpAddress = $IpText
                 Summary = $EventObject.Summary
             })
 
@@ -293,7 +293,7 @@ function Build-AllOperationSheet {
             $OperationColumn   = $OperationColEntry.Id | Convert-DecimalToExcelColumn
 
             # IP address conditional formatting
-            Add-IpAddressConditionalFormatting -Worksheet $Worksheet -ColumnName 'IpAddresses'
+            Add-IpAddressConditionalFormatting -Worksheet $Worksheet -ColumnName 'IpAddress'
 
             # operations conditional formatting
             if ($OperationSheetData) {
@@ -331,7 +331,7 @@ function Build-AllOperationSheet {
                 'Workload'         = 25
                 'RecordType'       = 25
                 'Operation'        = 25
-                'IpAddresses'      = 25
+                'IpAddress'        = 25
                 'Summary'          = 200
             }
             foreach ($ColName in $ColumnWidths.Keys) {

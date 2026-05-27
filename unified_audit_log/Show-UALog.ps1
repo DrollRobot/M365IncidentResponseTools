@@ -238,7 +238,7 @@ function Show-UALog {
         # enrich IP addresses with ip_info data
         if ($IpInfo) {
             foreach ($ws in $Workbook.Workbook.Worksheets) {
-                Add-IpInfoToSheet -Worksheet $ws -ColumnName 'IpAddresses'
+                Add-IpInfoToSheet -Worksheet $ws -ColumnName 'IpAddress'
             }
         }
 
