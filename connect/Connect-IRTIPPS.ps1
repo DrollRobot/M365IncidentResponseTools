@@ -81,6 +81,7 @@ function Connect-IRTIPPS {
                 throw 'Silent IPPS token refresh failed and interactive auth is not allowed (-Silent).'
             }
 
+            Write-IRT 'A browser window has been opened for interactive sign-in. Please complete authentication to continue.' -Level Warn
             try {
                 $Cts  = [System.Threading.CancellationTokenSource]::new()
                 $Task = $App.AcquireTokenInteractive($Scopes).ExecuteAsync($Cts.Token)

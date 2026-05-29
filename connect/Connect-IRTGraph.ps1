@@ -167,6 +167,7 @@ function Connect-IRTGraph {
                 throw 'Silent Graph token refresh failed and interactive auth is not allowed (-Silent).'
             }
 
+            Write-IRT 'A browser window has been opened for interactive sign-in. Please complete authentication to continue.' -Level Warn
             try {
                 $Builder = $App.AcquireTokenInteractive($MsalScopes)
                 if ($RequireConsent) {
