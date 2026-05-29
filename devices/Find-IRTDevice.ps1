@@ -13,7 +13,8 @@ function Find-IRTDevice {
     Find-IRTDevice -Search SN1234567890   # serial number (Intune)
 
     .NOTES
-    Version: 1.1.0
+    Version: 1.2.0
+    1.2.0 - Added -AllMatches to collect all matching devices and deduplicate results.
     #>
     [Alias('FindDevice', 'FindDevices')]
     [OutputType([psobject[]])]
@@ -22,13 +23,15 @@ function Find-IRTDevice {
         [Parameter( Position = 0, Mandatory )]
         [string[]] $Search,
         [string] $VarPrefix,
-        [switch] $Script
+        [switch] $Script,
+        [switch] $AllMatches
     )
 
     begin {
 
         # variables
         $ScriptDeviceObjects = [System.Collections.Generic.List[PsObject]]::new()
+        $SeenIds = [System.Collections.Generic.HashSet[string]]::new()
         $DisplayProperties = @(
             'AccountEnabled'
             'OperatingSystem'
@@ -79,8 +82,10 @@ function Find-IRTDevice {
                     $MatchingDevices | Format-Table $DisplayProperties
                 }
 
-                # add device to array
-                $ScriptDeviceObjects.Add( ( $MatchingDevices | Select-Object -First 1 ) )
+                $Device = $MatchingDevices | Select-Object -First 1
+                if ($SeenIds.Add($Device.Entra.Id)) {
+                    $ScriptDeviceObjects.Add($Device)
+                }
             }
             elseif (($MatchingDevices | Measure-Object).Count -gt 1) {
 
@@ -89,7 +94,16 @@ function Find-IRTDevice {
                     # show device info
                     Write-IRT "Showing results for search: ${SearchString}"
                     $MatchingDevices | Format-Table $DisplayProperties
-                    Write-IRT 'Multiple devices found. Refine search.' -Level Error
+                }
+
+                if ($AllMatches) {
+                    foreach ($Device in $MatchingDevices) {
+                        if ($SeenIds.Add($Device.Entra.Id)) {
+                            $ScriptDeviceObjects.Add($Device)
+                        }
+                    }
+                } elseif (-not $Script) {
+                    Write-IRT 'Multiple devices found. Refine search or use -AllMatches.' -Level Error
                 }
             }
             else {

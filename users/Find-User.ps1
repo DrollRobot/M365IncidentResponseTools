@@ -10,7 +10,8 @@ function Find-User {
     Find-User -Search bf7573a5844f (partial user id number)
 
     .NOTES
-    Version: 1.1.4
+    Version: 1.2.0
+    1.2.0 - Added -AllMatches to collect all matching users and deduplicate results.
     1.1.4 - Fixed bug with $UserObjects not being a collection. Moved getting full object to Show-User function.
     1.1.3 - Removed checks for modules and permissions. Checking at module level instead.
     1.1.2 - Added enabled as a displayed field.
@@ -25,11 +26,13 @@ function Find-User {
         [string[]] $Search,
         [string] $VarPrefix,
         [switch] $Cached,
-        [switch] $Script
+        [switch] $Script,
+        [switch] $AllMatches
     )
 
     begin {
         $ScriptUserObjects = [System.Collections.Generic.List[PsObject]]::new()
+        $SeenIds = [System.Collections.Generic.HashSet[string]]::new()
         $DisplayProperties = @(
             'AccountEnabled'
             'DisplayName'
@@ -64,8 +67,10 @@ function Find-User {
                     $MatchingUsers | Format-Table $DisplayProperties
                 }
 
-                # add user to array
-                $ScriptUserObjects.Add( ( $MatchingUsers | Select-Object -First 1 ) )
+                $User = $MatchingUsers | Select-Object -First 1
+                if ($SeenIds.Add($User.Id)) {
+                    $ScriptUserObjects.Add($User)
+                }
             }
             elseif (($MatchingUsers | Measure-Object).Count -gt 1) {
 
@@ -74,7 +79,16 @@ function Find-User {
                     # show user info
                     Write-IRT "Showing results for search: ${SearchString}"
                     $MatchingUsers | Format-Table $DisplayProperties
-                    Write-IRT 'Multiple users found. Refine search.' -Level Error
+                }
+
+                if ($AllMatches) {
+                    foreach ($User in $MatchingUsers) {
+                        if ($SeenIds.Add($User.Id)) {
+                            $ScriptUserObjects.Add($User)
+                        }
+                    }
+                } elseif (-not $Script) {
+                    Write-IRT 'Multiple users found. Refine search or use -AllMatches.' -Level Error
                 }
             }
             else {

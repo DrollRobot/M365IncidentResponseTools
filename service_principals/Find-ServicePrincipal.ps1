@@ -13,7 +13,8 @@ function Find-ServicePrincipal {
     When exactly one match is found for a search string, the service principal is added
     to the result collection and a summary table is displayed. When multiple matches are
     found, the table is shown but nothing is saved -- refine the search to a single
-    match. When no match is found, an error message is displayed.
+    match, or use -AllMatches to add all of them. When no match is found, an error
+    message is displayed.
 
     On success, results are stored in $Global:IRT_ServicePrincipalObjects (or
     $Global:IRT_<VarPrefix>ServicePrincipalObjects when -VarPrefix is supplied). Pass
@@ -35,6 +36,12 @@ function Find-ServicePrincipal {
     .PARAMETER Script
     Suppresses all console output and returns matched objects directly as an array.
     Used by playbook scripts that need the objects without interactive display.
+
+    .PARAMETER AllMatches
+    When specified, adds all objects that match a given search string instead of
+    rejecting the search when more than one result is found. Results are deduplicated
+    by object ID, so overlapping search strings that resolve to the same service
+    principal produce only one entry in the output.
 
     .EXAMPLE
     Find-ServicePrincipal MyApp
@@ -61,7 +68,8 @@ function Find-ServicePrincipal {
     With -Script: [object[]] of matched service principal objects.
 
     .NOTES
-    Version: 1.0.0
+    Version: 1.1.0
+    1.1.0 - Added -AllMatches to collect all matching service principals and deduplicate results.
 
     By default, fresh data is fetched from Graph on every call. Pass -Cached to
     skip the network request and reuse data already stored in
@@ -80,11 +88,13 @@ function Find-ServicePrincipal {
         [string[]] $Search,
         [string] $VarPrefix,
         [switch] $Cached,
-        [switch] $Script
+        [switch] $Script,
+        [switch] $AllMatches
     )
 
     begin {
         $ScriptServicePrincipalObjects = [System.Collections.Generic.List[PsObject]]::new()
+        $SeenIds = [System.Collections.Generic.HashSet[string]]::new()
         $DisplayProperties = @(
             'AccountEnabled'
             'AppDisplayName'
@@ -123,9 +133,10 @@ function Find-ServicePrincipal {
                     $MatchingServicePrincipals | Format-Table $DisplayProperties
                 }
 
-                $ScriptServicePrincipalObjects.Add(
-                    ($MatchingServicePrincipals | Select-Object -First 1)
-                )
+                $SP = $MatchingServicePrincipals | Select-Object -First 1
+                if ($SeenIds.Add($SP.Id)) {
+                    $ScriptServicePrincipalObjects.Add($SP)
+                }
             }
             elseif (($MatchingServicePrincipals | Measure-Object).Count -gt 1) {
 
@@ -133,7 +144,16 @@ function Find-ServicePrincipal {
 
                     Write-IRT "Showing results for search: ${SearchString}"
                     $MatchingServicePrincipals | Format-Table $DisplayProperties
-                    Write-IRT 'Multiple service principals found. Refine search.' -Level Error
+                }
+
+                if ($AllMatches) {
+                    foreach ($SP in $MatchingServicePrincipals) {
+                        if ($SeenIds.Add($SP.Id)) {
+                            $ScriptServicePrincipalObjects.Add($SP)
+                        }
+                    }
+                } elseif (-not $Script) {
+                    Write-IRT 'Multiple service principals found. Refine search or use -AllMatches.' -Level Error
                 }
             }
             else {
