@@ -12,5 +12,6 @@
     "InfoColor": "DarkCyan",
     "WarnColor": "Yellow",
     "ErrorColor": "Red",
-    "IpInfoAvailable": false
+    "IpInfoAvailable": false,
+    "EnableTokenCache": false
 }

@@ -54,7 +54,6 @@ It runs via `ScriptsToProcess` in the caller's scope, not the module scope.
 ### Global State
 
 - All module-level global variables use the `$Global:IRT_*` prefix.
-  Key globals: `$Global:IRT_Config`, `$Global:IRT_UserObjects`, `$Global:IRT_Session`.
 
 ### Comment-Based Help
 
@@ -80,8 +79,15 @@ After making changes, run the test suite from the repo root:
 .\Invoke-AllTests.ps1
 ```
 
-Pass `-Online` when you have an active tenant connection and want to include tests that call
-Graph, Exchange Online, or IPPS:
+Pass `-NoPSScriptAnalyzer` during active development for fast feedback -- PSScriptAnalyzer takes
+~2-3 minutes and should only be run after large changes or immediately before committing:
+
+```powershell
+.\Invoke-AllTests.ps1 -NoPSScriptAnalyzer
+```
+
+Pass `-Online` to include tests that require a live tenant connection. Online tests call
+`Connect-IRT` automatically using `$env:IRT_TEST_TENANT_ID` from `tests/.env.ps1`
 
 ```powershell
 .\Invoke-AllTests.ps1 -Online

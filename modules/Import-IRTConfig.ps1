@@ -147,8 +147,8 @@ function Set-IRTConfig {
         }
         Browser = @{
             Summary     = 'Browser for opening other URLs'
-            Description = 'Which browser to use when opening device code prompts, ' +
-                          'OWA links, and other web pages. (where possible)' +
+            Description = 'Which browser to use when opening OWA links and ' +
+                          'other web pages. (where possible) ' +
                           'Set to "default" to use the system default browser.'
             Options     = @('default', 'msedge', 'chrome', 'firefox', 'brave')
         }
@@ -243,6 +243,17 @@ function Set-IRTConfig {
                 'Red', 'Magenta', 'Yellow', 'White'
             )
         }
+        EnableTokenCache = @{
+            Summary     = 'Persistent MSAL token cache'
+            Description = 'When enabled, refresh tokens are written to a ' +
+                'DPAPI-encrypted file under $env:LOCALAPPDATA\M365IncidentResponseTools, ' +
+                'so Connect-IRT skips the browser prompt across PowerShell sessions ' +
+                '(up to ~90 days, until the refresh token expires or is revoked). ' +
+                'On first use, the required Microsoft.Identity.Client.Extensions.Msal ' +
+                'DLL is downloaded from nuget.org. ' +
+                'Run Clear-IRTTokenCache to wipe the cache.'
+            Options     = @('true', 'false')
+        }
     }
 
     # main menu loop
@@ -318,8 +329,8 @@ function Set-IRTConfig {
             if ([string]::IsNullOrWhiteSpace($NewValue)) { $NewValue = $null }
         }
 
-        # Convert string to bool for ExportXml
-        if ($SelectedKey -eq 'ExportXml') {
+        # Convert string to bool for boolean settings
+        if ($SelectedKey -in 'ExportXml', 'EnableTokenCache') {
             $NewValue = $NewValue -eq 'true'
         }
 

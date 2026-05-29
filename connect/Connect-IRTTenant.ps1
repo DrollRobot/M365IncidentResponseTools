@@ -31,13 +31,8 @@ function Connect-IRTTenant {
     .PARAMETER AdditionalScope
     Additional Graph scopes to request beyond the default set.
 
-    .PARAMETER DeviceCode
-    Use device code authentication. Requires the tenant's DeviceAuthAllowed column to be
-    set to 'yes'. Interactive authentication is used by default. An error is thrown if
-    device code is requested but the tenant does not allow it.
-
     .PARAMETER Browser
-    Browser to use for device code login and URL opening. Valid values: msedge, chrome,
+    Browser to use for URL opening. Valid values: msedge, chrome,
     firefox, brave, default.
 
     .PARAMETER Private
@@ -76,7 +71,6 @@ function Connect-IRTTenant {
 
         [Alias('AdditionalScopes','Scopes','Scope')]
         [string[]] $AdditionalScope,
-        [System.Nullable[bool]] $DeviceCode,
 
         [string] $PasswordBrowser = $IRT_Config.PasswordBrowser,
 
@@ -134,17 +128,6 @@ function Connect-IRTTenant {
         # build connection parameters
         $ConnectParams = @{
             TenantId = $MatchedTenant.TenantId
-        }
-
-        if ($null -ne $DeviceCode) {
-            if ($DeviceCode -eq $true -and
-                $MatchedTenant.DeviceAuthAllowed -notmatch 'yes|^y$'
-            ) {
-                throw 'Device code authentication is not allowed for tenant ' +
-                    "'$($MatchedTenant.TenantName)'. " +
-                    "Set DeviceAuthAllowed to 'yes' in the tenants worksheet to permit it."
-            }
-            $ConnectParams['DeviceCode'] = $DeviceCode
         }
 
         if ($Graph)    { $ConnectParams['Graph']    = $true }

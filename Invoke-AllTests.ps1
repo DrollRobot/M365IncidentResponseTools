@@ -19,6 +19,10 @@
     Include tests tagged 'Online'. These tests expect an active connection to
     Microsoft Graph, Exchange Online, and/or IPPS.
 
+.PARAMETER NoPSScriptAnalyzer
+    Skip the PSScriptAnalyzer step. Useful during active development when you
+    only need fast feedback from Pester and the lightweight checks.
+
 .EXAMPLE
     .\Invoke-AllTests.ps1
     Runs all offline tests.
@@ -26,13 +30,20 @@
 .EXAMPLE
     .\Invoke-AllTests.ps1 -Online
     Runs all tests, including those that require a live tenant connection.
+
+.EXAMPLE
+    .\Invoke-AllTests.ps1 -NoPSScriptAnalyzer
+    Runs all offline tests, skipping the slow PSScriptAnalyzer step.
 #>
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '')]
 [CmdletBinding()]
 param(
     [Parameter()]
-    [switch] $Online
+    [switch] $Online,
+
+    [Parameter()]
+    [switch] $NoPSScriptAnalyzer
 )
 
 Set-StrictMode -Version Latest
@@ -43,9 +54,14 @@ $ErrorActionPreference = 'Stop'
 $ManifestPath = Join-Path -Path $PSScriptRoot -ChildPath "$(Split-Path $PSScriptRoot -Leaf).psd1"
 if (Test-Path $ManifestPath) {
     $ModuleStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
-    Import-Module $ManifestPath -Force -ErrorAction SilentlyContinue
+    Write-Host "Loading module..." -ForegroundColor Cyan
+    Import-Module $ManifestPath -Force
     $ModuleStopwatch.Stop()
-    Write-Host ("Module loaded in {0:F1}s." -f $ModuleStopwatch.Elapsed.TotalSeconds) -ForegroundColor Cyan
+    Write-Host "Module loaded in $($ModuleStopwatch.Elapsed.TotalSeconds)s." -ForegroundColor Cyan
+}
+else {
+    Write-Error "Module manifest not found at $ManifestPath. Make sure you're running this from the repo root and the manifest file is present."
+    exit 1
 }
 
 $TestsFolder = Join-Path $PSScriptRoot 'tests'
@@ -58,6 +74,10 @@ Write-Host "`n=== Format-Codebase ===" -ForegroundColor Cyan
 $TestScripts = Get-ChildItem -Path $TestsFolder -Filter 'Test-*.ps1' | Sort-Object Name
 
 foreach ($Script in $TestScripts) {
+    if ($NoPSScriptAnalyzer -and $Script.BaseName -eq 'Test-ScriptAnalyzer') {
+        Write-Host "`n=== Test-ScriptAnalyzer (skipped) ===" -ForegroundColor DarkGray
+        continue
+    }
     Write-Host "`n=== $($Script.BaseName) ===" -ForegroundColor Cyan
     & $Script.FullName -Path $PSScriptRoot -Recurse
 }

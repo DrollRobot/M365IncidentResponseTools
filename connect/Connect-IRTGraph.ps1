@@ -10,23 +10,24 @@ function Connect-IRTGraph {
     Cloud to connect to. Valid values: Commercial, USGov, China.
     When omitted the cloud defaults to Commercial.
 
-    .PARAMETER DeviceCode
-    Use device code authentication flow.
-
     .PARAMETER AdditionalScope
     Additional Graph scopes to request beyond the default set.
 
     .PARAMETER Browser
-    Browser to use for device code login. Valid values: msedge, chrome, firefox, brave, default.
+    Browser to use for URL opening. Valid values: msedge, chrome, firefox, brave, default.
 
     .PARAMETER Private
     Open the browser in private/incognito mode.
+
+    .PARAMETER ClientId
+    Override the MSAL client ID. Defaults to the Microsoft Graph CLI Tools
+    first-party app (14d82eec-204b-4c2f-b7e8-296a70dab67e).
 
     .NOTES
     Version: 3.0.0
     #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
-        'PSReviewUnusedParameter', 'DeviceCode', Justification = 'Used inside scriptblock')]
+        'PSReviewUnusedParameter', 'Silent', Justification = 'Used inside scriptblock')]
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
         'PSAvoidUsingConvertToSecureStringWithPlainText', '')]
     [CmdletBinding()]
@@ -42,7 +43,10 @@ function Connect-IRTGraph {
         [string] $Browser = $Global:IRT_Config.Browser,
         [switch] $Private,
 
-        [switch] $Force
+        [switch] $Force,
+        [switch] $Silent,
+
+        [string] $ClientId = '14d82eec-204b-4c2f-b7e8-296a70dab67e'  # Microsoft Graph CLI Tools
     )
 
     begin {
@@ -116,25 +120,30 @@ function Connect-IRTGraph {
             Add-Type -Path $MsalDll
         }
 
-        $GraphClientId = '14d82eec-204b-4c2f-b7e8-296a70dab67e'  # Microsoft Graph CLI Tools
-        $MsalScopes    = [string[]]($Scopes | ForEach-Object { "$GraphBaseUrl/$_" })
+        $MsalScopes = [string[]]($Scopes | ForEach-Object { "$GraphBaseUrl/$_" })
 
         # Reuse the cached MSAL app instance to preserve its token cache (refresh token).
         $App = if ($Global:IRT_Session -and
                    $Global:IRT_Session.Graph -and
                    $Global:IRT_Session.Graph.PublicClientApplication -and
-                   $Global:IRT_Session.TenantId -eq $TenantId
+                   $Global:IRT_Session.TenantId -eq $TenantId -and
+                   $Global:IRT_Session.Graph.PublicClientApplication.AppConfig.ClientId -eq $ClientId
         ) {
             $Global:IRT_Session.Graph.PublicClientApplication
         } else {
-            [Microsoft.Identity.Client.PublicClientApplicationBuilder]::Create($GraphClientId).
+            $NewApp = [Microsoft.Identity.Client.PublicClientApplicationBuilder]::Create($ClientId).
                 WithAuthority($Authority).
                 WithRedirectUri('http://localhost').
                 Build()
+            if ($Global:IRT_Config.EnableTokenCache) {
+                try { Register-IRTMsalCache -App $NewApp }
+                catch { Write-IRT "Persistent token cache unavailable: $_" -Level Warn }
+            }
+            $NewApp
         }
 
-        # Inline helper - closes over $App, $MsalScopes, $DeviceCode, $Browser, $Private.
-        # Tries silent refresh first, then interactive or device code.
+        # Inline helper - closes over $App, $MsalScopes, $Browser, $Private.
+        # Tries silent refresh first, then interactive auth.
         # -RequireConsent skips the silent path and forces a consent prompt.
         $AcquireToken = {
             param(
@@ -154,16 +163,8 @@ function Connect-IRTGraph {
                 }
             }
 
-            if ($DeviceCode) {
-                $Extra = if ($RequireConsent) { @{ prompt = 'consent' } } else { $null }
-                $params = @{
-                    App                  = $App
-                    Scope                = $MsalScopes
-                    ExtraQueryParameter  = $Extra
-                    Browser              = $Browser
-                    Private              = $Private
-                }
-                return Invoke-IRTDeviceCodeAuth @params
+            if ($Silent) {
+                throw 'Silent Graph token refresh failed and interactive auth is not allowed (-Silent).'
             }
 
             try {
@@ -276,7 +277,7 @@ function Connect-IRTGraph {
 
             $ConsentParams = @{
                 TenantId    = $TenantId
-                ClientId    = $GraphClientId
+                ClientId    = $ClientId
                 Scope       = $MissingAdminScopes  # only request what's actually missing
                 ResourceUri = $GraphBaseUrl
                 Browser     = $Browser
@@ -313,6 +314,7 @@ function Connect-IRTGraph {
 
         return [pscustomobject]@{
             Token                   = $Token
+            TokenExpiry             = Get-IRTTokenExpiry -Token $Token
             Account                 = $Account
             TenantId                = $TenantId
             PublicClientApplication = $App

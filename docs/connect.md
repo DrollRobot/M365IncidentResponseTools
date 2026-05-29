@@ -6,9 +6,6 @@
 # Connect to both Graph and Exchange (interactive browser)
 Connect-IRT -TenantId "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
 
-# Device code auth (useful when browser pop-up is unavailable)
-Connect-IRT -TenantId "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" -DeviceCode
-
 # Exchange only in a GCC High environment
 Connect-IRT -TenantId "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" -Exchange -GCCHigh
 

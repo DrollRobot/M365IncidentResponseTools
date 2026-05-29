@@ -4,6 +4,10 @@
 /*.xlsx
 /*Investigation/
 
+# test credentials (local only - never commit)
+*.env*
+!*.env.ps1.example
+
 # mkdocs documentation
 /site
 

@@ -26,7 +26,7 @@ git clone https://github.com/DrollRobot/M365IncidentResponseTools.git
 # change to module directory
 Set-Location .\M365IncidentResponseTools\
 
-# run dependencies script
+# Install module dependencies
 .\Install-Dependencies.ps1
 ```
 
@@ -46,9 +46,6 @@ Microsoft.Graph.Users.Actions
 ExchangeOnlineManagement
 ImportExcel
 PSToml
-
-!!! warning
-    The Graph modules are temporarily pinned to version 2.33.0 due to recent auth workflow changes that forced WAM and broke device code auth.
 
 **Connecting to an M365 tenant:**
 [Connect to M365](connect.md)

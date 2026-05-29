@@ -16,28 +16,29 @@ function Connect-IRTExchange {
     Cloud to connect to. Valid values: Commercial, USGov, China.
     When omitted the cloud defaults to Commercial.
 
-    .PARAMETER DeviceCode
-    Use device code authentication flow.
-
     .PARAMETER AccessToken
     A pre-existing access token to use for connection. Intended for use within
     runspaces where interactive authentication is not possible.
 
     .PARAMETER Browser
-    Browser to use for device code login. Valid values: msedge, chrome, firefox, brave, default.
+    Browser to use for URL opening. Valid values: msedge, chrome, firefox, brave, default.
 
     .PARAMETER Private
     Open the browser in private/incognito mode.
+
+    .PARAMETER ClientId
+    Override the MSAL client ID. Defaults to the EXO first-party app
+    (fb78d390-0c51-40cd-8e17-fdbfab77341b).
 
     .NOTES
     Version: 3.0.0
     #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
-        'PSReviewUnusedParameter', 'DeviceCode', Justification = 'Used inside scriptblock')]
-    [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
         'PSReviewUnusedParameter', 'Browser', Justification = 'Used inside scriptblock')]
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
         'PSReviewUnusedParameter', 'Private', Justification = 'Used inside scriptblock')]
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+        'PSReviewUnusedParameter', 'Silent', Justification = 'Used inside scriptblock')]
     [CmdletBinding()]
     param (
         [Parameter(Mandatory)]
@@ -45,14 +46,16 @@ function Connect-IRTExchange {
         [string] $UserPrincipalName,
         [ValidateSet('Commercial', 'USGov', 'USGovDoD', 'China')]
         [string] $Cloud = 'Commercial',
-        [switch] $DeviceCode,
         [string] $AccessToken,
 
         [ValidateSet('msedge','chrome','firefox','brave','default')]
         [string] $Browser = $Global:IRT_Config.Browser,
         [switch] $Private,
 
-        [switch] $Force
+        [switch] $Force,
+        [switch] $Silent,
+
+        [string] $ClientId = 'fb78d390-0c51-40cd-8e17-fdbfab77341b'  # EXO first-party app
     )
 
     begin {
@@ -61,7 +64,7 @@ function Connect-IRTExchange {
         $Authority     = "$($CloudConfig.LoginHost)/$TenantId"
         $Scopes = [string[]]@($ExchangeScope)
 
-        $ExoClientId = 'fb78d390-0c51-40cd-8e17-fdbfab77341b'  # EXO first-party app
+        $ExoClientId = $ClientId
         $App = $null  # built lazily; not needed when -AccessToken provided
     }
 
@@ -69,8 +72,8 @@ function Connect-IRTExchange {
 
         # ---------- Setup: scope, authority ----------
 
-        # Inline helper - closes over $App, $Scopes, $DeviceCode, $Browser, $Private.
-        # Tries silent refresh first, then interactive or device code.
+        # Inline helper - closes over $App, $Scopes, $Browser, $Private, $Silent.
+        # Tries silent refresh first, then interactive auth.
         $AcquireToken = {
             $Cached = $App.GetAccountsAsync().GetAwaiter().GetResult()
             if ($Cached) {
@@ -82,14 +85,8 @@ function Connect-IRTExchange {
                 }
             }
 
-            if ($DeviceCode) {
-                $DeviceCodeParams = @{
-                    App     = $App
-                    Scopes  = $Scopes
-                    Browser = $Browser
-                    Private = $Private
-                }
-                return Invoke-IRTDeviceCodeAuth @DeviceCodeParams
+            if ($Silent) {
+                throw 'Silent Exchange token refresh failed and interactive auth is not allowed (-Silent).'
             }
 
             try {
@@ -149,13 +146,19 @@ function Connect-IRTExchange {
             $App = if ($Global:IRT_Session -and
                        $Global:IRT_Session.Exchange -and
                        $Global:IRT_Session.Exchange.PublicClientApplication -and
-                       $Global:IRT_Session.TenantId -eq $TenantId) {
+                       $Global:IRT_Session.TenantId -eq $TenantId -and
+                       $Global:IRT_Session.Exchange.PublicClientApplication.AppConfig.ClientId -eq $ClientId) {
                 $Global:IRT_Session.Exchange.PublicClientApplication
             } else {
-                [Microsoft.Identity.Client.PublicClientApplicationBuilder]::Create($ExoClientId).
+                $NewApp = [Microsoft.Identity.Client.PublicClientApplicationBuilder]::Create($ExoClientId).
                     WithAuthority($Authority).
                     WithRedirectUri('http://localhost').
                     Build()
+                if ($Global:IRT_Config.EnableTokenCache) {
+                    try { Register-IRTMsalCache -App $NewApp }
+                    catch { Write-IRT "Persistent token cache unavailable: $_" -Level Warn }
+                }
+                $NewApp
             }
 
             if (
@@ -202,6 +205,7 @@ function Connect-IRTExchange {
 
         return [pscustomobject]@{
             Token                   = $Token
+            TokenExpiry             = Get-IRTTokenExpiry -Token $Token
             UserPrincipalName       = $Upn
             TenantId                = $TenantId
             PublicClientApplication = $App

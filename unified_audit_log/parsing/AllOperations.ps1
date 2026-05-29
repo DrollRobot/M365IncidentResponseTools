@@ -357,7 +357,7 @@ function Build-AllOperationSheet {
         } # end if Tables.Count
 
         #region MISSING OPERATIONS
-        $AllOperationsFileName = 'unified_audit_log-all_operations.xlsx'
+        $AllOperationsFileName = 'unified_audit_log-all_operations.xlsx' # FIXME no hard coded paths! use config path
         $OperationsToAdd = [System.Collections.Generic.HashSet[PSCustomObject]]::new()
         foreach ($o in $OperationsFromLog) {
             if ($OperationsFromSheet.Add($o)) {

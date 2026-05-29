@@ -16,15 +16,19 @@ function Connect-IRTIPPS {
     eDiscovery and retention cmdlets (New-ComplianceSearchAction,
     Set-RetentionCompliancePolicy, etc.). Defaults to $true.
 
+    .PARAMETER ClientId
+    Override the MSAL client ID. Defaults to the EXO/IPPS first-party app
+    (fb78d390-0c51-40cd-8e17-fdbfab77341b).
+
     .NOTES
     Version: 2.0.0
     #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
-        'PSReviewUnusedParameter', 'DeviceCode', Justification = 'Used inside scriptblock')]
-    [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
         'PSReviewUnusedParameter', 'Browser', Justification = 'Used inside scriptblock')]
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
         'PSReviewUnusedParameter', 'Private', Justification = 'Used inside scriptblock')]
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+        'PSReviewUnusedParameter', 'Silent', Justification = 'Used inside scriptblock')]
     [CmdletBinding()]
     param (
         [Parameter(Mandatory)]
@@ -32,7 +36,6 @@ function Connect-IRTIPPS {
         [string] $UserPrincipalName,
         [ValidateSet('Commercial', 'USGov', 'USGovDoD', 'China')]
         [string] $Cloud = 'Commercial',
-        [switch] $DeviceCode,
         [string] $AccessToken,
 
         [bool]   $SearchOnly = $true,
@@ -41,7 +44,10 @@ function Connect-IRTIPPS {
         [string] $Browser = $Global:IRT_Config.Browser,
         [switch] $Private,
 
-        [switch] $Force
+        [switch] $Force,
+        [switch] $Silent,
+
+        [string] $ClientId = 'fb78d390-0c51-40cd-8e17-fdbfab77341b'  # EXO/IPPS first-party app
     )
 
     begin {
@@ -50,7 +56,7 @@ function Connect-IRTIPPS {
         $Authority   = "$($CloudConfig.LoginHost)/$TenantId"
         $Scopes      = [string[]]@($IPPSScope)
 
-        $ExoClientId = 'fb78d390-0c51-40cd-8e17-fdbfab77341b'  # EXO/IPPS first-party app
+        $ExoClientId = $ClientId
         $App = $null  # built lazily; not needed when -AccessToken provided
     }
 
@@ -58,8 +64,8 @@ function Connect-IRTIPPS {
 
         # ---------- Setup: scope, authority ----------
 
-        # Inline helper - closes over $App, $Scopes, $DeviceCode, $Browser, $Private.
-        # Tries silent refresh first, then interactive or device code.
+        # Inline helper - closes over $App, $Scopes, $Browser, $Private, $Silent.
+        # Tries silent refresh first, then interactive auth.
         $AcquireToken = {
             $Cached = $App.GetAccountsAsync().GetAwaiter().GetResult()
             if ($Cached) {
@@ -71,14 +77,8 @@ function Connect-IRTIPPS {
                 }
             }
 
-            if ($DeviceCode) {
-                $DeviceCodeParams = @{
-                    App     = $App
-                    Scopes  = $Scopes
-                    Browser = $Browser
-                    Private = $Private
-                }
-                return Invoke-IRTDeviceCodeAuth @DeviceCodeParams
+            if ($Silent) {
+                throw 'Silent IPPS token refresh failed and interactive auth is not allowed (-Silent).'
             }
 
             try {
@@ -151,18 +151,25 @@ function Connect-IRTIPPS {
             $App = if ($Global:IRT_Session -and
                        $Global:IRT_Session.Exchange -and
                        $Global:IRT_Session.Exchange.PublicClientApplication -and
-                       $Global:IRT_Session.TenantId -eq $TenantId) {
+                       $Global:IRT_Session.TenantId -eq $TenantId -and
+                       $Global:IRT_Session.Exchange.PublicClientApplication.AppConfig.ClientId -eq $ClientId) {
                 $Global:IRT_Session.Exchange.PublicClientApplication
             } elseif ($Global:IRT_Session -and
                       $Global:IRT_Session.IPPS -and
                       $Global:IRT_Session.IPPS.PublicClientApplication -and
-                      $Global:IRT_Session.TenantId -eq $TenantId) {
+                      $Global:IRT_Session.TenantId -eq $TenantId -and
+                      $Global:IRT_Session.IPPS.PublicClientApplication.AppConfig.ClientId -eq $ClientId) {
                 $Global:IRT_Session.IPPS.PublicClientApplication
             } else {
-                [Microsoft.Identity.Client.PublicClientApplicationBuilder]::Create($ExoClientId).
+                $NewApp = [Microsoft.Identity.Client.PublicClientApplicationBuilder]::Create($ExoClientId).
                     WithAuthority($Authority).
                     WithRedirectUri('http://localhost').
                     Build()
+                if ($Global:IRT_Config.EnableTokenCache) {
+                    try { Register-IRTMsalCache -App $NewApp }
+                    catch { Write-IRT "Persistent token cache unavailable: $_" -Level Warn }
+                }
+                $NewApp
             }
 
             if (
@@ -217,6 +224,7 @@ function Connect-IRTIPPS {
 
         return [pscustomobject]@{
             Token                   = $Token
+            TokenExpiry             = Get-IRTTokenExpiry -Token $Token
             UserPrincipalName       = $Upn
             TenantId                = $TenantId
             PublicClientApplication = $App

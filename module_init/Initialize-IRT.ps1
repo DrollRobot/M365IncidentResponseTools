@@ -39,52 +39,45 @@ if ($env:TERM_PROGRAM -ne 'vscode') {
         catch {'DarkYellow'}
         $PromptColor = @{ForegroundColor = $irt_color }
 
-        # Display connection status for Graph and Exchange
-        # This is a bit hacky but avoids the need to maintain global state about connection status
-        $CheckEveryXSeconds = 15
-        $GraphCtx = Get-MgContext -ErrorAction SilentlyContinue
+        # Display connection status for Graph and Exchange.
+        # Read token expiry directly from the session object - no network call needed.
         $graphDomain = 'none'
-        if ($GraphCtx -and $GraphCtx.Account) {
-            # Probe the token at most once per $CheckEveryXSeconds seconds
-            # to avoid per-prompt latency.
-            $irt_now = [datetime]::UtcNow
-            $irt_cacheStale = (-not $Global:IRT_GraphTokenChecked) -or
-                (($irt_now - $Global:IRT_GraphTokenChecked).TotalSeconds -gt $CheckEveryXSeconds)
-            if ($irt_cacheStale) {
-                try {
-                    $irt_probe = @{
-                        Method = 'GET'
-                        Uri = 'https://graph.microsoft.com/v1.0/organization?$select=id&$top=1'
-                        ErrorAction = 'Stop'
-                    }
-                    $null = Invoke-MgGraphRequest @irt_probe
-                    $Global:IRT_GraphTokenValid = $true
-                } catch {
-                    $Global:IRT_GraphTokenValid = $false
+
+        if ($Global:IRT_Session) {
+            # Refresh any service whose token expires within 30 minutes.
+            $irt_needsRefresh = $false
+            foreach ($svc in 'Graph', 'Exchange', 'IPPS') {
+                $svcObj = $Global:IRT_Session.$svc
+                if ($svcObj -and $svcObj.TokenExpiry -and
+                    ($svcObj.TokenExpiry - [datetime]::UtcNow).TotalMinutes -lt 30) {
+                    $irt_needsRefresh = $true
                 }
-                $Global:IRT_GraphTokenChecked = $irt_now
             }
-            if ($Global:IRT_GraphTokenValid) {
-                $graphDomain = ($GraphCtx.Account -split '@')[-1]
+            if ($irt_needsRefresh) {
+                Write-Host ''
+                Write-Warning '[IRT] Token expiring soon - refreshing...' -NoNewline
+                try { Connect-IRT -Refresh -ErrorAction Stop } catch {
+                    Write-Host ''
+                    Write-Warning "[IRT] Token refresh failed: $_"
+                }
+            }
+
+            if ($Global:IRT_Session.Graph -and $Global:IRT_Session.Graph.TokenExpiry -and
+                ($Global:IRT_Session.Graph.TokenExpiry - [datetime]::UtcNow).TotalMinutes -gt 0) {
+                $graphDomain = ($Global:IRT_Session.Graph.Account -split '@')[-1]
             }
         }
 
-        $AllExoConns = Get-ConnectionInformation -ErrorAction SilentlyContinue |
-        Where-Object { $_.State -eq 'Connected' }
-        $ExoConn = $AllExoConns |
-        Where-Object {
-            $_.ConnectionUri -notmatch 'compliance\.protection\.(outlook\.com|office365\.us)'
-        } |
-        Select-Object -First 1
-        if ($ExoConn -and $ExoConn.UserPrincipalName) {
-            $exoDomain = ($ExoConn.UserPrincipalName -split '@')[-1]
+        if ($Global:IRT_Session -and $Global:IRT_Session.Exchange -and
+            $Global:IRT_Session.Exchange.TokenExpiry -and
+            ($Global:IRT_Session.Exchange.TokenExpiry - [datetime]::UtcNow).TotalMinutes -gt 0) {
+            $exoDomain = ($Global:IRT_Session.Exchange.Account -split '@')[-1]
         } else {
             $exoDomain = 'none'
         }
-        $ippsConnected = [bool]($AllExoConns |
-            Where-Object {
-                $_.ConnectionUri -match 'compliance\.protection\.(outlook\.com|office365\.us)'
-            })
+        $ippsConnected = $Global:IRT_Session -and $Global:IRT_Session.IPPS -and
+            $Global:IRT_Session.IPPS.TokenExpiry -and
+            ($Global:IRT_Session.IPPS.TokenExpiry - [datetime]::UtcNow).TotalMinutes -gt 0
 
         Write-Host ''
         Write-Host @PromptColor '[IRT] ' -NoNewline

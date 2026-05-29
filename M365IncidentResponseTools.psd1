@@ -84,7 +84,7 @@
     # Runs in caller scope (not module scope), so functions defined here are NOT tracked by
     # the module and survive Import-Module -Force reimports.
     ScriptsToProcess  = @(
-        'module_init\Initialize-IRTSession.ps1'
+        'module_init\Initialize-IRT.ps1'
     )
 
     # Type files (.ps1xml) to be loaded when importing this module
@@ -115,6 +115,7 @@
         'Connect-IRTTenant'
         'Disconnect-IRT'
         'Test-IRTConnection'
+        'Clear-IRTTokenCache'
         'Open-IRTTenantSheet'
 
         ### entra_logs
@@ -226,6 +227,8 @@
         # Disconnect-IRT
         'DisconnectIRT'
         'IRTDisconnect'
+        # Clear-IRTTokenCache
+        'ClearIRTTokenCache'
 
         ### devices
         # Disable-IRTDevice

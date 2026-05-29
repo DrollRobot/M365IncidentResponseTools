@@ -20,9 +20,6 @@ function Connect-IRT {
     When omitted the cloud is detected automatically via OIDC discovery. Provide
     this parameter to skip the lookup or to override the detected value.
 
-    .PARAMETER DeviceCode
-    Use device code authentication flow instead of interactive browser auth.
-
     .PARAMETER AdditionalScope
     Additional Graph scopes to request beyond the default set.
 
@@ -33,35 +30,58 @@ function Connect-IRT {
     Connect to Exchange Online only.
 
     .PARAMETER Browser
-    Browser to use for device code login and URL opening. Valid values: msedge, chrome, firefox,
+    Browser to use for URL opening. Valid values: msedge, chrome, firefox,
     brave, default.
 
     .PARAMETER Private
     Open the browser in private/incognito mode.
+
+    .PARAMETER Refresh
+    Re-connects all services that are present in the current session using the
+    stored TenantId and cloud environment. Reads parameters from
+    $Global:IRT_Session instead of requiring them on the command line.
+    Combine with -Silent to suppress interactive auth fallback.
+
+    .PARAMETER Silent
+    When set, token acquisition skips the interactive browser/device-code
+    fallback. If MSAL cannot silently refresh a token, the function throws
+    instead of prompting. Intended for use in the prompt function and other
+    non-interactive callers.
+
+    .PARAMETER ClientId
+    Override the MSAL client ID used for all three services (Graph, Exchange,
+    IPPS). When omitted, each service uses its own first-party Microsoft client
+    ID. Use this when connecting via a custom app registration that has been
+    granted the necessary delegated permissions.
 
     .EXAMPLE
     Connect-IRT -TenantId $tid
     Connects to Graph and Exchange Online.
 
     .EXAMPLE
-    Connect-IRT -TenantId $tid -Graph -DeviceCode
-    Connects to Graph only using device code auth.
-
-    .EXAMPLE
     Connect-IRT -TenantId $tid -Exchange -Cloud USGov
     Connects to Exchange in a USGov cloud, skipping OIDC discovery.
 
+    .EXAMPLE
+    Connect-IRT -Refresh
+    Silently re-acquires tokens for all services in the existing session.
+
     .NOTES
-    Version: 1.0.0
+    Version: 1.1.0
     #>
     [Alias('ConnectIRT')]
-    [CmdletBinding()]
+    [CmdletBinding(DefaultParameterSetName = 'TenantId')]
     param (
-        [Parameter( Mandatory )]
+        [Parameter(Mandatory, ParameterSetName = 'TenantId')]
         [string] $TenantId,
+
+        [Parameter(Mandatory, ParameterSetName = 'Refresh')]
+        [switch] $Refresh,
+
+        [switch] $Silent,
+
         [ValidateSet('Commercial', 'USGov', 'USGovDoD', 'China')]
         [string] $Cloud,
-        [switch] $DeviceCode,
         [Alias('AdditionalScopes')]
         [string[]] $AdditionalScope,
 
@@ -73,10 +93,38 @@ function Connect-IRT {
         [string] $Browser = $Global:IRT_Config.Browser,
         [switch] $Private,
 
-        [switch] $Force
+        [switch] $Force,
+
+        [string] $ClientId
     )
 
     process {
+
+        # -Refresh: read params from the existing session and recurse.
+        if ($PSCmdlet.ParameterSetName -eq 'Refresh') {
+            if (-not $Global:IRT_Session) {
+                Write-Error 'No active IRT session to refresh. Run Connect-IRT -TenantId first.'
+                return
+            }
+            $RefreshParams = @{
+                TenantId = $Global:IRT_Session.TenantId
+                Cloud    = $Global:IRT_Session.Environment
+                Force    = $true
+            }
+            if ($Silent)                        { $RefreshParams['Silent']   = $true }
+            if ($Global:IRT_Session.ClientId)   { $RefreshParams['ClientId'] = $Global:IRT_Session.ClientId }
+            if ($Global:IRT_Session.Graph)      { $RefreshParams['Graph']    = $true }
+            if ($Global:IRT_Session.Exchange) { $RefreshParams['Exchange'] = $true }
+            if ($Global:IRT_Session.IPPS)     { $RefreshParams['IPPS']     = $true }
+            if (-not ($RefreshParams.ContainsKey('Graph') -or
+                      $RefreshParams.ContainsKey('Exchange') -or
+                      $RefreshParams.ContainsKey('IPPS'))) {
+                Write-Error 'IRT session exists but no service connections are recorded.'
+                return
+            }
+            Connect-IRT @RefreshParams
+            return
+        }
 
         # if no service switches specified, connect to all
         $ConnectAll      = -not ($Graph -or $Exchange -or $IPPS)
@@ -108,6 +156,7 @@ function Connect-IRT {
             $Global:IRT_Session = [pscustomobject]@{
                 TenantId    = $TenantId
                 Environment = $DetectedEnvironment
+                ClientId    = $ClientId
                 Graph       = $null
                 Exchange    = $null
                 IPPS        = $null
@@ -121,13 +170,14 @@ function Connect-IRT {
                 TenantId = $TenantId
             }
             $GraphParams['Cloud'] = $DetectedEnvironment
-            if ($DeviceCode)       { $GraphParams['DeviceCode']         = $true }
             if ($Force)            { $GraphParams['Force']              = $true }
             $GraphParams['Browser'] = $Browser
             if ($Private) { $GraphParams['Private'] = $true }
             if ($AdditionalScope) {
                 $GraphParams['AdditionalScope'] = $AdditionalScope
             }
+            if ($Silent)   { $GraphParams['Silent']   = $true }
+            if ($ClientId) { $GraphParams['ClientId'] = $ClientId }
 
             $GraphConnection = Connect-IRTGraph @GraphParams
             if ($GraphConnection) { $Global:IRT_Session.Graph = $GraphConnection }
@@ -140,10 +190,11 @@ function Connect-IRT {
                 TenantId          = $TenantId
             }
             $ExchangeParams['Cloud'] = $DetectedEnvironment
-            if ($DeviceCode) { $ExchangeParams['DeviceCode'] = $true }
             if ($Force)      { $ExchangeParams['Force']      = $true }
             $ExchangeParams['Browser'] = $Browser
             if ($Private) { $ExchangeParams['Private'] = $true }
+            if ($Silent)   { $ExchangeParams['Silent']   = $true }
+            if ($ClientId) { $ExchangeParams['ClientId'] = $ClientId }
 
             $ExchangeConnection = Connect-IRTExchange @ExchangeParams
             if ($ExchangeConnection) { $Global:IRT_Session.Exchange = $ExchangeConnection }
@@ -153,10 +204,11 @@ function Connect-IRT {
         if ($ConnectIPPS) {
             $IPPSParams = @{ TenantId = $TenantId }
             $IPPSParams['Cloud'] = $DetectedEnvironment
-            if ($DeviceCode) { $IPPSParams['DeviceCode'] = $true }
             if ($Force)      { $IPPSParams['Force']      = $true }
             $IPPSParams['Browser'] = $Browser
             if ($Private)    { $IPPSParams['Private']    = $true }
+            if ($Silent)     { $IPPSParams['Silent']     = $true }
+            if ($ClientId)   { $IPPSParams['ClientId']   = $ClientId }
 
             $IPPSConnection = Connect-IRTIPPS @IPPSParams
             if ($IPPSConnection) { $Global:IRT_Session.IPPS = $IPPSConnection }
@@ -169,6 +221,46 @@ function Connect-IRT {
         ) {
             Test-IRTConnection
         }
+    }
+}
+
+function Get-IRTTokenExpiry {
+    <#
+    .SYNOPSIS
+    Returns the UTC expiry time from a JWT access token's exp claim, or $null if unreadable.
+
+    .PARAMETER Token
+    The JWT access token string to decode.
+    #>
+    [CmdletBinding()]
+    [OutputType([datetime])]
+    param (
+        [Parameter(Mandatory)]
+        [string] $Token
+    )
+
+    try {
+        $parts = $Token.Split('.')
+        if ($parts.Count -lt 2) { return $null }
+
+        # Base64url decode the payload segment (second part of the JWT)
+        $payload = $parts[1]
+        $padded  = $payload.Replace('-', '+').Replace('_', '/')
+        switch ($padded.Length % 4) {
+            2 { $padded += '==' }
+            3 { $padded += '='  }
+        }
+
+        $bytes  = [System.Convert]::FromBase64String($padded)
+        $json   = [System.Text.Encoding]::UTF8.GetString($bytes)
+        $claims = $json | ConvertFrom-Json
+
+        if (-not $claims.exp) { return $null }
+
+        return [System.DateTimeOffset]::FromUnixTimeSeconds([long]$claims.exp).UtcDateTime
+    }
+    catch {
+        return $null
     }
 }
 
@@ -193,31 +285,9 @@ function Test-TokenExpired {
         [int] $BufferSeconds = 300
     )
 
-    try {
-        $parts = $Token.Split('.')
-        if ($parts.Count -lt 2) { return $true }
+    $expiry = Get-IRTTokenExpiry -Token $Token
+    if ($null -eq $expiry) { return $true }
 
-        # Base64url decode the payload segment (second part of the JWT)
-        $payload = $parts[1]
-        $padded  = $payload.Replace('-', '+').Replace('_', '/')
-        switch ($padded.Length % 4) {
-            2 { $padded += '==' }
-            3 { $padded += '='  }
-        }
-
-        $bytes  = [System.Convert]::FromBase64String($padded)
-        $json   = [System.Text.Encoding]::UTF8.GetString($bytes)
-        $claims = $json | ConvertFrom-Json
-
-        if (-not $claims.exp) { return $true }
-
-        $expiry    = [System.DateTimeOffset]::FromUnixTimeSeconds([long]$claims.exp).UtcDateTime
-        $threshold = [System.DateTime]::UtcNow.AddSeconds($BufferSeconds)
-
-        return $expiry -le $threshold
-    }
-    catch {
-        # If the token cannot be decoded, treat it as expired to force re-acquisition
-        return $true
-    }
+    $threshold = [System.DateTime]::UtcNow.AddSeconds($BufferSeconds)
+    return $expiry -le $threshold
 }
