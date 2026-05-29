@@ -71,7 +71,7 @@ if ($env:TERM_PROGRAM -ne 'vscode') {
         if ($Global:IRT_Session -and $Global:IRT_Session.Exchange -and
             $Global:IRT_Session.Exchange.TokenExpiry -and
             ($Global:IRT_Session.Exchange.TokenExpiry - [datetime]::UtcNow).TotalMinutes -gt 0) {
-            $exoDomain = ($Global:IRT_Session.Exchange.Account -split '@')[-1]
+            $exoDomain = ($Global:IRT_Session.Exchange.UserPrincipalName -split '@')[-1]
         } else {
             $exoDomain = 'none'
         }
