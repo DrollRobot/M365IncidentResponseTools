@@ -27,10 +27,12 @@ if ($Recurse) {
 
 $files = Get-ChildItem @GetChildParams | Where-Object Extension -in '.ps1', '.psm1', '.psd1'
 $hitCount = 0
+$totalLines = 0
 $hits = [System.Collections.Generic.List[PSCustomObject]]::new()
 
 foreach ($file in $files) {
     $lines = Get-Content -Path $file.FullName
+    $totalLines += $lines.Count
     for ($i = 0; $i -lt $lines.Count; $i++) {
         $line = $lines[$i]
         # Skip comment lines
@@ -49,8 +51,8 @@ foreach ($file in $files) {
 }
 
 if ($hitCount -eq 0) {
-    Write-Host "All $($files.Count) file(s) checked. No backtick line continuations found."
+    Write-Host "All $($files.Count) file(s), $totalLines line(s) checked. No backtick line continuations found."
 } else {
     $hits | Format-Table -AutoSize
-    Write-Host "$hitCount backtick continuation(s) found across $($files.Count) file(s)."
+    Write-Host "$hitCount backtick continuation(s) found across $($files.Count) file(s), $totalLines line(s)."
 }

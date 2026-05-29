@@ -36,7 +36,7 @@ $AnalyzerSettings = @{
 # with the installed module. Detect and skip rather than error out.
 if ($host.Name -eq 'Visual Studio Code Host') {
     Write-Warning "PSScriptAnalyzer cannot run in the VS Code PowerShell Extension terminal."
-    Write-Warning "Run .\tests\Invoke-AllTests.ps1 in the integrated terminal (pwsh) instead."
+    Write-Warning "Run .\Invoke-Tests.ps1 -PSScriptAnalyzer in the integrated terminal (pwsh) instead."
     return
 }
 

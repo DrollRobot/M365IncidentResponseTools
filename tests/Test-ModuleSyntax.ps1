@@ -23,8 +23,10 @@ if ($Recurse) {
 
 $files = Get-ChildItem @GetChildParams | Where-Object Extension -in '.ps1', '.psm1', '.psd1'
 $errorCount = 0
+$totalLines = 0
 
 foreach ($file in $files) {
+    $totalLines += (Get-Content -Path $file.FullName).Count
     $parseErrors = $null
     $null = [System.Management.Automation.Language.Parser]::ParseFile(
         $file.FullName, [ref]$null, [ref]$parseErrors
@@ -39,8 +41,8 @@ foreach ($file in $files) {
 }
 
 if ($errorCount -eq 0) {
-    Write-Host "All $($files.Count) file(s) parsed successfully. No syntax errors found."
+    Write-Host "All $($files.Count) file(s), $totalLines line(s) parsed successfully. No syntax errors found."
 }
 else {
-    Write-Host "$errorCount error(s) found across $($files.Count) file(s)."
+    Write-Host "$errorCount error(s) found across $($files.Count) file(s), $totalLines line(s)."
 }

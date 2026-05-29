@@ -23,9 +23,12 @@ if ($Recurse) {
 
 $files = Get-ChildItem @GetChildParams | Where-Object Extension -in '.ps1', '.psm1', '.psd1'
 $hitCount = 0
+$totalLines = 0
 
 foreach ($file in $files) {
-    $nonAsciiMatches = Select-String -Path $file.FullName -Pattern '[^\x00-\x7F]'
+    $lines = Get-Content -Path $file.FullName
+    $totalLines += $lines.Count
+    $nonAsciiMatches = $lines | Select-String -Pattern '[^\x00-\x7F]'
     if ($nonAsciiMatches) {
         $hitCount += $nonAsciiMatches.Count
         foreach ($match in $nonAsciiMatches) {
@@ -35,8 +38,8 @@ foreach ($file in $files) {
 }
 
 if ($hitCount -eq 0) {
-    Write-Host "All $($files.Count) file(s) checked. No non-ASCII characters found."
+    Write-Host "All $($files.Count) file(s), $totalLines line(s) checked. No non-ASCII characters found."
 }
 else {
-    Write-Host "$hitCount non-ASCII occurrence(s) found across $($files.Count) file(s)."
+    Write-Host "$hitCount non-ASCII occurrence(s) found across $($files.Count) file(s), $totalLines line(s)."
 }

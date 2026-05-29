@@ -22,9 +22,11 @@ if ($Recurse) {
 }
 
 $files = Get-ChildItem @GetChildParams
+$totalLines = 0
 foreach ($file in $files) {
     $lines = Get-Content $file.FullName
+    $totalLines += $lines.Count
     $lines | ForEach-Object { $_.TrimEnd() } | Set-Content $file.FullName
 }
 
-Write-Host "Trailing whitespace removed from $($files.Count) file(s)."
+Write-Host "Trailing whitespace removed from $($files.Count) file(s), $totalLines line(s)."

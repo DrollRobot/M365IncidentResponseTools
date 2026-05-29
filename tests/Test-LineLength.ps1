@@ -32,10 +32,12 @@ if (Test-Path $Path -PathType Leaf) {
     $BaseDir = $Path
 }
 $hitCount = 0
+$totalLines = 0
 $hits = [System.Collections.Generic.List[PSCustomObject]]::new()
 
 foreach ($file in $files) {
     $lines = Get-Content -Path $file.FullName
+    $totalLines += $lines.Count
     for ($i = 0; $i -lt $lines.Count; $i++) {
         $length = $lines[$i].Length
         if ($length -gt $MaxLength) {
@@ -51,9 +53,9 @@ foreach ($file in $files) {
 }
 
 if ($hitCount -eq 0) {
-    Write-Host "All $($files.Count) file(s) checked. No lines exceed $MaxLength characters."
+    Write-Host "All $($files.Count) file(s), $totalLines line(s) checked. No lines exceed $MaxLength characters."
 }
 else {
     $hits | Format-Table -AutoSize
-    Write-Host "$hitCount line(s) exceed $MaxLength characters across $($files.Count) file(s)."
+    Write-Host "$hitCount line(s) exceed $MaxLength characters across $($files.Count) file(s), $totalLines line(s)."
 }

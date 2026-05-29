@@ -1,11 +1,8 @@
 # M365IncidentResponseTools -- Agent Guidelines
 
-A PowerShell 7.5+ incident response module for Microsoft 365.
-Full user docs: https://DrollRobot.github.io/M365IncidentResponseTools/
+A PowerShell 7.5+ incident response module for Microsoft 365 and more.
 
 ## Architecture
-
-The `.psm1` dot-sources every `.ps1` in every domain folder at import time.
 
 Domain folders and their responsibilities:
 
@@ -22,9 +19,6 @@ Domain folders and their responsibilities:
 | `service_principals/` | Service principal investigation |
 | `unified_audit_log/` | UAL search and reporting |
 | `users/` | Entra user investigation and remediation |
-
-**`module_init/`** is excluded from the dynamic dot-sourcing loop.
-It runs via `ScriptsToProcess` in the caller's scope, not the module scope.
 
 ### Naming Conventions
 
@@ -71,27 +65,8 @@ It runs via `ScriptsToProcess` in the caller's scope, not the module scope.
 - Line length limit: 100 characters. Use splatting and string concatenation to control line length. Avoid escapes for line continuation unless absolutely necessary.
 - Always use hashtable splatting (`@Params`) for cmdlets with more than 2 arguments.
 
-# Build and Test
 
-After making changes, run the test suite from the repo root:
-
-```powershell
-.\Invoke-AllTests.ps1
-```
-
-Pass `-NoPSScriptAnalyzer` during active development for fast feedback -- PSScriptAnalyzer takes
-~2-3 minutes and should only be run after large changes or immediately before committing:
-
-```powershell
-.\Invoke-AllTests.ps1 -NoPSScriptAnalyzer
-```
-
-Pass `-Online` to include tests that require a live tenant connection. Online tests call
-`Connect-IRT` automatically using `$env:IRT_TEST_TENANT_ID` from `tests/.env.ps1`
-
-```powershell
-.\Invoke-AllTests.ps1 -Online
-```
+## Writing code tests
 
 ### Tagging Pester tests
 
@@ -103,5 +78,24 @@ Describe 'Get-IRTInboxRule' -Tag 'Online' {
     It 'returns inbox rules for a mailbox' { ... }
 }
 ```
-
 You can also apply the tag at the `It` level if only some cases in a `Describe` need connectivity.
+
+
+
+## Testing after changes
+
+After making changes, run the test suite from the repo root:
+
+```powershell
+# rapid offline feedback -- omit -PSScriptAnalyzer during active development
+.\Invoke-Tests.ps1 -Offline
+
+# after all other offline tests have passed, and before commits (PSScriptAnalyzer takes 2-3 minutes to load)
+.\Invoke-AllTests.ps1 -PsScriptAnalyzer
+
+# run online tests (requires an active tenant connection)
+.\Invoke-Tests.ps1 -Online
+
+# run everything
+.\Invoke-Tests.ps1 -Offline -PSScriptAnalyzer -Online
+```

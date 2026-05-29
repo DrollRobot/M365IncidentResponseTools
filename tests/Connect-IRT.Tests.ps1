@@ -114,6 +114,7 @@ InModuleScope M365IncidentResponseTools {
 # ---------------------------------------------------------------------------
 # Connect-IRT: exported function -- guard conditions and orchestration
 # ---------------------------------------------------------------------------
+InModuleScope M365IncidentResponseTools {
 Describe 'Connect-IRT' {
 
     Context '-Refresh: no active session' {
@@ -186,7 +187,7 @@ Describe 'Connect-IRT' {
                 Exchange    = $null
                 IPPS        = $null
             }
-            Mock -ModuleName M365IncidentResponseTools Connect-IRTGraph {
+            Mock Connect-IRTGraph {
                 [pscustomobject]@{
                     Token                   = 'refreshed-graph-token'
                     TokenExpiry             = $script:RefreshedExpiry
@@ -194,9 +195,9 @@ Describe 'Connect-IRT' {
                     PublicClientApplication = $null
                 }
             }
-            Mock -ModuleName M365IncidentResponseTools Connect-IRTExchange { }
-            Mock -ModuleName M365IncidentResponseTools Connect-IRTIPPS { }
-            Mock -ModuleName M365IncidentResponseTools Test-IRTConnection { }
+            Mock Connect-IRTExchange { }
+            Mock Connect-IRTIPPS { }
+            Mock Test-IRTConnection { }
         }
         AfterEach {
             $Global:IRT_Session = $script:SavedSession
@@ -204,12 +205,11 @@ Describe 'Connect-IRT' {
 
         It 'invokes Connect-IRTGraph exactly once' {
             Connect-IRT -Refresh
-            Should -Invoke -ModuleName M365IncidentResponseTools Connect-IRTGraph -Times 1 -Exactly
+            Should -Invoke Connect-IRTGraph -Times 1 -Exactly
         }
         It 'passes the session TenantId to Connect-IRTGraph' {
             Connect-IRT -Refresh
             $Assert = @{
-                ModuleName      = 'M365IncidentResponseTools'
                 Times           = 1
                 ParameterFilter = { $TenantId -eq 'bbbbbbbb-0000-0000-0000-bbbbbbbbbbbb' }
             }
@@ -218,7 +218,6 @@ Describe 'Connect-IRT' {
         It 'passes Cloud = Commercial to Connect-IRTGraph' {
             Connect-IRT -Refresh
             $Assert = @{
-                ModuleName      = 'M365IncidentResponseTools'
                 Times           = 1
                 ParameterFilter = { $Cloud -eq 'Commercial' }
             }
@@ -226,11 +225,11 @@ Describe 'Connect-IRT' {
         }
         It 'does not invoke Connect-IRTExchange when Exchange is absent from session' {
             Connect-IRT -Refresh
-            Should -Invoke -ModuleName M365IncidentResponseTools Connect-IRTExchange -Times 0
+            Should -Invoke Connect-IRTExchange -Times 0
         }
         It 'does not invoke Connect-IRTIPPS when IPPS is absent from session' {
             Connect-IRT -Refresh
-            Should -Invoke -ModuleName M365IncidentResponseTools Connect-IRTIPPS -Times 0
+            Should -Invoke Connect-IRTIPPS -Times 0
         }
         It 'stores the refreshed Graph result back into the session' {
             Connect-IRT -Refresh
@@ -242,10 +241,11 @@ Describe 'Connect-IRT' {
         }
     }
 }
+} # end InModuleScope
 
 # ---------------------------------------------------------------------------
 # Online tests -- connect automatically via $env:IRT_TEST_TENANT_ID
-# Run with: .\Invoke-AllTests.ps1 -Online
+# Run with: .\Invoke-Tests.ps1 -Online
 # ---------------------------------------------------------------------------
 Describe 'Connect-IRT session state (live)' -Tag 'Online' {
 
@@ -295,3 +295,5 @@ Describe 'Connect-IRT session state (live)' -Tag 'Online' {
         Test-IRTConnection -Quiet | Should -BeTrue
     }
 }
+
+
