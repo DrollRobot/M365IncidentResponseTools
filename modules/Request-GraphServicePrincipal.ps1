@@ -16,13 +16,14 @@ function Request-GraphServicePrincipal {
     [CmdletBinding()]
     param (
         [switch] $Cached,
-        [switch] $Test,
         [boolean] $Xml = $Global:IRT_Config.ExportXml,
         [ValidateSet('objects','tablebyappid','tablebyid','none')]
         [string] $Return = 'objects'
     )
 
     begin {
+        $FunctionName = $MyInvocation.MyCommand.Name
+        $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
 
         # variables
         $CurrentPath = Get-Location
@@ -65,10 +66,10 @@ function Request-GraphServicePrincipal {
         }
 
         # get client domain name
-        $DefaultDomain = Get-MgDomain | Where-Object {$_.IsDefault -eq $true}
-        $DomainName = $DefaultDomain.Id -split '\.' | Select-Object -First 1
+        $DomainName = Get-IRTDefaultDomain
 
         # query graph
+        Write-Verbose "${FunctionName}: Get-MgServicePrincipal $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
         $Objects = Get-MgServicePrincipal -All | Select-Object ($GetProperties)
 
         # extract CreatedDateTime from AdditionalProperties
@@ -97,15 +98,8 @@ function Request-GraphServicePrincipal {
         if ($Xml) {
             $FileName = "ServicePrincipals_Raw_${DomainName}_${FileNameDate}.xml"
             $XmlOutputPath = Join-Path -Path $CurrentPath -ChildPath $FileName
-            if ($Test) {
-                $ExportTime = Measure-Command {
-                    $Objects | Export-Clixml -Depth 10 -Path $XmlOutputPath
-                }
-                Write-IRT "Export-Clixml took $( $ExportTime.TotalSeconds ) seconds"
-            }
-            else {
-                $Objects | Export-Clixml -Depth 10 -Path $XmlOutputPath
-            }
+            Write-Verbose "${FunctionName}: Export-Clixml $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
+            $Objects | Export-Clixml -Depth 10 -Path $XmlOutputPath
         }
 
         # return

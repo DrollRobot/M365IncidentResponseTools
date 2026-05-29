@@ -21,6 +21,8 @@ function Show-IRTMessageTrace {
     )
 
     begin {
+        $FunctionName = $MyInvocation.MyCommand.Name
+        $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
         $ParameterSet = $PSCmdlet.ParameterSetName
         $TitleDateFormat = "M/d/yy h:mmtt"
         $RawDateProperty = 'Received'
@@ -28,13 +30,9 @@ function Show-IRTMessageTrace {
 
         # import from xml
         if ($ParameterSet -eq 'Xml') {
-            if ($Script:Test) {
-                $TestText = "Importing from Xml"
-                $TimerStart = $Stopwatch.Elapsed
-            }
-
             try {
                 $ResolvedXmlPath = Resolve-ScriptPath -Path $XmlPath -File -FileExtension 'xml'
+                Write-Verbose "${FunctionName}: Import-CliXml $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
                 $Message = [System.Collections.Generic.List[PSObject]](
                     Import-CliXml -Path $ResolvedXmlPath
                 )
@@ -43,11 +41,6 @@ function Show-IRTMessageTrace {
                 $_
                 Write-IRT "Error importing from ${XmlPath}." -Level Error
                 return
-            }
-
-            if ($Script:Test) {
-                $ElapsedString = ($StopWatch.Elapsed - $TimerStart).ToString('mm\:ss')
-                Write-IRT "${TestText} took ${ElapsedString}" -Level Warn
             }
         }
 
@@ -102,12 +95,8 @@ function Show-IRTMessageTrace {
 
         #region ROW LOOP
 
-        if ($Script:Test) {
-            $TestText = "Row loop"
-            $TimerStart = $Stopwatch.Elapsed
-        }
-
         $RowCount = $Message.Count
+        Write-Verbose "${FunctionName}: Row loop starting (${RowCount} rows) $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
         $Rows = [System.Collections.Generic.List[PSCustomObject]]::new($RowCount)
         for ($i = 0; $i -lt $RowCount; $i++) {
 
@@ -135,7 +124,7 @@ function Show-IRTMessageTrace {
                 MessageId         = $m.MessageId
             })
 
-            if ($Script:Test -and ($i % 1000 -eq 0)) {
+            if ($VerbosePreference -ne 'SilentlyContinue' -and ($i % 1000 -eq 0)) {
                 $Percent = [int]( ($i / $RowCount ) * 100 )
                 $ProgressParams = @{
                     Id              = 1
@@ -147,19 +136,12 @@ function Show-IRTMessageTrace {
             }
         }
 
-        if ($Script:Test) {
+        if ($VerbosePreference -ne 'SilentlyContinue') {
             Write-Progress -Id 1 -Activity 'Row loop' -Completed
-
-            $ElapsedString = ($StopWatch.Elapsed - $TimerStart).ToString('mm\:ss')
-            Write-IRT "${TestText} took ${ElapsedString}" -Level Warn
         }
 
         #region EXPORT EXCEL
-        if ($Script:Test) {
-            $TestText = "Exporting to excel"
-            $TimerStart = $Stopwatch.Elapsed
-        }
-
+        Write-Verbose "${FunctionName}: Export-Excel $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
         $ExcelParams = @{
             Path          = $ExcelOutputPath
             WorkSheetname = $FileNamePrefix
@@ -191,11 +173,9 @@ function Show-IRTMessageTrace {
         }
         $Worksheet = $Workbook.Workbook.Worksheets[$ExcelParams.WorksheetName]
 
-        if ($IpInfo) { Add-IpInfoToSheet -Worksheet $Worksheet -ColumnName 'FromIP', 'ToIP' }
-
-        if ($Script:Test) {
-            $ElapsedString = ($StopWatch.Elapsed - $TimerStart).ToString('mm\:ss')
-            Write-IRT "${TestText} took ${ElapsedString}" -Level Warn
+        if ($IpInfo) {
+            Write-Verbose "${FunctionName}: Add-IpInfoToSheet $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
+            Add-IpInfoToSheet -Worksheet $Worksheet -ColumnName 'FromIP', 'ToIP'
         }
 
         # get table ranges

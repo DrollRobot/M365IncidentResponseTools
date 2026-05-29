@@ -187,7 +187,7 @@ function Get-AdminRole {
 
         if ( -not $Excel ) {
             foreach ( $TypeKey in $DisplayProperties.Keys ) {
-                Write-IRT "`n$($TypeLabels[$TypeKey])"
+                Write-IRT "$($TypeLabels[$TypeKey])"
                 $TypeObjects = $CustomObjects | Where-Object { $_.ObjectType -eq $TypeKey }
                 if ( $TypeObjects ) {
                     $TypeObjects |
@@ -195,15 +195,14 @@ function Get-AdminRole {
                     Out-Host
                 }
                 else {
-                    Write-IRT "None"
+                    Write-IRT "None" -NoFunctionName -NoColor
                 }
             }
         }
 
         if ( $Excel ) {
 
-            $DefaultDomain = Get-MgDomain | Where-Object { $_.IsDefault -eq $true }
-            $DomainName = $DefaultDomain.Id -split '\.' | Select-Object -First 1
+            $DomainName = Get-IRTDefaultDomain
             $ExcelOutputPath = "AdminRoles_${DomainName}_${FileDateString}.xlsx"
             $TitleDateString = Get-Date -Format 'MM/dd/yy HH:mm'
 

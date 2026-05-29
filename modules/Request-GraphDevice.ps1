@@ -19,13 +19,14 @@ function Request-GraphDevice {
     [CmdletBinding()]
     param (
         [switch] $Cached,
-        [switch] $Test,
         [boolean] $Xml = $Global:IRT_Config.ExportXml,
         [ValidateSet('objects','tablebyid','none')]
         [string] $Return = 'objects'
     )
 
     begin {
+        $FunctionName = $MyInvocation.MyCommand.Name
+        $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
 
         # variables
         $CurrentPath = Get-Location
@@ -48,10 +49,10 @@ function Request-GraphDevice {
         }
 
         # get client domain name
-        $DefaultDomain = Get-MgDomain | Where-Object {$_.IsDefault -eq $true}
-        $DomainName = $DefaultDomain.Id -split '\.' | Select-Object -First 1
+        $DomainName = Get-IRTDefaultDomain
 
         # --- Entra devices ---
+        Write-Verbose "${FunctionName}: Get-MgDevice $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
         $EntraDevices = Get-MgDevice -All -ExpandProperty 'RegisteredOwners'
 
         # --- Intune devices (optional - skipped when not licensed / no permission) ---
@@ -131,15 +132,8 @@ function Request-GraphDevice {
         if ($Xml) {
             $FileName = "Devices_Raw_${DomainName}_${FileNameDate}.xml"
             $XmlOutputPath = Join-Path -Path $CurrentPath -ChildPath $FileName
-            if ( $Test ) {
-                $ExportTime = Measure-Command {
-                    $Objects | Export-Clixml -Depth 8 -Path $XmlOutputPath
-                }
-                Write-IRT "Export-Clixml took $( $ExportTime.TotalSeconds ) seconds"
-            }
-            else {
-                $Objects | Export-Clixml -Depth 8 -Path $XmlOutputPath
-            }
+            Write-Verbose "${FunctionName}: Export-Clixml $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
+            $Objects | Export-Clixml -Depth 8 -Path $XmlOutputPath
         }
 
         # return

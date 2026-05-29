@@ -47,9 +47,6 @@ function Get-SignInLog {
     .PARAMETER Open
     Open the Excel file immediately after export. Default: $true.
 
-    .PARAMETER Test
-    Enable stopwatch timing output.
-
     .PARAMETER Xml
     Export raw XML alongside the Excel file. Defaults to IRT_Config.ExportXml.
 
@@ -98,7 +95,6 @@ function Get-SignInLog {
         [boolean] $Excel = $true,
         [boolean] $IpInfo = [bool]$Global:IRT_Config.IpInfoAvailable,
         [boolean] $Open = $true,
-        [switch] $Test,
         [boolean] $Xml = $Global:IRT_Config.ExportXml
     )
 
@@ -106,13 +102,10 @@ function Get-SignInLog {
 
         #region BEGIN
 
+        $FunctionName = $MyInvocation.MyCommand.Name
+        $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
         # constants
         $ParameterSet = $PSCmdlet.ParameterSetName
-        if ($Test -or $Script:Test) {
-            $Script:Test = $true
-            # start stopwatch
-            $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
-        }
 
         # create user objects depending on parameters used
         switch ( $ParameterSet ) {
@@ -166,8 +159,7 @@ function Get-SignInLog {
         }
 
         # get client domain name
-        $DefaultDomain = Get-MgDomain | Where-Object { $_.IsDefault -eq $true }
-        $DomainName = $DefaultDomain.Id -split '\.' | Select-Object -First 1
+        $DomainName = Get-IRTDefaultDomain
 
         #region DATE RANGE
 
@@ -259,16 +251,10 @@ function Get-SignInLog {
             else {
                 Write-IRT "Retrieving ${Days} days of sign-in logs for ${Target}."
             }
-            if ($Script:Test) {
-                Write-IRT "Filter string: '${FilterString}'" -Level Warn
-            }
+            Write-Verbose "${FunctionName}: Filter string: '${FilterString}'"
+            Write-Verbose "${FunctionName}: Get-MgAuditLogSignIn $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
 
             # query logs
-            if ($Script:Test) {
-                $TestText = "Querying sign in logs"
-                $TimerStart = $Stopwatch.Elapsed
-            }
-
             if ($Beta) { # default is to use beta, which returns more information
                 # $GetProperties = @( # FIXME going to see how much slower pulling all properties is
                 #     'AppDisplayName'
@@ -315,11 +301,6 @@ function Get-SignInLog {
                     Get-MgAuditLogSignIn @GetParams  # | Select-Object $GetProperties
             }
 
-            if ($Script:Test) {
-                $ElapsedString = ($StopWatch.Elapsed - $TimerStart).ToString('mm\:ss')
-                Write-IRT "${TestText} took ${ElapsedString}" -Level Warn
-            }
-
             if (($Logs | Measure-Object).Count -eq 0 ) {
                 Write-IRT "No logs found for ${Target} for past ${Days} days. Exiting." -Level Error
                 continue
@@ -344,22 +325,14 @@ function Get-SignInLog {
 
                 # export to xml
                 if ($Xml) {
-                    if ($Script:Test) {
-                        $TestText = "Exporting to xml"
-                        $TimerStart = $Stopwatch.Elapsed
-                    }
-
+                    Write-Verbose "${FunctionName}: Export-Clixml $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
                     Write-IRT "Saving logs to: ${XmlOutputPath}"
                     $Logs | Export-Clixml -Depth 10 -Path $XmlOutputPath
-
-                    if ($Script:Test) {
-                        $ElapsedString = ($StopWatch.Elapsed - $TimerStart).ToString('mm\:ss')
-                        Write-IRT "${TestText} took ${ElapsedString}" -Level Warn
-                    }
                 }
 
                 # export excel spreadsheet
                 if ($Excel) {
+                    Write-Verbose "${FunctionName}: Show-SignInLog $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
                     $Params = @{
                         Logs   = $Logs
                         IpInfo = $IpInfo

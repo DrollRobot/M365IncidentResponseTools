@@ -10,12 +10,12 @@ function Get-UserMailboxPermission {
         [string[]] $UserEmail,
 
         # Skip the tenant query and reuse $Global:IRTMailboxPermissionsTable from a previous run
-        [switch] $Cached,
-
-        [switch] $Test
+        [switch] $Cached
     )
 
     begin {
+        $FunctionName = $MyInvocation.MyCommand.Name
+        $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
         $ParameterSet = $PSCmdlet.ParameterSetName
 
         switch ($ParameterSet) {
@@ -40,10 +40,6 @@ function Get-UserMailboxPermission {
     }
 
     process {
-        if ($Test -or $Script:Test) {
-            $Script:Test = $true
-        }
-
         # -- Step 1: build or reuse the global permissions table --------------
         if ($Cached -and $Global:IRT_MailboxPermissionTable) {
             Write-IRT "Using cached data."
@@ -53,6 +49,7 @@ function Get-UserMailboxPermission {
                 ResultSize = 'Unlimited'
                 Properties = 'Identity', 'Name', 'PrimarySmtpAddress'
             }
+            Write-Verbose "${FunctionName}: Get-EXOMailbox $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
             $Mailboxes = Get-EXOMailbox @EXOParams
             $Total     = $Mailboxes.Count
             $Index     = 0

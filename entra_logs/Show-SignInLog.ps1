@@ -20,30 +20,21 @@ function Show-SignInLog {
         [string] $Font = $Global:IRT_Config.ExcelFont,
 
         [boolean] $IpInfo = [bool]$Global:IRT_Config.IpInfoAvailable,
-        [boolean] $Open = $true,
-        [switch] $Test
+        [boolean] $Open = $true
     )
 
     begin {
+        $FunctionName = $MyInvocation.MyCommand.Name
+        $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
         $ParameterSet = $PSCmdlet.ParameterSetName
-        if ($Test -or $Script:Test) {
-            $Script:Test = $true
-            # start stopwatch
-            $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
-        }
         $RawDateProperty = 'CreatedDateTime'
         $DateColumnHeader = 'DateTime'
 
-
         # import from xml
         if ($ParameterSet -eq 'Xml') {
-            if ($Script:Test) {
-                $TestText = "Importing from Xml"
-                $TimerStart = $Stopwatch.Elapsed
-            }
-
             try {
                 $ResolvedXmlPath = Resolve-ScriptPath -Path $XmlPath -File -FileExtension 'xml'
+                Write-Verbose "${FunctionName}: Import-CliXml $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
                 [System.Collections.Generic.List[PSObject]]$Log =
                     Import-CliXml -Path $ResolvedXmlPath
             }
@@ -55,11 +46,6 @@ function Show-SignInLog {
                     ErrorAction = 'Stop'
                 }
                 Write-Error @ErrorParams
-            }
-
-            if ($Script:Test) {
-                $ElapsedString = ($StopWatch.Elapsed - $TimerStart).ToString('mm\:ss')
-                Write-IRT "${TestText} took ${ElapsedString}" -Level Warn
             }
         }
 
@@ -85,12 +71,8 @@ function Show-SignInLog {
 
         #region ROW LOOP
 
-        if ($Script:Test) {
-            $TestText = "Row loop"
-            $TimerStart = $Stopwatch.Elapsed
-        }
-
         $RowCount = ($Log | Measure-Object).Count
+        Write-Verbose "${FunctionName}: Row loop starting (${RowCount} rows) $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
         $Rows = [System.Collections.Generic.List[PSCustomObject]]::new($RowCount)
         for ($i = 0; $i -lt $RowCount; $i++) {
 
@@ -138,7 +120,7 @@ function Show-SignInLog {
                 Token = $LogEntry.UniqueTokenIdentifier
             })
 
-            if ($Script:Test -and ($i % 100 -eq 0)) {
+            if ($VerbosePreference -ne 'SilentlyContinue' -and ($i % 100 -eq 0)) {
                 $Percent = [int]( ($i / $RowCount ) * 100 )
                 $ProgressParams = @{
                     Id              = 1
@@ -150,19 +132,12 @@ function Show-SignInLog {
             }
         }
 
-        if ($Script:Test) {
+        if ($VerbosePreference -ne 'SilentlyContinue') {
             Write-Progress -Id 1 -Activity 'Row loop' -Completed
-
-            $ElapsedString = ($StopWatch.Elapsed - $TimerStart).ToString('mm\:ss')
-            Write-IRT "${TestText} took ${ElapsedString}" -Level Warn
         }
 
         #region EXPORT SPREADSHEET
-        if ($Script:Test) {
-            $TestText = "Exporting to excel"
-            $TimerStart = $Stopwatch.Elapsed
-        }
-
+        Write-Verbose "${FunctionName}: Export-Excel $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
         $ExcelParams = @{
             Path          = $ExcelOutputPath
             WorkSheetname = $Metadata.FileNamePrefix
@@ -188,11 +163,9 @@ function Show-SignInLog {
         }
         $Worksheet = $Workbook.Workbook.Worksheets[$ExcelParams.WorksheetName]
 
-        if ($IpInfo) { Add-IpInfoToSheet -Worksheet $Worksheet -ColumnName 'IpAddress' }
-
-        if ($Script:Test) {
-            $ElapsedString = ($StopWatch.Elapsed - $TimerStart).ToString('mm\:ss')
-            Write-IRT "${TestText} took ${ElapsedString}" -Level Warn
+        if ($IpInfo) {
+            Write-Verbose "${FunctionName}: Add-IpInfoToSheet $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
+            Add-IpInfoToSheet -Worksheet $Worksheet -ColumnName 'IpAddress'
         }
 
         # get table ranges

@@ -117,8 +117,7 @@ function Show-TenantServicePrincipal {
         }
         else {
 
-            $DefaultDomain   = Get-MgDomain | Where-Object { $_.IsDefault -eq $true }
-            $DomainName      = $DefaultDomain.Id -split '\.' | Select-Object -First 1
+            $DomainName      = Get-IRTDefaultDomain
             $FileNameDateFormat = 'yy-MM-dd_HH-mm'
             $FileDateString  = Get-Date -Format $FileNameDateFormat
             $ExcelOutputPath = "ServicePrincipals_${DomainName}_${FileDateString}.xlsx"

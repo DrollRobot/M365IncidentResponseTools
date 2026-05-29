@@ -74,6 +74,8 @@ function Get-EntraAuditLog {
     )
 
     begin {
+        $FunctionName = $MyInvocation.MyCommand.Name
+        $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
         $FilterStrings = [System.Collections.Generic.List[string]]::new()
         $FileNameDateFormat = "yy-MM-dd_HH-mm"
         $FileNameDateString = Get-Date -Format $FileNameDateFormat
@@ -120,8 +122,7 @@ function Get-EntraAuditLog {
         }
 
         # get client domain name
-        $DefaultDomain = Get-MgDomain | Where-Object {$_.IsDefault -eq $true}
-        $DomainName = $DefaultDomain.Id -split '\.' | Select-Object -First 1
+        $DomainName = Get-IRTDefaultDomain
     }
 
     process {
@@ -155,9 +156,8 @@ function Get-EntraAuditLog {
             ### get logs
             # user messages
             Write-IRT "Retrieving ${Days} days of Entra audit logs for ${UserEmail}."
-            if ($Script:Test) {
-                Write-IRT "Filter string: ${FilterString}" -Level Warn
-            }
+            Write-Verbose "${FunctionName}: Filter string: ${FilterString}"
+            Write-Verbose "${FunctionName}: Get-MgAuditLogDirectoryAudit $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
 
             # query logs
             $GetParams = @{
@@ -200,6 +200,7 @@ function Get-EntraAuditLog {
 
             # export to xml
             if ($Xml) {
+                Write-Verbose "${FunctionName}: Export-Clixml $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
                 Write-IRT "Saving logs to: ${XmlOutputPath}"
                 $Logs | Export-Clixml -Depth 10 -Path $XmlOutputPath
             }
@@ -209,6 +210,7 @@ function Get-EntraAuditLog {
                 Open   = $Open
                 Cached = $Cached
             }
+            Write-Verbose "${FunctionName}: Show-EntraAuditLog $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
             Show-EntraAuditLog @ShowParams
         }
     }

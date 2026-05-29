@@ -82,8 +82,7 @@ function Get-UserServicePrincipal {
         }
 
         # get client domain name for file output
-        $DefaultDomain = Get-MgDomain | Where-Object { $_.IsDefault -eq $true }
-        $DomainName = $DefaultDomain.Id -split '\.' | Select-Object -First 1
+        $DomainName = Get-IRTDefaultDomain
 
         # prefetch graph data once
         $Grants = Request-GraphOauth2Grant -Cached:$Cached

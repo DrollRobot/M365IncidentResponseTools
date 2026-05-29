@@ -109,7 +109,8 @@ function Build-UserLoginOperationsSheet {
     )
 
     begin {
-        # $Function = $MyInvocation.MyCommand.Name
+        $FunctionName = $MyInvocation.MyCommand.Name
+        $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
         $RawDateProperty = 'CreationDate'
         $DateColumnHeader = 'DateTime'
     }
@@ -118,6 +119,7 @@ function Build-UserLoginOperationsSheet {
 
         #region ROW LOOP
         $RowCount = ($Logs | Measure-Object).Count
+        Write-Verbose "${FunctionName}: Row loop starting (${RowCount} rows) $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
         $Rows = [System.Collections.Generic.List[PSCustomObject]]::new($RowCount)
 
         for ($i = 0; $i -lt $RowCount; $i++) {
@@ -170,7 +172,6 @@ function Build-UserLoginOperationsSheet {
             $Application = $null
             $TargetId = $Log.AuditData.Target.ID
             if ($TargetId) {
-                Request-GraphServicePrincipal -Return 'none' -Cached:$Cached
                 $Application = $Global:IRT_ServicePrincipalsByAppId["$TargetId"].DisplayName
             }
             if (-not $Application) { $Application = $TargetId }
@@ -224,6 +225,7 @@ function Build-UserLoginOperationsSheet {
         }
 
         #region EXPORT
+        Write-Verbose "${FunctionName}: Export-Excel $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
         $ExcelParams = @{
             ExcelPackage  = $ExcelPackage
             WorkSheetname = $WorksheetName
@@ -236,6 +238,7 @@ function Build-UserLoginOperationsSheet {
         $Worksheet = $Workbook.Workbook.Worksheets[$WorksheetName]
 
         #region FORMATTING
+        Write-Verbose "${FunctionName}: Formatting $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
         if ($Worksheet.Tables.Count -gt 0) {
 
             $SheetStartColumn = $Worksheet.Dimension.Start.Column | Convert-DecimalToExcelColumn
@@ -247,6 +250,7 @@ function Build-UserLoginOperationsSheet {
             $TableStartRow    = $TableAddress.Start.Row
 
             # IP address conditional formatting
+            Write-Verbose "${FunctionName}: Add-IpAddressConditionalFormatting $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
             Add-IpAddressConditionalFormatting -Worksheet $Worksheet -ColumnName 'IpAddress'
 
             # Application conditional formatting - highlight PowerShell/CLI tools

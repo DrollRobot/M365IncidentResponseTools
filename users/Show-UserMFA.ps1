@@ -85,8 +85,7 @@ function Show-UserMFA {
         }
 
         # get client domain name for file output
-        $DefaultDomain = Get-MgDomain | Where-Object { $_.IsDefault -eq $true }
-        $DomainName = $DefaultDomain.Id -split '\.' | Select-Object -First 1
+        $DomainName = Get-IRTDefaultDomain
 
         # get date/time string for filename
         $DateString = Get-Date -Format $FileNameDateFormat

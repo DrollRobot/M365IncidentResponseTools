@@ -16,13 +16,14 @@ function Request-GraphUser {
     [CmdletBinding()]
     param (
         [switch] $Cached,
-        [switch] $Test,
         [boolean] $Xml = $Global:IRT_Config.ExportXml,
         [ValidateSet('objects','tablebyid','none')]
         [string] $Return = 'objects'
     )
 
     begin {
+        $FunctionName = $MyInvocation.MyCommand.Name
+        $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
 
         # variables
         $CurrentPath = Get-Location
@@ -56,10 +57,10 @@ function Request-GraphUser {
         }
 
         # get client domain name
-        $DefaultDomain = Get-MgDomain | Where-Object { $_.IsDefault -eq $true }
-        $DomainName = $DefaultDomain.Id -split '\.' | Select-Object -First 1
+        $DomainName = Get-IRTDefaultDomain
 
         # query graph
+        Write-Verbose "${FunctionName}: Get-MgUser $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
         $Objects = Get-MgUser -All -Property $GetProperties | Select-Object $GetProperties
 
         # store in global variables
@@ -73,15 +74,8 @@ function Request-GraphUser {
         if ($Xml) {
             $FileName = "Users_Raw_${DomainName}_${FileNameDate}.xml"
             $XmlOutputPath = Join-Path -Path $CurrentPath -ChildPath $FileName
-            if ( $Test ) {
-                $ExportTime = Measure-Command {
-                    $Objects | Export-Clixml -Depth 5 -Path $XmlOutputPath
-                }
-                Write-IRT "Export-Clixml took $( $ExportTime.TotalSeconds ) seconds"
-            }
-            else {
-                $Objects | Export-Clixml -Depth 5 -Path $XmlOutputPath
-            }
+            Write-Verbose "${FunctionName}: Export-Clixml $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
+            $Objects | Export-Clixml -Depth 5 -Path $XmlOutputPath
         }
 
         # return

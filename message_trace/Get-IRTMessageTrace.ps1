@@ -44,9 +44,6 @@ function Get-IRTMessageTrace {
     .PARAMETER Quiet
     Suppress progress output.
 
-    .PARAMETER Test
-    Enable stopwatch timing output.
-
     .PARAMETER Xml
     Export raw XML alongside the Excel file. Defaults to IRT_Config.ExportXml.
 
@@ -100,13 +97,14 @@ function Get-IRTMessageTrace {
         [boolean] $Variable = $true,
         [boolean] $Excel = $true,
         [switch] $Quiet,
-        [switch] $Test,
         [boolean] $Xml = $Global:IRT_Config.ExportXml,
         [string] $TableStyle = $Global:IRT_Config.ExcelTableStyle,
         [string] $Font = $Global:IRT_Config.ExcelFont
     )
 
     begin {
+        $FunctionName = $MyInvocation.MyCommand.Name
+        $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
         $ParameterSet = $PSCmdlet.ParameterSetName
         $RawDateProperty = 'Received'
         $FileNamePrefix = 'MessageTrace'
@@ -225,6 +223,7 @@ function Get-IRTMessageTrace {
         }
 
         # get client domain name for file output
+        Write-Verbose "${FunctionName}: Get-AcceptedDomain $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
         $DefaultDomain = Get-AcceptedDomain | Where-Object { $_.Default -eq $true }
         $DomainName = $DefaultDomain.DomainName -split '\.' | Select-Object -First 1
     }
@@ -445,13 +444,12 @@ function Get-IRTMessageTrace {
                     if ($AllUsers) { $Global:IRT_WaitFlags.MessageTraceAllUsersDone = $true }
                     else           { $Global:IRT_WaitFlags.MessageTraceUserDone = $true }
                 }
-                if ($Test) {
-                    Write-IRT "Table key count: $($Table.Count)"
-                }
+                Write-Verbose "${FunctionName}: Table key count: $($Table.Count)"
             }
 
             # export raw data
             if ($Xml) {
+                Write-Verbose "${FunctionName}: Export-CliXml $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
                 Write-IRT "Exporting raw data to: ${XmlOutputPath}"
                 $AllMessages | Export-CliXml -Depth 10 -Path $XmlOutputPath
             }
@@ -463,6 +461,7 @@ function Get-IRTMessageTrace {
 
             # create excel sheet
             if ($Excel) {
+                Write-Verbose "${FunctionName}: Show-IRTMessageTrace $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
                 $Params = @{
                     Messages   = $AllMessages
                     TableStyle = $TableStyle

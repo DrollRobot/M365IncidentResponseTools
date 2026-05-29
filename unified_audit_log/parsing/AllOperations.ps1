@@ -33,43 +33,36 @@ function Build-AllOperationSheet {
     )
 
     begin {
+        $FunctionName = $MyInvocation.MyCommand.Name
+        $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
         $RawDateProperty = 'CreationDate'
         $DateColumnHeader = 'DateTime'
 
-        if ($Script:Test) {
-            $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
-
-            $OperationsFromSheet = [System.Collections.Generic.HashSet[string]]::new()
-            if ($OperationSheetData) {
-                foreach ($Row in $OperationSheetData) {
-                    $Op = "$($Row.Workload)|$($Row.RecordType)|$($Row.Operation)"
-                    [void]$OperationsFromSheet.Add($Op)
-                }
+        $OperationsFromSheet = [System.Collections.Generic.HashSet[string]]::new()
+        if ($OperationSheetData) {
+            foreach ($Row in $OperationSheetData) {
+                $Op = "$($Row.Workload)|$($Row.RecordType)|$($Row.Operation)"
+                [void]$OperationsFromSheet.Add($Op)
             }
-            $OperationsFromLog = [System.Collections.Generic.HashSet[string]]::new()
         }
+        $OperationsFromLog = [System.Collections.Generic.HashSet[string]]::new()
     }
 
     process {
 
         #region ROW LOOP
-        if ($Script:Test) {
-            $TestText = "Row loop"
-            $TimerStart = $Stopwatch.Elapsed
-        }
 
         $RowCount = ($Log | Measure-Object).Count
+        Write-Verbose "${FunctionName}: Row loop starting (${RowCount} rows) $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
         $Rows = [System.Collections.Generic.List[PSCustomObject]]::new()
         for ($i = 0; $i -lt $RowCount; $i++) {
 
             $LogEntry = $Log[$i]
 
             # save operations to create complete list
-            if ($Script:Test) {
-                $OpKey = "$($LogEntry.AuditData.Workload)|" +
-                    "$($LogEntry.AuditData.RecordType)|$($LogEntry.AuditData.Operation)"
-                [void]$OperationsFromLog.Add($OpKey)
-            }
+            $OpKey = "$($LogEntry.AuditData.Workload)|" +
+                "$($LogEntry.AuditData.RecordType)|$($LogEntry.AuditData.Operation)"
+            [void]$OperationsFromLog.Add($OpKey)
 
             # Raw
             $Raw = $LogEntry | ConvertTo-Json -Depth 10
@@ -233,7 +226,7 @@ function Build-AllOperationSheet {
                 Summary = $EventObject.Summary
             })
 
-            if ($Script:Test -and ($i % 100 -eq 0)) {
+            if ($VerbosePreference -ne 'SilentlyContinue' -and ($i % 100 -eq 0)) {
                 $Percent = [int]( ($i / $RowCount ) * 100 )
                 $ProgressParams = @{
                     Id              = 1
@@ -245,18 +238,12 @@ function Build-AllOperationSheet {
             }
         }
 
-        if ($Script:Test) {
+        if ($VerbosePreference -ne 'SilentlyContinue') {
             Write-Progress -Id 1 -Activity 'Row loop' -Completed
-            $ElapsedString = ($StopWatch.Elapsed - $TimerStart).ToString('mm\:ss')
-            Write-IRT "${TestText} took ${ElapsedString}" -Level Warn
         }
 
         #region EXPORT
-        if ($Script:Test) {
-            $TestText = "Exporting to excel"
-            $TimerStart = $Stopwatch.Elapsed
-        }
-
+        Write-Verbose "${FunctionName}: Export-Excel $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
         $ExcelParams = @{
             ExcelPackage  = $ExcelPackage
             WorkSheetname = $WorksheetName
@@ -267,11 +254,6 @@ function Build-AllOperationSheet {
         }
         $Workbook = $Rows | Export-Excel @ExcelParams
         $Worksheet = $Workbook.Workbook.Worksheets[$WorksheetName]
-
-        if ($Script:Test) {
-            $ElapsedString = ($StopWatch.Elapsed - $TimerStart).ToString('mm\:ss')
-            Write-IRT "${TestText} took ${ElapsedString}" -Level Warn
-        }
 
         #region FORMATTING
         if ($Worksheet.Tables.Count -gt 0) {
@@ -375,33 +357,31 @@ function Build-AllOperationSheet {
         } # end if Tables.Count
 
         #region MISSING OPERATIONS
-        if ($Script:Test) {
-            $AllOperationsFileName = 'unified_audit_log-all_operations.xlsx'
-            $OperationsToAdd = [System.Collections.Generic.HashSet[PSCustomObject]]::new()
-            foreach ($o in $OperationsFromLog) {
-                if ($OperationsFromSheet.Add($o)) {
-                    $Split = $o.Split('|')
-                    [void]$OperationsToAdd.Add(
-                        [PSCustomObject]@{
-                            Workload   = $Split[0]
-                            RecordType = $Split[1]
-                            Operation  = $Split[2]
-                        }
-                    )
-                }
+        $AllOperationsFileName = 'unified_audit_log-all_operations.xlsx'
+        $OperationsToAdd = [System.Collections.Generic.HashSet[PSCustomObject]]::new()
+        foreach ($o in $OperationsFromLog) {
+            if ($OperationsFromSheet.Add($o)) {
+                $Split = $o.Split('|')
+                [void]$OperationsToAdd.Add(
+                    [PSCustomObject]@{
+                        Workload   = $Split[0]
+                        RecordType = $Split[1]
+                        Operation  = $Split[2]
+                    }
+                )
             }
-            if (($OperationsToAdd | Measure-Object).Count -gt 0) {
-                $OperationsSheetPath = $Global:IRT_Config.AllOperationsSheetPath
-                Write-IRT "Add to ${AllOperationsFileName}:" -Level Warn
-                $OperationsToAdd | Format-Table | Out-Host
-                Write-IRT "Appending to: ${OperationsSheetPath}" -Level Warn
-                $ExportParams = @{
-                    Path          = $OperationsSheetPath
-                    WorksheetName = 'Operations'
-                    Append        = $true
-                }
-                $OperationsToAdd | Export-Excel @ExportParams
+        }
+        if (($OperationsToAdd | Measure-Object).Count -gt 0) {
+            $OperationsSheetPath = $Global:IRT_Config.AllOperationsSheetPath
+            Write-IRT "Add to ${AllOperationsFileName}:" -Level Warn
+            $OperationsToAdd | Format-Table | Out-Host
+            Write-IRT "Appending to: ${OperationsSheetPath}" -Level Warn
+            $ExportParams = @{
+                Path          = $OperationsSheetPath
+                WorksheetName = 'Operations'
+                Append        = $true
             }
+            $OperationsToAdd | Export-Excel @ExportParams
         }
 
         return $Workbook

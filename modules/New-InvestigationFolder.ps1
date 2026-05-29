@@ -49,18 +49,12 @@ function New-InvestigationFolder {
 		$FileNameStrings = [System.Collections.Generic.List[string]]::new()
 
 		# get client domain
-		$Params = @{
-			ErrorAction = 'Stop'
-		}
 		try {
-			$DefaultDomain = Get-MgDomain @Params | Where-Object { $_.IsDefault -eq $true }
+			$DomainName = Get-IRTDefaultDomain
 		}
 		catch {}
 
-		if ( $DefaultDomain ) {
-			$DomainName = $DefaultDomain.Id -split '\.' | Select-Object -First 1
-		}
-		else {
+		if ( -not $DomainName ) {
 			$DomainName = Read-Host "Enter client name"
 		}
 

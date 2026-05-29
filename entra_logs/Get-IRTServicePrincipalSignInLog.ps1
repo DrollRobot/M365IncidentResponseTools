@@ -88,7 +88,6 @@ function Get-IRTServicePrincipalSignInLog {
         [boolean] $Excel   = $true,
         [boolean] $IpInfo = [bool]$Global:IRT_Config.IpInfoAvailable,
         [boolean] $Open    = $true,
-        [switch]  $Test,
         [boolean] $Xml     = $Global:IRT_Config.ExportXml
     )
 
@@ -96,11 +95,9 @@ function Get-IRTServicePrincipalSignInLog {
 
         #region BEGIN
 
+        $FunctionName = $MyInvocation.MyCommand.Name
+        $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
         $ParameterSet = $PSCmdlet.ParameterSetName
-        if ($Test -or $Script:Test) {
-            $Script:Test = $true
-            $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
-        }
 
         # resolve service principal objects
         switch ($ParameterSet) {
@@ -129,8 +126,7 @@ function Get-IRTServicePrincipalSignInLog {
         }
 
         # get client domain name
-        $DefaultDomain = Get-MgDomain | Where-Object { $_.IsDefault -eq $true }
-        $DomainName = $DefaultDomain.Id -split '\.' | Select-Object -First 1
+        $DomainName = Get-IRTDefaultDomain
 
         #region DATE RANGE
 
@@ -202,14 +198,8 @@ function Get-IRTServicePrincipalSignInLog {
             #region QUERY LOGS
 
             Write-IRT "Retrieving ${Days} days of service principal sign-in logs for ${Target}."
-            if ($Script:Test) {
-                Write-IRT "Filter string: '${FilterString}'" -Level Warn
-            }
-
-            if ($Script:Test) {
-                $TestText   = 'Querying service principal sign-in logs'
-                $TimerStart = $Stopwatch.Elapsed
-            }
+            Write-Verbose "${FunctionName}: Filter string: '${FilterString}'"
+            Write-Verbose "${FunctionName}: Get-MgAuditLogSignIn $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
 
             if ($Beta) {
                 $GetParams = @{
@@ -225,11 +215,6 @@ function Get-IRTServicePrincipalSignInLog {
                     All    = $true
                 }
                 [System.Collections.Generic.List[PSObject]]$Logs = Get-MgAuditLogSignIn @GetParams
-            }
-
-            if ($Script:Test) {
-                $ElapsedString = ($StopWatch.Elapsed - $TimerStart).ToString('mm\:ss')
-                Write-IRT "${TestText} took ${ElapsedString}" -Level Warn
             }
 
             if (($Logs | Measure-Object).Count -eq 0) {
@@ -255,22 +240,14 @@ function Get-IRTServicePrincipalSignInLog {
 
                 # export to xml
                 if ($Xml) {
-                    if ($Script:Test) {
-                        $TestText   = 'Exporting to xml'
-                        $TimerStart = $Stopwatch.Elapsed
-                    }
-
+                    Write-Verbose "${FunctionName}: Export-Clixml $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
                     Write-IRT "Saving logs to: ${XmlOutputPath}"
                     $Logs | Export-Clixml -Depth 10 -Path $XmlOutputPath
-
-                    if ($Script:Test) {
-                        $ElapsedString = ($StopWatch.Elapsed - $TimerStart).ToString('mm\:ss')
-                        Write-IRT "${TestText} took ${ElapsedString}" -Level Warn
-                    }
                 }
 
                 # export excel spreadsheet
                 if ($Excel) {
+                    Write-Verbose "${FunctionName}: Show-IRTServicePrincipalSignInLog $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
                     $Params = @{
                         Logs   = $Logs
                         IpInfo = $IpInfo

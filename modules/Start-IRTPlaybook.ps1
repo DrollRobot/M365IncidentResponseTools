@@ -31,9 +31,6 @@ function Start-IRTPlaybook {
     Maximum number of parallel runspaces. Default: 15. Reduce if the host machine has
     limited memory or Graph throttling is a concern.
 
-    .PARAMETER Test
-    Enables stopwatch timing output. Useful for benchmarking playbook run duration.
-
     .EXAMPLE
     Find-GraphUser 'jsmith@contoso.com'
     Start-IRTPlaybook
@@ -65,8 +62,7 @@ function Start-IRTPlaybook {
 
         [string] $Ticket,
         [switch] $NoFolder,
-        [int] $MaxRunspaces = 15,
-        [switch] $Test
+        [int] $MaxRunspaces = 15
     )
 
     begin {
@@ -74,11 +70,8 @@ function Start-IRTPlaybook {
         #region BEGIN
 
 
-        if ($Test -or $Script:Test) {
-            $Script:Test = $true
-            # start stopwatch
-            $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
-        }
+        $FunctionName = $MyInvocation.MyCommand.Name
+        $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
 
         # if users passed via script argument:
         if (($UserObject | Measure-Object).Count -gt 0) {
@@ -123,6 +116,7 @@ function Start-IRTPlaybook {
         if (-not $NoFolder) {
 
             # make directory
+            Write-Verbose "${FunctionName}: New-InvestigationFolder $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
             $DirParams = @{
                 UserObject = $ScriptUserObjects
             }
@@ -145,11 +139,17 @@ function Start-IRTPlaybook {
         })
 
         # pre-populate caches in main thread
+        Write-Verbose "${FunctionName}: Request-DirectoryRole $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
         Request-DirectoryRole -Return 'none'
+        Write-Verbose "${FunctionName}: Request-DirectoryRoleTemplate $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
         Request-DirectoryRoleTemplate -Return 'none'
+        Write-Verbose "${FunctionName}: Request-GraphGroup $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
         Request-GraphGroup -Return 'none'
+        Write-Verbose "${FunctionName}: Request-GraphOauth2Grant $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
         Request-GraphOauth2Grant -Return 'none'
+        Write-Verbose "${FunctionName}: Request-GraphUser $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
         Request-GraphUser -Return 'none'
+        Write-Verbose "${FunctionName}: Request-GraphServicePrincipal $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
         Request-GraphServicePrincipal -Return 'none'
 
         # pack references for injection into child runspace globals
@@ -581,15 +581,14 @@ function Start-IRTPlaybook {
                             $Job.PowerShell.EndInvoke( $Job.Handle )
 
                             # output errors, if any
-                            if ( $Job.PowerShell.Streams.Error.Count -gt 0 ) {
-                                Write-IRT "$($Job.Name) Errors:" -Level Error
-                                $Job.PowerShell.Streams.Error | ForEach-Object {
-                                    Write-Error $_
-                                }
+                            foreach ($RunspaceError in $Job.PowerShell.Streams.Error) {
+                                Write-IRT "$($Job.Name) error:" -Level Error
+                                Write-Error -ErrorRecord $RunspaceError
                             }
                         }
                         catch {
-                            Write-Warning "$($Job.Name) error: $_"
+                            Write-IRT "$($Job.Name): exception during EndInvoke" -Level Error
+                            Write-Error -ErrorRecord $_
                         }
                         finally {
                             $Job.PowerShell.Dispose()
@@ -632,9 +631,7 @@ function Start-IRTPlaybook {
             $Global:IRT_Playbook_RunspacePool = $null
         }
 
-        if ($Stopwatch) {
-            $Stopwatch.Stop()
-            Write-IRT "Playbook complete. Elapsed time: $($Stopwatch.Elapsed.ToString())"
-        }
+        $Stopwatch.Stop()
+        Write-Verbose "${FunctionName}: Playbook complete. Total elapsed: $($Stopwatch.Elapsed.ToString())"
     }
 }

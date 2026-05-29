@@ -23,27 +23,19 @@ function Show-UALog {
         [boolean] $Open = $true,
         [boolean] $WaitOnMessageTrace = $false,
         [int] $MaxWaitMinutes = 15,
-        [switch] $Test,
         [switch] $Cached
     )
 
     begin {
+        $FunctionName = $MyInvocation.MyCommand.Name
+        $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
         $ParameterSet = $PSCmdlet.ParameterSetName
-        if ($Test -or $Script:Test) {
-            $Script:Test = $true
-            # start stopwatch
-            $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
-        }
 
         # import from xml
         if ($ParameterSet -eq 'Xml') {
-            if ($Script:Test) {
-                $TestText = "Importing from Xml"
-                $TimerStart = $Stopwatch.Elapsed
-            }
-
             try {
                 $ResolvedXmlPath = Resolve-ScriptPath -Path $XmlPath -File -FileExtension 'xml'
+                Write-Verbose "${FunctionName}: Import-CliXml $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
                 $RawLog = Import-CliXml -Path $ResolvedXmlPath
                 [System.Collections.Generic.List[PSObject]] $Log = $RawLog
             }
@@ -51,11 +43,6 @@ function Show-UALog {
                 $_
                 Write-IRT "Error importing from ${XmlPath}." -Level Error
                 return
-            }
-
-            if ($Script:Test) {
-                $ElapsedString = ($StopWatch.Elapsed - $TimerStart).ToString('mm\:ss')
-                Write-IRT "${TestText} took ${ElapsedString}" -Level Warn
             }
         }
 
@@ -110,6 +97,7 @@ function Show-UALog {
             $WaitStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
 
             # wait for both user and AllUsers message traces to complete via WaitFlags
+            Write-Verbose "${FunctionName}: Waiting on message trace $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
             if ($Global:IRT_WaitFlags) {
                 while (-not ($Global:IRT_WaitFlags.MessageTraceUserDone -and
                     $Global:IRT_WaitFlags.MessageTraceAllUsersDone)) {
@@ -117,26 +105,13 @@ function Show-UALog {
                         $Msg = "Timed out after ${MaxWaitMinutes} minutes waiting on " +
                             "message trace. Continuing without subjects."
                         Write-IRT $Msg -Level Error
-                        if ($Script:Test) {
-                            $UserDone = $Global:IRT_WaitFlags.MessageTraceUserDone
-                            $AllDone  = $Global:IRT_WaitFlags.MessageTraceAllUsersDone
-                            $Msg = "WaitFlags.MessageTraceUserDone = ${UserDone}, " +
-                                "WaitFlags.MessageTraceAllUsersDone = ${AllDone}"
-                            Write-IRT $Msg -Level Warn
-                        }
                         break
                     }
-                    if ($Script:Test) {
-                        $Elapsed  = $WaitStopwatch.Elapsed.ToString('mm\:ss')
-                        $UserDone = $Global:IRT_WaitFlags.MessageTraceUserDone
-                        $AllDone  = $Global:IRT_WaitFlags.MessageTraceAllUsersDone
-                        $Msg = "Waiting on message trace (${Elapsed} elapsed). " +
-                            "UserDone=${UserDone}, AllUsersDone=${AllDone}"
-                        Write-IRT $Msg -Level Warn
-                    }
-                    else {
-                        Write-IRT "Waiting on message trace..." -Level Warn
-                    }
+                    $WaitElapsed  = $WaitStopwatch.Elapsed.ToString('mm\:ss')
+                    $UserDone = $Global:IRT_WaitFlags.MessageTraceUserDone
+                    $AllDone  = $Global:IRT_WaitFlags.MessageTraceAllUsersDone
+                    Write-IRT "Waiting on message trace..." -Level Warn
+                    Write-Verbose "${FunctionName}: MessageTrace wait ${WaitElapsed} elapsed. UserDone=${UserDone}, AllUsersDone=${AllDone}"
                     Start-Sleep -Seconds $WaitInterval
                 }
             }
@@ -146,21 +121,6 @@ function Show-UALog {
         if ($Global:IRT_MessageTraceTable -is [hashtable] -and
             $Global:IRT_MessageTraceTable.Count -gt 0) {
             $MessageTraceTable = $Global:IRT_MessageTraceTable
-            if ($Script:Test) {
-                $Msg = "Using `$Global:IRT_MessageTraceTable ($($MessageTraceTable.Count) entries)"
-                Write-IRT $Msg -Level Warn
-            }
-        }
-
-        if ($Script:Test) {
-            if ($MessageTraceTable) {
-                $Msg = "MessageTraceTable resolved with $($MessageTraceTable.Count) entries"
-                Write-IRT $Msg -Level Warn
-            }
-            else {
-                $Msg = "No MessageTraceTable available - subjects will not be resolved"
-                Write-IRT $Msg -Level Warn
-            }
         }
 
         #region AUTO-DETECT SHEETS
@@ -195,6 +155,8 @@ function Show-UALog {
         }
 
         #region build workbook
+        Write-Verbose "${FunctionName}: Request-GraphServicePrincipal $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
+        Request-GraphServicePrincipal -Return 'none' -Cached:$Cached
         $Workbook = Open-ExcelPackage -Path $ExcelOutputPath -Create
 
         foreach ($SheetEntry in $MatchedSheets) {
@@ -231,6 +193,7 @@ function Show-UALog {
                         $SheetParams['OperationsSheetData'] = $OperationsSheetData
                     }
                 }
+                Write-Verbose "${FunctionName}: $($SheetEntry.BuildFunction) $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
                 $Workbook = & $SheetEntry.BuildFunction @SheetParams
             }
         }
@@ -238,6 +201,7 @@ function Show-UALog {
         # enrich IP addresses with ip_info data
         if ($IpInfo) {
             foreach ($ws in $Workbook.Workbook.Worksheets) {
+                Write-Verbose "${FunctionName}: Add-IpInfoToSheet ($($ws.Name)) $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
                 Add-IpInfoToSheet -Worksheet $ws -ColumnName 'IpAddress'
             }
         }

@@ -110,19 +110,15 @@ function Get-UALog {
         [string[]] $FreeText,
 
         [boolean] $Excel = $true,
-        [switch] $Test,
         [boolean] $WaitOnMessageTrace = $false,
         [boolean] $Xml = $Global:IRT_Config.ExportXml,
         [switch] $Cached
     )
 
     begin {
+        $FunctionName = $MyInvocation.MyCommand.Name
+        $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
         $ParameterSet = $PSCmdlet.ParameterSetName
-        if ($Test -or $Script:Test) {
-            $Script:Test = $true
-            # start stopwatch
-            $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
-        }
 
         # query profiles - add new entries here to support additional modes
         $ProfileTable = [ordered]@{
@@ -202,6 +198,7 @@ function Get-UALog {
         }
 
         # get client domain name for file output
+        Write-Verbose "${FunctionName}: Get-AcceptedDomain $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
         $DefaultDomain = Get-AcceptedDomain | Where-Object { $_.Default -eq $true }
         $DomainName = $DefaultDomain.DomainName -split '\.' | Select-Object -First 1
 
@@ -419,11 +416,6 @@ function Get-UALog {
 
 
             #region RUN QUERIES
-            if ($Script:Test) {
-                $TestText = "Running queries"
-                $TimerStart = $Stopwatch.Elapsed
-            }
-
             foreach ( $QueryDict in $QueryTable.GetEnumerator() ) {
 
                 # build final params
@@ -437,6 +429,7 @@ function Get-UALog {
 
                 # run query
                 Write-IRT $ConsoleOutput
+                Write-Verbose "${FunctionName}: Search-UnifiedAuditLog query $($QueryDict.Key) $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
                 $Page = Search-UnifiedAuditLog @FirstPageParams
                 $LogCount = ($Page | Measure-Object).Count
 
@@ -461,6 +454,7 @@ function Get-UALog {
                 while ($LogCount -eq 5000) {
 
                     Write-IRT "Requesting page ${PageCount}."
+                    Write-Verbose "${FunctionName}: Search-UnifiedAuditLog page ${PageCount} $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
                     $Page = Search-UnifiedAuditLog @NextPageParams
                     $LogCount = @($Page).Count
 
@@ -482,11 +476,6 @@ function Get-UALog {
                 }
             }
 
-            if ($Script:Test) {
-                $ElapsedString = ($StopWatch.Elapsed - $TimerStart).ToString('mm\:ss')
-                Write-IRT "${TestText} took ${ElapsedString}" -Level Warn | Out-Host
-            }
-
             # exit if no logs returned
             if (($AllLogs | Measure-Object).Count -eq 0) {
                 Write-IRT "0 total logs retrieved." -Level Warn
@@ -494,13 +483,7 @@ function Get-UALog {
             }
 
             #region UNIQUE, SORT
-            if ($Script:Test) {
-                $TestText = "Removing duplicates and sorting"
-                $TimerStart = $Stopwatch.Elapsed
-                $Msg = "${TestText} started at $(Get-Date -Format 'hh:mm:sstt')"
-                Write-IRT $Msg -Level Warn | Out-Host
-            }
-
+            Write-Verbose "${FunctionName}: Dedupliacation, sorting $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
             # remove duplicates
             $UniqueLogIds = [System.Collections.Generic.HashSet[string]]::new()
             $Logs = [System.Collections.Generic.List[psobject]]::new()
@@ -522,19 +505,15 @@ function Get-UALog {
             }
             $Logs.Sort($Comparison)
 
-            if ($Script:Test) {
-                $ElapsedString = ($StopWatch.Elapsed - $TimerStart).ToString('mm\:ss')
-                Write-IRT "${TestText} took ${ElapsedString}" -Level Warn | Out-Host
-            }
-
             #region OUTPUT
 
             # count actual logs before adding metadata
-            if (($Logs | Measure-Object).Count -gt 0) {
-                Write-IRT "Retrieved ${LogCount} logs."
+            $TotalLogCount = ($Logs | Measure-Object).Count
+            if ($TotalLogCount -gt 0) {
+                Write-IRT "Total retrieved ${TotalLogCount} logs."
             }
             else {
-                Write-IRT "Retrieved 0 logs." -Level Warn
+                Write-IRT "Total retrieved 0 logs." -Level Warn
                 return
             }
 
@@ -553,24 +532,14 @@ function Get-UALog {
 
             # export to xml
             if ($Xml) {
-                if ($Script:Test) {
-                    $TestText = "Exporting to xml"
-                    $TimerStart = $Stopwatch.Elapsed
-                    $Msg = "${TestText} started at $(Get-Date -Format 'hh:mm:sstt')"
-                    Write-IRT $Msg -Level Warn | Out-Host
-                }
-
-                Write-IRT "${Function}: Saving logs to: ${XmlOutputPath}"
+                Write-Verbose "${FunctionName}: Starting XML export $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
+                Write-IRT "Saving logs to: ${XmlOutputPath}"
                 $Logs | Export-Clixml -Depth 10 -Path $XmlOutputPath
-
-                if ($Script:Test) {
-                    $ElapsedString = ($StopWatch.Elapsed - $TimerStart).ToString('mm\:ss')
-                    Write-IRT "${TestText} took ${ElapsedString}" -Level Warn | Out-Host
-                }
             }
 
             # export excel spreadsheet
             if ($Excel) {
+                Write-Verbose "${FunctionName}: Starting Excel export $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
                 $Params = @{
                     Log = $Logs
                     WaitOnMessageTrace = $WaitOnMessageTrace

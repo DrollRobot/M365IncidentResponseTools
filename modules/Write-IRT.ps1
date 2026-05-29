@@ -30,6 +30,10 @@ function Write-IRT {
     Suppresses color output. Useful when writing to a transcript or redirected
     stream that does not support ANSI color codes.
 
+    .PARAMETER NoFunctionName
+    Suppresses the calling function name prefix. Useful for plain status messages
+    that do not need attribution.
+
     .EXAMPLE
     Write-IRT "Retrieving sign-in logs for $($User.DisplayName)."
     Writes an Info-level message with the calling function's name prepended.
@@ -55,7 +59,8 @@ function Write-IRT {
 
         [string] $FunctionName = '',
         [switch] $NoNewline,
-        [switch] $NoColor
+        [switch] $NoColor,
+        [switch] $NoFunctionName
     )
 
     if (-not $FunctionName) {
@@ -92,7 +97,7 @@ function Write-IRT {
         }
     }
 
-    $text = if ($Message -eq '') { '' } else { "${FunctionName}: ${Message}" }
+    $text = if ($Message -eq '') { '' } elseif ($NoFunctionName) { $Message } else { "${FunctionName}: ${Message}" }
     if ($NoColor) {
         Write-Host $text -NoNewline:$NoNewline
     } else {
