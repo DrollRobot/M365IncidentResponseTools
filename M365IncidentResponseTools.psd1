@@ -158,6 +158,7 @@
         'Compress-InvestigationFolder'
         'Copy-IRTFunction'
         'Find-GraphDirectoryObject'
+        'Import-IRT'
         'Import-IRTConfig'
         'Open-IRTConfig'
         'Get-IRTUserObject'
@@ -347,6 +348,10 @@
         'MessageTrace'
 
         ### modules
+        # Import-IRT
+        'ImportIRT'
+        'LoadIRT'
+        'IRT'
         # Copy-IRTFunction
         'Copy-IRTFunctions'
         'CopyIRTFunctions'
