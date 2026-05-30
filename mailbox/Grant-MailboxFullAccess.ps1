@@ -149,7 +149,7 @@ function Grant-MailboxFullAccess {
                     AccessRights = 'FullAccess'
                     Confirm = $false
                 }
-                Remove-MailboxPermission @Params | Out-Null
+                $null = Remove-MailboxPermission @Params
             }
             else {
                 # add access
@@ -160,7 +160,7 @@ function Grant-MailboxFullAccess {
                     AccessRights = 'FullAccess'
                     InheritanceType = 'All'
                 }
-                Add-MailboxPermission @Params | Out-Null
+                $null = Add-MailboxPermission @Params
             }
 
             # show users who have access to target mailbox

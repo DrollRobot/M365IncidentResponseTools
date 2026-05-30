@@ -41,7 +41,7 @@ function Clear-IRTTokenCache {
             try {
                 $Accounts = $App.GetAccountsAsync().GetAwaiter().GetResult()
                 foreach ($acct in $Accounts) {
-                    $App.RemoveAsync($acct).GetAwaiter().GetResult() | Out-Null
+                    $null = $App.RemoveAsync($acct).GetAwaiter().GetResult()
                 }
             }
             catch {

@@ -31,7 +31,7 @@ function Import-IRTConfig {
 
     if (-not (Test-Path $ConfigPath)) {
         if (-not (Test-Path $ConfigDir)) {
-            New-Item -ItemType Directory -Path $ConfigDir -Force | Out-Null
+            $null = New-Item -ItemType Directory -Path $ConfigDir -Force
         }
         Copy-Item -Path $TemplatePath -Destination $ConfigPath
         Write-IRT "Created default config at: $ConfigPath"
@@ -125,7 +125,7 @@ function Set-IRTConfig {
     if ($Reset) {
         if ($PSCmdlet.ShouldProcess($ConfigPath, 'Reset to template defaults')) {
             if (-not (Test-Path $ConfigDir)) {
-                New-Item -ItemType Directory -Path $ConfigDir -Force | Out-Null
+                $null = New-Item -ItemType Directory -Path $ConfigDir -Force
             }
             Copy-Item -Path $TemplatePath -Destination $ConfigPath -Force
             $Global:IRT_Config = Get-Content -Path $ConfigPath -Raw | ConvertFrom-Json

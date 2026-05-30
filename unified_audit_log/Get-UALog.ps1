@@ -494,7 +494,7 @@ function Get-UALog {
             $Logs = [System.Collections.Generic.List[psobject]]::new()
             foreach ($Log in $AllLogs) {
                 if ($UniqueLogIds.Add([string]$Log.Identity)) {
-                    $Logs.Add($Log) | Out-Null
+                    $null = $Logs.Add($Log)
                 }
             }
             # build comparison script

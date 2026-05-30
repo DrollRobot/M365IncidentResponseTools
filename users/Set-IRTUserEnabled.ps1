@@ -140,7 +140,7 @@ function Set-IRTUserEnabled {
                 Write-IRT "Revoking user sessions..."
                 $Upn = $ScriptUserObject.UserPrincipalName
                 if ($PSCmdlet.ShouldProcess($Upn, 'Revoke sign-in sessions')) {
-                    Revoke-MgUserSignInSession -UserId $ScriptUserObject.Id | Out-Null
+                    $null = Revoke-MgUserSignInSession -UserId $ScriptUserObject.Id
                 }
             }
 

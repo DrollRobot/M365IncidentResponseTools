@@ -58,7 +58,7 @@ function Install-IRTMsalExtensions {
 
     if (-not (Test-Path $DllPath)) {
         if (-not (Test-Path $DllDir)) {
-            New-Item -ItemType Directory -Path $DllDir -Force | Out-Null
+            $null = New-Item -ItemType Directory -Path $DllDir -Force
         }
 
         # Download .nupkg from NuGet v3 flat container. The nupkg is just a ZIP.
@@ -158,13 +158,13 @@ function Register-IRTMsalCache {
         return
     }
 
-    Install-IRTMsalExtensions | Out-Null
+    $null = Install-IRTMsalExtensions
 
     $CacheDir  = Split-Path $CachePath -Parent
     $CacheFile = Split-Path $CachePath -Leaf
 
     if (-not (Test-Path $CacheDir)) {
-        New-Item -ItemType Directory -Path $CacheDir -Force | Out-Null
+        $null = New-Item -ItemType Directory -Path $CacheDir -Force
     }
 
     # macOS/Linux fields are required by the builder even on Windows.

@@ -114,7 +114,7 @@ function New-InvestigationFolder {
 		# create folder
 		$FolderPath = Join-Path -Path $CurrentPath -ChildPath $FolderName
 		if ($PSCmdlet.ShouldProcess($FolderPath, 'Create directory')) {
-			New-Item -ItemType Container -Path $FolderPath -Confirm:$false | Out-Null
+			$null = New-Item -ItemType Container -Path $FolderPath -Confirm:$false
 
 			# move to folder
 			Set-Location -Path $FolderPath

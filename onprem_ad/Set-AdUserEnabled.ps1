@@ -227,7 +227,7 @@ function Set-AdUserEnabled {
         # push ad replication
         if ( Test-RunningOnDomainController ) {
             Write-IRT "Pushing AD replication."
-            & repadmin /syncall $env:ComputerName /APed *>&1 | Out-Null
+            $null = & repadmin /syncall $env:ComputerName /APed *>&1
         }
         else {
             Write-Warning "Not running on a domain controller; skipping replication push."

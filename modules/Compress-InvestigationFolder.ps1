@@ -22,7 +22,7 @@ function Compress-InvestigationFolder {
         $DestinationPath = Join-Path -Path $CurrentDirectory.Path -ChildPath '\investigations\'
 
         if ( -not ( Test-Path -Path $DestinationPath ) ) {
-            New-Item -ItemType Directory -Path $DestinationPath | Out-Null
+            $null = New-Item -ItemType Directory -Path $DestinationPath
         }
     }
 

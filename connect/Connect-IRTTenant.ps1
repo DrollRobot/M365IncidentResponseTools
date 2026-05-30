@@ -195,7 +195,7 @@ function Open-IRTTenantSheet {
             $TemplateFile = Join-Path @TemplateParams
 
             if (-not (Test-Path $ConfigDir)) {
-                New-Item -ItemType Directory -Path $ConfigDir -Force | Out-Null
+                $null = New-Item -ItemType Directory -Path $ConfigDir -Force
             }
 
             Copy-Item -Path $TemplateFile -Destination $TenantFile

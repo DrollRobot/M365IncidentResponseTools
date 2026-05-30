@@ -67,7 +67,7 @@ displays a simple tree view of any object (ps 5.1+)
 
         if ($InputObject -is [System.Collections.IDictionary]) {
             foreach ($Key in ($InputObject.Keys | Sort-Object)) {
-                Out-Print ("[$Key]") $InputObject[$Key] 0 | Out-Null
+                $null = Out-Print ("[$Key]") $InputObject[$Key] 0
             }
             return
         }
@@ -84,7 +84,7 @@ displays a simple tree view of any object (ps 5.1+)
                 catch {
                     $Value = $null
                 }
-                Out-Print $Name $Value 0 | Out-Null
+                $null = Out-Print $Name $Value 0
             }
             return
         }
@@ -92,7 +92,7 @@ displays a simple tree view of any object (ps 5.1+)
         if ($InputObject -is [System.Collections.IEnumerable]) {
             $i = 0
             foreach ($E in $InputObject) {
-                Out-Print ("[{0}]" -f $i) $E 0 | Out-Null
+                $null = Out-Print ("[{0}]" -f $i) $E 0
                 $i++
             }
             return
@@ -180,7 +180,7 @@ function Out-Print {
                     Write-NameValue $Name '' $CurrentDepth $IndentSize
                     $Printed = $true
                 }
-                Out-Print ("[$Key]") $Value[$Key] ($CurrentDepth + 1) | Out-Null
+                $null = Out-Print ("[$Key]") $Value[$Key] ($CurrentDepth + 1)
             }
         }
         return $Printed
@@ -204,7 +204,7 @@ function Out-Print {
         }
         Write-NameValue $Name ("[{0}]" -f $Visible.Count) $CurrentDepth $IndentSize
         for ($i = 0; $i -lt $Visible.Count; $i++) {
-            Out-Print ("[{0}]" -f $i) $Visible[$i] ($CurrentDepth + 1) | Out-Null
+            $null = Out-Print ("[{0}]" -f $i) $Visible[$i] ($CurrentDepth + 1)
         }
         return $true
     }
@@ -220,7 +220,7 @@ function Out-Print {
     if ($Pairs.Count -eq 0) { return $false }
 
     Write-NameValue $Name '' $CurrentDepth $IndentSize
-    foreach ($P in $Pairs) { Out-Print $P[0] $P[1] ($CurrentDepth + 1) | Out-Null }
+    foreach ($P in $Pairs) { $null = Out-Print $P[0] $P[1] ($CurrentDepth + 1) }
     return $true
 }
 

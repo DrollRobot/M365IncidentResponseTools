@@ -40,7 +40,7 @@ function Disconnect-IRT {
         if ($DisconnectGraph) {
             $GraphCtx = Get-MgContext -ErrorAction SilentlyContinue
             if ($GraphCtx) {
-                Disconnect-MgGraph -ErrorAction SilentlyContinue | Out-Null
+                $null = Disconnect-MgGraph -ErrorAction SilentlyContinue
                 Write-IRT 'Disconnected from Microsoft Graph.' -Level Warn
             }
         }
