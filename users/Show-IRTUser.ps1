@@ -1,4 +1,4 @@
-function Show-UserInfo {
+function Show-IRTUser {
     <#
     .SYNOPSIS
     Displays user properties.
@@ -15,11 +15,11 @@ function Show-UserInfo {
     objects if omitted.
 
     .EXAMPLE
-    Show-UserInfo
+    Show-IRTUser
     Displays info for the user stored in the global session.
 
     .EXAMPLE
-    Show-UserInfo -UserObject $User
+    Show-IRTUser -UserObject $User
     Displays info for a specific user object.
 
     .OUTPUTS
@@ -29,7 +29,12 @@ function Show-UserInfo {
     Version: 1.2.0
     1.2.0 - Switched to Format-Tree, Show-GraphUserTree
     #>
-    [Alias('ShowUser', 'ShowUsers')]
+    [Alias(
+        'Show-IRTUsers',
+        'Show-User', 'Show-Users',
+        'ShowIRTUser', 'ShowIRTUsers',
+        'ShowUser', 'ShowUsers'
+    )]
     [CmdletBinding()]
     param(
         [Parameter( Position = 0 )]
@@ -38,6 +43,7 @@ function Show-UserInfo {
     )
 
     begin {
+        Update-IRTToken -Service 'Graph'
         # if not passed directly, find global user object
         if ( -not $UserObject -or $UserObject.Count -eq 0 ) {
 

@@ -19,6 +19,7 @@ function Grant-MailboxFullAccess {
     )
 
     begin {
+        Update-IRTToken -Service 'Exchange'
         $GrantAccessToList = [System.Collections.Generic.List[string]]::new()
 
         # if users passed via script argument:

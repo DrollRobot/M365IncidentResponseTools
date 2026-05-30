@@ -74,6 +74,7 @@ function Get-EntraAuditLog {
     )
 
     begin {
+        Update-IRTToken -Service 'Graph'
         $FunctionName = $MyInvocation.MyCommand.Name
         $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
         $FilterStrings = [System.Collections.Generic.List[string]]::new()

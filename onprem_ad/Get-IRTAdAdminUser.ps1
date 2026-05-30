@@ -1,4 +1,4 @@
-function Get-AdAdminUser {
+function Get-IRTAdAdminUser {
     <#
     .SYNOPSIS
     Displays a list of admin users.
@@ -15,11 +15,11 @@ function Get-AdAdminUser {
     Export results to a CSV file instead of displaying them in the console.
 
     .EXAMPLE
-    Get-AdAdminUser
+    Get-IRTAdAdminUser
     Displays all AdminCount=1 users in a formatted table.
 
     .EXAMPLE
-    Get-AdAdminUser -Csv
+    Get-IRTAdAdminUser -Csv
     Exports the list to AdAdminUsers_<domain>_<date>.csv in C:\Temp.
 
     .OUTPUTS
@@ -29,7 +29,13 @@ function Get-AdAdminUser {
     .NOTES
     Version: 1.0.0
     #>
-    [Alias('GetAdAdmins', 'AdAdmins')]
+    [Alias(
+        'Get-IRTAdAdminUsers',
+        'Get-AdAdminUser', 'Get-AdAdminUsers',
+        'GetIRTAdAdminUser', 'GetIRTAdAdminUsers',
+        'GetAdAdminUser', 'GetAdAdminUsers',
+        'GetAdAdmins', 'AdAdmins'
+    )]
     [CmdletBinding()]
     param (
         [switch] $Csv

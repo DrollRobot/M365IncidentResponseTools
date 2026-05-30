@@ -56,6 +56,7 @@ function Show-UserMFA {
     )
 
     begin {
+        Update-IRTToken -Service 'Graph'
         $OutputTable = [System.Collections.Generic.List[PSCustomObject]]::new()
         $Properties = [System.Collections.Generic.Hashset[string]]::new()
         $PropertySortOrder = @(

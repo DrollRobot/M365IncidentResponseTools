@@ -1,4 +1,4 @@
-function Find-AdOu {
+function Find-IRTAdOu {
     <#
     .SYNOPSIS
     Makes finding specific OUs easier.
@@ -18,11 +18,11 @@ function Find-AdOu {
     variable. Useful when calling from scripts.
 
     .EXAMPLE
-    Find-AdOu 'Workstations'
+    Find-IRTAdOu 'Workstations'
     Finds all OUs with 'Workstations' in their name and sets $Global:OuObject if exactly one match.
 
     .EXAMPLE
-    $Ou = Find-AdOu -Search 'contoso.com/Workstations' -Script
+    $Ou = Find-IRTAdOu -Search 'contoso.com/Workstations' -Script
     Returns the OU object directly for use in a script.
 
     .OUTPUTS
@@ -32,7 +32,12 @@ function Find-AdOu {
     .NOTES
     Version: 1.0.0
     #>
-    [Alias('FindAdOu', 'FindAdOus', 'Find-AdOus')]
+    [Alias(
+        'Find-IRTAdOus',
+        'Find-AdOu', 'Find-AdOus',
+        'FindIRTAdOu', 'FindIRTAdOus',
+        'FindAdOu', 'FindAdOus'
+    )]
     [CmdletBinding()]
     param (
         [Parameter( Position = 0, Mandatory )]

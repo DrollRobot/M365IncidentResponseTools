@@ -1,5 +1,5 @@
-#region Show-IRTServicePrincipalInfo
-function Show-IRTServicePrincipalInfo {
+#region Show-IRTServicePrincipal
+function Show-IRTServicePrincipal {
     <#
     .SYNOPSIS
     Displays detailed service principal properties for objects produced by Find-ServicePrincipal.
@@ -10,7 +10,7 @@ function Show-IRTServicePrincipalInfo {
 
     Falls back to $Global:IRT_ServicePrincipalObjects if no -ServicePrincipalObject is
     passed. This lets you run Find-ServicePrincipal first to select a target, then run
-    Show-IRTServicePrincipalInfo with no arguments to display it.
+    Show-IRTServicePrincipal with no arguments to display it.
 
     Properties retrieved include credentials (key and password certificates), OAuth2
     permission scopes, app roles, reply URLs, SSO settings, publisher verification,
@@ -36,15 +36,15 @@ function Show-IRTServicePrincipalInfo {
 
     .EXAMPLE
     Find-ServicePrincipal MyApp
-    Show-IRTServicePrincipalInfo
+    Show-IRTServicePrincipal
     Two-step workflow: find then display.
 
     .EXAMPLE
-    Show-IRTServicePrincipalInfo
+    Show-IRTServicePrincipal
     Display info for the service principal already stored in the global session.
 
     .EXAMPLE
-    Show-IRTServicePrincipalInfo -ServicePrincipalObject $SP
+    Show-IRTServicePrincipal -ServicePrincipalObject $SP
     Display info for a specific service principal object passed directly.
 
     .OUTPUTS
@@ -53,12 +53,17 @@ function Show-IRTServicePrincipalInfo {
     .NOTES
     Version: 1.3.0
     #>
-    [Alias('ShowServicePrincipal', 'ShowServicePrincipals',
-           'ShowSP', 'ShowSPs',
-           'ShowApp', 'ShowApps',
-           'ShowApplication', 'ShowApplications',
-           'ShowEnterpriseApp', 'ShowEnterpriseApps',
-           'ShowEnterpriseApplication', 'ShowEnterpriseApplications')]
+    [Alias(
+        'Show-IRTServicePrincipals',
+        'Show-ServicePrincipal',
+        'ShowIRTServicePrincipal', 'ShowIRTServicePrincipals',
+        'ShowServicePrincipal', 'ShowServicePrincipals',
+        'ShowSP', 'ShowSPs',
+        'ShowApp', 'ShowApps',
+        'ShowApplication', 'ShowApplications',
+        'ShowEnterpriseApp', 'ShowEnterpriseApps',
+        'ShowEnterpriseApplication', 'ShowEnterpriseApplications'
+    )]
     [CmdletBinding()]
     param(
         [Parameter( Position = 0 )]
@@ -69,6 +74,7 @@ function Show-IRTServicePrincipalInfo {
     )
 
     begin {
+        Update-IRTToken -Service 'Graph'
         if ( -not $ServicePrincipalObject -or $ServicePrincipalObject.Count -eq 0 ) {
             $ScriptServicePrincipalObjects = @( $Global:IRT_ServicePrincipalObjects )
             if ( -not $ScriptServicePrincipalObjects -or
@@ -319,7 +325,7 @@ function Show-GraphServicePrincipalTree {
     .DESCRIPTION
     Projects the service principal object, excluding the noisy AdditionalProperties
     collection, then passes the result to Format-Tree for console display. Intended
-    to be called via pipeline from Show-IRTServicePrincipalInfo.
+    to be called via pipeline from Show-IRTServicePrincipal.
 
     .PARAMETER ServicePrincipalObject
     The service principal object(s) to render. Accepts pipeline input.

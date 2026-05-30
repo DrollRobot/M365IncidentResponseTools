@@ -49,6 +49,7 @@ function Remove-IRTDevice {
     )
 
     begin {
+        Update-IRTToken -Service 'Graph'
         # if not passed directly, find global
         if ( -not $DeviceObject -or $DeviceObject.Count -eq 0 ) {
 

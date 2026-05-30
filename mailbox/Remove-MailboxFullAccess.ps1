@@ -16,7 +16,9 @@ function Remove-MailboxFullAccess {
         [string] $GrantAccessTo
     )
 
-    begin {}
+    begin {
+        Update-IRTToken -Service 'Exchange'
+    }
 
     process {
 

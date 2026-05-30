@@ -19,6 +19,9 @@ function Install-IRTMsalExtensions {
     #>
     [OutputType([string])]
     [CmdletBinding()]
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+        'PSUseSingularNouns', '',
+        Justification = 'Internal helper; plural name reflects MSAL extensions assembly.')]
     param()
 
     # Pinned version. Bump when Graph SDK's bundled MSAL outpaces this.

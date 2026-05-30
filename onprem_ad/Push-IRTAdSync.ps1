@@ -1,4 +1,4 @@
-function Push-AdSync {
+function Push-IRTAdSync {
     <#
     .SYNOPSIS
     Forces an Active Directory / Entra ID (Azure AD Connect) sync cycle.
@@ -27,15 +27,15 @@ function Push-AdSync {
     Maximum number of parallel runspaces used for server discovery. Default: 20.
 
     .EXAMPLE
-    Push-AdSync
+    Push-IRTAdSync
     Automatically discovers and triggers a delta sync.
 
     .EXAMPLE
-    Push-AdSync -SyncServer 'sync01.contoso.com'
+    Push-IRTAdSync -SyncServer 'sync01.contoso.com'
     Triggers sync on a known server without discovery.
 
     .EXAMPLE
-    Push-AdSync -ResetCredentials
+    Push-IRTAdSync -ResetCredentials
     Re-prompts for domain admin credentials before syncing.
 
     .OUTPUTS
@@ -47,7 +47,13 @@ function Push-AdSync {
             Added -SyncServer parameter to target specific servers directly, bypassing AD query.
             Added -ThrottleLimit parameter.
     #>
-    [Alias('PushAdSync', 'AdSync', 'SyncAd')]
+    [Alias(
+        'Push-IRTAdSyncs',
+        'Push-AdSync', 'Push-AdSyncs',
+        'PushIRTAdSync', 'PushIRTAdSyncs',
+        'PushAdSync', 'PushAdSyncs',
+        'AdSync', 'SyncAd'
+    )]
     [CmdletBinding()]
     param(
         [Alias('Reset', 'ResetPassword')]

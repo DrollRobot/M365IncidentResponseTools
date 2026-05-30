@@ -59,6 +59,7 @@ function Get-NonInteractiveLog {
     )
 
     begin {
+        Update-IRTToken -Service 'Graph'
 
         # variables
         $Params = @{

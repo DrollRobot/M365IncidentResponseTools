@@ -1,4 +1,4 @@
-function Find-ServicePrincipal {
+function Find-IRTServicePrincipal {
     <#
     .SYNOPSIS
     Finds service principals in the tenant by display name, app ID, or object ID.
@@ -44,23 +44,23 @@ function Find-ServicePrincipal {
     principal produce only one entry in the output.
 
     .EXAMPLE
-    Find-ServicePrincipal MyApp
+    Find-IRTServicePrincipal MyApp
     Find a single service principal by display name.
 
     .EXAMPLE
-    Find-ServicePrincipal -Search MyApp,AnotherApp
+    Find-IRTServicePrincipal -Search MyApp,AnotherApp
     Find multiple service principals in one call.
 
     .EXAMPLE
-    Find-ServicePrincipal -Search 00000003-0000-0000-c000-000000000000
+    Find-IRTServicePrincipal -Search 00000003-0000-0000-c000-000000000000
     Find by full or partial AppId (Microsoft Graph in this example).
 
     .EXAMPLE
-    Find-ServicePrincipal -Search bf7573a5844f
+    Find-IRTServicePrincipal -Search bf7573a5844f
     Find by partial object ID.
 
     .EXAMPLE
-    Find-ServicePrincipal MyApp -Script
+    Find-IRTServicePrincipal MyApp -Script
     Return the matched object directly without console output or setting the global variable.
 
     .OUTPUTS
@@ -75,12 +75,23 @@ function Find-ServicePrincipal {
     skip the network request and reuse data already stored in
     $Global:IRT_ServicePrincipals from a previous call.
     #>
-    [Alias('FindServicePrincipal', 'FindServicePrincipals',
-           'FindSP', 'FindSPs',
-           'FindApp', 'FindApps',
-           'FindApplication', 'FindApplications',
-           'FindEnterpriseApp', 'FindEnterpriseApps',
-           'FindEnterpriseApplication', 'FindEnterpriseApplications')]
+    [Alias(
+        # ServicePrincipal
+        'Find-IRTServicePrincipals',
+        'Find-ServicePrincipal', 'Find-ServicePrincipals',
+        'FindIRTServicePrincipal', 'FindIRTServicePrincipals',
+        'FindServicePrincipal', 'FindServicePrincipals',
+        # SP
+        'Find-IRTSP', 'Find-IRTSPs',
+        'Find-SP', 'Find-SPs',
+        'FindIRTSP', 'FindIRTSPs',
+        'FindSP', 'FindSPs',
+        # EnterpriseApplication
+        'Find-IRTEnterpriseApplication', 'Find-IRTEnterpriseApplications',
+        'Find-EnterpriseApplication', 'Find-EnterpriseApplications',
+        'FindIRTEnterpriseApplication', 'FindIRTEnterpriseApplications',
+        'FindEnterpriseApplication', 'FindEnterpriseApplications'
+    )]
     [OutputType([object[]])]
     [CmdletBinding()]
     param (
@@ -93,6 +104,7 @@ function Find-ServicePrincipal {
     )
 
     begin {
+        Update-IRTToken -Service 'Graph'
         $ScriptServicePrincipalObjects = [System.Collections.Generic.List[PsObject]]::new()
         $SeenIds = [System.Collections.Generic.HashSet[string]]::new()
         $DisplayProperties = @(

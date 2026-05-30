@@ -27,6 +27,7 @@ function Get-FullUserObject {
     )
 
     begin {
+        Update-IRTToken -Service 'Graph'
         $ScriptUserObject = $UserObject
 
         # properties you can safely query on all users

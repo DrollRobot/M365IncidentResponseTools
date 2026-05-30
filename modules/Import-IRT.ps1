@@ -24,6 +24,7 @@ function Import-IRT {
         entirely by PowerShell's automatic module loading when any exported function
         from the module is invoked.
     #>
+    [Alias('ImportIRT', 'LoadIRT', 'IRT')]
     [CmdletBinding()]
     [OutputType([void])]
     param()

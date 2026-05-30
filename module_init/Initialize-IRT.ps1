@@ -39,59 +39,37 @@ if ($env:TERM_PROGRAM -ne 'vscode') {
         catch {'DarkYellow'}
         $PromptColor = @{ForegroundColor = $irt_color }
 
-        # Display connection status for Graph and Exchange.
-        # Read token expiry directly from the session object - no network call needed.
-        $graphDomain = 'none'
-
+        # Display connection status.
+        # Update-IRTToken handles expiry checks and refresh; -PassThru returns current status.
         if ($Global:IRT_Session) {
-            # Refresh any service whose token expires within 30 minutes.
-            $irt_needsRefresh = $false
-            foreach ($svc in 'Graph', 'Exchange', 'IPPS') {
-                $svcObj = $Global:IRT_Session.$svc
-                if ($svcObj -and $svcObj.TokenExpiry -and
-                    ($svcObj.TokenExpiry - [datetime]::UtcNow).TotalMinutes -lt 30) {
-                    $irt_needsRefresh = $true
-                }
+            $irt_status    = Update-IRTToken -SkipIfNeverConnected -PassThru
+            $irt_connected = @('Graph', 'Exchange', 'IPPS') | Where-Object { $irt_status[$_] }
+            $irt_domain    = $null
+            foreach ($irt_svc in $irt_connected) {
+                $irt_obj = $Global:IRT_Session.$irt_svc
+                $irt_upn = $irt_obj.Account ?? $irt_obj.UserPrincipalName
+                if ($irt_upn) { $irt_domain = ($irt_upn -split '@')[-1]; break }
             }
-            if ($irt_needsRefresh) {
-                Write-Host ''
-                Write-Warning '[IRT] Token expiring soon - refreshing...' -NoNewline
-                try { Connect-IRT -Refresh -ErrorAction Stop } catch {
-                    Write-Host ''
-                    Write-Warning "[IRT] Token refresh failed: $_"
-                }
-            }
-
-            if ($Global:IRT_Session.Graph -and $Global:IRT_Session.Graph.TokenExpiry -and
-                ($Global:IRT_Session.Graph.TokenExpiry - [datetime]::UtcNow).TotalMinutes -gt 0) {
-                $graphDomain = ($Global:IRT_Session.Graph.Account -split '@')[-1]
-            }
-        }
-
-        if ($Global:IRT_Session -and $Global:IRT_Session.Exchange -and
-            $Global:IRT_Session.Exchange.TokenExpiry -and
-            ($Global:IRT_Session.Exchange.TokenExpiry - [datetime]::UtcNow).TotalMinutes -gt 0) {
-            $exoDomain = ($Global:IRT_Session.Exchange.UserPrincipalName -split '@')[-1]
         } else {
-            $exoDomain = 'none'
+            $irt_connected = @()
+            $irt_domain    = $null
         }
-        $ippsConnected = $Global:IRT_Session -and $Global:IRT_Session.IPPS -and
-            $Global:IRT_Session.IPPS.TokenExpiry -and
-            ($Global:IRT_Session.IPPS.TokenExpiry - [datetime]::UtcNow).TotalMinutes -gt 0
 
         Write-Host ''
-        Write-Host @PromptColor '[IRT] ' -NoNewline
-        Write-Host @PromptColor 'Graph:' -NoNewline
-        Write-Host $graphDomain -NoNewline
-        Write-Host @PromptColor ' Exchange:' -NoNewline
-        Write-Host $exoDomain -NoNewline
-        Write-Host @PromptColor ' IPPS:' -NoNewline
-        Write-Host $ippsConnected -NoNewline
-
+        Write-Host @PromptColor '[IRT] Connected:' -NoNewline
+        if ($irt_connected) {
+            Write-Host ($irt_connected -join ',') -NoNewline
+            if ($irt_domain) {
+                Write-Host @PromptColor ' Domain:' -NoNewline
+                Write-Host $irt_domain -NoNewline
+            }
+        } else {
+            Write-Host 'none' -NoNewline
+        }
         if ($Global:IRT_UserObjects) {
-            $userList = ($Global:IRT_UserObjects.UserPrincipalName) -join ','
-            Write-Host @PromptColor ' Users:' -NoNewline
-            Write-Host $userList -NoNewline
+            $irt_userList = ($Global:IRT_UserObjects.UserPrincipalName) -join ', '
+            Write-Host @PromptColor ' User:' -NoNewline
+            Write-Host $irt_userList -NoNewline
         }
 
         Write-Host ''

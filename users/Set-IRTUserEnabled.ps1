@@ -89,6 +89,7 @@ function Set-IRTUserEnabled {
     )
 
     begin {
+        Update-IRTToken -Service 'Graph'
         # if not passed directly, find global
         if ( -not $UserObject -or $UserObject.Count -eq 0 ) {
 

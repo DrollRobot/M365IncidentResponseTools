@@ -1,7 +1,7 @@
 #Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.0.0' }
 
 BeforeAll {
-    $ModulesPath = Join-Path $PSScriptRoot '..' 'modules'
+    $ModulesPath = Join-Path -Path $PSScriptRoot -ChildPath '..' -AdditionalChildPath 'modules'
     . (Join-Path $ModulesPath 'Resolve-IRTDateRange.ps1')
 }
 

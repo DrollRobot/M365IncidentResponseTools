@@ -1,4 +1,4 @@
-function Show-AdOus {
+function Show-IRTAdOus {
     <#
     .SYNOPSIS
     Shows a list of all OUs with a count of users and devices.
@@ -13,11 +13,11 @@ function Show-AdOus {
     by default.
 
     .EXAMPLE
-    Show-AdOus
+    Show-IRTAdOus
     Lists all OUs with user and computer counts.
 
     .EXAMPLE
-    Show-AdOus | Where-Object { $_.Users -gt 0 }
+    Show-IRTAdOus | Where-Object { $_.Users -gt 0 }
     Returns only OUs that contain at least one user.
 
     .OUTPUTS
@@ -26,7 +26,13 @@ function Show-AdOus {
     .NOTES
     Version: 1.0.1
     #>
-    [Alias('ShowAdOus', 'AdOus')]
+    [Alias(
+        'Show-IRTAdOu',
+        'Show-AdOu', 'Show-AdOus',
+        'ShowIRTAdOu', 'ShowIRTAdOus',
+        'ShowAdOu', 'ShowAdOus',
+        'AdOus'
+    )]
     [CmdletBinding()]
     param (
     )

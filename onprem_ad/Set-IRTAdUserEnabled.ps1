@@ -1,17 +1,17 @@
 ###############################################################################
-#region Disable-AdUser
+#region Disable-IRTAdUser
 
 # new aliases
 
 # old aliases
 
-function Disable-AdUser {
+function Disable-IRTAdUser {
     <#
     .SYNOPSIS
     Disable on-premises AD user account(s).
 
     .DESCRIPTION
-    Thin wrapper around Set-AdUserEnabled that sets Enabled = $false. Disables one or
+    Thin wrapper around Set-IRTAdUserEnabled that sets Enabled = $false. Disables one or
     more AD user accounts, re-fetches each account to confirm the change, then triggers
     AD replication and an Azure AD delta sync if the relevant services are available.
 
@@ -21,11 +21,11 @@ function Disable-AdUser {
     One or more AD user objects to disable. Falls back to global session objects if omitted.
 
     .EXAMPLE
-    Disable-AdUser
+    Disable-IRTAdUser
     Disables the user(s) in the global session.
 
     .EXAMPLE
-    Disable-AdUser -UserObject $AdUser
+    Disable-IRTAdUser -UserObject $AdUser
     Disables a specific user.
 
     .OUTPUTS
@@ -34,8 +34,16 @@ function Disable-AdUser {
     .NOTES
     Version: 2.0.0
     #>
-    [Alias('DisableAdUser', 'DisableAdUsers', 'Lock-AdUser',
-        'Lock-AdUsers', 'LockAdUser', 'LockAdUsers')]
+    [Alias(
+        'Disable-IRTAdUsers',
+        'Disable-AdUser', 'Disable-AdUsers',
+        'DisableIRTAdUser', 'DisableIRTAdUsers',
+        'DisableAdUser', 'DisableAdUsers',
+        'Lock-IRTAdUser', 'Lock-IRTAdUsers',
+        'Lock-AdUser', 'Lock-AdUsers',
+        'LockIRTAdUser', 'LockIRTAdUsers',
+        'LockAdUser', 'LockAdUsers'
+    )]
     [CmdletBinding()]
     param(
         [Parameter( Position = 0 )]
@@ -50,24 +58,24 @@ function Disable-AdUser {
         $Params['UserObject'] = $UserObject
     }
 
-    Set-AdUserEnabled @Params
+    Set-IRTAdUserEnabled @Params
 }
 
 
 ###############################################################################
-#region Enable-AdUser
+#region Enable-IRTAdUser
 
 # new aliases
 
 # old aliases
 
-function Enable-AdUser {
+function Enable-IRTAdUser {
     <#
     .SYNOPSIS
     Enable on-premises AD user account(s).
 
     .DESCRIPTION
-    Thin wrapper around Set-AdUserEnabled that sets Enabled = $true. Re-enables one or
+    Thin wrapper around Set-IRTAdUserEnabled that sets Enabled = $true. Re-enables one or
     more disabled AD user accounts, re-fetches each to confirm the change, then triggers
     AD replication and an Azure AD delta sync if the relevant services are available.
 
@@ -77,11 +85,11 @@ function Enable-AdUser {
     One or more AD user objects to enable. Falls back to global session objects if omitted.
 
     .EXAMPLE
-    Enable-AdUser
+    Enable-IRTAdUser
     Re-enables the user(s) in the global session.
 
     .EXAMPLE
-    Enable-AdUser -UserObject $AdUser
+    Enable-IRTAdUser -UserObject $AdUser
     Re-enables a specific user.
 
     .OUTPUTS
@@ -90,8 +98,16 @@ function Enable-AdUser {
     .NOTES
     Version: 2.0.0
     #>
-    [Alias('EnableAdUser', 'EnableAdUsers', 'Unlock-AdUser',
-        'Unlock-AdUsers', 'UnlockAdUser', 'UnlockAdUsers')]
+    [Alias(
+        'Enable-IRTAdUsers',
+        'Enable-AdUser', 'Enable-AdUsers',
+        'EnableIRTAdUser', 'EnableIRTAdUsers',
+        'EnableAdUser', 'EnableAdUsers',
+        'Unlock-IRTAdUser', 'Unlock-IRTAdUsers',
+        'Unlock-AdUser', 'Unlock-AdUsers',
+        'UnlockIRTAdUser', 'UnlockIRTAdUsers',
+        'UnlockAdUser', 'UnlockAdUsers'
+    )]
     [CmdletBinding()]
     param(
         [Parameter( Position = 0 )]
@@ -106,17 +122,18 @@ function Enable-AdUser {
         $Params['UserObject'] = $UserObject
     }
 
-    Set-AdUserEnabled @Params
+    Set-IRTAdUserEnabled @Params
 }
 
 
 ###############################################################################
-#region Set-AdUserEnabled
+#region Set-IRTAdUserEnabled
 
-function Set-AdUserEnabled {
+function Set-IRTAdUserEnabled {
     <#
     .SYNOPSIS
-    Set Enabled property on on-premises AD user(s). Called by Disable-AdUser and Enable-AdUser.
+    Set Enabled property on on-premises AD user(s).
+    Called by Disable-IRTAdUser and Enable-IRTAdUser.
 
     .DESCRIPTION
     Core implementation for enabling or disabling AD user accounts. For each user, calls
@@ -132,7 +149,7 @@ function Set-AdUserEnabled {
     Required. $true to enable the account, $false to disable it.
 
     .EXAMPLE
-    Set-AdUserEnabled -UserObject $AdUser -Enabled $false
+    Set-IRTAdUserEnabled -UserObject $AdUser -Enabled $false
     Disables the specified user account.
 
     .OUTPUTS
@@ -241,7 +258,7 @@ function Set-AdUserEnabled {
         }
         else {
             $Msg = "Azure sync isn't running on this server. " +
-                "Run Push-AdSync, or duplicate actions in M365."
+                "Run Push-IRTAdSync, or duplicate actions in M365."
             Write-IRT $Msg -Level Error
         }
     }

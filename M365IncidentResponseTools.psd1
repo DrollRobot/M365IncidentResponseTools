@@ -105,7 +105,7 @@
         'Enable-IRTDevice'
         'Find-IRTDevice'
         'Remove-IRTDevice'
-        'Show-DeviceInfo'
+        'Show-IRTDevice'
 
         ### connect
         'Connect-IRT'
@@ -117,6 +117,7 @@
         'Test-IRTConnection'
         'Clear-IRTTokenCache'
         'Open-IRTTenantSheet'
+        'Update-IRTToken'
 
         ### entra_logs
         'Get-EntraAuditLog'
@@ -128,18 +129,18 @@
         'Show-SignInLog'
 
         ### onprem_ad
-        'Find-AdDevice'
-        'Find-AdOu'
-        'Find-AdUser'
-        'Find-AllDomainController'
-        'Get-AdAdminUser'
-        'Disable-AdUser'
-        'Enable-AdUser'
-        'Push-AdSync'
+        'Find-IRTAdDevice'
+        'Find-IRTAdOu'
+        'Find-IRTAdUser'
+        'Find-IRTAllDomainController'
+        'Get-IRTAdAdminUser'
+        'Disable-IRTAdUser'
+        'Enable-IRTAdUser'
+        'Push-IRTAdSync'
         'Reset-IRTAdUserPassword'
-        'Show-AdDeviceInfo'
-        'Show-AdOus'
-        'Show-AdUserInfo'
+        'Show-IRTAdDevice'
+        'Show-IRTAdOus'
+        'Show-IRTAdUser'
 
         ### mailbox
         'Get-IRTInboxRule'
@@ -182,10 +183,10 @@
 
         ### service_principals
         'Find-RiskyServicePrincipal'
-        'Find-ServicePrincipal'
+        'Find-IRTServicePrincipal'
         'Get-IRTTenantInfo'
         'Get-UserServicePrincipal'
-        'Show-IRTServicePrincipalInfo'
+        'Show-IRTServicePrincipal'
         'Show-TenantServicePrincipal'
 
         ### unified_audit_log
@@ -196,11 +197,11 @@
         ### users
         'Disable-GraphUser'
         'Enable-GraphUser'
-        'Find-User'
+        'Find-IRTUser'
         'Reset-IRTUserPassword'
         'Revoke-UserSession'
         'Set-UsageLocation'
-        'Show-UserInfo'
+        'Show-IRTUser'
         'Show-UserMFA'
     )
 
@@ -246,7 +247,12 @@
         'DeleteDevices'
         'RemoveDevice'
         'RemoveDevices'
-        # Show-DeviceInfo
+        # Show-IRTDevice
+        'Show-IRTDevices'
+        'Show-Device'
+        'Show-Devices'
+        'ShowIRTDevice'
+        'ShowIRTDevices'
         'ShowDevice'
         'ShowDevices'
 
@@ -273,58 +279,90 @@
         'SPSILogs'
 
         ### onprem_ad
-        # Find-AdDevice
-        'FindAdDevice'
-        'FindAdDevices'
-        'Find-AdDevices'
-        # Find-AdOu
-        'FindAdOu'
-        'FindAdOus'
-        'Find-AdOus'
-        # Find-AdUser
-        'FindAdUser'
-        'FindAdUsers'
-        'Find-AdUsers'
-        # Find-AllDomainController
-        'FindDCs'
-        'FindDomainControllers'
-        'Find-DCs'
-        # Get-AdAdminUser
-        'GetAdAdmins'
-        'AdAdmins'
-        # Disable-AdUser
-        'DisableAdUser'
-        'DisableAdUsers'
-        'Lock-AdUser'
-        'Lock-AdUsers'
-        'LockAdUser'
-        'LockAdUsers'
-        # Push-AdSync
-        'PushAdSync'
-        'AdSync'
-        'SyncAd'
+        # Find-IRTAdDevice
+        'Find-IRTAdDevices'
+        'Find-AdDevice', 'Find-AdDevices'
+        'FindIRTAdDevice', 'FindIRTAdDevices'
+        'FindAdDevice', 'FindAdDevices'
+        # Find-IRTAdOu
+        'Find-IRTAdOus'
+        'Find-AdOu', 'Find-AdOus'
+        'FindIRTAdOu', 'FindIRTAdOus'
+        'FindAdOu', 'FindAdOus'
+        # Find-IRTAdUser
+        'Find-IRTAdUsers'
+        'Find-AdUser', 'Find-AdUsers'
+        'FindIRTAdUser', 'FindIRTAdUsers'
+        'FindAdUser', 'FindAdUsers'
+        # Find-IRTAllDomainController
+        'Find-IRTAllDomainControllers'
+        'Find-AllDomainController', 'Find-AllDomainControllers'
+        'FindIRTAllDomainController', 'FindIRTAllDomainControllers'
+        'FindAllDomainController', 'FindAllDomainControllers'
+        'Find-IRTDomainController', 'Find-IRTDomainControllers'
+        'Find-DomainController', 'Find-DomainControllers'
+        'FindIRTDomainController', 'FindIRTDomainControllers'
+        'FindDomainController', 'FindDomainControllers'
+        'Find-IRTDC', 'Find-IRTDCs'
+        'Find-DC', 'Find-DCs'
+        'FindIRTDC', 'FindIRTDCs'
+        'FindDC', 'FindDCs'
+        # Get-IRTAdAdminUser
+        'Get-IRTAdAdminUsers'
+        'Get-AdAdminUser', 'Get-AdAdminUsers'
+        'GetIRTAdAdminUser', 'GetIRTAdAdminUsers'
+        'GetAdAdminUser', 'GetAdAdminUsers'
+        'GetAdAdmins', 'AdAdmins'
+        # Disable-IRTAdUser
+        'Disable-IRTAdUsers'
+        'Disable-AdUser', 'Disable-AdUsers'
+        'DisableIRTAdUser', 'DisableIRTAdUsers'
+        'DisableAdUser', 'DisableAdUsers'
+        'Lock-IRTAdUser', 'Lock-IRTAdUsers'
+        'Lock-AdUser', 'Lock-AdUsers'
+        'LockIRTAdUser', 'LockIRTAdUsers'
+        'LockAdUser', 'LockAdUsers'
+        # Enable-IRTAdUser
+        'Enable-IRTAdUsers'
+        'Enable-AdUser', 'Enable-AdUsers'
+        'EnableIRTAdUser', 'EnableIRTAdUsers'
+        'EnableAdUser', 'EnableAdUsers'
+        'Unlock-IRTAdUser', 'Unlock-IRTAdUsers'
+        'Unlock-AdUser', 'Unlock-AdUsers'
+        'UnlockIRTAdUser', 'UnlockIRTAdUsers'
+        'UnlockAdUser', 'UnlockAdUsers'
+        # Push-IRTAdSync
+        'Push-IRTAdSyncs'
+        'Push-AdSync', 'Push-AdSyncs'
+        'PushIRTAdSync', 'PushIRTAdSyncs'
+        'PushAdSync', 'PushAdSyncs'
+        'AdSync', 'SyncAd'
         # Reset-IRTAdUserPassword
         'ResetAdPassword'
         'ResetAdPasswords'
         'Reset-AdPassword'
-        # Show-AdOus
-        'ShowAdOus'
+        # Show-IRTAdOus
+        'Show-IRTAdOu'
+        'Show-AdOu', 'Show-AdOus'
+        'ShowIRTAdOu', 'ShowIRTAdOus'
+        'ShowAdOu', 'ShowAdOus'
         'AdOus'
-        # Show-AdDeviceInfo
+        # Show-IRTAdDevice
+        'Show-IRTAdDevices'
+        'Show-AdDevice'
+        'Show-AdDevices'
+        'ShowIRTAdDevice'
+        'ShowIRTAdDevices'
         'ShowAdDevice'
         'ShowAdDevices'
-        'AdDeviceInfo'
-        # Show-AdUserInfo
+        # Show-IRTAdUser
+        'Show-IRTAdUsers'
+        'Show-AdUser'
+        'Show-AdUsers'
+        'ShowIRTAdUser'
+        'ShowIRTAdUsers'
         'ShowAdUser'
         'ShowAdUsers'
-        'AdUserInfo'
-        # Enable-AdUser
-        'EnableAdUser'
-        'EnableAdUsers'
-        'Unlock-AdUser'
-        'Unlock-AdUsers'
-        'UnlockAdUser'
-        'UnlockAdUsers'
 
         ### mailbox
         # Get-IRTInboxRules
@@ -377,14 +415,23 @@
         'GetAdmins'
 
         ### service_principals
-        # Find-ServicePrincipal
+        # Find-IRTServicePrincipal
+        'Find-IRTServicePrincipals'
+        'Find-ServicePrincipal', 'Find-ServicePrincipals'
+        'FindIRTServicePrincipal', 'FindIRTServicePrincipals'
         'FindServicePrincipal', 'FindServicePrincipals'
+        'Find-IRTSP', 'Find-IRTSPs'
+        'Find-SP', 'Find-SPs'
+        'FindIRTSP', 'FindIRTSPs'
         'FindSP', 'FindSPs'
-        'FindApp', 'FindApps'
-        'FindApplication', 'FindApplications'
-        'FindEnterpriseApp', 'FindEnterpriseApps'
+        'Find-IRTEnterpriseApplication', 'Find-IRTEnterpriseApplications'
+        'Find-EnterpriseApplication', 'Find-EnterpriseApplications'
+        'FindIRTEnterpriseApplication', 'FindIRTEnterpriseApplications'
         'FindEnterpriseApplication', 'FindEnterpriseApplications'
-        # Show-IRTServicePrincipalInfo
+        # Show-IRTServicePrincipal
+        'Show-IRTServicePrincipals'
+        'Show-ServicePrincipal'
+        'ShowIRTServicePrincipal', 'ShowIRTServicePrincipals'
         'ShowServicePrincipal', 'ShowServicePrincipals'
         'ShowSP', 'ShowSPs'
         'ShowApp', 'ShowApps'
@@ -428,9 +475,9 @@
         'IRTAllOperationsSheet'
 
         ### users
-        # Find-Users
-        'FindUser'
-        'FindUsers'
+        # Find-IRTUser
+        'Find-IRTUsers', 'FindIRTUser', 'FindIRTUsers'
+        'Find-User', 'Find-Users', 'FindUser', 'FindUsers'
         # Disable-GraphUsers
         'DisableUser'
         'DisableUsers'
@@ -445,7 +492,12 @@
         # Set-UsageLocation
         'SetLocation'
         'SetUsage'
-        # Show-UserInfo
+        # Show-IRTUser
+        'Show-IRTUsers'
+        'Show-User'
+        'Show-Users'
+        'ShowIRTUser'
+        'ShowIRTUsers'
         'ShowUser'
         'ShowUsers'
         # Show-UserMFA

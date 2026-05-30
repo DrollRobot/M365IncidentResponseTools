@@ -78,10 +78,9 @@ function Get-IRTDefaultDomain {
 
         # serve from cache when available
         if ($Global:IRT_Session -and $Global:IRT_Session.PSObject.Properties['DefaultDomain']) {
-            switch ($PSCmdlet.ParameterSetName) {
-                'Domain'            { return $Global:IRT_Session.DefaultDomain }
-                'SecondLevelDomain' { return $Global:IRT_Session.DefaultDomainName }
-            }
+            if ($Domain)            { return $Global:IRT_Session.DefaultDomain }
+            if ($SecondLevelDomain) { return $Global:IRT_Session.DefaultDomainName }
+            return $Global:IRT_Session.DefaultDomainName
         }
 
         # cache miss -- fetch from Graph
@@ -100,9 +99,8 @@ function Get-IRTDefaultDomain {
             $Global:IRT_Session | Add-Member @AmParams
         }
 
-        switch ($PSCmdlet.ParameterSetName) {
-            'Domain'            { return $DefaultDomain }
-            'SecondLevelDomain' { return $DefaultDomainName }
-        }
+        if ($Domain)            { return $DefaultDomain }
+        if ($SecondLevelDomain) { return $DefaultDomainName }
+        return $DefaultDomainName
     }
 }

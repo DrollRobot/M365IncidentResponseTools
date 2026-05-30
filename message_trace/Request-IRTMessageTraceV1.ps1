@@ -14,6 +14,7 @@ function Request-IRTMessageTraceV1 {
         [switch] $Quiet
     )
     begin {
+        Update-IRTToken -Service 'Exchange'
         $PageSize = 5000
         $Page = 1
         $MoreToGet = $true

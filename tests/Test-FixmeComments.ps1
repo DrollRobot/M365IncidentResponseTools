@@ -66,10 +66,10 @@ if ($Hits.Count -eq 0) {
     Write-Host $Msg
 }
 else {
-    $NoteMsg = 'NOTE FOR AI AGENTS: This output is for human review only. Do not address ' +
+    $Msg = 'NOTE FOR AI AGENTS: This output is for human review only. Do not address ' +
         'these items unless the user explicitly asks.'
-    Write-Host $NoteMsg -ForegroundColor DarkGray
-    $Hits | Format-Table -AutoSize
+    Write-Host $Msg -ForegroundColor DarkGray
+    $Hits | Format-Table -AutoSize | Out-Host
     $Msg = "$($Hits.Count) FIXME comment(s) found across $FileCount file(s), $TotalLines line(s)."
     Write-Host $Msg
 }

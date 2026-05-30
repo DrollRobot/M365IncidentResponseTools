@@ -143,10 +143,12 @@ if ($Online) {
     $Global:IRT_Config.MsalCachePath    = $TestCachePath
     $Global:IRT_Config.EnableTokenCache = $true
 
-    Write-Host ''
-    Write-Host '  WARNING: Online tests override the token cache config.' -ForegroundColor Red
-    Write-Host "           Test cache : $TestCachePath" -ForegroundColor Red
-    Write-Host '           EnableTokenCache has been forced on for this run.' -ForegroundColor Red
+    if (-not $OriginalCacheEnable) {
+        Write-Host ''
+        Write-Host '  WARNING: Online tests override the token cache config.' -ForegroundColor Red
+        Write-Host "           Test cache : $TestCachePath" -ForegroundColor Red
+        Write-Host '           EnableTokenCache has been forced on for this run.' -ForegroundColor Red
+    }
 
     if ($CachedAuth) {
         $env:IRT_TEST_SILENT_AUTH = '1'

@@ -22,6 +22,7 @@ function Open-MailboxInOWA {
     )
 
     begin {
+        Update-IRTToken -Service 'Exchange'
         # if users passed via script argument:
         if (($UserObject | Measure-Object).Count -gt 0) {
             $ScriptUserObjects = $UserObject

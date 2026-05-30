@@ -1,13 +1,13 @@
-function Find-User {
+function Find-IRTUser {
     <#
     .SYNOPSIS
     Finds graph user by displayname, email address, or user id guid. Creates $UserObjects variable.
 
     .EXAMPLE
-    Find-User flast
-    Find-User -Search flast,flast,flast
-    Find-User flast@domain.com
-    Find-User -Search bf7573a5844f (partial user id number)
+    Find-IRTUser flast
+    Find-IRTUser -Search flast,flast,flast
+    Find-IRTUser flast@domain.com
+    Find-IRTUser -Search bf7573a5844f (partial user id number)
 
     .NOTES
     Version: 1.2.0
@@ -19,7 +19,10 @@ function Find-User {
     1.1.1 - Bug fix. Script was passing collections rather than user objects.
     1.1.0 - Major rewrite. Renamed to Find-User.
     #>
-    [Alias('FindUser', 'FindUsers')]
+    [Alias(
+        'Find-IRTUsers', 'FindIRTUser', 'FindIRTUsers',
+        'Find-User', 'Find-Users', 'FindUser', 'FindUsers'
+    )]
     [OutputType([psobject[]])]
     [CmdletBinding()]
     param (
@@ -32,6 +35,7 @@ function Find-User {
     )
 
     begin {
+        Update-IRTToken -Service 'Graph'
         $ScriptUserObjects = [System.Collections.Generic.List[PsObject]]::new()
         $SeenIds = [System.Collections.Generic.HashSet[string]]::new()
         $DisplayProperties = @(

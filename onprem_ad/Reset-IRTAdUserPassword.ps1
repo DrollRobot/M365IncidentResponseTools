@@ -222,7 +222,7 @@ function Reset-IRTAdUserPassword {
         }
         else {
             $Msg = "Azure sync isn't running on this server. " +
-                "Run Push-AdSync, or duplicate actions in M365."
+                "Run Push-IRTAdSync, or duplicate actions in M365."
             Write-IRT $Msg -Level Error
         }
     }

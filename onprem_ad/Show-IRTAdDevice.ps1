@@ -1,83 +1,79 @@
-function Show-AdUserInfo {
+function Show-IRTAdDevice {
     <#
     .SYNOPSIS
-    Displays AD user properties.
+    Displays AD computer properties.
 
     .DESCRIPTION
-    Retrieves all properties of an on-premises AD user object, converts every DateTime
+    Retrieves all properties of an on-premises AD computer object, converts every DateTime
     value to local time, and displays the result with Format-Tree. Falls back to
-    $Global:IRT_UserObject (via Get-AdGlobalUserObject) if no -UserObjects is passed.
+    $Global:IRT_DeviceObject if no -DeviceObject is passed.
 
-    .PARAMETER UserObjects
-    One or more AD user objects to display. Falls back to global session objects if omitted.
-
-    .EXAMPLE
-    Show-AdUserInfo
-    Displays info for the user(s) in the global session.
+    .PARAMETER DeviceObject
+    One or more AD computer objects to display. Falls back to $Global:IRT_DeviceObject
+    if omitted.
 
     .EXAMPLE
-    Show-AdUserInfo -UserObjects $AdUser
-    Displays info for a specific AD user object.
+    Show-IRTAdDevice
+    Displays info for the device in $Global:IRT_DeviceObject.
+
+    .EXAMPLE
+    Show-IRTAdDevice -DeviceObject $AdComputer
+    Displays info for a specific AD computer object.
 
     .OUTPUTS
     None. Output is written to the console.
 
     .NOTES
-    Version: 1.2.0
-    1.2.0 - Switched to Format-Tree with dynamic DateTime conversion.
-    1.1.2 - Added pwdLastSet
+    Version: 1.0.0
     #>
-    [Alias('ShowAdUser', 'ShowAdUsers', 'AdUserInfo')]
+    [Alias(
+        'Show-IRTAdDevices',
+        'Show-AdDevice', 'Show-AdDevices',
+        'ShowIRTAdDevice', 'ShowIRTAdDevices',
+        'ShowAdDevice', 'ShowAdDevices'
+    )]
     [CmdletBinding()]
     param(
-        [Parameter( Position = 0 )]
-        [Alias( 'UserObject' )]
-        [psobject[]] $UserObjects
+        [Parameter(Position = 0)]
+        [psobject[]] $DeviceObject
     )
 
     begin {
 
-        # if not passed directly, find global
-        if ( -not $UserObjects -or $UserObjects.Count -eq 0 ) {
+        if (-not $DeviceObject -or $DeviceObject.Count -eq 0) {
 
-            # get from global variables
-            $ScriptUserObjects = Get-AdGlobalUserObject
-
-            # if none found, exit
-            if ( -not $ScriptUserObjects ) {
-                throw "No user objects passed or found in global variables."
+            if ($Global:IRT_DeviceObject) {
+                $ScriptDeviceObjects = @($Global:IRT_DeviceObject)
+            }
+            else {
+                throw ('No device object passed and $Global:IRT_DeviceObject is not set. ' +
+                    'Run Find-IRTAdDevice first.')
             }
         }
         else {
-            $ScriptUserObjects = $UserObjects
+            $ScriptDeviceObjects = $DeviceObject
         }
     }
 
     process {
 
-        if ( -not ( Test-AdAvailable ) ) {
+        if (-not (Test-AdAvailable)) {
             Write-Error 'ActiveDirectory RSAT module not available.'
             return
         }
 
         $ExcludeProperty = @(
-            'c'
-            'co'
             'codePage'
-            'countryCode'
             'createTimeStamp'
             'dSCorePropagationData'
             'DoesNotRequirePreAuth'
-            'extensionName'
             'HomedirRequired'
             'instanceType'
-            'l'
             'lastLogon'
             'lastLogonTimestamp'
             'localPolicyFlags'
             'MNSLogonAccount'
             'modifyTimeStamp'
-            'msExchALObjectVersion'
             'msDS-SupportedEncryptionTypes'
             'msDS-User-Account-Control-Computed'
             'nTSecurityDescriptor'
@@ -85,21 +81,24 @@ function Show-AdUserInfo {
             'primaryGroupID'
             'PropertyCount'
             'PropertyNames'
-            'sAMAccountType'
             'sDRightsEffective'
             'SID'
             'TrustedForDelegation'
             'TrustedToAuthForDelegation'
-            'userAccountControl'
-            'userParameters'
             'uSNChanged'
             'uSNCreated'
         )
 
-        foreach ( $ScriptUserObject in $ScriptUserObjects ) {
+        foreach ($Device in $ScriptDeviceObjects) {
 
-            # get user object with all properties
-            $FullObject = $ScriptUserObject | Get-AdUser -Property *
+            $FullObject = $Device | Get-AdComputer -Property *
+
+            # replace partial object in global with full object
+            if ($Global:IRT_DeviceObject -and
+                $Global:IRT_DeviceObject.ObjectGUID -eq $FullObject.ObjectGUID
+            ) {
+                $Global:IRT_DeviceObject = $FullObject
+            }
 
             $FileTimeProperties = [System.Collections.Generic.HashSet[string]]::new(
                 [string[]]@(
@@ -108,8 +107,6 @@ function Show-AdUserInfo {
                     'lastLogon'
                     'lastLogonTimestamp'
                     'lockoutTime'
-                    'msExchLastExchangeChangedTime'
-                    'msDS-UserPasswordExpiryTimeComputed'
                     'pwdLastSet'
                 ),
                 [System.StringComparer]::OrdinalIgnoreCase
@@ -121,7 +118,7 @@ function Show-AdUserInfo {
                 if ($Prop.Value -is [DateTime]) {
                     $Props[$Prop.Name] = $Prop.Value.ToLocalTime()
                 }
-                # Convert Int64 objects to human readable time
+                # convert Int64 objects to human readable time
                 elseif ($Prop.Value -is [long] -and $FileTimeProperties.Contains($Prop.Name)) {
                     if ($Prop.Value -eq 0 -or $Prop.Value -eq [Int64]::MaxValue) {
                         $Props[$Prop.Name] = 'Never'
@@ -145,5 +142,3 @@ function Show-AdUserInfo {
         }
     }
 }
-
-

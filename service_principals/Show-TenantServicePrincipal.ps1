@@ -27,6 +27,7 @@ function Show-TenantServicePrincipal {
     )
 
     begin {
+        Update-IRTToken -Service 'Graph'
 
         # variables
         $TenantId = (Get-MgContext).TenantId
@@ -182,5 +183,3 @@ function Show-TenantServicePrincipal {
     }
 }
 
-# TESTING
-# Show-TenantServicePrincipal

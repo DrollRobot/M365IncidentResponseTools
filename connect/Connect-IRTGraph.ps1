@@ -144,7 +144,7 @@ function Connect-IRTGraph {
                 WithRedirectUri('http://localhost').
                 Build()
             if ($Global:IRT_Config.EnableTokenCache) {
-                try { Register-IRTMsalCache -App $NewApp }
+                try { Register-IRTMsalCache -App $NewApp -CachePath $MsalCachePath }
                 catch { Write-IRT "Persistent token cache unavailable: $_" -Level Warn }
             }
             $NewApp
@@ -262,7 +262,7 @@ function Connect-IRTGraph {
                 $null = Disconnect-MgGraph -ErrorAction SilentlyContinue
             }
             $Secure = ConvertTo-SecureString -String $Token -AsPlainText -Force
-            $Params = @{ 
+            $Params = @{
                 AccessToken = $Secure
                 NoWelcome = $true
                 Environment = $CloudConfig.GraphEnv

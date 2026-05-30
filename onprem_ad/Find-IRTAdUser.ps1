@@ -1,4 +1,4 @@
-function Find-AdUser {
+function Find-IRTAdUser {
     <#
     .SYNOPSIS
     Finds local AD user by DisplayName, Name, UserPrincipalName, ProxyAddresses,
@@ -29,15 +29,15 @@ function Find-AdUser {
     scripts or the playbook.
 
     .EXAMPLE
-    Find-AdUser flast
+    Find-IRTAdUser flast
     Finds users matching 'flast' and sets the global user object if exactly one match.
 
     .EXAMPLE
-    Find-AdUser flast@contoso.com
+    Find-IRTAdUser flast@contoso.com
     Searches by email address.
 
     .EXAMPLE
-    $Users = Find-AdUser -Search 'flast','jsmith' -Script
+    $Users = Find-IRTAdUser -Search 'flast','jsmith' -Script
     Returns matching user objects for two search strings without setting globals.
 
     .OUTPUTS
@@ -49,7 +49,12 @@ function Find-AdUser {
     1.2.1 - Fixed bug where script was passing collections of user objects rather than user objects.
     1.2.0 - Major rewrite.
     #>
-    [Alias('FindAdUser', 'FindAdUsers', 'Find-AdUsers')]
+    [Alias(
+        'Find-IRTAdUsers',
+        'Find-AdUser', 'Find-AdUsers',
+        'FindIRTAdUser', 'FindIRTAdUsers',
+        'FindAdUser', 'FindAdUsers'
+    )]
     [OutputType([System.Collections.Generic.List[psobject]])]
     [CmdletBinding()]
     param (

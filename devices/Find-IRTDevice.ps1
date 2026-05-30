@@ -28,6 +28,7 @@ function Find-IRTDevice {
     )
 
     begin {
+        Update-IRTToken -Service 'Graph'
 
         # variables
         $ScriptDeviceObjects = [System.Collections.Generic.List[PsObject]]::new()

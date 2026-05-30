@@ -116,6 +116,7 @@ function Get-UALog {
     )
 
     begin {
+        Update-IRTToken -Service 'Exchange'
         $FunctionName = $MyInvocation.MyCommand.Name
         $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
         $ParameterSet = $PSCmdlet.ParameterSetName

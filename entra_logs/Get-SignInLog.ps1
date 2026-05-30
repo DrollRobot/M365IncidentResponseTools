@@ -99,6 +99,7 @@ function Get-SignInLog {
     )
 
     begin {
+        Update-IRTToken -Service 'Graph'
 
         #region BEGIN
 

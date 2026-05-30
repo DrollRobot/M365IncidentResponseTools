@@ -101,7 +101,7 @@ function Connect-IRT {
     process {
 
         # -Refresh: read params from the existing session and recurse.
-        if ($PSCmdlet.ParameterSetName -eq 'Refresh') {
+        if ($Refresh) {
             if (-not $Global:IRT_Session) {
                 Write-Error 'No active IRT session to refresh. Run Connect-IRT -TenantId first.'
                 return

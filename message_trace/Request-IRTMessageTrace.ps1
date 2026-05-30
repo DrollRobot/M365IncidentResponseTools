@@ -18,6 +18,7 @@ function Request-IRTMessageTrace {
     )
 
     begin {
+        Update-IRTToken -Service 'Exchange'
         $MaxPageSize = 5000
         $AbsoluteEnd   = Get-Date
         $AbsoluteStart = $AbsoluteEnd.AddDays(-1 * $Days)

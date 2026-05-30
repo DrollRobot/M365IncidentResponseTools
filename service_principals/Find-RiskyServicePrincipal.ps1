@@ -46,6 +46,7 @@ function Find-RiskyServicePrincipal {
     )
 
     begin {
+        Update-IRTToken -Service 'Graph'
         # variables
         $UserDisplayProperties = @(
             'AccountEnabled'

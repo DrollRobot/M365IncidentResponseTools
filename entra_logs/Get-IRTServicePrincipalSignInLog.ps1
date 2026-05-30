@@ -12,7 +12,7 @@ function Get-IRTServicePrincipalSignInLog {
     Date range defaults to the last 30 days when no -Days, -Start, or -End is specified.
 
     Falls back to $Global:IRT_ServicePrincipalObjects if no -ServicePrincipalObject is
-    passed. Use Find-ServicePrincipal first to populate that global variable.
+    passed. Use Find-IRTServicePrincipal first to populate that global variable.
 
     .PARAMETER ServicePrincipalObject
     One or more service principal objects whose sign-in logs to retrieve. Mutually
@@ -50,7 +50,7 @@ function Get-IRTServicePrincipalSignInLog {
     Export raw XML alongside the Excel file. Defaults to IRT_Config.ExportXml.
 
     .EXAMPLE
-    Find-ServicePrincipal MyApp
+    Find-IRTServicePrincipal MyApp
     Get-IRTServicePrincipalSignInLog
     Two-step workflow: find the SP then download its sign-in logs.
 
@@ -92,6 +92,7 @@ function Get-IRTServicePrincipalSignInLog {
     )
 
     begin {
+        Update-IRTToken -Service 'Graph'
 
         #region BEGIN
 

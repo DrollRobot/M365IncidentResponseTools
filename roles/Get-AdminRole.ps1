@@ -64,6 +64,7 @@ function Get-AdminRole {
     )
 
     begin {
+        Update-IRTToken -Service 'Graph'
 
         $CustomObjects = [System.Collections.Generic.List[pscustomobject]]::new()
         $WorksheetName = 'AdminRoles'

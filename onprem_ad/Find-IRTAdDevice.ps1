@@ -1,4 +1,4 @@
-function Find-AdDevice {
+function Find-IRTAdDevice {
     <#
     .SYNOPSIS
     Finds a local AD computer by Name, DNSHostName, SamAccountName, Description,
@@ -28,16 +28,16 @@ function Find-AdDevice {
     scripts or the playbook.
 
     .EXAMPLE
-    Find-AdDevice DESKTOP-ABC123
+    Find-IRTAdDevice DESKTOP-ABC123
     Finds computers matching 'DESKTOP-ABC123' and sets the global device object if exactly
     one match.
 
     .EXAMPLE
-    Find-AdDevice desktop-abc123.contoso.com
+    Find-IRTAdDevice desktop-abc123.contoso.com
     Searches by DNS host name.
 
     .EXAMPLE
-    $Devices = Find-AdDevice -Search 'DESKTOP-ABC123','LAPTOP-XYZ789' -Script
+    $Devices = Find-IRTAdDevice -Search 'DESKTOP-ABC123','LAPTOP-XYZ789' -Script
     Returns matching computer objects for two search strings without setting globals.
 
     .OUTPUTS
@@ -47,7 +47,12 @@ function Find-AdDevice {
     .NOTES
     Version: 1.0.0
     #>
-    [Alias('FindAdDevice', 'FindAdDevices', 'Find-AdDevices')]
+    [Alias(
+        'Find-IRTAdDevices',
+        'Find-AdDevice', 'Find-AdDevices',
+        'FindIRTAdDevice', 'FindIRTAdDevices',
+        'FindAdDevice', 'FindAdDevices'
+    )]
     [OutputType([System.Collections.Generic.List[psobject]])]
     [CmdletBinding()]
     param (

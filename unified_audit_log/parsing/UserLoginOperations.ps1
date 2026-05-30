@@ -113,6 +113,7 @@ function Build-UserLoginOperationsSheet {
         $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
         $RawDateProperty = 'CreationDate'
         $DateColumnHeader = 'DateTime'
+        Request-GraphServicePrincipal -Return 'none' -Cached:$Cached
     }
 
     process {

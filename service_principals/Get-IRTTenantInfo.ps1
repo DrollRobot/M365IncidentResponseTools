@@ -70,6 +70,7 @@ function Get-IRTTenantInfo {
     )
 
     begin {
+        Update-IRTToken -Service 'Graph'
         $NewCacheEntries = [System.Collections.Generic.List[psobject]]::new()
         $CachePath       = $null
 

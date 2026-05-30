@@ -63,6 +63,7 @@ function Get-UserServicePrincipal {
     # FIXME - Search UAL for user consent events to show dates?
 
     begin {
+        Update-IRTToken -Service 'Graph'
         $FileNameDateFormat = "yy-MM-dd_HH-mm"
         $WorksheetName = 'UserAppConsents'
 

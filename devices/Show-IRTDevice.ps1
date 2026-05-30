@@ -1,5 +1,5 @@
-#region Show-DeviceInfo
-function Show-DeviceInfo {
+#region Show-IRTDevice
+function Show-IRTDevice {
     <#
     .SYNOPSIS
     Displays Entra and Intune device properties for combined device objects produced by
@@ -8,7 +8,12 @@ function Show-DeviceInfo {
     .NOTES
     Version: 1.1.0
     #>
-    [Alias('ShowDevice', 'ShowDevices')]
+    [Alias(
+        'Show-IRTDevices',
+        'Show-Device', 'Show-Devices',
+        'ShowIRTDevice', 'ShowIRTDevices',
+        'ShowDevice', 'ShowDevices'
+    )]
     [CmdletBinding()]
     param(
         [Parameter( Position = 0 )]
@@ -17,6 +22,7 @@ function Show-DeviceInfo {
     )
 
     begin {
+        Update-IRTToken -Service 'Graph'
 
         # if not passed directly, fall back to global variable
         if ( -not $DeviceObject -or $DeviceObject.Count -eq 0 ) {

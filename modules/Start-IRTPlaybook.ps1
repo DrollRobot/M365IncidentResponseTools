@@ -217,7 +217,7 @@ function Start-IRTPlaybook {
                 )
             }
 
-            @{  Name   = 'Show-UserInfo'
+            @{  Name   = 'Show-IRTUser'
                 Script = {
                     param(
                         $WorkingPath,
@@ -227,7 +227,7 @@ function Start-IRTPlaybook {
                         Set-Variable -Scope Global -Name $k -Value $SharedRefs[$k]
                     }
                     Set-Location -Path $WorkingPath
-                    Show-UserInfo
+                    Show-IRTUser
                 }
                 Args  = @(
                     $WorkingPath,

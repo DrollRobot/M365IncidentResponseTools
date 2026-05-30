@@ -52,7 +52,6 @@ function Show-IRTMessageTrace {
             $Metadata = $Message[0]
             $Message.RemoveAt(0)
 
-            $UserEmails = $Metadata.UserEmails
             $UserName = $Metadata.UserName
             $StartDate = $Metadata.StartDate
             $EndDate = $Metadata.EndDate

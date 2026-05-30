@@ -186,6 +186,9 @@ InModuleScope M365IncidentResponseTools {
         # The signature segment is deliberately empty -- these tokens are
         # never passed to MSAL or any validation endpoint.
         function New-TestJwt {
+            [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+                'PSUseShouldProcessForStateChangingFunctions', '',
+                Justification = 'Test-only factory helper; ShouldProcess is not applicable.')]
             param(
                 [long]   $Exp,
                 [switch] $OmitExp
