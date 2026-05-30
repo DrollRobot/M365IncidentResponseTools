@@ -20,6 +20,9 @@ Domain folders and their responsibilities:
 | `unified_audit_log/` | UAL search and reporting |
 | `users/` | Entra user investigation and remediation |
 
+
+## Code Style
+
 ### Naming Conventions
 
 - Public functions: `Verb-IRTNoun` (e.g., `Get-IRTInboxRule`, `Get-IRTMessageTrace`).
@@ -28,8 +31,6 @@ Domain folders and their responsibilities:
 - If a .ps1 file contains a single function, file name should be the same: `Get-IRTInboxRule.ps1` contains `function Get-IRTInboxRule`.
 - Prefer one file per function, but small helpers can live in same file as a major function.
 - Function aliases are declared on the function definition with `[Alias(...)]`, as well as the manifest.
-
-## Code Style
 
 ### Output
 
@@ -77,7 +78,7 @@ The module config lives in `modules/Import-IRTConfig.ps1`. Whenever you add a ne
 
 ### Pester tests
 
-- Tests that do **not** require connectivity need no tag -- they run in both modes.
+- Tests that do **not** require connectivity need no tag.
 - Tests that **require** a live Graph/Exchange/IPPS session must be tagged `'Online'`:
 
 ```powershell
@@ -107,13 +108,17 @@ After making changes, run the test suite from the repo root:
 
 ## Things to do before pushing a new tag
 
+### Run all tests (as described above)
+
+### Update Update-Docs.ps1 script
+
 ### Update CHANGELOG.md
 
 `CHANGELOG.md` in the repo root is the authoritative changelog.
 Before proceeding, fetch and review <https://keepachangelog.com> to get the
 current format rules. Do not rely on training data -- request a fresh copy every time.
 
-### How to update the changelog before tagging a new release
+**How to update the changelog before tagging a new release**
 
 1. **Find the previous tag** and collect every commit since then:
 
