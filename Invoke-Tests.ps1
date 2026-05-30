@@ -23,14 +23,14 @@
     automatically using $env:IRT_TEST_TENANT_ID from tests/.env.ps1.
 
 .PARAMETER CachedAuth
-    Used with -Online. When set, connect functions run in silent-only mode:
-    MSAL attempts a token refresh from the test cache and fails immediately if
-    no cached credentials exist (no browser prompt). Intended for automated
-    agent runs where interactive auth is not possible.
+    Used with -Online. When set, Connect-IRT runs in silent-only mode: MSAL
+    attempts a token refresh from the test cache and fails immediately if no
+    cached credentials exist (no browser prompt). Intended for automated agent
+    runs where interactive auth is not possible.
 
-    When omitted the test token cache is deleted first, then Connect-IRT runs
-    interactively to create a fresh cache. Subsequent -CachedAuth runs can
-    reuse those tokens for the life of the refresh token (~90 days).
+    When omitted, the test token cache is deleted, Connect-IRT prompts once for
+    interactive sign-in, then immediately reconnects silently to verify the full
+    cache round-trip -- all in the same run.
 
 .EXAMPLE
     .\ Invoke-Tests.ps1 -Offline

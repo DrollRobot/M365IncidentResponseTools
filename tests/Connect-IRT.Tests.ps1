@@ -141,6 +141,11 @@
     isolated test token cache so the operator's primary cache is never
     affected.
 
+    In interactive mode (-Online without -CachedAuth) the BeforeAll signs
+    in once to populate the cache, clears the session, then reconnects
+    silently to verify the full cache round-trip in a single run.
+    In agent mode (-Online -CachedAuth) only a silent refresh is attempted.
+
     'Graph TokenExpiry is a future UTC DateTime'
         Confirms a real Graph access token was acquired and its expiry was
         correctly parsed; a past expiry would mean every API call would
@@ -509,12 +514,13 @@ Describe 'Connect-IRT' {
 # so live runs never pollute the operator's primary token cache.
 #
 # Two auth modes (controlled by $env:IRT_TEST_SILENT_AUTH, set by Invoke-Tests.ps1):
-#   '0' / unset -- Interactive: the test cache is deleted first, then
-#                  Connect-IRT prompts the user once and saves the tokens.
-#   '1'         -- Cached (-CachedAuth flag): MSAL attempts a silent
-#                  refresh from the existing test cache. If no cached
-#                  credentials are present the BeforeAll throws with a
-#                  clear message rather than hanging on a browser prompt.
+#   '0' / unset -- Interactive: the test cache is deleted first, Connect-IRT
+#                  prompts the user once to populate the cache, then the session
+#                  is cleared and Connect-IRT reconnects silently to verify the
+#                  cache round-trip in the same run.
+#   '1'         -- Cached (-CachedAuth flag): MSAL attempts a silent refresh
+#                  from the existing test cache only. No interactive prompt.
+#                  Fails immediately if no cached credentials are present.
 #
 # The BeforeAll clears $Global:IRT_Session before calling Connect-IRT so
 # the tests genuinely verify that Connect-IRT establishes the session from
@@ -561,10 +567,23 @@ Describe 'Connect-IRT session state (live)' -Tag 'Online' {
             }
         }
         else {
-            # Interactive mode: the test cache was already deleted by
-            # Invoke-Tests.ps1 before launching Pester, so this call
-            # will always prompt for a fresh sign-in.
+            # Interactive mode: sign in once to populate the cache, then
+            # immediately verify the round-trip by clearing the session and
+            # reconnecting silently. The final session is established via
+            # silent auth, proving the cache was correctly written.
             Connect-IRT @ConnectParams
+            $Global:IRT_Session = $null
+            try {
+                $ConnectParams['Silent'] = $true
+                Connect-IRT @ConnectParams
+            }
+            catch {
+                throw (
+                    'Interactive sign-in succeeded but silent cache reconnect failed. ' +
+                    'The MSAL token cache may not have been written correctly. ' +
+                    "Original error: $_"
+                )
+            }
         }
     }
 

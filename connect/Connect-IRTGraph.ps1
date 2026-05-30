@@ -259,12 +259,15 @@ function Connect-IRTGraph {
 
         if ($NeedConnect) {
             if ($Ctx) {
-                Disconnect-MgGraph -ErrorAction SilentlyContinue
+                $null = Disconnect-MgGraph -ErrorAction SilentlyContinue
             }
             $Secure = ConvertTo-SecureString -String $Token -AsPlainText -Force
-            $Params = @{ AccessToken = $Secure; NoWelcome = $true }
-            $Params['Environment'] = $CloudConfig.GraphEnv
-            Connect-MgGraph @Params
+            $Params = @{ 
+                AccessToken = $Secure
+                NoWelcome = $true
+                Environment = $CloudConfig.GraphEnv
+            }
+            $null = Connect-MgGraph @Params
         }
 
         # ---------- Phase 3: admin consent ----------
