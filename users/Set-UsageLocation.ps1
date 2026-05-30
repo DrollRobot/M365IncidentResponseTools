@@ -5,7 +5,8 @@ function Set-UsageLocation {
 
 	.NOTES
 	Version: 1.0.2
-    1.0.2 - .Contains() method is case sensitive. Adjusted so .ToUpper() happens before running .Contains() so lower case input of valid country codes will be accepted.
+    1.0.2 - .Contains() method is case sensitive. Adjusted so .ToUpper() happens before
+            running .Contains() so lower case input of valid country codes will be accepted.
 	#>
     [Alias('SetLocation', 'SetUsage')]
     [CmdletBinding(SupportsShouldProcess = $true)]
@@ -93,7 +94,8 @@ function Set-UsageLocation {
             $CountryCode = $CountryCode.ToUpper()
 
             # set new location
-            if ($PSCmdlet.ShouldProcess($ScriptUserObject.UserPrincipalName, "Set usage location to $CountryCode")) {
+            $Upn = $ScriptUserObject.UserPrincipalName
+            if ($PSCmdlet.ShouldProcess($Upn, "Set usage location to $CountryCode")) {
                 Write-IRT "Setting new usage location."
                 Update-MgUser -UserId $ScriptUserObject.Id -Usagelocation $CountryCode
             }

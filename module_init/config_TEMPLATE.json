@@ -13,5 +13,6 @@
     "WarnColor": "Yellow",
     "ErrorColor": "Red",
     "IpInfoAvailable": false,
-    "EnableTokenCache": false
+    "EnableTokenCache": false,
+    "MsalCachePath": null
 }

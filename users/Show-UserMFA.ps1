@@ -44,7 +44,8 @@ function Show-UserMFA {
     [Alias('ShowMFA', 'UserMFA')]
     [CmdletBinding()]
     param(
-        [Parameter(Position = 0, ValueFromPipeline = $true, ValueFromPipelineByPropertyName = $true)]
+        [Parameter(Position = 0,
+            ValueFromPipeline = $true, ValueFromPipelineByPropertyName = $true)]
         [Alias('UserObjects')]
         [psobject[]] $UserObject,
 
@@ -148,7 +149,7 @@ function Show-UserMFA {
                         }
 
                         # add human friendly method name to table, then add table to custom object
-                        switch ( $Method.AdditionalProperties["@odata.type"] ) {
+                        switch -Wildcard ( $Method.AdditionalProperties["@odata.type"] ) {
                             # email
                             '#microsoft.graph.emailAuthenticationMethod' {
 
@@ -157,7 +158,8 @@ function Show-UserMFA {
                                 $CustomObject | Add-Member @NameParams
 
                                 # add delete command
-                                $DeleteString = "Remove-MgUserAuthenticationEmailMethod -UserId ${UserId} -EmailAuthenticationMethodId ${MethodId}"
+                                $DeleteString = 'Remove-MgUserAuthenticationEmailMethod' +
+                                    " -UserId ${UserId} -EmailAuthenticationMethodId ${MethodId}"
                                 $DeleteParams['Value'] = $DeleteString
                                 $CustomObject | Add-Member @DeleteParams
                             }
@@ -169,7 +171,8 @@ function Show-UserMFA {
                                 $CustomObject | Add-Member @NameParams
 
                                 # add delete command
-                                $DeleteString = "Remove-MgUserAuthenticationFido2Method -UserId ${UserId} -Fido2AuthenticationMethodId ${MethodId}"
+                                $DeleteString = 'Remove-MgUserAuthenticationFido2Method' +
+                                    " -UserId ${UserId} -Fido2AuthenticationMethodId ${MethodId}"
                                 $DeleteParams['Value'] = $DeleteString
                                 $CustomObject | Add-Member @DeleteParams
                             }
@@ -181,7 +184,11 @@ function Show-UserMFA {
                                 $CustomObject | Add-Member @NameParams
 
                                 # add delete command
-                                $DeleteString = "Remove-MgUserAuthenticationMicrosoftAuthenticatorMethod -UserId ${UserId} -MicrosoftAuthenticatorAuthenticationMethodId ${MethodId}"
+                                $DeleteString =
+                                    'Remove-MgUserAuthenticationMicrosoftAuthenticatorMethod' +
+                                    " -UserId ${UserId}" +
+                                    ' -MicrosoftAuthenticatorAuthenticationMethodId' +
+                                    " ${MethodId}"
                                 $DeleteParams['Value'] = $DeleteString
                                 $CustomObject | Add-Member @DeleteParams
                             }
@@ -193,14 +200,18 @@ function Show-UserMFA {
                                 $CustomObject | Add-Member @NameParams
                             }
                             # passwordless
-                            '#microsoft.graph.passwordlessMicrosoftAuthenticatorAuthenticationMethod' {
+                            '*passwordlessMicrosoftAuthenticatorAuthenticationMethod' {
 
                                 # add human friendly method name
                                 $NameParams['Value'] = 'Passwordless'
                                 $CustomObject | Add-Member @NameParams
 
                                 # add delete command
-                                $DeleteString = "Remove-MgBetaUserAuthenticationPasswordlessMicrosoftAuthenticatorMethod -UserId ${UserId} -PasswordlessMicrosoftAuthenticatorAuthenticationMethodId  ${MethodId}"
+                                $DeleteString = 'Remove-MgBetaUserAuthentication' +
+                                    'PasswordlessMicrosoftAuthenticatorMethod' +
+                                    " -UserId ${UserId}" +
+                                    ' -PasswordlessMicrosoftAuthenticatorAuthentication' +
+                                    "MethodId  ${MethodId}"
                                 $DeleteParams['Value'] = $DeleteString
                                 $CustomObject | Add-Member @DeleteParams
                             }
@@ -212,7 +223,8 @@ function Show-UserMFA {
                                 $CustomObject | Add-Member @NameParams
 
                                 # add delete command
-                                $DeleteString = "Remove-MgUserAuthenticationPhoneMethod -UserId ${UserId} -PhoneAuthenticationMethodId ${MethodId}"
+                                $DeleteString = 'Remove-MgUserAuthenticationPhoneMethod' +
+                                    " -UserId ${UserId} -PhoneAuthenticationMethodId ${MethodId}"
                                 $DeleteParams['Value'] = $DeleteString
                                 $CustomObject | Add-Member @DeleteParams
                             }
@@ -224,7 +236,10 @@ function Show-UserMFA {
                                 $CustomObject | Add-Member @NameParams
 
                                 # add delete command
-                                $DeleteString = "Remove-MgUserAuthenticationSoftwareOathMethod -UserId ${UserId} -SoftwareOathAuthenticationMethodId ${MethodId}"
+                                $DeleteString = 'Remove-MgUserAuthenticationSoftwareOathMethod' +
+                                    " -UserId ${UserId}" +
+                                    ' -SoftwareOathAuthenticationMethodId' +
+                                    " ${MethodId}"
                                 $DeleteParams['Value'] = $DeleteString
                                 $CustomObject | Add-Member @DeleteParams
                             }
@@ -236,7 +251,11 @@ function Show-UserMFA {
                                 $CustomObject | Add-Member @NameParams
 
                                 # add delete command
-                                $DeleteString = "Remove-MgUserAuthenticationTemporaryAccessPassMethod -UserId ${UserId} -TemporaryAccessPassAuthenticationMethodId ${MethodId}"
+                                $DeleteString =
+                                    'Remove-MgUserAuthenticationTemporaryAccessPassMethod' +
+                                    " -UserId ${UserId}" +
+                                    ' -TemporaryAccessPassAuthenticationMethodId' +
+                                    " ${MethodId}"
                                 $DeleteParams['Value'] = $DeleteString
                                 $CustomObject | Add-Member @DeleteParams
                             }
@@ -248,7 +267,11 @@ function Show-UserMFA {
                                 $CustomObject | Add-Member @NameParams
 
                                 # add delete command
-                                $DeleteString = "Remove-MgUserAuthenticationWindowsHelloForBusinessMethod -UserId ${UserId} -WindowsHelloForBusinessAuthenticationMethodId ${MethodId}"
+                                $DeleteString =
+                                    'Remove-MgUserAuthenticationWindowsHelloForBusinessMethod' +
+                                    " -UserId ${UserId}" +
+                                    ' -WindowsHelloForBusinessAuthenticationMethodId' +
+                                    " ${MethodId}"
                                 $DeleteParams['Value'] = $DeleteString
                                 $CustomObject | Add-Member @DeleteParams
                             }
@@ -268,7 +291,8 @@ function Show-UserMFA {
                         $DateTime = [datetime]( $Method.AdditionalProperties[$Key] )
 
                         ### build date string
-                        $BuildString = $DateTime.ToLocalTIme().ToString( $EventDateFormat ).ToLower()
+                        $BuildString = $DateTime.ToLocalTIme().ToString(
+                            $EventDateFormat).ToLower()
                         # create acronym from timezone full name
                         if ( $DateTime.ToLocalTIme().IsDaylightSavingTime()) {
                             $TimeZoneName = $TimeZoneInfo.DaylightName
@@ -276,7 +300,8 @@ function Show-UserMFA {
                         else {
                             $TimeZoneName = $TimeZoneInfo.StandardName
                         }
-                        $TimeZoneAcronym = -join ( $TimeZoneName -split ' ' | ForEach-Object { $_[0] } )
+                        $TimeZoneAcronym = -join ($TimeZoneName -split ' ' |
+                            ForEach-Object { $_[0] })
                         # add time zone acronym to string
                         $EventDateString = $BuildString + " " + $TimeZoneAcronym
                         # if first character of date is 0, replace with space
@@ -285,7 +310,8 @@ function Show-UserMFA {
                         }
                         # if first character of time is 0, replace with space
                         if ( $EventDateString[9] -eq '0' ) {
-                            $EventDateString = $EventDateString.Substring(0, 9) + " " + $EventDateString.Substring(10)
+                            $EventDateString = $EventDateString.Substring(0, 9) +
+                                ' ' + $EventDateString.Substring(10)
                         }
 
                         # add to summary list
@@ -314,7 +340,12 @@ function Show-UserMFA {
                 # add summary column
                 if ( $SummaryParts.Count -gt 0 ) {
                     $SummaryString = $SummaryParts -join "`n"
-                    $CustomObject | Add-Member -MemberType NoteProperty -Name 'Summary' -Value $SummaryString
+                    $NpParams = @{
+                        MemberType = 'NoteProperty'
+                        Name       = 'Summary'
+                        Value      = $SummaryString
+                    }
+                    $CustomObject | Add-Member @NpParams
                 }
 
                 # add loop object to table
@@ -364,7 +395,8 @@ function Show-UserMFA {
                 Passthru      = $true
             }
             try {
-                $Workbook = $OutputTable | Select-Object $SortedProperties | Export-Excel @ExcelParams
+                $Workbook = $OutputTable |
+                    Select-Object $SortedProperties | Export-Excel @ExcelParams
             }
             catch {
                 Write-IRT "Unable to open new Excel document." -Level Error
@@ -382,12 +414,15 @@ function Show-UserMFA {
             # get table ranges
             $SheetStartColumn = $WorkSheet.Dimension.Start.Column | Convert-DecimalToExcelColumn
             $SheetStartRow = $WorkSheet.Dimension.Start.Row
-            # $TableStartColumn = ( $workSheet.Tables.Address | Select-Object -First 1 ).Start.Column | Convert-DecimalToExcelColumn
+            # $TableStartColumn = ( $workSheet.Tables.Address | Select-Object -First 1 )
+            #     .Start.Column | Convert-DecimalToExcelColumn
             $TableStartRow = ( $workSheet.Tables.Address | Select-Object -First 1 ).Start.Row
             $EndColumn = $WorkSheet.Dimension.End.Column | Convert-DecimalToExcelColumn
             $EndRow = $WorkSheet.Dimension.End.Row
 
-            $SummaryColumn = ($Worksheet.Tables[0].Columns | Where-Object {$_.Name -eq 'Summary'}).Id | Convert-DecimalToExcelColumn
+            $SummaryColumn = ($Worksheet.Tables[0].Columns |
+                Where-Object { $_.Name -eq 'Summary' }).Id |
+                Convert-DecimalToExcelColumn
 
             #region COLUMN WIDTH
 

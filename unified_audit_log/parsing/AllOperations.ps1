@@ -53,7 +53,8 @@ function Build-AllOperationSheet {
         #region ROW LOOP
 
         $RowCount = ($Log | Measure-Object).Count
-        Write-Verbose "${FunctionName}: Row loop starting (${RowCount} rows) $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
+        $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+        Write-Verbose "${FunctionName}: Row loop starting (${RowCount} rows) $Elapsed"
         $Rows = [System.Collections.Generic.List[PSCustomObject]]::new()
         for ($i = 0; $i -lt $RowCount; $i++) {
 
@@ -357,7 +358,8 @@ function Build-AllOperationSheet {
         } # end if Tables.Count
 
         #region MISSING OPERATIONS
-        $AllOperationsFileName = 'unified_audit_log-all_operations.xlsx' # FIXME no hard coded paths! use config path
+        # FIXME no hard coded paths! use config path
+        $AllOperationsFileName = 'unified_audit_log-all_operations.xlsx'
         $OperationsToAdd = [System.Collections.Generic.HashSet[PSCustomObject]]::new()
         foreach ($o in $OperationsFromLog) {
             if ($OperationsFromSheet.Add($o)) {

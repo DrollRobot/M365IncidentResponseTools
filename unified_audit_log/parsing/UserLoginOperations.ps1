@@ -119,7 +119,8 @@ function Build-UserLoginOperationsSheet {
 
         #region ROW LOOP
         $RowCount = ($Logs | Measure-Object).Count
-        Write-Verbose "${FunctionName}: Row loop starting (${RowCount} rows) $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
+        $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+        Write-Verbose "${FunctionName}: Row loop starting (${RowCount} rows) $Elapsed"
         $Rows = [System.Collections.Generic.List[PSCustomObject]]::new($RowCount)
 
         for ($i = 0; $i -lt $RowCount; $i++) {
@@ -250,7 +251,8 @@ function Build-UserLoginOperationsSheet {
             $TableStartRow    = $TableAddress.Start.Row
 
             # IP address conditional formatting
-            Write-Verbose "${FunctionName}: Add-IpAddressConditionalFormatting $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
+            $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+            Write-Verbose "${FunctionName}: Add-IpAddressConditionalFormatting $Elapsed"
             Add-IpAddressConditionalFormatting -Worksheet $Worksheet -ColumnName 'IpAddress'
 
             # Application conditional formatting - highlight PowerShell/CLI tools

@@ -97,7 +97,13 @@ function Write-IRT {
         }
     }
 
-    $text = if ($Message -eq '') { '' } elseif ($NoFunctionName) { $Message } else { "${FunctionName}: ${Message}" }
+    $text = if ($Message -eq '') {
+        ''
+    } elseif ($NoFunctionName) {
+        $Message
+    } else {
+        "${FunctionName}: ${Message}"
+    }
     if ($NoColor) {
         Write-Host $text -NoNewline:$NoNewline
     } else {

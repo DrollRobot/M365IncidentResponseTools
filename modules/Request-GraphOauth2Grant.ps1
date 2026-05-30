@@ -56,7 +56,8 @@ function Request-GraphOauth2Grant {
         $DomainName = Get-IRTDefaultDomain
 
         # query graph
-        Write-Verbose "${FunctionName}: Get-MgOauth2PermissionGrant $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
+        $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+        Write-Verbose "${FunctionName}: Get-MgOauth2PermissionGrant $Elapsed"
         $Objects = Get-MgOauth2PermissionGrant -All
 
         # store in global variables
@@ -76,7 +77,8 @@ function Request-GraphOauth2Grant {
         if ($Xml) {
             $FileName = "Oauth2Grants_Raw_${DomainName}_${FileNameDate}.xml"
             $XmlOutputPath = Join-Path -Path $CurrentPath -ChildPath $FileName
-            Write-Verbose "${FunctionName}: Export-Clixml $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
+            $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+            Write-Verbose "${FunctionName}: Export-Clixml $Elapsed"
             $Objects | Export-Clixml -Depth 5 -Path $XmlOutputPath
         }
 

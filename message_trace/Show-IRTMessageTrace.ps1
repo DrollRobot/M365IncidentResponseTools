@@ -32,7 +32,8 @@ function Show-IRTMessageTrace {
         if ($ParameterSet -eq 'Xml') {
             try {
                 $ResolvedXmlPath = Resolve-ScriptPath -Path $XmlPath -File -FileExtension 'xml'
-                Write-Verbose "${FunctionName}: Import-CliXml $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
+                $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+                Write-Verbose "${FunctionName}: Import-CliXml $Elapsed"
                 $Message = [System.Collections.Generic.List[PSObject]](
                     Import-CliXml -Path $ResolvedXmlPath
                 )
@@ -96,7 +97,8 @@ function Show-IRTMessageTrace {
         #region ROW LOOP
 
         $RowCount = $Message.Count
-        Write-Verbose "${FunctionName}: Row loop starting (${RowCount} rows) $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
+        $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+        Write-Verbose "${FunctionName}: Row loop starting (${RowCount} rows) $Elapsed"
         $Rows = [System.Collections.Generic.List[PSCustomObject]]::new($RowCount)
         for ($i = 0; $i -lt $RowCount; $i++) {
 
@@ -174,7 +176,8 @@ function Show-IRTMessageTrace {
         $Worksheet = $Workbook.Workbook.Worksheets[$ExcelParams.WorksheetName]
 
         if ($IpInfo) {
-            Write-Verbose "${FunctionName}: Add-IpInfoToSheet $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
+            $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+            Write-Verbose "${FunctionName}: Add-IpInfoToSheet $Elapsed"
             Add-IpInfoToSheet -Worksheet $Worksheet -ColumnName 'FromIP', 'ToIP'
         }
 
@@ -197,49 +200,52 @@ function Show-IRTMessageTrace {
 
         #region BOLD OTHER EMAIL
 
-        if ($UserEmails) {
-            # # helper: make "=AND(LEN($A2)>0, $A2<>\"me1\", $A2<>\"me2\", ...)" for
-            # #     a column's anchor cell
-            # function New-CfNotMeFormula {
-            #     param([Parameter(Mandatory)][string]$ColumnLetter,
-            #         [Parameter(Mandatory)][int]$StartRow)
+        # FIXME idea here was to make it clearer at a glance whether the email was sent or
+        # received by the user. Not sure if this is the best way though.
 
-            #     # anchor column absolute, row relative: $A2
-            #     $anchor = "`$${ColumnLetter}$StartRow"
+        # if ($UserEmails) {
+        #     # helper: make "=AND(LEN($A2)>0, $A2<>\"me1\", $A2<>\"me2\", ...)" for
+        #     #     a column's anchor cell
+        #     function New-CfNotMeFormula {
+        #         param([Parameter(Mandatory)][string]$ColumnLetter,
+        #             [Parameter(Mandatory)][int]$StartRow)
 
-            #     # comparisons: $A2<> "alias"
-            #     $comparisons = $UserEmails.ForEach({
-            #         '{0}<>""{1}""' -f $anchor, ($_ -replace '"','""')
-            #     })
+        #         # anchor column absolute, row relative: $A2
+        #         $anchor = "`$${ColumnLetter}$StartRow"
 
-            #     # skip blanks, and only bold when value is not any of my addresses
-            #     return '=AND(LEN({0})>0,{1})' -f $anchor, ($comparisons -join ',')
-            # }
+        #         # comparisons: $A2<> "alias"
+        #         $comparisons = $UserEmails.ForEach({
+        #             '{0}<>""{1}""' -f $anchor, ($_ -replace '"','""')
+        #         })
 
-            # # sender column rule
-            # $FormulaSender = New-CfNotMeFormula -ColumnLetter $SenderColumn
-            #     -StartRow $TableStartRow
-            # $CfParamsSender = @{
-            #     WorkSheet      = $Worksheet
-            #     Address        = "${SenderColumn}${TableStartRow}:${SenderColumn}${EndRow}"
-            #     RuleType       = 'Expression'
-            #     ConditionValue = $FormulaSender
-            #     Bold           = $true
-            # }
-            # Add-ConditionalFormatting @CfParamsSender
+        #         # skip blanks, and only bold when value is not any of my addresses
+        #         return '=AND(LEN({0})>0,{1})' -f $anchor, ($comparisons -join ',')
+        #     }
 
-            # # recipient column rule
-            # $FormulaRecipient = New-CfNotMeFormula -ColumnLetter $RecipientColumn
-            #     -StartRow $TableStartRow
-            # $CfParamsRecipient = @{
-            #     WorkSheet      = $Worksheet
-            #     Address        = "${RecipientColumn}${TableStartRow}:${RecipientColumn}${EndRow}"
-            #     RuleType       = 'Expression'
-            #     ConditionValue = $FormulaRecipient
-            #     Bold           = $true
-            # }
-            # Add-ConditionalFormatting @CfParamsRecipient
-        }
+        #     # sender column rule
+        #     $FormulaSender = New-CfNotMeFormula -ColumnLetter $SenderColumn
+        #         -StartRow $TableStartRow
+        #     $CfParamsSender = @{
+        #         WorkSheet      = $Worksheet
+        #         Address        = "${SenderColumn}${TableStartRow}:${SenderColumn}${EndRow}"
+        #         RuleType       = 'Expression'
+        #         ConditionValue = $FormulaSender
+        #         Bold           = $true
+        #     }
+        #     Add-ConditionalFormatting @CfParamsSender
+
+        #     # recipient column rule
+        #     $FormulaRecipient = New-CfNotMeFormula -ColumnLetter $RecipientColumn
+        #         -StartRow $TableStartRow
+        #     $CfParamsRecipient = @{
+        #         WorkSheet      = $Worksheet
+        #         Address        = "${RecipientColumn}${TableStartRow}:${RecipientColumn}${EndRow}"
+        #         RuleType       = 'Expression'
+        #         ConditionValue = $FormulaRecipient
+        #         Bold           = $true
+        #     }
+        #     Add-ConditionalFormatting @CfParamsRecipient
+        # }
 
         #region SAME TO/FROM
 

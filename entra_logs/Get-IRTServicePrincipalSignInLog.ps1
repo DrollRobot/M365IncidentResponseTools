@@ -199,7 +199,8 @@ function Get-IRTServicePrincipalSignInLog {
 
             Write-IRT "Retrieving ${Days} days of service principal sign-in logs for ${Target}."
             Write-Verbose "${FunctionName}: Filter string: '${FilterString}'"
-            Write-Verbose "${FunctionName}: Get-MgAuditLogSignIn $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
+            $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+            Write-Verbose "${FunctionName}: Get-MgAuditLogSignIn $Elapsed"
 
             if ($Beta) {
                 $GetParams = @{
@@ -240,14 +241,16 @@ function Get-IRTServicePrincipalSignInLog {
 
                 # export to xml
                 if ($Xml) {
-                    Write-Verbose "${FunctionName}: Export-Clixml $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
+                    $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+                    Write-Verbose "${FunctionName}: Export-Clixml $Elapsed"
                     Write-IRT "Saving logs to: ${XmlOutputPath}"
                     $Logs | Export-Clixml -Depth 10 -Path $XmlOutputPath
                 }
 
                 # export excel spreadsheet
                 if ($Excel) {
-                    Write-Verbose "${FunctionName}: Show-IRTServicePrincipalSignInLog $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
+                    $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+                    Write-Verbose "${FunctionName}: Show-IRTServicePrincipalSignInLog $Elapsed"
                     $Params = @{
                         Logs   = $Logs
                         IpInfo = $IpInfo

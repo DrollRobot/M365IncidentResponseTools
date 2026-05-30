@@ -34,7 +34,8 @@ function Show-SignInLog {
         if ($ParameterSet -eq 'Xml') {
             try {
                 $ResolvedXmlPath = Resolve-ScriptPath -Path $XmlPath -File -FileExtension 'xml'
-                Write-Verbose "${FunctionName}: Import-CliXml $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
+                $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+                Write-Verbose "${FunctionName}: Import-CliXml $Elapsed"
                 [System.Collections.Generic.List[PSObject]]$Log =
                     Import-CliXml -Path $ResolvedXmlPath
             }
@@ -72,7 +73,8 @@ function Show-SignInLog {
         #region ROW LOOP
 
         $RowCount = ($Log | Measure-Object).Count
-        Write-Verbose "${FunctionName}: Row loop starting (${RowCount} rows) $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
+        $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+        Write-Verbose "${FunctionName}: Row loop starting (${RowCount} rows) $Elapsed"
         $Rows = [System.Collections.Generic.List[PSCustomObject]]::new($RowCount)
         for ($i = 0; $i -lt $RowCount; $i++) {
 
@@ -164,7 +166,8 @@ function Show-SignInLog {
         $Worksheet = $Workbook.Workbook.Worksheets[$ExcelParams.WorksheetName]
 
         if ($IpInfo) {
-            Write-Verbose "${FunctionName}: Add-IpInfoToSheet $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
+            $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+            Write-Verbose "${FunctionName}: Add-IpInfoToSheet $Elapsed"
             Add-IpInfoToSheet -Worksheet $Worksheet -ColumnName 'IpAddress'
         }
 

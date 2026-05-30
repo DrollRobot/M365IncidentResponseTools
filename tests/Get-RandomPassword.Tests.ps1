@@ -1,7 +1,8 @@
 #Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.0.0' }
 
 BeforeAll {
-    . (Join-Path -Path $PSScriptRoot -ChildPath '..' -AdditionalChildPath 'modules', 'Get-RandomPassword.ps1')
+    $ModulesPath = Join-Path $PSScriptRoot '..' 'modules'
+    . (Join-Path $ModulesPath 'Get-RandomPassword.ps1')
 }
 
 Describe 'Get-RandomPassword' {

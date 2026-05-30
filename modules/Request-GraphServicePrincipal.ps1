@@ -69,7 +69,8 @@ function Request-GraphServicePrincipal {
         $DomainName = Get-IRTDefaultDomain
 
         # query graph
-        Write-Verbose "${FunctionName}: Get-MgServicePrincipal $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
+        $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+        Write-Verbose "${FunctionName}: Get-MgServicePrincipal $Elapsed"
         $Objects = Get-MgServicePrincipal -All | Select-Object ($GetProperties)
 
         # extract CreatedDateTime from AdditionalProperties
@@ -98,7 +99,8 @@ function Request-GraphServicePrincipal {
         if ($Xml) {
             $FileName = "ServicePrincipals_Raw_${DomainName}_${FileNameDate}.xml"
             $XmlOutputPath = Join-Path -Path $CurrentPath -ChildPath $FileName
-            Write-Verbose "${FunctionName}: Export-Clixml $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
+            $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+            Write-Verbose "${FunctionName}: Export-Clixml $Elapsed"
             $Objects | Export-Clixml -Depth 10 -Path $XmlOutputPath
         }
 

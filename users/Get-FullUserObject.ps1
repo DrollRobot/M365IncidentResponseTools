@@ -15,7 +15,8 @@ function Get-FullUserObject {
         [ValidateNotNull()]
         [Microsoft.Graph.PowerShell.Models.MicrosoftGraphUser] $UserObject,
 
-        [Parameter(Mandatory, ValueFromPipeline, ValueFromPipelineByPropertyName, ParameterSetName='ById')]
+        [Parameter(Mandatory, ValueFromPipeline,
+            ValueFromPipelineByPropertyName, ParameterSetName='ById')]
         [Alias('Id')]
         [ValidateNotNullOrEmpty()]
         [string] $UserId,
@@ -60,7 +61,8 @@ function Get-FullUserObject {
 
         # if object is already full object, and -NoRefresh, don't query.
         if ($NoRefresh -and $PSCmdlet.ParameterSetName -eq 'ByObject' -and
-            $ScriptUserObject.PSObject.Properties['AllProperties'] -and $ScriptUserObject.AllProperties) {
+            $ScriptUserObject.PSObject.Properties['AllProperties'] -and
+            $ScriptUserObject.AllProperties) {
             Write-Output $ScriptUserObject
             return
         }
@@ -107,12 +109,19 @@ function Get-FullUserObject {
                 $ScriptUserObject.$Property = $TempUserObject.$Property
             }
             catch {
-                Write-Verbose "Unable to retrieve property '$Property' for '$ResolvedId': $($_.Exception.Message)"
+                $ErrMsg = "Unable to retrieve property '$Property' for '$ResolvedId': " +
+                    $_.Exception.Message
+                Write-Verbose $ErrMsg
             }
         }
 
         # add property indicating object has all properties.
-        $ScriptUserObject | Add-Member -NotePropertyName 'AllProperties' -NotePropertyValue $true -Force
+        $AmParams = @{
+            NotePropertyName  = 'AllProperties'
+            NotePropertyValue = $true
+            Force             = $true
+        }
+        $ScriptUserObject | Add-Member @AmParams
 
         Write-Output $ScriptUserObject
     }

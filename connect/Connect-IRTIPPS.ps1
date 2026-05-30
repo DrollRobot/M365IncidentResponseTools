@@ -20,6 +20,10 @@ function Connect-IRTIPPS {
     Override the MSAL client ID. Defaults to the EXO/IPPS first-party app
     (fb78d390-0c51-40cd-8e17-fdbfab77341b).
 
+    .PARAMETER MsalCachePath
+    Override the path for the persistent MSAL token cache file. Defaults to
+    $Global:IRT_Config.MsalCachePath. Useful for testing with an isolated cache.
+
     .NOTES
     Version: 2.0.0
     #>
@@ -47,12 +51,14 @@ function Connect-IRTIPPS {
         [switch] $Force,
         [switch] $Silent,
 
-        [string] $ClientId = 'fb78d390-0c51-40cd-8e17-fdbfab77341b'  # EXO/IPPS first-party app
+        [string] $ClientId = 'fb78d390-0c51-40cd-8e17-fdbfab77341b',  # EXO/IPPS first-party app
+
+        [string] $MsalCachePath = $Global:IRT_Config.MsalCachePath
     )
 
     begin {
         $CloudConfig = $Global:IRT_CloudEnvironments[$Cloud]
-        $IPPSScope   = if ($SearchOnly) { $CloudConfig.IPPSSearchOnly } else { $CloudConfig.Exchange }
+        $IPPSScope   = ($SearchOnly ? $CloudConfig.IPPSSearchOnly : $CloudConfig.Exchange)
         $Authority   = "$($CloudConfig.LoginHost)/$TenantId"
         $Scopes      = [string[]]@($IPPSScope)
 
@@ -78,10 +84,13 @@ function Connect-IRTIPPS {
             }
 
             if ($Silent) {
-                throw 'Silent IPPS token refresh failed and interactive auth is not allowed (-Silent).'
+                throw ('Silent IPPS token refresh failed and ' +
+                    'interactive auth is not allowed (-Silent).')
             }
 
-            Write-IRT 'A browser window has been opened for interactive sign-in. Please complete authentication to continue.' -Level Warn
+            $Msg = 'A browser window has been opened for interactive sign-in. ' +
+                'Please complete authentication to continue.'
+            Write-IRT $Msg -Level Warn
             try {
                 $Cts  = [System.Threading.CancellationTokenSource]::new()
                 $Task = $App.AcquireTokenInteractive($Scopes).ExecuteAsync($Cts.Token)
@@ -149,25 +158,31 @@ function Connect-IRTIPPS {
             # Prefer EXO's MSAL app if available - same client ID = same token
             # cache = silent audience swap with no prompt. Fall back to IPPS's
             # cached app, then build a new one.
-            $App = if ($Global:IRT_Session -and
-                       $Global:IRT_Session.Exchange -and
-                       $Global:IRT_Session.Exchange.PublicClientApplication -and
-                       $Global:IRT_Session.TenantId -eq $TenantId -and
-                       $Global:IRT_Session.Exchange.PublicClientApplication.AppConfig.ClientId -eq $ClientId) {
+            $AppClientId = $Global:IRT_Session.Exchange.PublicClientApplication?.AppConfig?.ClientId
+            $UseExoApp =
+                $Global:IRT_Session -and
+                $Global:IRT_Session.Exchange -and
+                $Global:IRT_Session.Exchange.PublicClientApplication -and
+                $Global:IRT_Session.TenantId -eq $TenantId -and
+                $AppClientId -eq $ClientId
+            $UseIppsApp =
+                $Global:IRT_Session -and
+                $Global:IRT_Session.IPPS -and
+                $Global:IRT_Session.IPPS.PublicClientApplication -and
+                $Global:IRT_Session.TenantId -eq $TenantId -and
+                $Global:IRT_Session.IPPS.PublicClientApplication.AppConfig.ClientId -eq $ClientId
+            $App = if ($UseExoApp) {
                 $Global:IRT_Session.Exchange.PublicClientApplication
-            } elseif ($Global:IRT_Session -and
-                      $Global:IRT_Session.IPPS -and
-                      $Global:IRT_Session.IPPS.PublicClientApplication -and
-                      $Global:IRT_Session.TenantId -eq $TenantId -and
-                      $Global:IRT_Session.IPPS.PublicClientApplication.AppConfig.ClientId -eq $ClientId) {
+            } elseif ($UseIppsApp) {
                 $Global:IRT_Session.IPPS.PublicClientApplication
             } else {
-                $NewApp = [Microsoft.Identity.Client.PublicClientApplicationBuilder]::Create($ExoClientId).
+                $PcaBuilder = [Microsoft.Identity.Client.PublicClientApplicationBuilder]
+                $NewApp = $PcaBuilder::Create($ExoClientId).
                     WithAuthority($Authority).
                     WithRedirectUri('http://localhost').
                     Build()
                 if ($Global:IRT_Config.EnableTokenCache) {
-                    try { Register-IRTMsalCache -App $NewApp }
+                    try { Register-IRTMsalCache -App $NewApp -CachePath $MsalCachePath }
                     catch { Write-IRT "Persistent token cache unavailable: $_" -Level Warn }
                 }
                 $NewApp

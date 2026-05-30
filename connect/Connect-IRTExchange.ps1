@@ -30,6 +30,10 @@ function Connect-IRTExchange {
     Override the MSAL client ID. Defaults to the EXO first-party app
     (fb78d390-0c51-40cd-8e17-fdbfab77341b).
 
+    .PARAMETER MsalCachePath
+    Override the path for the persistent MSAL token cache file. Defaults to
+    $Global:IRT_Config.MsalCachePath. Useful for testing with an isolated cache.
+
     .NOTES
     Version: 3.0.0
     #>
@@ -55,7 +59,9 @@ function Connect-IRTExchange {
         [switch] $Force,
         [switch] $Silent,
 
-        [string] $ClientId = 'fb78d390-0c51-40cd-8e17-fdbfab77341b'  # EXO first-party app
+        [string] $ClientId = 'fb78d390-0c51-40cd-8e17-fdbfab77341b',  # EXO first-party app
+
+        [string] $MsalCachePath = $Global:IRT_Config.MsalCachePath
     )
 
     begin {
@@ -86,10 +92,13 @@ function Connect-IRTExchange {
             }
 
             if ($Silent) {
-                throw 'Silent Exchange token refresh failed and interactive auth is not allowed (-Silent).'
+                throw ('Silent Exchange token refresh failed and ' +
+                    'interactive auth is not allowed (-Silent).')
             }
 
-            Write-IRT 'A browser window has been opened for interactive sign-in. Please complete authentication to continue.' -Level Warn
+            $Msg = 'A browser window has been opened for interactive sign-in. ' +
+                'Please complete authentication to continue.'
+            Write-IRT $Msg -Level Warn
             try {
                 $Cts  = [System.Threading.CancellationTokenSource]::new()
                 $Task = $App.AcquireTokenInteractive($Scopes).ExecuteAsync($Cts.Token)
@@ -144,19 +153,23 @@ function Connect-IRTExchange {
                 Add-Type -Path $MsalDll
             }
 
-            $App = if ($Global:IRT_Session -and
-                       $Global:IRT_Session.Exchange -and
-                       $Global:IRT_Session.Exchange.PublicClientApplication -and
-                       $Global:IRT_Session.TenantId -eq $TenantId -and
-                       $Global:IRT_Session.Exchange.PublicClientApplication.AppConfig.ClientId -eq $ClientId) {
+            $AppClientId = $Global:IRT_Session.Exchange.PublicClientApplication?.AppConfig?.ClientId
+            $SameClient =
+                $Global:IRT_Session -and
+                $Global:IRT_Session.Exchange -and
+                $Global:IRT_Session.Exchange.PublicClientApplication -and
+                $Global:IRT_Session.TenantId -eq $TenantId -and
+                $AppClientId -eq $ClientId
+            $App = if ($SameClient) {
                 $Global:IRT_Session.Exchange.PublicClientApplication
             } else {
-                $NewApp = [Microsoft.Identity.Client.PublicClientApplicationBuilder]::Create($ExoClientId).
+                $PcaBuilder = [Microsoft.Identity.Client.PublicClientApplicationBuilder]
+                $NewApp = $PcaBuilder::Create($ExoClientId).
                     WithAuthority($Authority).
                     WithRedirectUri('http://localhost').
                     Build()
                 if ($Global:IRT_Config.EnableTokenCache) {
-                    try { Register-IRTMsalCache -App $NewApp }
+                    try { Register-IRTMsalCache -App $NewApp -CachePath $MsalCachePath }
                     catch { Write-IRT "Persistent token cache unavailable: $_" -Level Warn }
                 }
                 $NewApp

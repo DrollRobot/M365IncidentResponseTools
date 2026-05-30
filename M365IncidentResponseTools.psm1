@@ -76,7 +76,8 @@ $Global:IRT_CloudEnvironments = [ordered]@{
         Exchange       = 'https://outlook-dod.office365.us/.default'
         ExchangeEnv    = 'O365USGovDoD'
         IPPS           = 'https://l5.ps.compliance.protection.office365.us/powershell-liveid/'
-        # maybe this instead? md docs inconsistent: https://compliance.dod.microsoft.com/powershell-liveid
+        # maybe this instead? md docs inconsistent:
+        # https://compliance.dod.microsoft.com/powershell-liveid
         IPPSSearchOnly = 'https://dataservice.o365filtering.com/.default'
     }
     China      = @{
@@ -88,6 +89,16 @@ $Global:IRT_CloudEnvironments = [ordered]@{
         IPPS           = 'https://ps.compliance.protection.partner.outlook.cn/powershell-liveid'
         IPPSSearchOnly = 'https://dataservice.o365filtering.com/.default'
     }
+}
+
+# Set the default MSAL cache path if the config does not override it.
+if (-not $Global:IRT_Config.MsalCachePath) {
+    $JpParams = @{
+        Path                = $env:LOCALAPPDATA
+        ChildPath           = 'M365IncidentResponseTools'
+        AdditionalChildPath = 'irt-cache.bin'
+    }
+    $Global:IRT_Config.MsalCachePath = Join-Path @JpParams
 }
 
 # Check ip_info availability once at module load and cache in config.

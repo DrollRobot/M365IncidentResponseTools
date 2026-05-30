@@ -60,7 +60,8 @@ function Import-IRTConfig {
 
     # Resolve null path values to their defaults (in-memory only; defaults are not written back)
     if (-not $Global:IRT_Config.TenantsSheetPath) {
-        $Global:IRT_Config.TenantsSheetPath = Join-Path $env:APPDATA 'M365IncidentResponseTools\tenants.xlsx'
+        $TenantPath = Join-Path $env:APPDATA 'M365IncidentResponseTools\tenants.xlsx'
+        $Global:IRT_Config.TenantsSheetPath = $TenantPath
     }
 }
 
@@ -244,15 +245,27 @@ function Set-IRTConfig {
             )
         }
         EnableTokenCache = @{
-            Summary     = 'Persistent MSAL token cache'
-            Description = 'When enabled, refresh tokens are written to a ' +
-                'DPAPI-encrypted file under $env:LOCALAPPDATA\M365IncidentResponseTools, ' +
-                'so Connect-IRT skips the browser prompt across PowerShell sessions ' +
-                '(up to ~90 days, until the refresh token expires or is revoked). ' +
-                'On first use, the required Microsoft.Identity.Client.Extensions.Msal ' +
-                'DLL is downloaded from nuget.org. ' +
-                'Run Clear-IRTTokenCache to wipe the cache.'
-            Options     = @('true', 'false')
+            Summary         = 'Persistent MSAL token cache'
+            Description     = 'When enabled, refresh tokens are written to an ' +
+                'encrypted file on disk, so Connect-IRT skips the browser prompt ' +
+                'across PowerShell sessions (up to ~90 days, until the refresh token ' +
+                'expires or is revoked). On first use, the required ' +
+                'Microsoft.Identity.Client.Extensions.Msal DLL is downloaded from ' +
+                'nuget.org. Run Clear-IRTTokenCache to wipe the cache.'
+            SecurityWarning = 'SECURITY WARNING: The cache file is DPAPI-encrypted and ' +
+                'bound to your Windows user account, but any process running as that ' +
+                'user can decrypt it. Do not enable this on shared or multi-user ' +
+                'machines. Always run Clear-IRTTokenCache when you finish an investigation.'
+            Options         = @('true', 'false')
+        }
+        MsalCachePath = @{
+            Summary     = 'MSAL token cache file path'
+            Description = 'Absolute path for the DPAPI-encrypted MSAL token cache file. ' +
+                'Leave blank (null) to use the default path set in ' +
+                'M365IncidentResponseTools.psm1. ' +
+                'Override to an isolated path for testing or multi-instance scenarios. ' +
+                'Takes effect on the next Connect-IRT call.'
+            Options     = $null  # free text / file path
         }
     }
 
@@ -303,6 +316,10 @@ function Set-IRTConfig {
 
         Write-IRT ''
         Write-IRT $Setting.Description
+        if ($Setting.SecurityWarning) {
+            Write-IRT ''
+            Write-IRT $Setting.SecurityWarning -Level Error
+        }
         Write-IRT "Current value: $CurrentVal"
         Write-IRT ''
 

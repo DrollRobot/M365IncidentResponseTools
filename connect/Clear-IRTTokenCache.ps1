@@ -51,7 +51,7 @@ function Clear-IRTTokenCache {
     }
 
     # Belt-and-suspenders: delete the cache file directly if it survived.
-    $CachePath = Get-IRTMsalCachePath
+    $CachePath = $Global:IRT_Config.MsalCachePath
     if (Test-Path $CachePath) {
         if ($PSCmdlet.ShouldProcess($CachePath, 'Delete MSAL token cache file')) {
             Remove-Item -Path $CachePath -Force -ErrorAction SilentlyContinue

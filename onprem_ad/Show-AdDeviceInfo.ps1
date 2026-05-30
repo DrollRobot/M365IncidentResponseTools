@@ -41,7 +41,8 @@ function Show-AdDeviceInfo {
                 $ScriptDeviceObjects = @($Global:IRT_DeviceObject)
             }
             else {
-                throw 'No device object passed and $Global:IRT_DeviceObject is not set. Run Find-AdDevice first.'
+                throw ('No device object passed and $Global:IRT_DeviceObject is not set. ' +
+                    'Run Find-AdDevice first.')
             }
         }
         else {

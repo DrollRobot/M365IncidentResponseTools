@@ -36,20 +36,24 @@ $AnalyzerSettings = @{
 # with the installed module. Detect and skip rather than error out.
 if ($host.Name -eq 'Visual Studio Code Host') {
     Write-Warning "PSScriptAnalyzer cannot run in the VS Code PowerShell Extension terminal."
-    Write-Warning "Run .\Invoke-Tests.ps1 -PSScriptAnalyzer in the integrated terminal (pwsh) instead."
+    $WarnMsg = 'Run .\Invoke-Tests.ps1 -PSScriptAnalyzer in the integrated terminal (pwsh) instead.'
+    Write-Warning $WarnMsg
     return
 }
 
 if (-not (Get-Module -ListAvailable -Name PSScriptAnalyzer)) {
-    Write-Warning "PSScriptAnalyzer is not installed. Run: Install-Module PSScriptAnalyzer -Repository PSGallery -Scope CurrentUser"
+    $WarnMsg = 'PSScriptAnalyzer is not installed. Run: Install-Module PSScriptAnalyzer ' +
+        '-Repository PSGallery -Scope CurrentUser'
+    Write-Warning $WarnMsg
     return
 }
 
 Get-Module PSScriptAnalyzer | Select-Object Path, Version | Format-List
 Write-Host "Running PSScriptAnalyzer against $Path..." -ForegroundColor Cyan
 Write-Host "This could take multiple minutes. Please wait..." -ForegroundColor Cyan
-Write-Host ("NOTE FOR AI: Loading PSScriptAnalyzer can take up to 3 minutes. Do not poll or call " +
-    "get_terminal_output. Wait for terminal completion notification.") -ForegroundColor Yellow
+Write-Host ("NOTE FOR AI AGENTS: Loading PSScriptAnalyzer can take up to 3 minutes. " +
+    "Do not poll or call get_terminal_output. " +
+    "Wait for terminal completion notification.") -ForegroundColor DarkGray
 $InvokeParams = @{
     Path     = $Path
     Recurse  = $Recurse.IsPresent
@@ -61,15 +65,20 @@ try {
     # 4>&1 merges the verbose stream into output so we can capture it.
     $AllOutput = Invoke-ScriptAnalyzer @InvokeParams 4>&1
     $Stopwatch.Stop()
-    $Results   = $AllOutput | Where-Object { $_ -isnot [System.Management.Automation.VerboseRecord] }
+    $Results = $AllOutput | Where-Object {
+        $_ -isnot [System.Management.Automation.VerboseRecord]
+    }
     $FileCount = ($AllOutput | Where-Object {
-        $_ -is [System.Management.Automation.VerboseRecord] -and $_.Message -like 'Analyzing file: *'
+        ($_ -is [System.Management.Automation.VerboseRecord]) -and
+        ($_.Message -like 'Analyzing file: *')
     }).Count
     Write-Host ("Completed in {0:F1}s." -f $Stopwatch.Elapsed.TotalSeconds) -ForegroundColor Cyan
 }
 catch {
     Write-Warning "PSScriptAnalyzer failed: $_"
-    Write-Warning "If running in the VS Code PowerShell Extension terminal, switch to the integrated pwsh terminal."
+    $WarnMsg = 'If running in the VS Code PowerShell Extension terminal, ' +
+        'switch to the integrated pwsh terminal.'
+    Write-Warning $WarnMsg
     return
 }
 

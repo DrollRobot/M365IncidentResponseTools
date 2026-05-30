@@ -1,7 +1,8 @@
 function Revoke-UserSession {
     <#
 	.SYNOPSI
-	Revoke sessions for selected user. (NOTE: There is currently no way to revoke MFA sessions through graph APIs. It must be done in the Entra/Azure web portal.)
+	Revoke sessions for selected user. (NOTE: There is currently no way to revoke MFA
+	sessions through graph APIs. It must be done in the Entra/Azure web portal.)
 
 	.NOTES
 	Version: 1.0.0

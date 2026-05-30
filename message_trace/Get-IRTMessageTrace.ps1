@@ -223,7 +223,8 @@ function Get-IRTMessageTrace {
         }
 
         # get client domain name for file output
-        Write-Verbose "${FunctionName}: Get-AcceptedDomain $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
+        $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+        Write-Verbose "${FunctionName}: Get-AcceptedDomain $Elapsed"
         $DefaultDomain = Get-AcceptedDomain | Where-Object { $_.Default -eq $true }
         $DomainName = $DefaultDomain.DomainName -split '\.' | Select-Object -First 1
     }
@@ -449,7 +450,8 @@ function Get-IRTMessageTrace {
 
             # export raw data
             if ($Xml) {
-                Write-Verbose "${FunctionName}: Export-CliXml $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
+                $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+                Write-Verbose "${FunctionName}: Export-CliXml $Elapsed"
                 Write-IRT "Exporting raw data to: ${XmlOutputPath}"
                 $AllMessages | Export-CliXml -Depth 10 -Path $XmlOutputPath
             }
@@ -461,7 +463,8 @@ function Get-IRTMessageTrace {
 
             # create excel sheet
             if ($Excel) {
-                Write-Verbose "${FunctionName}: Show-IRTMessageTrace $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
+                $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+                Write-Verbose "${FunctionName}: Show-IRTMessageTrace $Elapsed"
                 $Params = @{
                     Messages   = $AllMessages
                     TableStyle = $TableStyle

@@ -157,7 +157,8 @@ function Get-EntraAuditLog {
             # user messages
             Write-IRT "Retrieving ${Days} days of Entra audit logs for ${UserEmail}."
             Write-Verbose "${FunctionName}: Filter string: ${FilterString}"
-            Write-Verbose "${FunctionName}: Get-MgAuditLogDirectoryAudit $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
+            $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+            Write-Verbose "${FunctionName}: Get-MgAuditLogDirectoryAudit $Elapsed"
 
             # query logs
             $GetParams = @{
@@ -200,7 +201,8 @@ function Get-EntraAuditLog {
 
             # export to xml
             if ($Xml) {
-                Write-Verbose "${FunctionName}: Export-Clixml $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
+                $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+                Write-Verbose "${FunctionName}: Export-Clixml $Elapsed"
                 Write-IRT "Saving logs to: ${XmlOutputPath}"
                 $Logs | Export-Clixml -Depth 10 -Path $XmlOutputPath
             }
@@ -210,7 +212,8 @@ function Get-EntraAuditLog {
                 Open   = $Open
                 Cached = $Cached
             }
-            Write-Verbose "${FunctionName}: Show-EntraAuditLog $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
+            $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+            Write-Verbose "${FunctionName}: Show-EntraAuditLog $Elapsed"
             Show-EntraAuditLog @ShowParams
         }
     }

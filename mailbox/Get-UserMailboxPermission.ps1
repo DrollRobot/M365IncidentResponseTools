@@ -49,7 +49,8 @@ function Get-UserMailboxPermission {
                 ResultSize = 'Unlimited'
                 Properties = 'Identity', 'Name', 'PrimarySmtpAddress'
             }
-            Write-Verbose "${FunctionName}: Get-EXOMailbox $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
+            $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+            Write-Verbose "${FunctionName}: Get-EXOMailbox $Elapsed"
             $Mailboxes = Get-EXOMailbox @EXOParams
             $Total     = $Mailboxes.Count
             $Index     = 0

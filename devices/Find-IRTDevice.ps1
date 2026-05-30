@@ -103,7 +103,8 @@ function Find-IRTDevice {
                         }
                     }
                 } elseif (-not $Script) {
-                    Write-IRT 'Multiple devices found. Refine search or use -AllMatches.' -Level Error
+                    $Msg = 'Multiple devices found. Refine search or use -AllMatches.'
+                    Write-IRT $Msg -Level Error
                 }
             }
             else {

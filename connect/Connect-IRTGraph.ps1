@@ -23,6 +23,10 @@ function Connect-IRTGraph {
     Override the MSAL client ID. Defaults to the Microsoft Graph CLI Tools
     first-party app (14d82eec-204b-4c2f-b7e8-296a70dab67e).
 
+    .PARAMETER MsalCachePath
+    Override the path for the persistent MSAL token cache file. Defaults to
+    $Global:IRT_Config.MsalCachePath. Useful for testing with an isolated cache.
+
     .NOTES
     Version: 3.0.0
     #>
@@ -46,7 +50,9 @@ function Connect-IRTGraph {
         [switch] $Force,
         [switch] $Silent,
 
-        [string] $ClientId = '14d82eec-204b-4c2f-b7e8-296a70dab67e'  # Microsoft Graph CLI Tools
+        [string] $ClientId = '14d82eec-204b-4c2f-b7e8-296a70dab67e',  # Microsoft Graph CLI Tools
+
+        [string] $MsalCachePath = $Global:IRT_Config.MsalCachePath
     )
 
     begin {
@@ -123,15 +129,17 @@ function Connect-IRTGraph {
         $MsalScopes = [string[]]($Scopes | ForEach-Object { "$GraphBaseUrl/$_" })
 
         # Reuse the cached MSAL app instance to preserve its token cache (refresh token).
-        $App = if ($Global:IRT_Session -and
-                   $Global:IRT_Session.Graph -and
-                   $Global:IRT_Session.Graph.PublicClientApplication -and
-                   $Global:IRT_Session.TenantId -eq $TenantId -and
-                   $Global:IRT_Session.Graph.PublicClientApplication.AppConfig.ClientId -eq $ClientId
-        ) {
+        $SameClient =
+            $Global:IRT_Session -and
+            $Global:IRT_Session.Graph -and
+            $Global:IRT_Session.Graph.PublicClientApplication -and
+            $Global:IRT_Session.TenantId -eq $TenantId -and
+            $Global:IRT_Session.Graph.PublicClientApplication.AppConfig.ClientId -eq $ClientId
+        $App = if ($SameClient) {
             $Global:IRT_Session.Graph.PublicClientApplication
         } else {
-            $NewApp = [Microsoft.Identity.Client.PublicClientApplicationBuilder]::Create($ClientId).
+            $PcaBuilder = [Microsoft.Identity.Client.PublicClientApplicationBuilder]
+            $NewApp = $PcaBuilder::Create($ClientId).
                 WithAuthority($Authority).
                 WithRedirectUri('http://localhost').
                 Build()
@@ -164,10 +172,13 @@ function Connect-IRTGraph {
             }
 
             if ($Silent) {
-                throw 'Silent Graph token refresh failed and interactive auth is not allowed (-Silent).'
+                throw ('Silent Graph token refresh failed and ' +
+                    'interactive auth is not allowed (-Silent).')
             }
 
-            Write-IRT 'A browser window has been opened for interactive sign-in. Please complete authentication to continue.' -Level Warn
+            $Msg = 'A browser window has been opened for interactive sign-in. ' +
+                'Please complete authentication to continue.'
+            Write-IRT $Msg -Level Warn
             try {
                 $Builder = $App.AcquireTokenInteractive($MsalScopes)
                 if ($RequireConsent) {

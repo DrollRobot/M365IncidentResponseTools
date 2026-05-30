@@ -35,7 +35,8 @@ function Show-UALog {
         if ($ParameterSet -eq 'Xml') {
             try {
                 $ResolvedXmlPath = Resolve-ScriptPath -Path $XmlPath -File -FileExtension 'xml'
-                Write-Verbose "${FunctionName}: Import-CliXml $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
+                $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+                Write-Verbose "${FunctionName}: Import-CliXml $Elapsed"
                 $RawLog = Import-CliXml -Path $ResolvedXmlPath
                 [System.Collections.Generic.List[PSObject]] $Log = $RawLog
             }
@@ -97,7 +98,8 @@ function Show-UALog {
             $WaitStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
 
             # wait for both user and AllUsers message traces to complete via WaitFlags
-            Write-Verbose "${FunctionName}: Waiting on message trace $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
+            $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+            Write-Verbose "${FunctionName}: Waiting on message trace $Elapsed"
             if ($Global:IRT_WaitFlags) {
                 while (-not ($Global:IRT_WaitFlags.MessageTraceUserDone -and
                     $Global:IRT_WaitFlags.MessageTraceAllUsersDone)) {
@@ -111,7 +113,9 @@ function Show-UALog {
                     $UserDone = $Global:IRT_WaitFlags.MessageTraceUserDone
                     $AllDone  = $Global:IRT_WaitFlags.MessageTraceAllUsersDone
                     Write-IRT "Waiting on message trace..." -Level Warn
-                    Write-Verbose "${FunctionName}: MessageTrace wait ${WaitElapsed} elapsed. UserDone=${UserDone}, AllUsersDone=${AllDone}"
+                    $WaitMsg = "${FunctionName}: MessageTrace wait ${WaitElapsed} elapsed. " +
+                        "UserDone=${UserDone}, AllUsersDone=${AllDone}"
+                    Write-Verbose $WaitMsg
                     Start-Sleep -Seconds $WaitInterval
                 }
             }
@@ -155,7 +159,8 @@ function Show-UALog {
         }
 
         #region build workbook
-        Write-Verbose "${FunctionName}: Request-GraphServicePrincipal $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
+        $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+        Write-Verbose "${FunctionName}: Request-GraphServicePrincipal $Elapsed"
         Request-GraphServicePrincipal -Return 'none' -Cached:$Cached
         $Workbook = Open-ExcelPackage -Path $ExcelOutputPath -Create
 
@@ -193,7 +198,9 @@ function Show-UALog {
                         $SheetParams['OperationsSheetData'] = $OperationsSheetData
                     }
                 }
-                Write-Verbose "${FunctionName}: $($SheetEntry.BuildFunction) $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
+                $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+                $BuildFn = $SheetEntry.BuildFunction
+                Write-Verbose "${FunctionName}: $BuildFn $Elapsed"
                 $Workbook = & $SheetEntry.BuildFunction @SheetParams
             }
         }
@@ -201,7 +208,9 @@ function Show-UALog {
         # enrich IP addresses with ip_info data
         if ($IpInfo) {
             foreach ($ws in $Workbook.Workbook.Worksheets) {
-                Write-Verbose "${FunctionName}: Add-IpInfoToSheet ($($ws.Name)) $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
+                    $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+                    $WsName = $ws.Name
+                    Write-Verbose "${FunctionName}: Add-IpInfoToSheet ($WsName) $Elapsed"
                 Add-IpInfoToSheet -Worksheet $ws -ColumnName 'IpAddress'
             }
         }

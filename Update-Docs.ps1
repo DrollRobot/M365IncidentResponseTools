@@ -48,7 +48,9 @@ Update-MarkdownHelp -Path $DocsPath
 # Warn about orphaned doc files whose function no longer exists
 $ExportedFunctions = (Get-Module M365IncidentResponseTools).ExportedFunctions.Keys
 Get-ChildItem -Path $DocsPath -Filter '*.md' |
-    Where-Object { $_.BaseName -notin $ExportedFunctions -and $_.BaseName -ne 'M365IncidentResponseTools' } |
+    Where-Object {
+        $_.BaseName -notin $ExportedFunctions -and $_.BaseName -ne 'M365IncidentResponseTools'
+    } |
     ForEach-Object { Write-Warning "Orphaned doc (no matching exported function): $($_.Name)" }
 
 New-Alias -Name 'Log' -Value 'Write-LogFile' -Force

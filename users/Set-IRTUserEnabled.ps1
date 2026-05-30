@@ -13,7 +13,8 @@ function Disable-GraphUser {
 	.NOTES
 	Version: 2.0.0
 	#>
-    [Alias('DisableUser', 'DisableUsers', 'Lock-GraphUsers', 'LockUser', 'LockUsers', 'Lock-GraphUser')]
+    [Alias('DisableUser', 'DisableUsers', 'Lock-GraphUsers',
+        'LockUser', 'LockUsers', 'Lock-GraphUser')]
     [CmdletBinding()]
     param(
         [Parameter( Position = 0 )]
@@ -47,7 +48,8 @@ function Enable-GraphUser {
 	.NOTES
 	Version: 2.0.0
 	#>
-    [Alias('EnableUser', 'EnableUsers', 'Unlock-GraphUsers', 'UnlockUser', 'UnlockUsers', 'Unlock-GraphUser')]
+    [Alias('EnableUser', 'EnableUsers', 'Unlock-GraphUsers',
+        'UnlockUser', 'UnlockUsers', 'Unlock-GraphUser')]
     [CmdletBinding()]
     param(
         [Parameter( Position = 0 )]
@@ -136,7 +138,8 @@ function Set-IRTUserEnabled {
             # if disabling, force sign outs
             if ( -not $Enabled ) {
                 Write-IRT "Revoking user sessions..."
-                if ($PSCmdlet.ShouldProcess($ScriptUserObject.UserPrincipalName, 'Revoke sign-in sessions')) {
+                $Upn = $ScriptUserObject.UserPrincipalName
+                if ($PSCmdlet.ShouldProcess($Upn, 'Revoke sign-in sessions')) {
                     Revoke-MgUserSignInSession -UserId $ScriptUserObject.Id | Out-Null
                 }
             }
@@ -156,7 +159,8 @@ function Set-IRTUserEnabled {
 
             # warn user if onpremsynced
             if ($NewUserObject.OnPremisesSyncEnabled) {
-                Write-IRT "User is synced from on-premises. ${Action} user in local AD too!" -Level Error
+                $Msg = "User is synced from on-premises. ${Action} user in local AD too!"
+                Write-IRT $Msg -Level Error
             }
         }
 

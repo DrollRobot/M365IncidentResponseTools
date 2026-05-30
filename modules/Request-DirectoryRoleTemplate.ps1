@@ -57,7 +57,8 @@ function Request-DirectoryRoleTemplate {
         $DomainName = Get-IRTDefaultDomain
 
         # query graph
-        Write-Verbose "${FunctionName}: Get-MgDirectoryRoleTemplate $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
+        $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+        Write-Verbose "${FunctionName}: Get-MgDirectoryRoleTemplate $Elapsed"
         $GdrtParams = @{
             All      = $true
             Property = $GetProperties
@@ -75,7 +76,8 @@ function Request-DirectoryRoleTemplate {
         if ($Xml) {
             $FileName = "DirectoryRoleTemplates_Raw_${DomainName}_${FileNameDate}.xml"
             $XmlOutputPath = Join-Path -Path $CurrentPath -ChildPath $FileName
-            Write-Verbose "${FunctionName}: Export-Clixml $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
+            $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+            Write-Verbose "${FunctionName}: Export-Clixml $Elapsed"
             $Objects | Export-Clixml -Depth 5 -Path $XmlOutputPath
         }
 

@@ -1,34 +1,3 @@
-#region Get-IRTMsalCachePath
-function Get-IRTMsalCachePath {
-    <#
-    .SYNOPSIS
-    Returns the on-disk path of the IRT persistent MSAL token cache file.
-
-    .DESCRIPTION
-    Internal helper. The cache holds refresh tokens for Graph, Exchange Online,
-    and IPPS connections made through the IRT module. The file is encrypted at
-    rest using DPAPI bound to the current Windows user.
-
-    .OUTPUTS
-    [string]
-
-    .NOTES
-    Version: 1.0.0
-    #>
-    [OutputType([string])]
-    [CmdletBinding()]
-    param()
-
-    $JpParams = @{
-        Path                = $env:LOCALAPPDATA
-        ChildPath           = 'M365IncidentResponseTools'
-        AdditionalChildPath = @('msal-cache', 'irt-msal.bin')
-    }
-    return Join-Path @JpParams
-}
-#endregion
-
-
 #region Install-IRTMsalExtensions
 function Install-IRTMsalExtensions {
     <#
@@ -94,7 +63,8 @@ function Install-IRTMsalExtensions {
 
         # Download .nupkg from NuGet v3 flat container. The nupkg is just a ZIP.
         $LowerId = 'microsoft.identity.client.extensions.msal'
-        $NupkgUrl = "https://api.nuget.org/v3-flatcontainer/$LowerId/$Version/$LowerId.$Version.nupkg"
+        $NupkgUrl = "https://api.nuget.org/v3-flatcontainer/$LowerId/$Version/" +
+            "$LowerId.$Version.nupkg"
         $TempNupkg = Join-Path ([System.IO.Path]::GetTempPath()) ("$LowerId.$Version.nupkg")
         $ExtractDir = Join-Path ([System.IO.Path]::GetTempPath()) ("$LowerId.$Version")
 
@@ -160,17 +130,27 @@ function Register-IRTMsalCache {
     The Microsoft.Identity.Client.IPublicClientApplication instance to attach
     the cache to.
 
+    .PARAMETER CachePath
+    Full path to the MSAL cache file. Defaults to $Global:IRT_Config.MsalCachePath.
+    The default value is set in M365IncidentResponseTools.psm1.
+    Override to use an alternate location (e.g. an isolated path for testing).
+
     .EXAMPLE
     Register-IRTMsalCache -App $App
 
+    .EXAMPLE
+    Register-IRTMsalCache -App $App -CachePath 'C:\Temp\test-msal.bin'
+
     .NOTES
-    Version: 1.0.0
+    Version: 1.1.0
     Windows-only. On non-Windows platforms the function returns silently.
     #>
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)]
-        $App
+        $App,
+
+        [string] $CachePath = $Global:IRT_Config.MsalCachePath
     )
 
     if (-not $IsWindows -and $PSVersionTable.PSVersion.Major -ge 6) {
@@ -180,7 +160,6 @@ function Register-IRTMsalCache {
 
     Install-IRTMsalExtensions | Out-Null
 
-    $CachePath = Get-IRTMsalCachePath
     $CacheDir  = Split-Path $CachePath -Parent
     $CacheFile = Split-Path $CachePath -Leaf
 

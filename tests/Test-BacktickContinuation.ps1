@@ -50,9 +50,13 @@ foreach ($file in $files) {
     }
 }
 
+$Count = $files.Count
 if ($hitCount -eq 0) {
-    Write-Host "All $($files.Count) file(s), $totalLines line(s) checked. No backtick line continuations found."
+    $Msg = "All $Count file(s), $totalLines line(s) checked. " +
+        'No backtick line continuations found.'
+    Write-Host $Msg
 } else {
     $hits | Format-Table -AutoSize
-    Write-Host "$hitCount backtick continuation(s) found across $($files.Count) file(s), $totalLines line(s)."
+    $Msg = "$hitCount backtick continuation(s) found across $Count file(s), $totalLines line(s)."
+    Write-Host $Msg
 }

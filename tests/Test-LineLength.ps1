@@ -52,10 +52,15 @@ foreach ($file in $files) {
     }
 }
 
+$Count = $files.Count
 if ($hitCount -eq 0) {
-    Write-Host "All $($files.Count) file(s), $totalLines line(s) checked. No lines exceed $MaxLength characters."
+    $Msg = "All $Count file(s), $totalLines line(s) checked. " +
+        "No lines exceed $MaxLength characters."
+    Write-Host $Msg
 }
 else {
     $hits | Format-Table -AutoSize
-    Write-Host "$hitCount line(s) exceed $MaxLength characters across $($files.Count) file(s), $totalLines line(s)."
+    $Msg = "$hitCount line(s) exceed $MaxLength characters across $Count " +
+        "file(s), $totalLines line(s)."
+    Write-Host $Msg
 }

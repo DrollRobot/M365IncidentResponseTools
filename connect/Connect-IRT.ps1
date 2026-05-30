@@ -112,7 +112,9 @@ function Connect-IRT {
                 Force    = $true
             }
             if ($Silent)                        { $RefreshParams['Silent']   = $true }
-            if ($Global:IRT_Session.ClientId)   { $RefreshParams['ClientId'] = $Global:IRT_Session.ClientId }
+            if ($Global:IRT_Session.ClientId) {
+                $RefreshParams['ClientId'] = $Global:IRT_Session.ClientId
+            }
             if ($Global:IRT_Session.Graph)      { $RefreshParams['Graph']    = $true }
             if ($Global:IRT_Session.Exchange) { $RefreshParams['Exchange'] = $true }
             if ($Global:IRT_Session.IPPS)     { $RefreshParams['IPPS']     = $true }
@@ -141,7 +143,9 @@ function Connect-IRT {
                 $DetectedEnvironment = $Oidc.Cloud
             } else {
                 $DetectedEnvironment = 'Commercial'
-                Write-IRT 'OIDC discovery did not find the tenant cloud; using "-Cloud Commercial".' -Level Warn
+                $Msg = 'OIDC discovery did not find the tenant cloud; ' +
+                    'defaulting to "-Cloud Commercial".'
+                Write-IRT $Msg -Level Warn
             }
         }
 

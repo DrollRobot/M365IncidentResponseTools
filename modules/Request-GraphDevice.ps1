@@ -132,7 +132,8 @@ function Request-GraphDevice {
         if ($Xml) {
             $FileName = "Devices_Raw_${DomainName}_${FileNameDate}.xml"
             $XmlOutputPath = Join-Path -Path $CurrentPath -ChildPath $FileName
-            Write-Verbose "${FunctionName}: Export-Clixml $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
+            $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+            Write-Verbose "${FunctionName}: Export-Clixml $Elapsed"
             $Objects | Export-Clixml -Depth 8 -Path $XmlOutputPath
         }
 

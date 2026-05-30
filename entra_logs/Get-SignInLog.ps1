@@ -252,7 +252,8 @@ function Get-SignInLog {
                 Write-IRT "Retrieving ${Days} days of sign-in logs for ${Target}."
             }
             Write-Verbose "${FunctionName}: Filter string: '${FilterString}'"
-            Write-Verbose "${FunctionName}: Get-MgAuditLogSignIn $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
+            $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+            Write-Verbose "${FunctionName}: Get-MgAuditLogSignIn $Elapsed"
 
             # query logs
             if ($Beta) { # default is to use beta, which returns more information
@@ -325,14 +326,16 @@ function Get-SignInLog {
 
                 # export to xml
                 if ($Xml) {
-                    Write-Verbose "${FunctionName}: Export-Clixml $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
+                    $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+                    Write-Verbose "${FunctionName}: Export-Clixml $Elapsed"
                     Write-IRT "Saving logs to: ${XmlOutputPath}"
                     $Logs | Export-Clixml -Depth 10 -Path $XmlOutputPath
                 }
 
                 # export excel spreadsheet
                 if ($Excel) {
-                    Write-Verbose "${FunctionName}: Show-SignInLog $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
+                    $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+                    Write-Verbose "${FunctionName}: Show-SignInLog $Elapsed"
                     $Params = @{
                         Logs   = $Logs
                         IpInfo = $IpInfo

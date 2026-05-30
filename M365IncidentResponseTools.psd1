@@ -45,8 +45,8 @@
     # valid for the PowerShell Desktop edition only.
     # DotNetFrameworkVersion = ''
 
-    # Minimum version of the common language runtime (CLR) required by this module. This prerequisite is
-    # valid for the PowerShell Desktop edition only.
+    # Minimum version of the common language runtime (CLR) required by this module.
+    # This prerequisite is valid for the PowerShell Desktop edition only.
     # ClrVersion = ''
 
     # Processor architecture (None, X86, Amd64) required by this module

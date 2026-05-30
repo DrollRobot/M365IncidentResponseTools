@@ -12,7 +12,8 @@ function Find-User {
     .NOTES
     Version: 1.2.0
     1.2.0 - Added -AllMatches to collect all matching users and deduplicate results.
-    1.1.4 - Fixed bug with $UserObjects not being a collection. Moved getting full object to Show-User function.
+    1.1.4 - Fixed bug with $UserObjects not being a collection.
+            Moved getting full object to Show-User function.
     1.1.3 - Removed checks for modules and permissions. Checking at module level instead.
     1.1.2 - Added enabled as a displayed field.
     1.1.1 - Bug fix. Script was passing collections rather than user objects.

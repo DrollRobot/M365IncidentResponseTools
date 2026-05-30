@@ -5,12 +5,16 @@
     Root directory to search. Defaults to the current directory.
 .PARAMETER Recurse
     Search subdirectories recursively.
+.PARAMETER ExemptCharacters
+    Array of specific non-ASCII characters to ignore. Matches are suppressed when
+    the offending character is in this list.
 #>
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '')]
 [CmdletBinding()]
 param(
     [string] $Path = (Get-Location).Path,
-    [switch] $Recurse
+    [switch] $Recurse,
+    [char[]] $ExemptCharacters = @()
 )
 
 $GetChildParams = @{
@@ -28,18 +32,27 @@ $totalLines = 0
 foreach ($file in $files) {
     $lines = Get-Content -Path $file.FullName
     $totalLines += $lines.Count
-    $nonAsciiMatches = $lines | Select-String -Pattern '[^\x00-\x7F]'
+    $nonAsciiMatches = $lines | Select-String -Pattern '[^\x00-\x7F]' | Where-Object {
+        $line = $_.Line
+        ($line.ToCharArray() |
+            Where-Object { [int]$_ -gt 0x7F -and $_ -notin $ExemptCharacters }).Count -gt 0
+    }
     if ($nonAsciiMatches) {
         $hitCount += $nonAsciiMatches.Count
         foreach ($match in $nonAsciiMatches) {
-            Write-Warning "Non-ASCII in '$($file.Name)' line $($match.LineNumber): $($match.Line.Trim())"
+            $WarnMsg = "Non-ASCII in '$($file.Name)' line " +
+                "$($match.LineNumber): $($match.Line.Trim())"
+            Write-Warning $WarnMsg
         }
     }
 }
 
+$Count = $files.Count
 if ($hitCount -eq 0) {
-    Write-Host "All $($files.Count) file(s), $totalLines line(s) checked. No non-ASCII characters found."
+    $Msg = "All $Count file(s), $totalLines line(s) checked. No non-ASCII characters found."
+    Write-Host $Msg
 }
 else {
-    Write-Host "$hitCount non-ASCII occurrence(s) found across $($files.Count) file(s), $totalLines line(s)."
+    $Msg = "$hitCount non-ASCII occurrence(s) found across $Count file(s), $totalLines line(s)."
+    Write-Host $Msg
 }

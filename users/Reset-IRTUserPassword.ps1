@@ -222,7 +222,8 @@ function Reset-IRTUserPassword {
             Write-IRT "Getting updated user information."
             $FullUserObject = Get-MgUser -UserId $LoopObject.Id -Property $GetProperties
             try {
-                $FullUserObject.LastPasswordChangeDateTime = $FullUserObject.LastPasswordChangeDateTime.ToLocalTime()
+                $FullUserObject.LastPasswordChangeDateTime =
+                    $FullUserObject.LastPasswordChangeDateTime.ToLocalTime()
             }
             catch {}
 
@@ -231,7 +232,8 @@ function Reset-IRTUserPassword {
 
             # warn user if onpremsynced
             if ( $FullUserObject.OnPremisesSyncEnabled ) {
-                Write-IRT "User is synced from on-premises. Reset password in local AD too!" -Level Error
+                $Msg = 'User is synced from on-premises. Reset password in local AD too!'
+                Write-IRT $Msg -Level Error
             }
         }
     }

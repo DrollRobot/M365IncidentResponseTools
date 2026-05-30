@@ -92,8 +92,12 @@ function Get-IRTDefaultDomain {
 
         if ($Global:IRT_Session) {
             $AmParams = @{ Force = $true }
-            $Global:IRT_Session | Add-Member @AmParams -NotePropertyName 'DefaultDomain'     -NotePropertyValue $DefaultDomain
-            $Global:IRT_Session | Add-Member @AmParams -NotePropertyName 'DefaultDomainName' -NotePropertyValue $DefaultDomainName
+            $AmParams.NotePropertyName  = 'DefaultDomain'
+            $AmParams.NotePropertyValue = $DefaultDomain
+            $Global:IRT_Session | Add-Member @AmParams
+            $AmParams.NotePropertyName  = 'DefaultDomainName'
+            $AmParams.NotePropertyValue = $DefaultDomainName
+            $Global:IRT_Session | Add-Member @AmParams
         }
 
         switch ($PSCmdlet.ParameterSetName) {

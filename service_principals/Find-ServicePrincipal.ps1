@@ -153,7 +153,8 @@ function Find-ServicePrincipal {
                         }
                     }
                 } elseif (-not $Script) {
-                    Write-IRT 'Multiple service principals found. Refine search or use -AllMatches.' -Level Error
+                    $Msg = 'Multiple service principals found. Refine search or use -AllMatches.'
+                    Write-IRT $Msg -Level Error
                 }
             }
             else {

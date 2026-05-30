@@ -40,9 +40,12 @@ foreach ($file in $files) {
     }
 }
 
+$Count = $files.Count
 if ($errorCount -eq 0) {
-    Write-Host "All $($files.Count) file(s), $totalLines line(s) parsed successfully. No syntax errors found."
+    $Msg = "All $Count file(s), $totalLines line(s) parsed successfully. " +
+        'No syntax errors found.'
+    Write-Host $Msg
 }
 else {
-    Write-Host "$errorCount error(s) found across $($files.Count) file(s), $totalLines line(s)."
+    Write-Host "$errorCount error(s) found across $Count file(s), $totalLines line(s)."
 }

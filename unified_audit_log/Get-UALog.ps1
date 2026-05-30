@@ -198,7 +198,8 @@ function Get-UALog {
         }
 
         # get client domain name for file output
-        Write-Verbose "${FunctionName}: Get-AcceptedDomain $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
+        $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+        Write-Verbose "${FunctionName}: Get-AcceptedDomain $Elapsed"
         $DefaultDomain = Get-AcceptedDomain | Where-Object { $_.Default -eq $true }
         $DomainName = $DefaultDomain.DomainName -split '\.' | Select-Object -First 1
 
@@ -429,7 +430,9 @@ function Get-UALog {
 
                 # run query
                 Write-IRT $ConsoleOutput
-                Write-Verbose "${FunctionName}: Search-UnifiedAuditLog query $($QueryDict.Key) $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
+                $QueryKey = $QueryDict.Key
+                $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+                Write-Verbose "${FunctionName}: Search-UnifiedAuditLog query $QueryKey $Elapsed"
                 $Page = Search-UnifiedAuditLog @FirstPageParams
                 $LogCount = ($Page | Measure-Object).Count
 
@@ -454,7 +457,8 @@ function Get-UALog {
                 while ($LogCount -eq 5000) {
 
                     Write-IRT "Requesting page ${PageCount}."
-                    Write-Verbose "${FunctionName}: Search-UnifiedAuditLog page ${PageCount} $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
+                    $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+                    Write-Verbose "${FunctionName}: Search-UnifiedAuditLog page $PageCount $Elapsed"
                     $Page = Search-UnifiedAuditLog @NextPageParams
                     $LogCount = @($Page).Count
 
@@ -483,7 +487,8 @@ function Get-UALog {
             }
 
             #region UNIQUE, SORT
-            Write-Verbose "${FunctionName}: Dedupliacation, sorting $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
+            $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+            Write-Verbose "${FunctionName}: Dedupliacation, sorting $Elapsed"
             # remove duplicates
             $UniqueLogIds = [System.Collections.Generic.HashSet[string]]::new()
             $Logs = [System.Collections.Generic.List[psobject]]::new()
@@ -532,14 +537,16 @@ function Get-UALog {
 
             # export to xml
             if ($Xml) {
-                Write-Verbose "${FunctionName}: Starting XML export $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
+                $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+                Write-Verbose "${FunctionName}: Starting XML export $Elapsed"
                 Write-IRT "Saving logs to: ${XmlOutputPath}"
                 $Logs | Export-Clixml -Depth 10 -Path $XmlOutputPath
             }
 
             # export excel spreadsheet
             if ($Excel) {
-                Write-Verbose "${FunctionName}: Starting Excel export $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
+                $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+                Write-Verbose "${FunctionName}: Starting Excel export $Elapsed"
                 $Params = @{
                     Log = $Logs
                     WaitOnMessageTrace = $WaitOnMessageTrace

@@ -116,7 +116,8 @@ function Start-IRTPlaybook {
         if (-not $NoFolder) {
 
             # make directory
-            Write-Verbose "${FunctionName}: New-InvestigationFolder $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
+            $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+            Write-Verbose "${FunctionName}: New-InvestigationFolder $Elapsed"
             $DirParams = @{
                 UserObject = $ScriptUserObjects
             }
@@ -139,17 +140,23 @@ function Start-IRTPlaybook {
         })
 
         # pre-populate caches in main thread
-        Write-Verbose "${FunctionName}: Request-DirectoryRole $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
+        $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+        Write-Verbose "${FunctionName}: Request-DirectoryRole $Elapsed"
         Request-DirectoryRole -Return 'none'
-        Write-Verbose "${FunctionName}: Request-DirectoryRoleTemplate $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
+        $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+        Write-Verbose "${FunctionName}: Request-DirectoryRoleTemplate $Elapsed"
         Request-DirectoryRoleTemplate -Return 'none'
-        Write-Verbose "${FunctionName}: Request-GraphGroup $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
+        $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+        Write-Verbose "${FunctionName}: Request-GraphGroup $Elapsed"
         Request-GraphGroup -Return 'none'
-        Write-Verbose "${FunctionName}: Request-GraphOauth2Grant $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
+        $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+        Write-Verbose "${FunctionName}: Request-GraphOauth2Grant $Elapsed"
         Request-GraphOauth2Grant -Return 'none'
-        Write-Verbose "${FunctionName}: Request-GraphUser $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
+        $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+        Write-Verbose "${FunctionName}: Request-GraphUser $Elapsed"
         Request-GraphUser -Return 'none'
-        Write-Verbose "${FunctionName}: Request-GraphServicePrincipal $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
+        $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+        Write-Verbose "${FunctionName}: Request-GraphServicePrincipal $Elapsed"
         Request-GraphServicePrincipal -Return 'none'
 
         # pack references for injection into child runspace globals
@@ -632,6 +639,7 @@ function Start-IRTPlaybook {
         }
 
         $Stopwatch.Stop()
-        Write-Verbose "${FunctionName}: Playbook complete. Total elapsed: $($Stopwatch.Elapsed.ToString())"
+        $TotalElapsed = $Stopwatch.Elapsed.ToString()
+        Write-Verbose "${FunctionName}: Playbook complete. Total elapsed: $TotalElapsed"
     }
 }
