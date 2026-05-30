@@ -224,6 +224,12 @@ function Connect-IRT {
             $Global:IRT_Session.IPPS
         ) {
             Test-IRTConnection
+            $DomainName = if ($Global:IRT_Session.Graph) {
+                try { Get-IRTDefaultDomain -ErrorAction Stop } catch { $null }
+            } else {
+                $null
+            }
+            Set-TerminalTitle $(if ($DomainName) { "[IRT] $DomainName" } else { '[IRT]' })
         }
     }
 }

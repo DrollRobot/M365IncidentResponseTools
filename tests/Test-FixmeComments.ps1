@@ -25,6 +25,13 @@ param(
     [switch] $Recurse
 )
 
+# Folder names to exclude from scanning. Any file under a matching folder is skipped.
+$ExcludedFolders = @(
+    # '.local'    # local overrides and personal test files
+)
+
+$Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+
 if (Test-Path $Path -PathType Leaf) {
     $Files = @(Get-Item $Path)
     $BaseDir = Split-Path $Path
@@ -37,17 +44,31 @@ else {
     if ($Recurse) {
         $GetChildParams.Recurse = $true
     }
-    $Files = Get-ChildItem @GetChildParams | Where-Object Extension -in '.ps1', '.psm1', '.psd1'
+    $Files = Get-ChildItem @GetChildParams |
+        Where-Object Extension -in '.ps1', '.psm1', '.psd1' |
+        Where-Object {
+            $Rel = [System.IO.Path]::GetRelativePath($Path, $_.FullName)
+            -not ($ExcludedFolders | Where-Object { $Rel -like "$_\*" -or $Rel -like "*\$_\*" })
+        }
     $BaseDir = $Path
 }
 
 $Hits = [System.Collections.Generic.List[PSCustomObject]]::new()
 $TotalLines = 0
 
+$FileTotal = @($Files).Count
+$FileIndex = 0
 foreach ($File in $Files) {
+    $FileIndex++
+    $WpParams = @{
+        Activity        = $MyInvocation.MyCommand.Name
+        Status          = [System.IO.Path]::GetRelativePath($BaseDir, $File.FullName)
+        PercentComplete = ($FileIndex / $FileTotal) * 100
+    }
+    Write-Progress @WpParams
     $Lines = Get-Content -Path $File.FullName
-    $TotalLines += $Lines.Count
-    for ($i = 0; $i -lt $Lines.Count; $i++) {
+    $TotalLines += @($Lines).Count
+    for ($i = 0; $i -lt @($Lines).Count; $i++) {
         if ($Lines[$i] -match '#.*FIXME') {
             $RelativePath = [System.IO.Path]::GetRelativePath($BaseDir, $File.FullName)
             $Hits.Add([PSCustomObject]@{
@@ -59,17 +80,19 @@ foreach ($File in $Files) {
     }
 }
 
-$FileCount = $Files.Count
+$FileCount = @($Files).Count
 
-if ($Hits.Count -eq 0) {
-    $Msg = "All $FileCount file(s), $TotalLines line(s) checked. No FIXME comments found."
-    Write-Host $Msg
-}
-else {
+if ($Hits.Count -gt 0) {
     $Msg = 'NOTE FOR AI AGENTS: This output is for human review only. Do not address ' +
         'these items unless the user explicitly asks.'
     Write-Host $Msg -ForegroundColor DarkGray
     $Hits | Format-Table -AutoSize | Out-Host
-    $Msg = "$($Hits.Count) FIXME comment(s) found across $FileCount file(s), $TotalLines line(s)."
-    Write-Host $Msg
 }
+
+Write-Progress -Activity $MyInvocation.MyCommand.Name -Completed
+$Stopwatch.Stop()
+$Elapsed = "$([math]::Round($Stopwatch.Elapsed.TotalSeconds, 2))s"
+$SummaryColor = if ($Hits.Count -gt 0) { 'Red' } else { 'Green' }
+$Msg = "$($Hits.Count) FIXME comment(s) -- $FileCount file(s), " +
+    "$TotalLines line(s) checked. ($Elapsed)"
+Write-Host $Msg -ForegroundColor $SummaryColor

@@ -82,20 +82,18 @@ catch {
     return
 }
 
-if (-not $Results) {
-    Write-Host "All $FileCount file(s) checked. No PSScriptAnalyzer issues found."
-    return
-}
+$IssueCount = ($Results | Measure-Object).Count
 
-if (($Results | Measure-Object).Count -gt 0){
-
+if ($IssueCount -gt 0) {
     Write-Host "Results" -ForegroundColor Cyan
     $Results | Format-Table -AutoSize
 
-    if (($Results | Measure-Object).Count -gt 5){
+    if ($IssueCount -gt 5) {
         Write-Host "Results grouped by rule:" -ForegroundColor Cyan
         $Results | Group-Object RuleName | Format-Table Count, Name, Group -AutoSize
     }
 }
 
-Write-Host "$(($Results | Measure-Object).Count) issue(s) found."
+$SummaryColor = if ($IssueCount -gt 0) { 'Red' } else { 'Green' }
+$Msg = "$IssueCount issue(s) -- $FileCount file(s) checked."
+Write-Host $Msg -ForegroundColor $SummaryColor

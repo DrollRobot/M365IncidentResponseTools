@@ -13,6 +13,13 @@ param(
     [switch] $Recurse
 )
 
+# Folder names to exclude from scanning. Any file under a matching folder is skipped.
+$ExcludedFolders = @(
+    # '.local'    # local overrides and personal test files
+)
+
+$Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+
 $GetChildParams = @{
     Path    = $Path
     Include = '*.ps1', '*.psm1', '*.psd1'
@@ -21,12 +28,33 @@ if ($Recurse) {
     $GetChildParams.Recurse = $true
 }
 
-$files = Get-ChildItem @GetChildParams
+$files = Get-ChildItem @GetChildParams |
+    Where-Object {
+        $Rel = [System.IO.Path]::GetRelativePath($Path, $_.FullName)
+        -not ($ExcludedFolders | Where-Object { $Rel -like "$_\*" -or $Rel -like "*\$_\*" })
+    }
 $totalLines = 0
+$changedLines = 0
+$FileTotal = @($files).Count
+$FileIndex = 0
 foreach ($file in $files) {
+    $FileIndex++
+    $WpParams = @{
+        Activity        = $MyInvocation.MyCommand.Name
+        Status          = [System.IO.Path]::GetRelativePath($Path, $file.FullName)
+        PercentComplete = ($FileIndex / $FileTotal) * 100
+    }
+    Write-Progress @WpParams
     $lines = Get-Content $file.FullName
-    $totalLines += $lines.Count
-    $lines | ForEach-Object { $_.TrimEnd() } | Set-Content $file.FullName
+    $totalLines += @($lines).Count
+    $trimmed = $lines | ForEach-Object { $_.TrimEnd() }
+    $changedLines += @($lines | Where-Object { $_ -ne $_.TrimEnd() }).Count
+    $trimmed | Set-Content $file.FullName
 }
 
-Write-Host "Trailing whitespace removed from $($files.Count) file(s), $totalLines line(s)."
+Write-Progress -Activity $MyInvocation.MyCommand.Name -Completed
+$Stopwatch.Stop()
+$Elapsed = "$([math]::Round($Stopwatch.Elapsed.TotalSeconds, 2))s"
+$Msg = "$changedLines line(s) changed across $(@($files).Count) file(s), " +
+    "$totalLines line(s) total. ($Elapsed)"
+Write-Host $Msg -ForegroundColor Green

@@ -95,29 +95,50 @@ else {
     exit 1
 }
 
-$TestsFolder = Join-Path $PSScriptRoot 'tests'
+$TestsFolder      = Join-Path $PSScriptRoot 'tests'
+$LocalTestsFolder = Join-Path $PSScriptRoot '.local' 'tests'
 
 # --- Offline ---
 if ($Offline) {
 
-    # collect all Format-*.ps1 scripts
-    $FormatScripts = Get-ChildItem -Path $TestsFolder -Filter 'Format-*.ps1' |
-        Sort-Object Name
+    # collect all Format-*.ps1 scripts from tests/ and .local/tests/
+    $FormatScripts = [System.Collections.Generic.List[System.IO.FileInfo]](
+        Get-ChildItem -Path $TestsFolder -Filter 'Format-*.ps1' |
+            Where-Object { $_.Name -notlike '*.Tests.ps1' }
+    )
+    if (Test-Path $LocalTestsFolder) {
+        Get-ChildItem -Path $LocalTestsFolder -Filter 'Format-*.ps1' |
+            Where-Object { $_.Name -notlike '*.Tests.ps1' } |
+            ForEach-Object { $FormatScripts.Add($_) }
+    }
+    $FormatScripts = $FormatScripts | Sort-Object Name
 
     # run each Format-*.ps1 script first, before any of the Test-*.ps1 scripts
     foreach ($Script in $FormatScripts) {
-        Write-Host "`n=== $($Script.BaseName) ===" -ForegroundColor Cyan
+        $RelPath = [System.IO.Path]::GetRelativePath($PSScriptRoot, $Script.FullName)
+        Write-Host "`n=== $RelPath ===" -ForegroundColor Cyan
         & $Script.FullName -Path $PSScriptRoot -Recurse
     }
 
-    # collect all Test-*.ps1 scripts, exempting the PSScriptAnalyzer script
-    $TestScripts = Get-ChildItem -Path $TestsFolder -Filter 'Test-*.ps1' |
-        Where-Object { $_.BaseName -ne 'Test-ScriptAnalyzer' } |
-        Sort-Object Name
+    # collect all Test-*.ps1 scripts from tests/ and .local/tests/, exempting PSScriptAnalyzer
+    $TestScripts = [System.Collections.Generic.List[System.IO.FileInfo]](
+        Get-ChildItem -Path $TestsFolder -Filter 'Test-*.ps1' |
+            Where-Object {
+                $_.BaseName -ne 'Test-ScriptAnalyzer' -and
+                $_.Name -notlike '*.Tests.ps1'
+            }
+    )
+    if (Test-Path $LocalTestsFolder) {
+        Get-ChildItem -Path $LocalTestsFolder -Filter 'Test-*.ps1' |
+            Where-Object { $_.Name -notlike '*.Tests.ps1' } |
+            ForEach-Object { $TestScripts.Add($_) }
+    }
+    $TestScripts = $TestScripts | Sort-Object Name
 
     # run each Test-*.ps1 script
     foreach ($Script in $TestScripts) {
-        Write-Host "`n=== $($Script.BaseName) ===" -ForegroundColor Cyan
+        $RelPath = [System.IO.Path]::GetRelativePath($PSScriptRoot, $Script.FullName)
+        Write-Host "`n=== $RelPath ===" -ForegroundColor Cyan
         & $Script.FullName -Path $PSScriptRoot -Recurse
     }
 
@@ -147,7 +168,7 @@ if ($Online) {
         Write-Host ''
         Write-Host '  WARNING: Online tests override the token cache config.' -ForegroundColor Red
         Write-Host "           Test cache : $TestCachePath" -ForegroundColor Red
-        Write-Host '           EnableTokenCache has been forced on for this run.' -ForegroundColor Red
+        Write-Host '         EnableTokenCache has been forced on for this run.' -ForegroundColor Red
     }
 
     if ($CachedAuth) {

@@ -17,6 +17,13 @@ param(
     [char[]] $ExemptCharacters = @()
 )
 
+# Folder names to exclude from scanning. Any file under a matching folder is skipped.
+$ExcludedFolders = @(
+    # '.local'    # local overrides and personal test files
+)
+
+$Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+
 $GetChildParams = @{
     Path = $Path
     File = $true
@@ -25,34 +32,56 @@ if ($Recurse) {
     $GetChildParams.Recurse = $true
 }
 
-$files = Get-ChildItem @GetChildParams | Where-Object Extension -in '.ps1', '.psm1', '.psd1'
+$files = Get-ChildItem @GetChildParams |
+    Where-Object Extension -in '.ps1', '.psm1', '.psd1' |
+    Where-Object {
+        $Rel = [System.IO.Path]::GetRelativePath($Path, $_.FullName)
+        -not ($ExcludedFolders | Where-Object { $Rel -like "$_\*" -or $Rel -like "*\$_\*" })
+    }
 $hitCount = 0
 $totalLines = 0
+$hits = [System.Collections.Generic.List[PSCustomObject]]::new()
 
+$FileTotal = @($files).Count
+$FileIndex = 0
 foreach ($file in $files) {
+    $FileIndex++
+    $WpParams = @{
+        Activity        = $MyInvocation.MyCommand.Name
+        Status          = [System.IO.Path]::GetRelativePath($Path, $file.FullName)
+        PercentComplete = ($FileIndex / $FileTotal) * 100
+    }
+    Write-Progress @WpParams
     $lines = Get-Content -Path $file.FullName
-    $totalLines += $lines.Count
+    $totalLines += @($lines).Count
     $nonAsciiMatches = $lines | Select-String -Pattern '[^\x00-\x7F]' | Where-Object {
         $line = $_.Line
-        ($line.ToCharArray() |
+        @($line.ToCharArray() |
             Where-Object { [int]$_ -gt 0x7F -and $_ -notin $ExemptCharacters }).Count -gt 0
     }
     if ($nonAsciiMatches) {
-        $hitCount += $nonAsciiMatches.Count
+        $hitCount += @($nonAsciiMatches).Count
         foreach ($match in $nonAsciiMatches) {
-            $WarnMsg = "Non-ASCII in '$($file.Name)' line " +
-                "$($match.LineNumber): $($match.Line.Trim())"
-            Write-Warning $WarnMsg
+            $relativePath = [System.IO.Path]::GetRelativePath($Path, $file.FullName)
+            $hits.Add([PSCustomObject]@{
+                File       = $relativePath
+                LineNumber = $match.LineNumber
+                Line       = $match.Line.Trim()
+            })
         }
     }
 }
 
-$Count = $files.Count
-if ($hitCount -eq 0) {
-    $Msg = "All $Count file(s), $totalLines line(s) checked. No non-ASCII characters found."
-    Write-Host $Msg
+$Count = @($files).Count
+
+if ($hitCount -gt 0) {
+    $hits | Format-Table -AutoSize
 }
-else {
-    $Msg = "$hitCount non-ASCII occurrence(s) found across $Count file(s), $totalLines line(s)."
-    Write-Host $Msg
-}
+
+Write-Progress -Activity $MyInvocation.MyCommand.Name -Completed
+$Stopwatch.Stop()
+$Elapsed = "$([math]::Round($Stopwatch.Elapsed.TotalSeconds, 2))s"
+$SummaryColor = if ($hitCount -gt 0) { 'Red' } else { 'Green' }
+$Msg = "$hitCount non-ASCII occurrence(s) -- $Count file(s), " +
+    "$totalLines line(s) checked. ($Elapsed)"
+Write-Host $Msg -ForegroundColor $SummaryColor

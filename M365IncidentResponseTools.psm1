@@ -106,3 +106,6 @@ $Global:IRT_Config.IpInfoAvailable = (Test-PythonPackage -Name 'ip_info').Presen
 
 # Load static reference data (error codes, UAL operation metadata, UAL user types).
 Import-IRTReferenceData
+
+# Set terminal title on module load.
+Set-TerminalTitle '[IRT]'
