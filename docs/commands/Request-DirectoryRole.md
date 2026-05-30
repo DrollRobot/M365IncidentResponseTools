@@ -14,8 +14,8 @@ Caches in global variable.
 ## SYNTAX
 
 ```
-Request-DirectoryRole [-Cached] [-Test] [[-Xml] <Boolean>] [[-Return] <String>]
- [-ProgressAction <ActionPreference>] [<CommonParameters>]
+Request-DirectoryRole [-Cached] [[-Xml] <Boolean>] [[-Return] <String>] [-ProgressAction <ActionPreference>]
+ [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -40,21 +40,6 @@ PS C:\> {{ Add example code here }}
 
 ### -Cached
 {{ Fill Cached Description }}
-
-```yaml
-Type: SwitchParameter
-Parameter Sets: (All)
-Aliases:
-
-Required: False
-Position: Named
-Default value: False
-Accept pipeline input: False
-Accept wildcard characters: False
-```
-
-### -Test
-{{ Fill Test Description }}
 
 ```yaml
 Type: SwitchParameter

@@ -16,14 +16,14 @@ Parse and show unified audit logs.
 ```
 Show-UALog [-Log] <System.Collections.Generic.List`1[System.Management.Automation.PSObject]>
  [-TableStyle <String>] [-Font <String>] [-IpInfo <Boolean>] [-Open <Boolean>] [-WaitOnMessageTrace <Boolean>]
- [-MaxWaitMinutes <Int32>] [-Test] [-Cached] [-ProgressAction <ActionPreference>] [<CommonParameters>]
+ [-MaxWaitMinutes <Int32>] [-Cached] [-ProgressAction <ActionPreference>] [<CommonParameters>]
 ```
 
 ### Xml
 ```
 Show-UALog [-XmlPath] <String> [-TableStyle <String>] [-Font <String>] [-IpInfo <Boolean>] [-Open <Boolean>]
- [-WaitOnMessageTrace <Boolean>] [-MaxWaitMinutes <Int32>] [-Test] [-Cached]
- [-ProgressAction <ActionPreference>] [<CommonParameters>]
+ [-WaitOnMessageTrace <Boolean>] [-MaxWaitMinutes <Int32>] [-Cached] [-ProgressAction <ActionPreference>]
+ [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -156,21 +156,6 @@ Aliases:
 Required: False
 Position: Named
 Default value: 15
-Accept pipeline input: False
-Accept wildcard characters: False
-```
-
-### -Test
-{{ Fill Test Description }}
-
-```yaml
-Type: SwitchParameter
-Parameter Sets: (All)
-Aliases:
-
-Required: False
-Position: Named
-Default value: False
 Accept pipeline input: False
 Accept wildcard characters: False
 ```

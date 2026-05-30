@@ -15,14 +15,14 @@ Processes Sign in log .XML file into Excel spreadsheet.
 ### Objects (Default)
 ```
 Show-SignInLog [-Log] <System.Collections.Generic.List`1[System.Management.Automation.PSObject]>
- [-TableStyle <String>] [-Font <String>] [-IpInfo <Boolean>] [-Open <Boolean>] [-Test]
+ [-TableStyle <String>] [-Font <String>] [-IpInfo <Boolean>] [-Open <Boolean>]
  [-ProgressAction <ActionPreference>] [<CommonParameters>]
 ```
 
 ### Xml
 ```
 Show-SignInLog -XmlPath <String> [-TableStyle <String>] [-Font <String>] [-IpInfo <Boolean>] [-Open <Boolean>]
- [-Test] [-ProgressAction <ActionPreference>] [<CommonParameters>]
+ [-ProgressAction <ActionPreference>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -125,21 +125,6 @@ Aliases:
 Required: False
 Position: Named
 Default value: True
-Accept pipeline input: False
-Accept wildcard characters: False
-```
-
-### -Test
-{{ Fill Test Description }}
-
-```yaml
-Type: SwitchParameter
-Parameter Sets: (All)
-Aliases:
-
-Required: False
-Position: Named
-Default value: False
 Accept pipeline input: False
 Accept wildcard characters: False
 ```

@@ -5,7 +5,7 @@ online version:
 schema: 2.0.0
 ---
 
-# Show-AdOus
+# Show-IRTAdOus
 
 ## SYNOPSIS
 Shows a list of all OUs with a count of users and devices.
@@ -13,7 +13,7 @@ Shows a list of all OUs with a count of users and devices.
 ## SYNTAX
 
 ```
-Show-AdOus [-ProgressAction <ActionPreference>] [<CommonParameters>]
+Show-IRTAdOus [-ProgressAction <ActionPreference>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -29,13 +29,13 @@ by default.
 
 ### EXAMPLE 1
 ```
-Show-AdOus
+Show-IRTAdOus
 Lists all OUs with user and computer counts.
 ```
 
 ### EXAMPLE 2
 ```
-Show-AdOus | Where-Object { $_.Users -gt 0 }
+Show-IRTAdOus | Where-Object { $_.Users -gt 0 }
 Returns only OUs that contain at least one user.
 ```
 

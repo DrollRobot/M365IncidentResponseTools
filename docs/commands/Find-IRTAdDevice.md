@@ -5,28 +5,31 @@ online version:
 schema: 2.0.0
 ---
 
-# Find-AdUser
+# Find-IRTAdDevice
 
 ## SYNOPSIS
-Finds local AD user by DisplayName, Name, UserPrincipalName, ProxyAddresses, SamAccountName, or ObjectGUID.
+Finds a local AD computer by Name, DNSHostName, SamAccountName, Description,
+or ObjectGUID.
 
 ## SYNTAX
 
 ```
-Find-AdUser [-Search] <String[]> [-VarPrefix <String>] [-Script] [-ProgressAction <ActionPreference>]
+Find-IRTAdDevice [-Search] <String[]> [-VarPrefix <String>] [-Script] [-ProgressAction <ActionPreference>]
  [<CommonParameters>]
 ```
 
 ## DESCRIPTION
-Searches Active Directory for users matching one or more search strings.
-The search is
-applied across DisplayName, Name, UserPrincipalName, ProxyAddresses (email extracted
-by regex), SamAccountName, and ObjectGUID.
+Searches Active Directory for computers matching one or more search strings.
+The search
+is applied across Name, DNSHostName, SamAccountName, Description, and ObjectGUID.
 
-If a single user is found, the full AD object is retrieved and stored in
-$Global:UserObject, $Global:UserObjects, and $Global:UserEmail.
-For multiple matches
-only $Global:UserObjects is populated.
+If a single computer is found, the full AD object is retrieved and stored in
+$Global:IRT_DeviceObject.
+Use -VarPrefix to change the variable name
+(e.g.
+'Target' \> $Global:IRT_TargetDeviceObject).
+For multiple matches the results are
+displayed but no global is set.
 Use -Script to suppress global side effects and
 return objects directly.
 
@@ -34,20 +37,21 @@ return objects directly.
 
 ### EXAMPLE 1
 ```
-Find-AdUser flast
-Finds users matching 'flast' and sets the global user object if exactly one match.
+Find-IRTAdDevice DESKTOP-ABC123
+Finds computers matching 'DESKTOP-ABC123' and sets the global device object if exactly
+one match.
 ```
 
 ### EXAMPLE 2
 ```
-Find-AdUser flast@contoso.com
-Searches by email address.
+Find-IRTAdDevice desktop-abc123.contoso.com
+Searches by DNS host name.
 ```
 
 ### EXAMPLE 3
 ```
-$Users = Find-AdUser -Search 'flast','jsmith' -Script
-Returns matching user objects for two search strings without setting globals.
+$Devices = Find-IRTAdDevice -Search 'DESKTOP-ABC123','LAPTOP-XYZ789' -Script
+Returns matching computer objects for two search strings without setting globals.
 ```
 
 ## PARAMETERS
@@ -70,9 +74,11 @@ Accept wildcard characters: False
 ```
 
 ### -VarPrefix
-Optional prefix for the global variable names (e.g.
-'Admin' \> $Global:AdminUserObject).
-Useful when working with multiple users simultaneously.
+Optional prefix inserted after 'IRT_' in the global variable name
+(e.g.
+'Target' \> $Global:IRT_TargetDeviceObject).
+Useful when working with multiple
+devices simultaneously.
 
 ```yaml
 Type: String
@@ -126,10 +132,8 @@ This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable
 ## OUTPUTS
 
 ### None by default (sets global variables).
-### Microsoft.ActiveDirectory.Management.ADUser[] when -Script is used.
+### Microsoft.ActiveDirectory.Management.ADComputer[] when -Script is used.
 ## NOTES
-Version: 1.2.1
-1.2.1 - Fixed bug where script was passing collections of user objects rather than user objects.
-1.2.0 - Major rewrite.
+Version: 1.0.0
 
 ## RELATED LINKS

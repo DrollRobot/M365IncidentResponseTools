@@ -14,13 +14,13 @@ schema: 2.0.0
 
 ### UserObject (Default)
 ```
-Get-UserMailboxPermission [[-UserObject] <PSObject[]>] [-Cached] [-Test] [-ProgressAction <ActionPreference>]
+Get-UserMailboxPermission [[-UserObject] <PSObject[]>] [-Cached] [-ProgressAction <ActionPreference>]
  [<CommonParameters>]
 ```
 
 ### UserEmail
 ```
-Get-UserMailboxPermission [-UserEmail <String[]>] [-Cached] [-Test] [-ProgressAction <ActionPreference>]
+Get-UserMailboxPermission [-UserEmail <String[]>] [-Cached] [-ProgressAction <ActionPreference>]
  [<CommonParameters>]
 ```
 
@@ -40,21 +40,6 @@ PS C:\> {{ Add example code here }}
 
 ### -Cached
 {{ Fill Cached Description }}
-
-```yaml
-Type: SwitchParameter
-Parameter Sets: (All)
-Aliases:
-
-Required: False
-Position: Named
-Default value: None
-Accept pipeline input: False
-Accept wildcard characters: False
-```
-
-### -Test
-{{ Fill Test Description }}
 
 ```yaml
 Type: SwitchParameter

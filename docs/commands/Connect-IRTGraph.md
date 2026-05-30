@@ -14,7 +14,8 @@ Connects to Microsoft Graph with default incident response scopes.
 
 ```
 Connect-IRTGraph [-TenantId] <String> [[-Cloud] <String>] [[-AdditionalScope] <String[]>] [[-Browser] <String>]
- [-Private] [-Force] [-ProgressAction <ActionPreference>] [<CommonParameters>]
+ [-Private] [-Force] [-Silent] [[-ClientId] <String>] [[-MsalCachePath] <String>]
+ [-ProgressAction <ActionPreference>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -119,6 +120,53 @@ Aliases:
 Required: False
 Position: Named
 Default value: False
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
+### -Silent
+{{ Fill Silent Description }}
+
+```yaml
+Type: SwitchParameter
+Parameter Sets: (All)
+Aliases:
+
+Required: False
+Position: Named
+Default value: False
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
+### -ClientId
+Override the MSAL client ID. Defaults to the Microsoft Graph CLI Tools
+first-party app (14d82eec-204b-4c2f-b7e8-296a70dab67e).
+
+```yaml
+Type: String
+Parameter Sets: (All)
+Aliases:
+
+Required: False
+Position: 5
+Default value: 14d82eec-204b-4c2f-b7e8-296a70dab67e
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
+### -MsalCachePath
+Override the path for the persistent MSAL token cache file. Defaults to
+$Global:IRT_Config.MsalCachePath. Useful for testing with an isolated cache.
+
+```yaml
+Type: String
+Parameter Sets: (All)
+Aliases:
+
+Required: False
+Position: 6
+Default value: $Global:IRT_Config.MsalCachePath
 Accept pipeline input: False
 Accept wildcard characters: False
 ```

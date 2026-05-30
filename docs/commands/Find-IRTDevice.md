@@ -15,8 +15,8 @@ Creates $IRT_DeviceObjects from combined Entra + Intune device records.
 ## SYNTAX
 
 ```
-Find-IRTDevice [-Search] <String[]> [-VarPrefix <String>] [-Script] [-ProgressAction <ActionPreference>]
- [<CommonParameters>]
+Find-IRTDevice [-Search] <String[]> [-VarPrefix <String>] [-Script] [-AllMatches]
+ [-ProgressAction <ActionPreference>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -67,6 +67,21 @@ Accept wildcard characters: False
 
 ### -Script
 {{ Fill Script Description }}
+
+```yaml
+Type: SwitchParameter
+Parameter Sets: (All)
+Aliases:
+
+Required: False
+Position: Named
+Default value: False
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
+### -AllMatches
+{{ Fill AllMatches Description }}
 
 ```yaml
 Type: SwitchParameter

@@ -5,7 +5,7 @@ online version:
 schema: 2.0.0
 ---
 
-# Find-AdOu
+# Find-IRTAdOu
 
 ## SYNOPSIS
 Makes finding specific OUs easier.
@@ -13,7 +13,7 @@ Makes finding specific OUs easier.
 ## SYNTAX
 
 ```
-Find-AdOu [-Search] <String> [-Script] [-ProgressAction <ActionPreference>] [<CommonParameters>]
+Find-IRTAdOu [-Search] <String> [-Script] [-ProgressAction <ActionPreference>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -28,13 +28,13 @@ $Global:OuObject and displayed; multiple or zero results produce a warning.
 
 ### EXAMPLE 1
 ```
-Find-AdOu 'Workstations'
+Find-IRTAdOu 'Workstations'
 Finds all OUs with 'Workstations' in their name and sets $Global:OuObject if exactly one match.
 ```
 
 ### EXAMPLE 2
 ```
-$Ou = Find-AdOu -Search 'contoso.com/Workstations' -Script
+$Ou = Find-IRTAdOu -Search 'contoso.com/Workstations' -Script
 Returns the OU object directly for use in a script.
 ```
 

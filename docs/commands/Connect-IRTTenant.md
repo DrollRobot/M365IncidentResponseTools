@@ -14,8 +14,7 @@ Connects to a tenant using a friendly alias looked up from a tenant configuratio
 
 ```
 Connect-IRTTenant [-Alias] <String> [-TenantFile <String>] [-Graph] [-Exchange] [-AdditionalScope <String[]>]
- [-DeviceCode <Boolean>] [-PasswordBrowser <String>] [-Private] [-ProgressAction <ActionPreference>]
- [<CommonParameters>]
+ [-PasswordBrowser <String>] [-Private] [-ProgressAction <ActionPreference>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -119,25 +118,6 @@ Additional Graph scopes to request beyond the default set.
 Type: String[]
 Parameter Sets: (All)
 Aliases: AdditionalScopes, Scopes, Scope
-
-Required: False
-Position: Named
-Default value: None
-Accept pipeline input: False
-Accept wildcard characters: False
-```
-
-### -DeviceCode
-Use device code authentication.
-Requires the tenant's DeviceAuthAllowed column to be set to 'yes'.
-Interactive authentication is used by default.
-An error is thrown if device code is requested
-but the tenant does not allow it.
-
-```yaml
-Type: Boolean
-Parameter Sets: (All)
-Aliases:
 
 Required: False
 Position: Named

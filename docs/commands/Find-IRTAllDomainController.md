@@ -5,7 +5,7 @@ online version:
 schema: 2.0.0
 ---
 
-# Find-AllDomainController
+# Find-IRTAllDomainController
 
 ## SYNOPSIS
 Lists the names of all domain controllers in the current AD domain.
@@ -13,7 +13,7 @@ Lists the names of all domain controllers in the current AD domain.
 ## SYNTAX
 
 ```
-Find-AllDomainController [<CommonParameters>]
+Find-IRTAllDomainController [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -26,13 +26,13 @@ a reachable domain controller; exits with an error if AD is unavailable.
 
 ### EXAMPLE 1
 ```
-Find-AllDomainController
+Find-IRTAllDomainController
 Returns the Name of every domain controller in the domain.
 ```
 
 ### EXAMPLE 2
 ```
-$DCs = Find-AllDomainController
+$DCs = Find-IRTAllDomainController
 Captures the list of DC names for use in a loop or downstream command.
 ```
 

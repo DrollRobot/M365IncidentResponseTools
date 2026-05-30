@@ -5,7 +5,7 @@ online version:
 schema: 2.0.0
 ---
 
-# Push-AdSync
+# Push-IRTAdSync
 
 ## SYNOPSIS
 Forces an Active Directory / Entra ID (Azure AD Connect) sync cycle.
@@ -13,7 +13,7 @@ Forces an Active Directory / Entra ID (Azure AD Connect) sync cycle.
 ## SYNTAX
 
 ```
-Push-AdSync [-ResetCredentials] [[-SyncServer] <String[]>] [[-ThrottleLimit] <Int32>]
+Push-IRTAdSync [-ResetCredentials] [[-SyncServer] <String[]>] [[-ThrottleLimit] <Int32>]
  [-ProgressAction <ActionPreference>] [<CommonParameters>]
 ```
 
@@ -39,19 +39,19 @@ Use -ResetCredentials to force a re-prompt.
 
 ### EXAMPLE 1
 ```
-Push-AdSync
+Push-IRTAdSync
 Automatically discovers and triggers a delta sync.
 ```
 
 ### EXAMPLE 2
 ```
-Push-AdSync -SyncServer 'sync01.contoso.com'
+Push-IRTAdSync -SyncServer 'sync01.contoso.com'
 Triggers sync on a known server without discovery.
 ```
 
 ### EXAMPLE 3
 ```
-Push-AdSync -ResetCredentials
+Push-IRTAdSync -ResetCredentials
 Re-prompts for domain admin credentials before syncing.
 ```
 

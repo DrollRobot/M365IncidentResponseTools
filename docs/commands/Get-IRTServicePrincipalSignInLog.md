@@ -15,14 +15,14 @@ Downloads service principal sign-in logs.
 ### ServicePrincipalObject (Default)
 ```
 Get-IRTServicePrincipalSignInLog [[-ServicePrincipalObject] <PSObject[]>] [-Days <Int32>] [-Start <String>]
- [-End <String>] [-Beta <Boolean>] [-Excel <Boolean>] [-IpInfo <Boolean>] [-Open <Boolean>] [-Test]
- [-Xml <Boolean>] [-ProgressAction <ActionPreference>] [<CommonParameters>]
+ [-End <String>] [-Beta <Boolean>] [-Excel <Boolean>] [-IpInfo <Boolean>] [-Open <Boolean>] [-Xml <Boolean>]
+ [-ProgressAction <ActionPreference>] [<CommonParameters>]
 ```
 
 ### AllServicePrincipals
 ```
 Get-IRTServicePrincipalSignInLog [-AllServicePrincipals] [-Days <Int32>] [-Start <String>] [-End <String>]
- [-Beta <Boolean>] [-Excel <Boolean>] [-IpInfo <Boolean>] [-Open <Boolean>] [-Test] [-Xml <Boolean>]
+ [-Beta <Boolean>] [-Excel <Boolean>] [-IpInfo <Boolean>] [-Open <Boolean>] [-Xml <Boolean>]
  [-ProgressAction <ActionPreference>] [<CommonParameters>]
 ```
 
@@ -205,21 +205,6 @@ Aliases:
 Required: False
 Position: Named
 Default value: True
-Accept pipeline input: False
-Accept wildcard characters: False
-```
-
-### -Test
-Enable stopwatch timing output.
-
-```yaml
-Type: SwitchParameter
-Parameter Sets: (All)
-Aliases:
-
-Required: False
-Position: Named
-Default value: False
 Accept pipeline input: False
 Accept wildcard characters: False
 ```

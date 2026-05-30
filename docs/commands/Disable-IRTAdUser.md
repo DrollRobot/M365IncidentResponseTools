@@ -5,52 +5,49 @@ online version:
 schema: 2.0.0
 ---
 
-# Show-AdUserInfo
+# Disable-IRTAdUser
 
 ## SYNOPSIS
-Displays AD user properties.
+Disable on-premises AD user account(s).
 
 ## SYNTAX
 
 ```
-Show-AdUserInfo [[-UserObjects] <PSObject[]>] [-ProgressAction <ActionPreference>] [<CommonParameters>]
+Disable-IRTAdUser [[-UserObject] <PSObject[]>] [-ProgressAction <ActionPreference>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
-Shows a comprehensive Format-List of an on-premises AD user's attributes, including:
-identity fields (Name, DisplayName, SamAccountName, UPN), contact and address info,
-password metadata (PasswordLastSet, pwdLastSet raw value, PasswordNeverExpires),
-Exchange attributes (msExchHideFromAddressLists, mailNickname, proxyAddresses),
-group memberships, and DistinguishedName.
-Timestamps are converted to local time.
+Thin wrapper around Set-IRTAdUserEnabled that sets Enabled = $false.
+Disables one or
+more AD user accounts, re-fetches each account to confirm the change, then triggers
+AD replication and an Azure AD delta sync if the relevant services are available.
 
-Falls back to global session objects (via Get-AdGlobalUserObject) if no -UserObjects
-is passed.
+Falls back to $Global:UserObjects if no -UserObject is passed.
 
 ## EXAMPLES
 
 ### EXAMPLE 1
 ```
-Show-AdUserInfo
-Displays info for the user(s) in the global session.
+Disable-IRTAdUser
+Disables the user(s) in the global session.
 ```
 
 ### EXAMPLE 2
 ```
-Show-AdUserInfo -UserObjects $AdUser
-Displays info for a specific AD user object.
+Disable-IRTAdUser -UserObject $AdUser
+Disables a specific user.
 ```
 
 ## PARAMETERS
 
-### -UserObjects
-One or more AD user objects to display.
+### -UserObject
+One or more AD user objects to disable.
 Falls back to global session objects if omitted.
 
 ```yaml
 Type: PSObject[]
 Parameter Sets: (All)
-Aliases: UserObject
+Aliases: UserObjects
 
 Required: False
 Position: 1
@@ -81,9 +78,8 @@ This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable
 
 ## OUTPUTS
 
-### None. Output is written to the console.
+### None. Status is written to the console.
 ## NOTES
-Version: 1.1.2
-1.1.2 - Added pwdLastSet
+Version: 2.0.0
 
 ## RELATED LINKS

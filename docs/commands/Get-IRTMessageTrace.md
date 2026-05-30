@@ -15,22 +15,22 @@ Downloads incoming and outgoing message trace for specified user, or all users.
 ### UserObject (Default)
 ```
 Get-IRTMessageTrace [[-UserObject] <PSObject[]>] [-Days <Int32>] [-Start <String>] [-End <String>]
- [-ResultLimit <Int32>] [-Variable <Boolean>] [-Excel <Boolean>] [-Quiet] [-Test] [-Xml <Boolean>]
+ [-ResultLimit <Int32>] [-Variable <Boolean>] [-Excel <Boolean>] [-Quiet] [-Xml <Boolean>]
  [-TableStyle <String>] [-Font <String>] [-ProgressAction <ActionPreference>] [<CommonParameters>]
 ```
 
 ### UserEmail
 ```
 Get-IRTMessageTrace [-UserEmail <String[]>] [-Days <Int32>] [-Start <String>] [-End <String>]
- [-ResultLimit <Int32>] [-Variable <Boolean>] [-Excel <Boolean>] [-Quiet] [-Test] [-Xml <Boolean>]
+ [-ResultLimit <Int32>] [-Variable <Boolean>] [-Excel <Boolean>] [-Quiet] [-Xml <Boolean>]
  [-TableStyle <String>] [-Font <String>] [-ProgressAction <ActionPreference>] [<CommonParameters>]
 ```
 
 ### AllUsers
 ```
 Get-IRTMessageTrace [-AllUsers] [-Days <Int32>] [-Start <String>] [-End <String>] [-ResultLimit <Int32>]
- [-Variable <Boolean>] [-Excel <Boolean>] [-Quiet] [-Test] [-Xml <Boolean>] [-TableStyle <String>]
- [-Font <String>] [-ProgressAction <ActionPreference>] [<CommonParameters>]
+ [-Variable <Boolean>] [-Excel <Boolean>] [-Quiet] [-Xml <Boolean>] [-TableStyle <String>] [-Font <String>]
+ [-ProgressAction <ActionPreference>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -214,21 +214,6 @@ Accept wildcard characters: False
 
 ### -Quiet
 Suppress progress output.
-
-```yaml
-Type: SwitchParameter
-Parameter Sets: (All)
-Aliases:
-
-Required: False
-Position: Named
-Default value: False
-Accept pipeline input: False
-Accept wildcard characters: False
-```
-
-### -Test
-Enable stopwatch timing output.
 
 ```yaml
 Type: SwitchParameter

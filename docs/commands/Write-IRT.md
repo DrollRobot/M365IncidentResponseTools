@@ -14,7 +14,7 @@ Writes a colored, prefixed status message to the host.
 
 ```
 Write-IRT [[-Message] <String>] [-Level <String>] [-FunctionName <String>] [-NoNewline] [-NoColor]
- [-ProgressAction <ActionPreference>] [<CommonParameters>]
+ [-NoFunctionName] [-ProgressAction <ActionPreference>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -112,6 +112,22 @@ Accept wildcard characters: False
 Suppresses color output.
 Useful when writing to a transcript or redirected
 stream that does not support ANSI color codes.
+
+```yaml
+Type: SwitchParameter
+Parameter Sets: (All)
+Aliases:
+
+Required: False
+Position: Named
+Default value: False
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
+### -NoFunctionName
+Suppresses the calling function name prefix. Useful for plain status messages
+that do not need attribution.
 
 ```yaml
 Type: SwitchParameter

@@ -13,7 +13,7 @@ Runs multiple functions to assist in investigating a user's activity.
 ## SYNTAX
 
 ```
-Start-IRTPlaybook [[-UserObject] <PSObject[]>] [-Ticket <String>] [-NoFolder] [-MaxRunspaces <Int32>] [-Test]
+Start-IRTPlaybook [[-UserObject] <PSObject[]>] [-Ticket <String>] [-NoFolder] [-MaxRunspaces <Int32>]
  [-ProgressAction <ActionPreference>] [-WhatIf] [-Confirm] [<CommonParameters>]
 ```
 
@@ -121,22 +121,6 @@ Aliases:
 Required: False
 Position: Named
 Default value: 15
-Accept pipeline input: False
-Accept wildcard characters: False
-```
-
-### -Test
-Enables stopwatch timing output.
-Useful for benchmarking playbook run duration.
-
-```yaml
-Type: SwitchParameter
-Parameter Sets: (All)
-Aliases:
-
-Required: False
-Position: Named
-Default value: False
 Accept pipeline input: False
 Accept wildcard characters: False
 ```

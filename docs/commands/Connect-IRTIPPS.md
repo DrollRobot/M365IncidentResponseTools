@@ -13,9 +13,9 @@ Connects to Security & Compliance PowerShell (IPPS).
 ## SYNTAX
 
 ```
-Connect-IRTIPPS [-TenantId] <String> [[-UserPrincipalName] <String>] [[-Cloud] <String>] [-DeviceCode]
- [[-AccessToken] <String>] [[-SearchOnly] <Boolean>] [[-Browser] <String>] [-Private] [-Force]
- [-ProgressAction <ActionPreference>] [<CommonParameters>]
+Connect-IRTIPPS [-TenantId] <String> [[-UserPrincipalName] <String>] [[-Cloud] <String>]
+ [[-AccessToken] <String>] [[-SearchOnly] <Boolean>] [[-Browser] <String>] [-Private] [-Force] [-Silent]
+ [[-ClientId] <String>] [[-MsalCachePath] <String>] [-ProgressAction <ActionPreference>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -77,21 +77,6 @@ Aliases:
 Required: False
 Position: 3
 Default value: Commercial
-Accept pipeline input: False
-Accept wildcard characters: False
-```
-
-### -DeviceCode
-{{ Fill DeviceCode Description }}
-
-```yaml
-Type: SwitchParameter
-Parameter Sets: (All)
-Aliases:
-
-Required: False
-Position: Named
-Default value: False
 Accept pipeline input: False
 Accept wildcard characters: False
 ```
@@ -172,6 +157,53 @@ Aliases:
 Required: False
 Position: Named
 Default value: False
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
+### -Silent
+{{ Fill Silent Description }}
+
+```yaml
+Type: SwitchParameter
+Parameter Sets: (All)
+Aliases:
+
+Required: False
+Position: Named
+Default value: False
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
+### -ClientId
+Override the MSAL client ID. Defaults to the EXO/IPPS first-party app
+(fb78d390-0c51-40cd-8e17-fdbfab77341b).
+
+```yaml
+Type: String
+Parameter Sets: (All)
+Aliases:
+
+Required: False
+Position: 7
+Default value: Fb78d390-0c51-40cd-8e17-fdbfab77341b
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
+### -MsalCachePath
+Override the path for the persistent MSAL token cache file. Defaults to
+$Global:IRT_Config.MsalCachePath. Useful for testing with an isolated cache.
+
+```yaml
+Type: String
+Parameter Sets: (All)
+Aliases:
+
+Required: False
+Position: 8
+Default value: $Global:IRT_Config.MsalCachePath
 Accept pipeline input: False
 Accept wildcard characters: False
 ```

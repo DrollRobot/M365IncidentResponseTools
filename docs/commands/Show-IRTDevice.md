@@ -5,52 +5,43 @@ online version:
 schema: 2.0.0
 ---
 
-# Get-AdAdminUser
+# Show-IRTDevice
 
 ## SYNOPSIS
-Displays a list of admin users.
+Displays Entra and Intune device properties for combined device objects produced by
+Find-IRTDevice.
 
 ## SYNTAX
 
 ```
-Get-AdAdminUser [-Csv] [-ProgressAction <ActionPreference>] [<CommonParameters>]
+Show-IRTDevice [[-DeviceObject] <PSObject[]>] [-ProgressAction <ActionPreference>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
-Retrieves all Active Directory users where AdminCount equals 1 (the standard AD
-attribute set by SDProp for accounts that have been members of privileged groups).
-Results are sorted by Enabled status then LastLogonDate descending, and include each
-user's group memberships.
-
-Use -Csv to export the results to a CSV file in C:\Temp.
+{{ Fill in the Description }}
 
 ## EXAMPLES
 
-### EXAMPLE 1
-```
-Get-AdAdminUser
-Displays all AdminCount=1 users in a formatted table.
+### Example 1
+```powershell
+PS C:\> {{ Add example code here }}
 ```
 
-### EXAMPLE 2
-```
-Get-AdAdminUser -Csv
-Exports the list to AdAdminUsers_<domain>_<date>.csv in C:\Temp.
-```
+{{ Add example description here }}
 
 ## PARAMETERS
 
-### -Csv
-Export results to a CSV file instead of displaying them in the console.
+### -DeviceObject
+{{ Fill DeviceObject Description }}
 
 ```yaml
-Type: SwitchParameter
+Type: PSObject[]
 Parameter Sets: (All)
-Aliases:
+Aliases: DeviceObjects
 
 Required: False
-Position: Named
-Default value: False
+Position: 1
+Default value: None
 Accept pipeline input: False
 Accept wildcard characters: False
 ```
@@ -77,9 +68,7 @@ This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable
 
 ## OUTPUTS
 
-### None (console table) by default.
-### CSV file when -Csv is used.
 ## NOTES
-Version: 1.0.0
+Version: 1.1.0
 
 ## RELATED LINKS

@@ -5,7 +5,7 @@ online version:
 schema: 2.0.0
 ---
 
-# Find-ServicePrincipal
+# Find-IRTServicePrincipal
 
 ## SYNOPSIS
 Finds service principals in the tenant by display name, app ID, or object ID.
@@ -14,7 +14,7 @@ Creates $IRT_ServicePrincipalObjects.
 ## SYNTAX
 
 ```
-Find-ServicePrincipal [-Search] <String[]> [-VarPrefix <String>] [-Cached] [-Script]
+Find-IRTServicePrincipal [-Search] <String[]> [-VarPrefix <String>] [-Cached] [-Script] [-AllMatches]
  [-ProgressAction <ActionPreference>] [<CommonParameters>]
 ```
 
@@ -29,8 +29,9 @@ When exactly one match is found for a search string, the service principal is ad
 to the result collection and a summary table is displayed.
 When multiple matches are
 found, the table is shown but nothing is saved -- refine the search to a single
-match.
-When no match is found, an error message is displayed.
+match, or use -AllMatches to add all of them.
+When no match is found, an error
+message is displayed.
 
 On success, results are stored in $Global:IRT_ServicePrincipalObjects (or
 $Global:IRT_\<VarPrefix\>ServicePrincipalObjects when -VarPrefix is supplied).
@@ -41,31 +42,31 @@ Pass
 
 ### EXAMPLE 1
 ```
-Find-ServicePrincipal MyApp
+Find-IRTServicePrincipal MyApp
 Find a single service principal by display name.
 ```
 
 ### EXAMPLE 2
 ```
-Find-ServicePrincipal -Search MyApp,AnotherApp
+Find-IRTServicePrincipal -Search MyApp,AnotherApp
 Find multiple service principals in one call.
 ```
 
 ### EXAMPLE 3
 ```
-Find-ServicePrincipal -Search 00000003-0000-0000-c000-000000000000
+Find-IRTServicePrincipal -Search 00000003-0000-0000-c000-000000000000
 Find by full or partial AppId (Microsoft Graph in this example).
 ```
 
 ### EXAMPLE 4
 ```
-Find-ServicePrincipal -Search bf7573a5844f
+Find-IRTServicePrincipal -Search bf7573a5844f
 Find by partial object ID.
 ```
 
 ### EXAMPLE 5
 ```
-Find-ServicePrincipal MyApp -Script
+Find-IRTServicePrincipal MyApp -Script
 Return the matched object directly without console output or setting the global variable.
 ```
 
@@ -138,6 +139,25 @@ Accept pipeline input: False
 Accept wildcard characters: False
 ```
 
+### -AllMatches
+When specified, adds all objects that match a given search string instead of
+rejecting the search when more than one result is found.
+Results are deduplicated
+by object ID, so overlapping search strings that resolve to the same service
+principal produce only one entry in the output.
+
+```yaml
+Type: SwitchParameter
+Parameter Sets: (All)
+Aliases:
+
+Required: False
+Position: Named
+Default value: False
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
 ### -ProgressAction
 {{ Fill ProgressAction Description }}
 
@@ -163,11 +183,12 @@ This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable
 ### None by default. Sets $Global:IRT_ServicePrincipalObjects.
 ### With -Script: [object[]] of matched service principal objects.
 ## NOTES
-Version: 1.0.0
+Version: 1.1.0
+1.1.0 - Added -AllMatches to collect all matching service principals and deduplicate results.
 
-Search data is fetched once from Graph on the first call and cached in
-$Global:IRT_ServicePrincipals for the remainder of the session.
-Subsequent
-calls use the cache automatically.
+By default, fresh data is fetched from Graph on every call.
+Pass -Cached to
+skip the network request and reuse data already stored in
+$Global:IRT_ServicePrincipals from a previous call.
 
 ## RELATED LINKS

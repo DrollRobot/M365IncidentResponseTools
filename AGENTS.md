@@ -106,11 +106,18 @@ After making changes, run the test suite from the repo root:
 ```
 
 
-## Things to do before pushing a new tag
+## Before pushing a new tag/release
 
 ### Run all tests (as described above)
 
-### Update Update-Docs.ps1 script
+### Update docs
+
+```powershell
+.\Update-Docs.ps1
+
+# if orphaned files found
+.\Update-Docs.ps1 -DeleteOrphaned
+```
 
 ### Update CHANGELOG.md
 

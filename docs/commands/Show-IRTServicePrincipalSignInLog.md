@@ -16,14 +16,14 @@ Processes service principal sign-in log objects into an Excel spreadsheet.
 ```
 Show-IRTServicePrincipalSignInLog
  [-Log] <System.Collections.Generic.List`1[System.Management.Automation.PSObject]> [-TableStyle <String>]
- [-Font <String>] [-IpInfo <Boolean>] [-Open <Boolean>] [-Test] [-ProgressAction <ActionPreference>]
+ [-Font <String>] [-IpInfo <Boolean>] [-Open <Boolean>] [-ProgressAction <ActionPreference>]
  [<CommonParameters>]
 ```
 
 ### Xml
 ```
 Show-IRTServicePrincipalSignInLog -XmlPath <String> [-TableStyle <String>] [-Font <String>] [-IpInfo <Boolean>]
- [-Open <Boolean>] [-Test] [-ProgressAction <ActionPreference>] [<CommonParameters>]
+ [-Open <Boolean>] [-ProgressAction <ActionPreference>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -136,21 +136,6 @@ Aliases:
 Required: False
 Position: Named
 Default value: True
-Accept pipeline input: False
-Accept wildcard characters: False
-```
-
-### -Test
-Enable stopwatch timing output.
-
-```yaml
-Type: SwitchParameter
-Parameter Sets: (All)
-Aliases:
-
-Required: False
-Position: Named
-Default value: False
 Accept pipeline input: False
 Accept wildcard characters: False
 ```

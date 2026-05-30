@@ -12,9 +12,17 @@ Connects to Microsoft Graph and Exchange Online for incident response.
 
 ## SYNTAX
 
+### TenantId (Default)
 ```
-Connect-IRT [-TenantId] <String> [[-Cloud] <String>] [-DeviceCode] [[-AdditionalScope] <String[]>] [-Graph]
- [-Exchange] [-IPPS] [[-Browser] <String>] [-Private] [-Force] [-ProgressAction <ActionPreference>]
+Connect-IRT -TenantId <String> [-Silent] [-Cloud <String>] [-AdditionalScope <String[]>] [-Graph] [-Exchange]
+ [-IPPS] [-Browser <String>] [-Private] [-Force] [-ClientId <String>] [-ProgressAction <ActionPreference>]
+ [<CommonParameters>]
+```
+
+### Refresh
+```
+Connect-IRT [-Refresh] [-Silent] [-Cloud <String>] [-AdditionalScope <String[]>] [-Graph] [-Exchange] [-IPPS]
+ [-Browser <String>] [-Private] [-Force] [-ClientId <String>] [-ProgressAction <ActionPreference>]
  [<CommonParameters>]
 ```
 
@@ -51,12 +59,48 @@ The TenantId GUID for the environment you want to connect to.
 
 ```yaml
 Type: String
-Parameter Sets: (All)
+Parameter Sets: TenantId
 Aliases:
 
 Required: True
-Position: 1
+Position: Named
 Default value: None
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
+### -Refresh
+Re-connects all services that are present in the current session using the
+stored TenantId and cloud environment. Reads parameters from
+$Global:IRT_Session instead of requiring them on the command line.
+Combine with -Silent to suppress interactive auth fallback.
+
+```yaml
+Type: SwitchParameter
+Parameter Sets: Refresh
+Aliases:
+
+Required: True
+Position: Named
+Default value: False
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
+### -Silent
+When set, token acquisition skips the interactive browser/device-code
+fallback. If MSAL cannot silently refresh a token, the function throws
+instead of prompting. Intended for use in the prompt function and other
+non-interactive callers.
+
+```yaml
+Type: SwitchParameter
+Parameter Sets: (All)
+Aliases:
+
+Required: False
+Position: Named
+Default value: False
 Accept pipeline input: False
 Accept wildcard characters: False
 ```
@@ -72,23 +116,8 @@ Parameter Sets: (All)
 Aliases:
 
 Required: False
-Position: 2
-Default value: None
-Accept pipeline input: False
-Accept wildcard characters: False
-```
-
-### -DeviceCode
-Use device code authentication flow instead of interactive browser auth.
-
-```yaml
-Type: SwitchParameter
-Parameter Sets: (All)
-Aliases:
-
-Required: False
 Position: Named
-Default value: False
+Default value: None
 Accept pipeline input: False
 Accept wildcard characters: False
 ```
@@ -102,7 +131,7 @@ Parameter Sets: (All)
 Aliases: AdditionalScopes
 
 Required: False
-Position: 3
+Position: Named
 Default value: None
 Accept pipeline input: False
 Accept wildcard characters: False
@@ -163,7 +192,7 @@ Parameter Sets: (All)
 Aliases:
 
 Required: False
-Position: 4
+Position: Named
 Default value: $Global:IRT_Config.Browser
 Accept pipeline input: False
 Accept wildcard characters: False
@@ -195,6 +224,24 @@ Aliases:
 Required: False
 Position: Named
 Default value: False
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
+### -ClientId
+Override the MSAL client ID used for all three services (Graph, Exchange,
+IPPS). When omitted, each service uses its own first-party Microsoft client
+ID. Use this when connecting via a custom app registration that has been
+granted the necessary delegated permissions.
+
+```yaml
+Type: String
+Parameter Sets: (All)
+Aliases:
+
+Required: False
+Position: Named
+Default value: None
 Accept pipeline input: False
 Accept wildcard characters: False
 ```

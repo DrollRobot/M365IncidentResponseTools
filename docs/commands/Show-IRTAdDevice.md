@@ -5,50 +5,48 @@ online version:
 schema: 2.0.0
 ---
 
-# Show-UserInfo
+# Show-IRTAdDevice
 
 ## SYNOPSIS
-Displays user properties.
+Displays AD computer properties.
 
 ## SYNTAX
 
 ```
-Show-UserInfo [[-UserObject] <MicrosoftGraphUser[]>] [-ProgressAction <ActionPreference>] [<CommonParameters>]
+Show-IRTAdDevice [[-DeviceObject] <PSObject[]>] [-ProgressAction <ActionPreference>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
-Retrieves the full Graph user object (all available properties) and displays it as a
-formatted tree in the console.
-Also updates $Global:IRT_UserObjects with the enriched
-object so downstream playbook steps receive complete data.
-
-Falls back to $Global:IRT_UserObjects if no -UserObject is passed.
+Retrieves all properties of an on-premises AD computer object, converts every DateTime
+value to local time, and displays the result with Format-Tree.
+Falls back to
+$Global:IRT_DeviceObject if no -DeviceObject is passed.
 
 ## EXAMPLES
 
 ### EXAMPLE 1
 ```
-Show-UserInfo
-Displays info for the user stored in the global session.
+Show-IRTAdDevice
+Displays info for the device in $Global:IRT_DeviceObject.
 ```
 
 ### EXAMPLE 2
 ```
-Show-UserInfo -UserObject $User
-Displays info for a specific user object.
+Show-IRTAdDevice -DeviceObject $AdComputer
+Displays info for a specific AD computer object.
 ```
 
 ## PARAMETERS
 
-### -UserObject
-One or more Microsoft Graph user objects to display.
-Falls back to global session
-objects if omitted.
+### -DeviceObject
+One or more AD computer objects to display.
+Falls back to $Global:IRT_DeviceObject
+if omitted.
 
 ```yaml
-Type: MicrosoftGraphUser[]
+Type: PSObject[]
 Parameter Sets: (All)
-Aliases: UserObjects
+Aliases:
 
 Required: False
 Position: 1
@@ -81,7 +79,6 @@ This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable
 
 ### None. Output is written to the console.
 ## NOTES
-Version: 1.2.0
-1.2.0 - Switched to Format-Tree, Show-GraphUserTree
+Version: 1.0.0
 
 ## RELATED LINKS

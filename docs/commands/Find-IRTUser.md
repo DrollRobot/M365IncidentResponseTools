@@ -5,7 +5,7 @@ online version:
 schema: 2.0.0
 ---
 
-# Find-User
+# Find-IRTUser
 
 ## SYNOPSIS
 Finds graph user by displayname, email address, or user id guid.
@@ -14,8 +14,8 @@ Creates $UserObjects variable.
 ## SYNTAX
 
 ```
-Find-User [-Search] <String[]> [-VarPrefix <String>] [-Cached] [-Script] [-ProgressAction <ActionPreference>]
- [<CommonParameters>]
+Find-IRTUser [-Search] <String[]> [-VarPrefix <String>] [-Cached] [-Script] [-AllMatches]
+ [-ProgressAction <ActionPreference>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -25,10 +25,10 @@ Find-User [-Search] <String[]> [-VarPrefix <String>] [-Cached] [-Script] [-Progr
 
 ### EXAMPLE 1
 ```
-Find-User flast
-Find-User -Search flast,flast,flast
-Find-User flast@domain.com
-Find-User -Search bf7573a5844f (partial user id number)
+Find-IRTUser flast
+Find-IRTUser -Search flast,flast,flast
+Find-IRTUser flast@domain.com
+Find-IRTUser -Search bf7573a5844f (partial user id number)
 ```
 
 ## PARAMETERS
@@ -93,6 +93,21 @@ Accept pipeline input: False
 Accept wildcard characters: False
 ```
 
+### -AllMatches
+{{ Fill AllMatches Description }}
+
+```yaml
+Type: SwitchParameter
+Parameter Sets: (All)
+Aliases:
+
+Required: False
+Position: Named
+Default value: False
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
 ### -ProgressAction
 {{ Fill ProgressAction Description }}
 
@@ -115,10 +130,12 @@ This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable
 
 ## OUTPUTS
 
+### System.Management.Automation.PSObject[]
 ## NOTES
-Version: 1.1.4
+Version: 1.2.0
+1.2.0 - Added -AllMatches to collect all matching users and deduplicate results.
 1.1.4 - Fixed bug with $UserObjects not being a collection.
-Moved getting full object to Show-User function.
+        Moved getting full object to Show-User function.
 1.1.3 - Removed checks for modules and permissions.
 Checking at module level instead.
 1.1.2 - Added enabled as a displayed field.

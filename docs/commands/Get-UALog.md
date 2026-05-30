@@ -15,7 +15,7 @@ Runs multiple queries to pull all Unified Audit Log records related to a specifi
 ### UserObject (Default)
 ```
 Get-UALog [[-UserObject] <PSObject[]>] [-Days <Int32>] [-Start <String>] [-End <String>]
- [-Operation <String[]>] [-RiskyOperation] [-SignInLog] [-FreeText <String[]>] [-Excel <Boolean>] [-Test]
+ [-Operation <String[]>] [-RiskyOperation] [-SignInLog] [-FreeText <String[]>] [-Excel <Boolean>]
  [-WaitOnMessageTrace <Boolean>] [-Xml <Boolean>] [-Cached] [-ProgressAction <ActionPreference>]
  [<CommonParameters>]
 ```
@@ -23,15 +23,14 @@ Get-UALog [[-UserObject] <PSObject[]>] [-Days <Int32>] [-Start <String>] [-End <
 ### AllUsers
 ```
 Get-UALog [-AllUsers] [-Days <Int32>] [-Start <String>] [-End <String>] [-Operation <String[]>]
- [-RiskyOperation] [-SignInLog] [-FreeText <String[]>] [-Excel <Boolean>] [-Test]
- [-WaitOnMessageTrace <Boolean>] [-Xml <Boolean>] [-Cached] [-ProgressAction <ActionPreference>]
- [<CommonParameters>]
+ [-RiskyOperation] [-SignInLog] [-FreeText <String[]>] [-Excel <Boolean>] [-WaitOnMessageTrace <Boolean>]
+ [-Xml <Boolean>] [-Cached] [-ProgressAction <ActionPreference>] [<CommonParameters>]
 ```
 
 ### ServicePrincipal
 ```
 Get-UALog [[-ServicePrincipal] <PSObject[]>] [-Days <Int32>] [-Start <String>] [-End <String>]
- [-Operation <String[]>] [-RiskyOperation] [-SignInLog] [-FreeText <String[]>] [-Excel <Boolean>] [-Test]
+ [-Operation <String[]>] [-RiskyOperation] [-SignInLog] [-FreeText <String[]>] [-Excel <Boolean>]
  [-WaitOnMessageTrace <Boolean>] [-Xml <Boolean>] [-Cached] [-ProgressAction <ActionPreference>]
  [<CommonParameters>]
 ```
@@ -241,21 +240,6 @@ Aliases:
 Required: False
 Position: Named
 Default value: True
-Accept pipeline input: False
-Accept wildcard characters: False
-```
-
-### -Test
-{{ Fill Test Description }}
-
-```yaml
-Type: SwitchParameter
-Parameter Sets: (All)
-Aliases:
-
-Required: False
-Position: Named
-Default value: False
 Accept pipeline input: False
 Accept wildcard characters: False
 ```

@@ -5,38 +5,49 @@ online version:
 schema: 2.0.0
 ---
 
-# Show-DeviceInfo
+# Enable-IRTAdUser
 
 ## SYNOPSIS
-Displays Entra and Intune device properties for combined device objects produced by Find-IRTDevice.
+Enable on-premises AD user account(s).
 
 ## SYNTAX
 
 ```
-Show-DeviceInfo [[-DeviceObject] <PSObject[]>] [-ProgressAction <ActionPreference>] [<CommonParameters>]
+Enable-IRTAdUser [[-UserObject] <PSObject[]>] [-ProgressAction <ActionPreference>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
-{{ Fill in the Description }}
+Thin wrapper around Set-IRTAdUserEnabled that sets Enabled = $true.
+Re-enables one or
+more disabled AD user accounts, re-fetches each to confirm the change, then triggers
+AD replication and an Azure AD delta sync if the relevant services are available.
+
+Falls back to $Global:UserObjects if no -UserObject is passed.
 
 ## EXAMPLES
 
-### Example 1
-```powershell
-PS C:\> {{ Add example code here }}
+### EXAMPLE 1
+```
+Enable-IRTAdUser
+Re-enables the user(s) in the global session.
 ```
 
-{{ Add example description here }}
+### EXAMPLE 2
+```
+Enable-IRTAdUser -UserObject $AdUser
+Re-enables a specific user.
+```
 
 ## PARAMETERS
 
-### -DeviceObject
-{{ Fill DeviceObject Description }}
+### -UserObject
+One or more AD user objects to enable.
+Falls back to global session objects if omitted.
 
 ```yaml
 Type: PSObject[]
 Parameter Sets: (All)
-Aliases: DeviceObjects
+Aliases: UserObjects
 
 Required: False
 Position: 1
@@ -67,7 +78,8 @@ This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable
 
 ## OUTPUTS
 
+### None. Status is written to the console.
 ## NOTES
-Version: 1.1.0
+Version: 2.0.0
 
 ## RELATED LINKS

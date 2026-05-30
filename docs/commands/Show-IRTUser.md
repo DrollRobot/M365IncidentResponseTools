@@ -5,47 +5,48 @@ online version:
 schema: 2.0.0
 ---
 
-# Enable-AdUser
+# Show-IRTUser
 
 ## SYNOPSIS
-Enable on-premises AD user account(s).
+Displays user properties.
 
 ## SYNTAX
 
 ```
-Enable-AdUser [[-UserObject] <PSObject[]>] [-ProgressAction <ActionPreference>] [<CommonParameters>]
+Show-IRTUser [[-UserObject] <MicrosoftGraphUser[]>] [-ProgressAction <ActionPreference>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
-Thin wrapper around Set-AdUserEnabled that sets Enabled = $true.
-Re-enables one or
-more disabled AD user accounts, re-fetches each to confirm the change, then triggers
-AD replication and an Azure AD delta sync if the relevant services are available.
+Retrieves the full Graph user object (all available properties) and displays it as a
+formatted tree in the console.
+Also updates $Global:IRT_UserObjects with the enriched
+object so downstream playbook steps receive complete data.
 
-Falls back to $Global:UserObjects if no -UserObject is passed.
+Falls back to $Global:IRT_UserObjects if no -UserObject is passed.
 
 ## EXAMPLES
 
 ### EXAMPLE 1
 ```
-Enable-AdUser
-Re-enables the user(s) in the global session.
+Show-IRTUser
+Displays info for the user stored in the global session.
 ```
 
 ### EXAMPLE 2
 ```
-Enable-AdUser -UserObject $AdUser
-Re-enables a specific user.
+Show-IRTUser -UserObject $User
+Displays info for a specific user object.
 ```
 
 ## PARAMETERS
 
 ### -UserObject
-One or more AD user objects to enable.
-Falls back to global session objects if omitted.
+One or more Microsoft Graph user objects to display.
+Falls back to global session
+objects if omitted.
 
 ```yaml
-Type: PSObject[]
+Type: MicrosoftGraphUser[]
 Parameter Sets: (All)
 Aliases: UserObjects
 
@@ -78,8 +79,9 @@ This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable
 
 ## OUTPUTS
 
-### None. Status is written to the console.
+### None. Output is written to the console.
 ## NOTES
-Version: 2.0.0
+Version: 1.2.0
+1.2.0 - Switched to Format-Tree, Show-GraphUserTree
 
 ## RELATED LINKS

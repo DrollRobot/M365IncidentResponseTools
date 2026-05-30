@@ -5,17 +5,21 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+
+## [v2.9.0] - 2026-05-30
+
 ### Added
 
 - `-AllMatches` option on `Find-` functions to return all matching objects instead of
   failing when there are multiple matches.
-- MSAL persistent token cache (`Register-IRTMsalCache`) so re-authentication is not
-  required every session.
-- User warning displayed when the auth workflow pauses waiting for interactive sign-in.
+- MSAL on-disk token cache so re-authentication is not required every session.
+- `Import-IRT` (alias: irt) to pre-load the module in the background while working in the terminal,
+  reducing the wait on first use.
 
 ### Changed
 
-- The prompt now triggers a background token refresh to keep the session alive.
+- Many commands renamed to follow the `Verb-IRTNoun` naming convention.
+- Updated the prompt function to be more brief.
 
 ### Removed
 
@@ -23,7 +27,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
-- Prompt displaying the tenant domain incorrectly.
+- Commands no longer fail after token expiration; tokens are refreshed automatically.
+
+### Security
+
+- On-disk MSAL token cache is a security risk. Option is disabled by default.
 
 
 ## [v2.8.3] - 2026-05-27

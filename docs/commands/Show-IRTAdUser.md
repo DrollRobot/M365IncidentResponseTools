@@ -5,49 +5,47 @@ online version:
 schema: 2.0.0
 ---
 
-# Disable-AdUser
+# Show-IRTAdUser
 
 ## SYNOPSIS
-Disable on-premises AD user account(s).
+Displays AD user properties.
 
 ## SYNTAX
 
 ```
-Disable-AdUser [[-UserObject] <PSObject[]>] [-ProgressAction <ActionPreference>] [<CommonParameters>]
+Show-IRTAdUser [[-UserObjects] <PSObject[]>] [-ProgressAction <ActionPreference>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
-Thin wrapper around Set-AdUserEnabled that sets Enabled = $false.
-Disables one or
-more AD user accounts, re-fetches each account to confirm the change, then triggers
-AD replication and an Azure AD delta sync if the relevant services are available.
-
-Falls back to $Global:UserObjects if no -UserObject is passed.
+Retrieves all properties of an on-premises AD user object, converts every DateTime
+value to local time, and displays the result with Format-Tree.
+Falls back to
+$Global:IRT_UserObject (via Get-AdGlobalUserObject) if no -UserObjects is passed.
 
 ## EXAMPLES
 
 ### EXAMPLE 1
 ```
-Disable-AdUser
-Disables the user(s) in the global session.
+Show-IRTAdUser
+Displays info for the user(s) in the global session.
 ```
 
 ### EXAMPLE 2
 ```
-Disable-AdUser -UserObject $AdUser
-Disables a specific user.
+Show-IRTAdUser -UserObjects $AdUser
+Displays info for a specific AD user object.
 ```
 
 ## PARAMETERS
 
-### -UserObject
-One or more AD user objects to disable.
+### -UserObjects
+One or more AD user objects to display.
 Falls back to global session objects if omitted.
 
 ```yaml
 Type: PSObject[]
 Parameter Sets: (All)
-Aliases: UserObjects
+Aliases: UserObject
 
 Required: False
 Position: 1
@@ -78,8 +76,10 @@ This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable
 
 ## OUTPUTS
 
-### None. Status is written to the console.
+### None. Output is written to the console.
 ## NOTES
-Version: 2.0.0
+Version: 1.2.0
+1.2.0 - Switched to Format-Tree with dynamic DateTime conversion.
+1.1.2 - Added pwdLastSet
 
 ## RELATED LINKS
