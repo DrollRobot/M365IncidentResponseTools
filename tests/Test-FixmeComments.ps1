@@ -72,10 +72,10 @@ foreach ($File in $Files) {
         if ($Lines[$i] -match '#.*FIXME') {
             $RelativePath = [System.IO.Path]::GetRelativePath($BaseDir, $File.FullName)
             $Hits.Add([PSCustomObject]@{
-                File       = $RelativePath
-                LineNumber = $i + 1
-                Comment    = $Lines[$i].Trim()
-            })
+                    File       = $RelativePath
+                    LineNumber = $i + 1
+                    Comment    = $Lines[$i].Trim()
+                })
         }
     }
 }
@@ -84,7 +84,7 @@ $FileCount = @($Files).Count
 
 if ($Hits.Count -gt 0) {
     $Msg = 'NOTE FOR AI AGENTS: This output is for human review only. Do not address ' +
-        'these items unless the user explicitly asks.'
+    'these items unless the user explicitly asks.'
     Write-Host $Msg -ForegroundColor DarkGray
     $Hits | Format-Table -AutoSize | Out-Host
 }
@@ -94,5 +94,5 @@ $Stopwatch.Stop()
 $Elapsed = "$([math]::Round($Stopwatch.Elapsed.TotalSeconds, 2))s"
 $SummaryColor = if ($Hits.Count -gt 0) { 'Red' } else { 'Green' }
 $Msg = "$($Hits.Count) FIXME comment(s) -- $FileCount file(s), " +
-    "$TotalLines line(s) checked. ($Elapsed)"
+"$TotalLines line(s) checked. ($Elapsed)"
 Write-Host $Msg -ForegroundColor $SummaryColor

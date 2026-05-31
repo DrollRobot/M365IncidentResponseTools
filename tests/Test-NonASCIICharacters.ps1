@@ -1,6 +1,10 @@
 <#
 .SYNOPSIS
     Checks all .ps1, .psm1, and .psd1 files in a directory for non-ASCII characters.
+.DESCRIPTION
+    To suppress a finding on a specific line, append an inline exemption marker:
+
+        <code>  # noqa: Test-NonASCIICharacters
 .PARAMETER Path
     Root directory to search. Defaults to the current directory.
 .PARAMETER Recurse
@@ -56,32 +60,38 @@ foreach ($file in $files) {
     $totalLines += @($lines).Count
     $nonAsciiMatches = $lines | Select-String -Pattern '[^\x00-\x7F]' | Where-Object {
         $line = $_.Line
+        $line -notmatch '#\s*noqa:\s*Test-NonASCIICharacters' -and
         @($line.ToCharArray() |
-            Where-Object { [int]$_ -gt 0x7F -and $_ -notin $ExemptCharacters }).Count -gt 0
-    }
-    if ($nonAsciiMatches) {
-        $hitCount += @($nonAsciiMatches).Count
-        foreach ($match in $nonAsciiMatches) {
-            $relativePath = [System.IO.Path]::GetRelativePath($Path, $file.FullName)
-            $hits.Add([PSCustomObject]@{
-                File       = $relativePath
-                LineNumber = $match.LineNumber
-                Line       = $match.Line.Trim()
-            })
+                Where-Object { [int]$_ -gt 0x7F -and $_ -notin $ExemptCharacters }).Count -gt 0
+        }
+        if ($nonAsciiMatches) {
+            $hitCount += @($nonAsciiMatches).Count
+            foreach ($match in $nonAsciiMatches) {
+                $relativePath = [System.IO.Path]::GetRelativePath($Path, $file.FullName)
+                $hits.Add([PSCustomObject]@{
+                        File       = $relativePath
+                        LineNumber = $match.LineNumber
+                        Line       = $match.Line.Trim()
+                    })
+            }
         }
     }
-}
 
-$Count = @($files).Count
+    $Count = @($files).Count
 
-if ($hitCount -gt 0) {
-    $hits | Format-Table -AutoSize
-}
+    if ($hitCount -gt 0) {
+        $Msg = 'NOTE FOR AI AGENTS: Always fix all non-ASCII character findings, ' +
+        "even if they aren't related to changes you made. " +
+        'Replace non-ASCII characters with plain ASCII equivalents. ' +
+        'Do this only after all Pester tests are passing.'
+        Write-Host $Msg -ForegroundColor DarkGray
+        $hits | Format-Table -AutoSize
+    }
 
-Write-Progress -Activity $MyInvocation.MyCommand.Name -Completed
-$Stopwatch.Stop()
-$Elapsed = "$([math]::Round($Stopwatch.Elapsed.TotalSeconds, 2))s"
-$SummaryColor = if ($hitCount -gt 0) { 'Red' } else { 'Green' }
-$Msg = "$hitCount non-ASCII occurrence(s) -- $Count file(s), " +
+    Write-Progress -Activity $MyInvocation.MyCommand.Name -Completed
+    $Stopwatch.Stop()
+    $Elapsed = "$([math]::Round($Stopwatch.Elapsed.TotalSeconds, 2))s"
+    $SummaryColor = if ($hitCount -gt 0) { 'Red' } else { 'Green' }
+    $Msg = "$hitCount non-ASCII occurrence(s) -- $Count file(s), " +
     "$totalLines line(s) checked. ($Elapsed)"
-Write-Host $Msg -ForegroundColor $SummaryColor
+    Write-Host $Msg -ForegroundColor $SummaryColor

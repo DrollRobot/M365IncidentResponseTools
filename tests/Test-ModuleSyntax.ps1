@@ -63,6 +63,13 @@ foreach ($file in $files) {
 
 $Count = @($files).Count
 
+if ($errorCount -gt 0) {
+    $Msg = 'NOTE FOR AI AGENTS: Always fix all syntax errors shown above, ' +
+    "even if they aren't related to changes you made. " +
+    'Do this only after all Pester tests are passing.'
+    Write-Host $Msg -ForegroundColor DarkGray
+}
+
 Write-Progress -Activity $MyInvocation.MyCommand.Name -Completed
 $Stopwatch.Stop()
 $Elapsed = "$([math]::Round($Stopwatch.Elapsed.TotalSeconds, 2))s"

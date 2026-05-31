@@ -117,11 +117,11 @@ foreach ($File in $Files) {
                 }
                 $RelativePath = [System.IO.Path]::GetRelativePath($BaseDir, $File.FullName)
                 $Hits.Add([PSCustomObject]@{
-                    File       = $RelativePath
-                    LineNumber = $i + 1
-                    Tag        = $Entry.Tag
-                    Line       = $Lines[$i].Trim()
-                })
+                        File       = $RelativePath
+                        LineNumber = $i + 1
+                        Tag        = $Entry.Tag
+                        Line       = $Lines[$i].Trim()
+                    })
             }
         }
     }
@@ -142,5 +142,5 @@ $Stopwatch.Stop()
 $Elapsed = "$([math]::Round($Stopwatch.Elapsed.TotalSeconds, 2))s"
 $SummaryColor = if ($Hits.Count -gt 0) { 'Red' } else { 'Green' }
 $Msg = "$($Hits.Count) match(es), $ExceptionCount exception(s) suppressed -- " +
-    "$FileCount file(s), $TotalLines line(s) checked. ($Elapsed)"
+"$FileCount file(s), $TotalLines line(s) checked. ($Elapsed)"
 Write-Host $Msg -ForegroundColor $SummaryColor

@@ -223,9 +223,9 @@ InModuleScope M365IncidentResponseTools {
                 Justification = 'Test-only factory helper; ShouldProcess is not applicable.')]
             param(
                 [string] $TenantId = 'aaaaaaaa-0000-0000-0000-aaaaaaaaaaaa',
-                [object] $Graph    = $null,
+                [object] $Graph = $null,
                 [object] $Exchange = $null,
-                [object] $IPPS     = $null
+                [object] $IPPS = $null
             )
             [pscustomobject]@{
                 TenantId    = $TenantId
@@ -436,7 +436,7 @@ InModuleScope M365IncidentResponseTools {
             BeforeEach {
                 $Global:IRT_Session = New-IrtSession -Graph (New-SvcObject -ExpiresInMinutes 2)
                 Mock Connect-IRT {
-                    [pscustomobject]@{ Service = 'Graph';    Connected = $true  }
+                    [pscustomobject]@{ Service = 'Graph'; Connected = $true }
                     [pscustomobject]@{ Service = 'Exchange'; Connected = $false }
                 }
                 Mock Write-IRT { }

@@ -4,22 +4,55 @@ A PowerShell 7.5+ incident response module for Microsoft 365 and more.
 
 ## Architecture
 
-Domain folders and their responsibilities:
+Using ModuleBuilder project structure: (https://github.com/PoshCode/ModuleBuilder)
 
-| Folder | Responsibility |
-|---|---|
-| `connect/` | Graph, Exchange, IPPS session management |
-| `devices/` | Intune / Entra device investigation and remediation |
-| `entra_logs/` | Sign-in logs, audit logs, service principal sign-in logs |
-| `mailbox/` | Exchange Online mailbox investigation |
-| `message_trace/` | Message trace requests and reporting |
-| `modules/` | Shared utilities: `Write-IRT`, config, Graph helpers, etc. |
-| `onprem_ad/` | Active Directory on-premises helpers |
-| `roles/` | Admin role queries |
-| `service_principals/` | Service principal investigation |
-| `unified_audit_log/` | UAL search and reporting |
-| `users/` | Entra user investigation and remediation |
-
+M365IncidentResponseTools/
+├── source/
+│   ├── M365IncidentResponseTools.psd1    # Source manifest. The metadata source of truth.
+│   ├── Build.psd1                        # ModuleBuilder config.
+│   ├── Public/                           # All exported functions, one function per file.
+│   │   ├── Connect/
+│   │   ├── Device/
+│   │   ├── Entra/
+│   │   ├── Mailbox/
+│   │   ├── MessageTrace/
+│   │   ├── OnPremAd/
+│   │   ├── Role/
+│   │   ├── ServicePrincipal/
+│   │   ├── UnifiedAuditLog/
+│   │   ├── User/
+│   │   └── Utility/
+│   ├── Private/                          # Internal helpers, not exported.
+│   │   ├── Connect/
+│   │   ├── Device/
+│   │   ├── Entra/
+│   │   ├── Graph/
+│   │   ├── Lib/
+│   │   ├── MessageTrace/
+│   │   ├── OnPremAd/
+│   │   ├── Role/
+│   │   ├── ServicePrincipal/
+│   │   ├── UnifiedAuditLog/
+│   │   ├── User/
+│   │   └── Utility/
+│   ├── Classes/                          # Optional, load-order-sensitive.
+│   ├── ScriptsToProcess/                 # Module initialization scripts.
+│   └── Files/
+├── docs/
+│   ├── commands/                 # BUILT: do not modify these files directly, modify function docstrings instead
+│   ├── index.md
+│   └── ...
+├── tests/
+├── M365IncidentResponseTools.psd1   # BUILT: do not modify file in project root, modify copy in source folder
+├── M365IncidentResponseTools.psm1   # BUILT: do not modify file in project root, modify copy in source folder
+├── .gitignore                        # Ignores .staging/ ; does NOT ignore the root psd1/psm1
+├── AGENTS.md
+├── CHANGELOG.md
+├── LICENSE
+├── README.md
+├── Install-Dependencies.ps1
+├── Invoke-Tests.ps1
+└── Update-Docs.ps1
 
 ## Code Style
 
@@ -75,6 +108,8 @@ The module config lives in `modules/Import-IRTConfig.ps1`. Whenever you add a ne
 - Charset: UTF-8.
 - Line length limit: 100 characters. Use splatting and string concatenation to control line length. Avoid escapes for line continuation unless absolutely necessary.
 - Always use hashtable splatting (`@Params`) for cmdlets with more than 2 arguments.
+- String construction: Prefer inline subexpressions ("...$($x.ToString())...") over the format operator (-f).
+- Building paths: Prefer Join-Path over [System.IO.Path]::Combine(). Always use named parameters. (`Join-Path -Path $x -ChildPath $y` over `Join-Path $x $y`) Use splatting for 3+ parameters.
 
 ### Pester tests
 
@@ -95,28 +130,46 @@ You can also apply the tag at the `It` level if only some cases in a `Describe` 
 After making changes, run the test suite from the repo root:
 
 ```powershell
-# rapid offline feedback
-.\Invoke-Tests.ps1 -Offline
+# first: invoke offline pester tests for rapid feedback
+.\tests.ps1 -Offline -Agent
 
-# after all other offline tests have passed, run PsScriptAnalyzer (takes 2-3 minutes to load)
-.\Invoke-AllTests.ps1 -PsScriptAnalyzer
+# second: run online pester tests, if changes touch graph/exchange/ipps code
+.\tests.ps1 -Online -CachedAuth -Agent
+# (if changes touched interactive auth code, don't use -CachedAuth)
+.\tests.ps1 -Online -Agent
 
-# run online tests
-.\Invoke-Tests.ps1 -Online -CachedAuth
+# third: only after all pester tests are passing, run this to autoformat, lint, apply custom formatting checks
+.\tests.ps1 -Formatting -Agent
+
+# if there are formatting issues found, apply fixes and use the individual scripts to verify.
+
+# fourth: after all formatting fixes, verify pester tests still pass
+.\tests.ps1 -Offline -Online -CachedAuth -Agent
 ```
 
 
 ## Before pushing a new tag/release
 
-### Run all tests (as described above)
+### Build
+
+```powershell
+.\build.ps1
+```
+
+### Tests
+
+Run all tests again on the built module
+```powershell
+.\tests.ps1 -Offline -Online -CachedAuth -Agent -Built
+```
 
 ### Update docs
 
 ```powershell
-.\Update-Docs.ps1
+.\docs.ps1
 
 # if orphaned files found
-.\Update-Docs.ps1 -DeleteOrphaned
+.\docs.ps1 -DeleteOrphaned
 ```
 
 ### Update CHANGELOG.md

@@ -2,6 +2,10 @@
 .SYNOPSIS
     Checks .ps1, .psm1, and .psd1 files for lines exceeding a maximum length.
     Pass a file path to check a single file, or a folder path to check all matching files.
+.DESCRIPTION
+    To suppress a long-line finding on a specific line, append an inline exemption marker:
+
+        <code>  # noqa: Test-LineLength
 .PARAMETER Path
     File or directory to check. Defaults to the current directory.
 .PARAMETER Recurse
@@ -60,15 +64,17 @@ foreach ($file in $files) {
     $lines = Get-Content -Path $file.FullName
     $totalLines += @($lines).Count
     for ($i = 0; $i -lt @($lines).Count; $i++) {
+        # Skip lines marked with an inline exemption
+        if ($lines[$i] -match '#\s*noqa:\s*Test-LineLength') { continue }
         $length = $lines[$i].Length
         if ($length -gt $MaxLength) {
             $hitCount++
             $relativePath = [System.IO.Path]::GetRelativePath($BaseDir, $file.FullName)
             $hits.Add([PSCustomObject]@{
-                File       = $relativePath
-                LineNumber = $i + 1
-                Length     = $length
-            })
+                    File       = $relativePath
+                    LineNumber = $i + 1
+                    Length     = $length
+                })
         }
     }
 }
@@ -76,6 +82,11 @@ foreach ($file in $files) {
 $Count = @($files).Count
 
 if ($hitCount -gt 0) {
+    $Msg = 'NOTE FOR AI AGENTS: Always fix all line length findings, ' +
+    "even if they aren't related to changes you made. Lines should be " +
+    "no longer than ${MaxLength} characters. DO NOT USE BACKTICK CONTINUATIONS. " +
+    'Address line length issues only after all Pester tests are passing.'
+    Write-Host $Msg -ForegroundColor DarkGray
     $hits | Format-Table -AutoSize
 }
 
@@ -84,5 +95,5 @@ $Stopwatch.Stop()
 $Elapsed = "$([math]::Round($Stopwatch.Elapsed.TotalSeconds, 2))s"
 $SummaryColor = if ($hitCount -gt 0) { 'Red' } else { 'Green' }
 $Msg = "$hitCount long line(s) (>${MaxLength} chars) -- $Count file(s), " +
-    "$totalLines line(s) checked. ($Elapsed)"
+"$totalLines line(s) checked. ($Elapsed)"
 Write-Host $Msg -ForegroundColor $SummaryColor

@@ -56,5 +56,5 @@ Write-Progress -Activity $MyInvocation.MyCommand.Name -Completed
 $Stopwatch.Stop()
 $Elapsed = "$([math]::Round($Stopwatch.Elapsed.TotalSeconds, 2))s"
 $Msg = "$changedLines line(s) changed across $(@($files).Count) file(s), " +
-    "$totalLines line(s) total. ($Elapsed)"
+"$totalLines line(s) total. ($Elapsed)"
 Write-Host $Msg -ForegroundColor Green

@@ -5,6 +5,10 @@
     Flags any line ending with a backtick (`) used as a line continuation
     escape. Splatting or string concatenation should be used instead.
     Here-strings and comment lines are excluded.
+
+    To suppress a finding on a specific line, append an inline exemption marker:
+
+        <code>  # noqa: Test-BacktickContinuation
 .PARAMETER Path
     Root directory to search. Defaults to the current directory.
 .PARAMETER Recurse
@@ -58,15 +62,17 @@ foreach ($file in $files) {
         $line = $lines[$i]
         # Skip comment lines
         if ($line -match '^\s*#') { continue }
+        # Skip lines marked with an inline exemption
+        if ($line -match '#\s*noqa:\s*Test-BacktickContinuation') { continue }
         # Match lines ending with a backtick (optionally followed by whitespace)
         if ($line -match '`\s*$') {
             $hitCount++
             $relativePath = [System.IO.Path]::GetRelativePath($Path, $file.FullName)
             $hits.Add([PSCustomObject]@{
-                File       = $relativePath
-                LineNumber = $i + 1
-                Line       = $line.TrimStart()
-            })
+                    File       = $relativePath
+                    LineNumber = $i + 1
+                    Line       = $line.TrimStart()
+                })
         }
     }
 }
@@ -74,6 +80,11 @@ foreach ($file in $files) {
 $Count = @($files).Count
 
 if ($hitCount -gt 0) {
+    $Msg = 'NOTE FOR AI AGENTS: Always fix all backtick continuation findings, ' +
+    "even if they aren't related to changes you made. " +
+    'Use splatting or string concatenation instead of backtick continuations. ' +
+    'Do this only after all Pester tests are passing.'
+    Write-Host $Msg -ForegroundColor DarkGray
     $hits | Format-Table -AutoSize
 }
 
@@ -82,5 +93,5 @@ $Stopwatch.Stop()
 $Elapsed = "$([math]::Round($Stopwatch.Elapsed.TotalSeconds, 2))s"
 $SummaryColor = if ($hitCount -gt 0) { 'Red' } else { 'Green' }
 $Msg = "$hitCount backtick continuation(s) -- $Count file(s), " +
-    "$totalLines line(s) checked. ($Elapsed)"
+"$totalLines line(s) checked. ($Elapsed)"
 Write-Host $Msg -ForegroundColor $SummaryColor

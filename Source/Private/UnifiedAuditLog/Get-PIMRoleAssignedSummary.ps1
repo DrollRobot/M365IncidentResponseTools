@@ -1,0 +1,62 @@
+function Get-PIMRoleAssignedSummary {
+    <#
+	.SYNOPSIS
+    Parses Sharepoint "PIMRoleAssigned" events from UAL.
+
+	.NOTES
+	Version: 1.0.0
+	#>
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory)]
+        [psobject] $Log,
+
+        [switch] $Cached
+    )
+
+    begin {
+
+        # variables
+        $SummaryLines = [System.Collections.Generic.List[string]]::new()
+
+        $User = Request-GraphUser -Cached:$Cached
+    }
+
+    process {
+
+        # User
+        $GuidPattern = "\b[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}\b"
+        $UserId = $Log.AuditData.EventData |
+            Select-String -Pattern $GuidPattern -AllMatches |
+            ForEach-Object { $_.Matches.Value }
+        $UserPrincipalName = ($User | Where-Object { $_.Id -eq $UserId }).UserPrincipalName
+        $SummaryLines.Add("User: ${UserPrincipalName}")
+
+        # Role
+        $ModifiedPropertiesDict = $Log.AuditData.ModifiedProperties
+        $PimProps = $ModifiedPropertiesDict |
+            Where-Object { $_.Name -eq 'PIMRoleAssigned' }
+        $OldValue = $PimProps.OldValue
+        $NewValue = $PimProps.NewValue
+        if ($NewValue -and $OldValue) {
+            $Role = "New: ${NewValue}, Old: ${OldValue}"
+        }
+        else {
+            if ($OldValue) {
+                $Role = $OldValue
+            }
+            if ($NewValue) {
+                $Role = $NewValue
+            }
+        }
+        $SummaryLines.Add("Role: ${Role}")
+
+        # join strings, create return object
+        $Summary = $SummaryLines -join "`n"
+        $EventObject = [pscustomobject]@{
+            Summary = $Summary
+        }
+
+        return $EventObject
+    }
+}

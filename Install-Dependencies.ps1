@@ -20,8 +20,23 @@
 .EXAMPLE
     .\Install-Dependencies.ps1
 
+.PARAMETER Check
+    Check whether all required modules are installed without installing anything.
+    If any are missing, prints the exact command to run to install them.
+
+.PARAMETER Quiet
+    Suppress all informational output. When combined with -Check, produces no output
+    if all modules are satisfied; prints only the missing-modules summary if any are missing.
+    Useful for CI or wrapper scripts.
+
 .EXAMPLE
     .\Install-Dependencies.ps1 -Scope AllUsers -WhatIf
+
+.EXAMPLE
+    .\Install-Dependencies.ps1 -Check
+
+.EXAMPLE
+    .\Install-Dependencies.ps1 -Check -Quiet
 #>
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '')]
 [CmdletBinding(SupportsShouldProcess)]
@@ -29,13 +44,18 @@ param(
     [ValidateSet('CurrentUser', 'AllUsers')]
     [string]$Scope = 'CurrentUser',
 
-    [switch]$Force
+    [switch]$Force,
+
+    [switch]$Check,
+
+    [switch]$Quiet
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
-$DarkCyan = @{ForegroundColor = 'DarkCyan'}
-$Yellow   = @{ForegroundColor = 'Yellow'}
+$Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+$DarkCyan = @{ForegroundColor = 'DarkCyan' }
+$Yellow = @{ForegroundColor = 'Yellow' }
 
 # ---------------------------------------------------------------------------
 # Discover manifest
@@ -51,9 +71,11 @@ if (($ManifestFiles | Measure-Object).Count -gt 1) {
 }
 
 $ManifestPath = $ManifestFiles[0].FullName
-Write-Host @DarkCyan "Using manifest: $ManifestPath"
+if (-not $Quiet) {
+    Write-Host @DarkCyan "Using manifest: $ManifestPath"
+}
 
-$Manifest        = Import-PowerShellDataFile -Path $ManifestPath
+$Manifest = Import-PowerShellDataFile -Path $ManifestPath
 $RequiredModules = $Manifest.RequiredModules
 
 if (-not $RequiredModules) {
@@ -61,11 +83,14 @@ if (-not $RequiredModules) {
     return
 }
 
-Write-Host @DarkCyan "Found $($RequiredModules.Count) required module(s) in manifest."
+if (-not $Quiet) {
+    Write-Host @DarkCyan "Found $($RequiredModules.Count) required module(s) in manifest."
+}
 
 # ---------------------------------------------------------------------------
 # Install each module
 # ---------------------------------------------------------------------------
+$Missing = @()
 foreach ($Entry in $RequiredModules) {
     # RequiredModules entries can be a plain string or a hashtable with version constraints
     if ($Entry -is [hashtable]) {
@@ -112,11 +137,11 @@ foreach ($Entry in $RequiredModules) {
     $Satisfied = $false
     if ($InstalledVersions.Count -gt 0) {
         if ($Entry -is [hashtable] -and $Entry.ContainsKey('RequiredVersion')) {
-            $Required  = [version]$Entry.RequiredVersion
+            $Required = [version]$Entry.RequiredVersion
             $Satisfied = $InstalledVersions -contains $Required
         }
         else {
-            $Min = if ($Entry -is [hashtable] -and $Entry.ContainsKey('ModuleVersion'))  {
+            $Min = if ($Entry -is [hashtable] -and $Entry.ContainsKey('ModuleVersion')) {
                 [version]$Entry.ModuleVersion
             }
             else { $null }
@@ -133,7 +158,22 @@ foreach ($Entry in $RequiredModules) {
     }
 
     if ($Satisfied) {
-        Write-Host @DarkCyan "  $ModuleName $VersionLabel - already satisfied, skipping."
+        if (-not $Quiet) {
+            if ($Check) {
+                Write-Host @DarkCyan "  $ModuleName $VersionLabel -- OK"
+            }
+            else {
+                Write-Host @DarkCyan "  $ModuleName $VersionLabel - already satisfied, skipping."
+            }
+        }
+        continue
+    }
+
+    if ($Check) {
+        $Missing += $ModuleName
+        if (-not $Quiet) {
+            Write-Host @Yellow "  $ModuleName $VersionLabel -- MISSING"
+        }
         continue
     }
 
@@ -145,4 +185,30 @@ foreach ($Entry in $RequiredModules) {
     }
 }
 
-Write-Host @DarkCyan "Done."
+if ($Check) {
+    $Stopwatch.Stop()
+    $Elapsed = $Stopwatch.Elapsed.TotalSeconds
+    Write-Verbose "Install-Dependencies: Check completed in $($Elapsed.ToString('N2'))s."
+    if ($Missing.Count -eq 0) {
+        if (-not $Quiet) {
+            Write-Host @DarkCyan "All required modules are installed."
+        }
+    }
+    else {
+        if (-not $Quiet) {
+            Write-Host @Yellow "$($Missing.Count) module(s) missing:"
+            foreach ($Name in $Missing) {
+                Write-Host @Yellow "  - $Name"
+            }
+            Write-Host @Yellow "To install, run:"
+            $SelfPath = Join-Path -Path $PSScriptRoot -ChildPath 'Install-Dependencies.ps1'
+            Write-Host @Yellow "  $SelfPath"
+        }
+        exit 1
+    }
+    return
+}
+
+if (-not $Quiet) {
+    Write-Host @DarkCyan "Done."
+}
