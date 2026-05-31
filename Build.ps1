@@ -61,8 +61,8 @@
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '')]
 [CmdletBinding()]
 param(
-    [string] $SourcePath = (Join-Path -Path $PSScriptRoot -ChildPath 'source'),
-    [string] $OutputDirectory = (Join-Path -Path $PSScriptRoot -ChildPath 'output'),
+    [string] $SourcePath = (Join-Path -Path $PSScriptRoot -ChildPath 'Source'),
+    [string] $OutputDirectory = (Join-Path -Path $PSScriptRoot -ChildPath 'Output'),
     [string] $Version,
 
     [switch] $BuildToRoot

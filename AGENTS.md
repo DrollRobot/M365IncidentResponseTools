@@ -153,7 +153,7 @@ After making changes, run the test suite from the repo root:
 ### Build
 
 ```powershell
-.\build.ps1
+.\build.ps1 -BuildToRoot
 ```
 
 ### Tests

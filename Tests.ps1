@@ -108,7 +108,7 @@ $ManifestPath = if ($Built) {
 }
 if (Test-Path $ManifestPath) {
     $ModuleStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
-    Write-Host "Loading module..." -ForegroundColor Cyan
+    Write-Host "Loading module from: $ManifestPath" -ForegroundColor Cyan
     Import-Module $ManifestPath -Force
     $ModuleStopwatch.Stop()
     Write-Host "Module loaded in $($ModuleStopwatch.Elapsed.TotalSeconds)s." -ForegroundColor Cyan

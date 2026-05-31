@@ -1,0 +1,19 @@
+{
+    "PasswordBrowser": "default",
+    "Browser": "default",
+    "ExcelTableStyle": "Dark8",
+    "ExcelFont": "Consolas",
+    "ExportXml": false,
+    "AllOperationsSheetPath": null,
+    "TenantsSheetPath": null,
+    "MaxRunspaces": 25,
+    "MaxExchangeConnections": 10,
+    "PromptColor": "DarkYellow",
+    "InfoColor": "DarkCyan",
+    "WarnColor": "Yellow",
+    "ErrorColor": "Red",
+    "IpInfoAvailable": false,
+    "EnableTokenCache": false,
+    "MsalCachePath": null,
+    "IPConditionalFormattingTemplatePath": null
+}

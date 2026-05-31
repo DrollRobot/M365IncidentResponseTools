@@ -236,13 +236,15 @@ InModuleScope M365IncidentResponseTools {
                 New-TestWorkbook -Path $script:OffsetDstPath
 
                 # DestinationRange starts at C1: two-column offset to the right.
+                # -WarningAction SilentlyContinue suppresses the expected "offset" warning
+                # so it doesn't leak to the test console output.
                 $CfParams = @{
                     Source           = $script:StdSrcPath
                     SourceRange      = 'A1:A100'
                     Destination      = $script:OffsetDstPath
                     DestinationRange = 'C1'
                 }
-                Copy-ConditionalFormatting @CfParams
+                Copy-ConditionalFormatting @CfParams -WarningAction SilentlyContinue
 
                 $pkg = Open-ExcelPackage -Path $script:OffsetDstPath
                 $script:OffsetRule = @($pkg.Workbook.Worksheets[1].ConditionalFormatting)[0]
