@@ -1,4 +1,4 @@
-# Public/
+# Source/Public/
 
 All functions that are exported to module consumers live here.
 

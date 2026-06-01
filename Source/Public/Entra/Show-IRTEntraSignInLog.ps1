@@ -1,4 +1,4 @@
-function Show-IRTEntraSignIn {
+function Show-IRTEntraSignInLog {
     <#
 	.SYNOPSIS
 	Processes Sign in log .XML file into Excel spreadsheet.

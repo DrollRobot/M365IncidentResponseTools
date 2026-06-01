@@ -35,8 +35,10 @@
 
       Formatting           -- All formatting checks in order: auto-fixers,
                              linters, then PSSA. Equivalent to passing every
-                             individual formatting value at once. Intended for Human use. Agents should run individual checks.
-      TrailingWhitespace   -- Remove trailing whitespace (auto-fixes in place). Included in AutoFormat.
+                             individual formatting value at once. Intended for
+                             Human use. Agents should run individual checks.
+      TrailingWhitespace   -- Remove trailing whitespace (auto-fixes in place).
+                             Included in AutoFormat.
 
 
 .PARAMETER InteractiveAuth
@@ -131,7 +133,8 @@ $ManifestPath = if ($Built) {
 }
 if (Test-Path $ManifestPath) {
     $ModuleStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
-    Write-Host "Loading module from: $ManifestPath" -ForegroundColor Cyan
+    $RelManifestPath = [System.IO.Path]::GetRelativePath($PSScriptRoot, $ManifestPath)
+    Write-Host "Loading module from: $RelManifestPath" -ForegroundColor Cyan
     Import-Module $ManifestPath -Force
     $ModuleStopwatch.Stop()
     Write-Host "Module loaded in $($ModuleStopwatch.Elapsed.TotalSeconds)s." -ForegroundColor Cyan
@@ -205,7 +208,7 @@ foreach ($IndividualTest in $IndividualTests) {
         $RelPath = [System.IO.Path]::GetRelativePath($PSScriptRoot, $ScriptPath)
         Write-Host "`n=== $RelPath ===" -ForegroundColor Cyan
         switch ($IndividualTest) {
-            'PSSA'       { & $ScriptPath -Path $PSScriptRoot -Recurse }
+            'PSSA' { & $ScriptPath -Path $PSScriptRoot -Recurse }
             'AutoFormat' {
                 $TwsPath = Join-Path -Path $ScriptsDir -ChildPath 'Format-TrailingWhitespace.ps1'
                 if (Test-Path $TwsPath) {
@@ -215,7 +218,7 @@ foreach ($IndividualTest in $IndividualTests) {
                 }
                 & $ScriptPath -Path $PSScriptRoot -Recurse -AutoFormat -Quiet
             }
-            default      { & $ScriptPath -Path $PSScriptRoot -Recurse }
+            default { & $ScriptPath -Path $PSScriptRoot -Recurse }
         }
     }
 }

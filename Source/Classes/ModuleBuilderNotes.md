@@ -1,4 +1,4 @@
-# Classes/
+# Source/Classes/
 
 PowerShell class definitions. ModuleBuilder merges all `.ps1` files here into
 the generated `.psm1` before `Private/` and `Public/`, so classes are always

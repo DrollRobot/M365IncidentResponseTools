@@ -3,6 +3,8 @@
     Builds a module's distributable artifacts (manifest + flat .psm1) from the source tree.
 
 .DESCRIPTION
+    Intended to be non-project-specific and reusable across modules without modification.
+
     Compiles the per-function source layout under .\source into a single self-contained
     module using ModuleBuilder. The output is always cleaned before building so a stale
     artifact can never survive a build.
@@ -22,6 +24,14 @@
 
     Linting and testing are intentionally NOT handled here - this script is dedicated to
     building. Run those from their own scripts.
+
+    If a PreBuild.ps1 script exists in the repo root it is invoked automatically
+    before the ModuleBuilder step. Use it for project-specific tasks such as generating
+    files that must be present in the source tree before the build runs.
+
+    If a PostBuild.ps1 script exists in the repo root it is invoked automatically
+    after the ModuleBuilder step. Use it for project-specific tasks that depend on
+    the finished build output (e.g. copying extra files, updating docs).
 
 .PARAMETER SourcePath
     Path to the source directory containing the source manifest, Public/, Private/, etc.
@@ -72,9 +82,9 @@ $ErrorActionPreference = 'Stop'
 $RepoRoot = $PSScriptRoot
 $Staging = Join-Path -Path $RepoRoot -ChildPath '.staging'
 
-# Source manifest is the metadata source of truth (exclude ModuleBuilder's build.psd1)
+# Source manifest is the metadata source of truth (exclude ModuleBuilder's Build.psd1)
 $srcManifest = Get-ChildItem -Path $SourcePath -Filter '*.psd1' |
-    Where-Object Name -ne 'build.psd1' |
+    Where-Object Name -ne 'Build.psd1' |
     Select-Object -First 1
 if (-not $srcManifest) { throw "No source manifest found under $SourcePath" }
 $ModuleName = $srcManifest.BaseName
@@ -101,14 +111,35 @@ if ($BuildToRoot) {
     $rootArtifacts = @(
         (Join-Path -Path $RepoRoot -ChildPath "$ModuleName.psd1")
         (Join-Path -Path $RepoRoot -ChildPath "$ModuleName.psm1")
-        (Join-Path -Path $RepoRoot -ChildPath 'en-US')
     )
+
+    # Add CopyPaths folders declared in Build.psd1
+    $buildPsd1Path = Join-Path -Path $SourcePath -ChildPath 'Build.psd1'
+    if (Test-Path $buildPsd1Path) {
+        $buildConfig = Import-PowerShellDataFile -Path $buildPsd1Path
+        foreach ($cp in $buildConfig.CopyPaths) {
+            $rootArtifacts += Join-Path -Path $RepoRoot -ChildPath (Split-Path -Path $cp -Leaf)
+        }
+    }
+
+    # Add any culture-named help folders present in the source tree (e.g. en-US)
+    Get-ChildItem -Path $SourcePath -Directory |
+        Where-Object { $_.Name -match '^\w{2}(-\w{2,4})?$' } |
+        ForEach-Object { $rootArtifacts += Join-Path -Path $RepoRoot -ChildPath $_.Name }
+
     foreach ($path in $rootArtifacts) {
         if (Test-Path $path) { Remove-Item $path -Recurse -Force }
     }
 }
 else {
     if (Test-Path $OutputDirectory) { Remove-Item $OutputDirectory -Recurse -Force }
+}
+
+# --- Pre-build hook ------------------------------------------------------------
+$preBuildScript = Join-Path -Path $RepoRoot -ChildPath 'Build\PreBuild.ps1'
+if (Test-Path $preBuildScript) {
+    Write-Host '==> PreBuild' -ForegroundColor Green
+    & $preBuildScript
 }
 
 # --- Build ---------------------------------------------------------------------
@@ -130,7 +161,7 @@ if ($BuildToRoot) {
     Copy-Item -Path $BuiltSrc -Destination $RepoRoot -Recurse -Force
     Remove-Item $Staging -Recurse -Force
 
-    $Msg = "   $ModuleName $($built.Version) -> repo root (clone-and-go)"
+    $Msg = "   $ModuleName $($built.Version) -> repo root"
     Write-Host $Msg -ForegroundColor Cyan
 }
 else {
@@ -146,4 +177,11 @@ else {
 
     $Msg = "   $ModuleName $($built.Version) -> $($built.ModuleBase)"
     Write-Host $Msg -ForegroundColor Cyan
+}
+
+# --- Post-build hook -----------------------------------------------------------
+$postBuildScript = Join-Path -Path $RepoRoot -ChildPath 'Build\PostBuild.ps1'
+if (Test-Path $postBuildScript) {
+    Write-Host '==> PostBuild' -ForegroundColor Green
+    & $postBuildScript
 }

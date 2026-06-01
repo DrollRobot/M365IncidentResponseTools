@@ -8,7 +8,7 @@
     captures RequiredModules loading and psm1 execution time. The stopwatch is read and cleared
     at the end of M365IncidentResponseTools.psm1.
 
-    Use -Verbose on Import-Module to see the elapsed time.
+    Set $VerbosePreference = 'Continue' before importing to see the elapsed time.
 #>
 param()
 

@@ -1,6 +1,7 @@
-#Region '.\prefix.ps1' -1
+﻿#Region '.\Prefix.ps1' -1
 
-#EndRegion '.\prefix.ps1' 1
+# ModuleBuilder Notes: Code in this file will be prepended to the built .psm1 file.
+#EndRegion '.\Prefix.ps1' 2
 #Region '.\Private\Connect\Connect-IRTExchange.ps1' -1
 
 function Connect-IRTExchange {
@@ -1999,8 +2000,8 @@ function Request-GraphOauth2Grant {
     .DESCRIPTION
     Internal helper. Fetches all delegated OAuth2 permission grants from Microsoft Graph
     and caches them in a session-scoped global variable keyed by client ID. Used by
-    Get-IRTUserServicePrincipal and Find-IRTRiskyServicePrincipal to resolve which users have consented
-    to which applications without repeated Graph requests.
+    Get-IRTUserServicePrincipal and Find-IRTRiskyServicePrincipal to resolve which users
+    have consented to which applications without repeated Graph requests.
 
     .NOTES
     Version: 2.0.0
@@ -2094,8 +2095,8 @@ function Request-GraphServicePrincipal {
     .DESCRIPTION
     Internal helper. Fetches all Entra ID service principals from Microsoft Graph and
     caches the result in a session-scoped global variable keyed by app ID and object ID.
-    Used by Get-IRTUserServicePrincipal, Find-IRTRiskyServicePrincipal, and Get-IRTAdminRole to resolve
-    service principal identities without repeated Graph requests.
+    Used by Get-IRTUserServicePrincipal, Find-IRTRiskyServicePrincipal, and Get-IRTAdminRole
+    to resolve service principal identities without repeated Graph requests.
 
     .NOTES
     Version: 2.0.0
@@ -2887,57 +2888,7 @@ function Build-Menu {
     return $Return
 }
 #EndRegion '.\Private\Lib\Build-Menu.ps1' 209
-#Region '.\Private\Lib\Format-Powershell\Format-GeneralFunction.ps1' -1
-
-function Format-GeneralFunction {
-    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '')]
-    param()
-
-    # variables
-    $VersionPattern = "Version: .*"
-
-    # get content from clipboard
-    $Content = Get-Clipboard -Raw
-
-    # extract version
-    $Version = $Content |
-        Select-String -Pattern $VersionPattern -AllMatches |
-        ForEach-Object { $_.Matches.Value }
-    Write-Host -ForegroundColor Green "`nExtracted version string:"
-    Write-Host $Version
-
-    # run remove-comments
-    $CommentParams = @{
-        Content = $Content
-        RemoveAllEmptyLines = $true
-        RemoveCommentsInParamBlock = $true
-        RemoveCommentsBeforeParamBlock = $true
-    }
-    $OutputRaw = Remove-Comment @CommentParams
-
-    # separate into lines
-    $OutputLines = $OutputRaw -Split "`r?`n"
-
-    # insert version into the second line
-    $OutputLinesWithVersion = $OutputLines[0..0] +
-    "    # ${Version}" +
-    $OutputLines[1..$OutputLines.Length]
-
-    # rejoin into one string
-    $Output = $OutputLinesWithVersion -Join "`r`n"
-
-    # remove double carriage returns to prevent errors
-    $Output = $Output -Replace "`r`r", "`r"
-
-    # show on screen
-    Write-Host -ForegroundColor Green "`nOutput:"
-    Write-Output $Output
-
-    # put output in clipboard
-    Set-Clipboard $Output
-}
-#EndRegion '.\Private\Lib\Format-Powershell\Format-GeneralFunction.ps1' 48
-#Region '.\Private\Lib\Format-Powershell\Format-Powershell.ps1' -1
+#Region '.\Private\Lib\Format-Powershell.ps1' -1
 
 function Format-Powershell {
     <#
@@ -2966,6 +2917,300 @@ function Format-Powershell {
         [switch] $Whitespace,
         [switch] $OneLine
     )
+
+    begin {
+
+        #region helpers
+
+        function Remove-Comment {
+            <#
+            .SYNOPSIS
+            Remove comments from PowerShell file
+
+            .DESCRIPTION
+            Remove comments from PowerShell file and optionally remove empty lines
+            By default comments in param block are not removed
+            By default comments before param block are not removed
+
+            .PARAMETER SourceFilePath
+            File path to the source file
+
+            .PARAMETER Content
+            Content of the file
+
+            .PARAMETER DestinationFilePath
+            File path to the destination file. If not provided, the content will be returned
+
+            .PARAMETER RemoveEmptyLines
+            Remove empty lines if more than one empty line is found
+
+            .PARAMETER RemoveAllEmptyLines
+            Remove all empty lines from the content
+
+            .PARAMETER RemoveCommentsInParamBlock
+            Remove comments in param block. By default comments in param block are not removed
+
+            .PARAMETER RemoveCommentsBeforeParamBlock
+            Remove comments before param block. By default comments before param
+            block are not removed.
+
+            .EXAMPLE
+            Remove-Comments
+                -SourceFilePath 'C:\Support\GitHub\PSPublishModule\Examples\TestScript.ps1'
+                -DestinationFilePath 'C:\Support\GitHub\PSPublishModule\Examples\TestScript1.ps1'
+                -RemoveAllEmptyLines -RemoveCommentsInParamBlock -RemoveCommentsBeforeParamBlock
+
+            .NOTES
+            Most of the work done by Chris Dent, with improvements by Przemyslaw Klys
+            https://evotec.xyz/how-to-efficiently-remove-comments-from-your-powershell-script/
+            #>
+            [CmdletBinding(DefaultParameterSetName = 'FilePath', SupportsShouldProcess = $true)]
+            param(
+                [Parameter(Mandatory, ParameterSetName = 'FilePath')]
+                [alias('FilePath', 'Path', 'LiteralPath')]
+                [string] $SourceFilePath,
+
+                [Parameter(Mandatory, ParameterSetName = 'Content')]
+                [string] $Content,
+
+                [Parameter(ParameterSetName = 'Content')]
+                [Parameter(ParameterSetName = 'FilePath')]
+                [alias('Destination')]
+                [string] $DestinationFilePath,
+
+                [Parameter(ParameterSetName = 'Content')]
+                [Parameter(ParameterSetName = 'FilePath')]
+                [switch] $RemoveAllEmptyLines,
+
+                [Parameter(ParameterSetName = 'Content')]
+                [Parameter(ParameterSetName = 'FilePath')]
+                [switch] $RemoveEmptyLines,
+
+                [Parameter(ParameterSetName = 'Content')]
+                [Parameter(ParameterSetName = 'FilePath')]
+                [switch] $RemoveCommentsInParamBlock,
+
+                [Parameter(ParameterSetName = 'Content')]
+                [Parameter(ParameterSetName = 'FilePath')]
+                [switch] $RemoveCommentsBeforeParamBlock,
+
+                [Parameter(ParameterSetName = 'Content')]
+                [Parameter(ParameterSetName = 'FilePath')]
+                [switch] $DoNotRemoveSignatureBlock
+            )
+            if ($SourceFilePath) {
+                $Fullpath = Resolve-Path -LiteralPath $SourceFilePath
+                $Content = [IO.File]::ReadAllText($FullPath, [System.Text.Encoding]::UTF8)
+            }
+
+            $Tokens = $Errors = @()
+            $Ast = [System.Management.Automation.Language.Parser]::ParseInput(
+                $Content, [ref]$Tokens, [ref]$Errors
+            )
+            #$functionDefinition = $ast.Find({ $args[0] -is [FunctionDefinitionAst] }, $false)
+            $GroupedTokens = $Tokens | Group-Object { $_.Extent.StartLineNumber }
+            $DoNotRemove = $false
+            $DoNotRemoveCommentParam = $false
+            $CountParams = 0
+            $ParamFound = $false
+            $SignatureBlock = $false
+            $ToRemove = foreach ($Line in $GroupedTokens) {
+                if ($Ast.Body.ParamBlock.Extent.StartLineNumber -gt $Line.Name) {
+                    continue
+                }
+                $Tokens = $Line.Group
+                for ($i = 0; $i -lt $Line.Count; $i++) {
+                    $Token = $Tokens[$i]
+                    if ($Token.Extent.StartOffset -lt $Ast.Body.ParamBlock.Extent.StartOffset) {
+                        continue
+                    }
+
+                    # Lets find comments between function and param block and not remove them
+                    if ($Token.Extent.Text -eq 'function') {
+                        if (-not $RemoveCommentsBeforeParamBlock) {
+                            $DoNotRemove = $true
+                        }
+                        continue
+                    }
+                    if ($Token.Extent.Text -eq 'param') {
+                        $ParamFound = $true
+                        $DoNotRemove = $false
+                    }
+                    if ($DoNotRemove) {
+                        continue
+                    }
+                    # lets find comments between param block and end of param block
+                    if ($Token.Extent.Text -eq 'param') {
+                        if (-not $RemoveCommentsInParamBlock) {
+                            $DoNotRemoveCommentParam = $true
+                        }
+                        continue
+                    }
+                    $isOpenParen = $Token.Extent.Text -eq '(' -or $Token.Extent.Text -eq '@('
+                    if ($ParamFound -and $isOpenParen) {
+                        $CountParams += 1
+                    } elseif ($ParamFound -and $Token.Extent.Text -eq ')') {
+                        $CountParams -= 1
+                    }
+                    if ($ParamFound -and $Token.Extent.Text -eq ')') {
+                        if ($CountParams -eq 0) {
+                            $DoNotRemoveCommentParam = $false
+                            $ParamFound = $false
+                        }
+                    }
+                    if ($DoNotRemoveCommentParam) {
+                        continue
+                    }
+                    # if token not comment we leave it as is
+                    if ($Token.Kind -ne 'Comment') {
+                        continue
+                    }
+
+                    # kind of useless to not remove signature block if we're not removing comments
+                    # this changes the structure of a file and signature will be invalid
+                    if ($DoNotRemoveSignatureBlock) {
+                        if ($Token.Kind -eq 'Comment' -and
+                            $Token.Text -eq '# SIG # Begin signature block'
+                        ) {
+                            $SignatureBlock = $true
+                            continue
+                        }
+                        if ($SignatureBlock) {
+                            if ($Token.Kind -eq 'Comment' -and
+                                $Token.Text -eq '# SIG # End signature block'
+                            ) {
+                                $SignatureBlock = $false
+                            }
+                            continue
+                        }
+                    }
+                    $Token
+                }
+            }
+            $ToRemove = $ToRemove | Sort-Object { $_.Extent.StartOffset } -Descending
+            foreach ($Token in $ToRemove) {
+                $StartIndex = $Token.Extent.StartOffset
+                $HowManyChars = $Token.Extent.EndOffset - $Token.Extent.StartOffset
+                $Content = $Content.Remove($StartIndex, $HowManyChars)
+            }
+            if ($RemoveEmptyLines) {
+                # Remove empty lines if more than one empty line is found.
+                # If it's just one line, leave it as is.
+                #$Content = $Content -replace '(?m)^\s*$', ''
+                #$Content = $Content -replace "(`r?`n){2,}", "`r`n"
+                # $Content = $Content -replace "(`r?`n){2,}", "`r`n`r`n"
+                $Content = $Content -replace '(?m)^\s*$', ''
+                $Content = $Content -replace "(?:`r?`n|\n|\r)", "`r`n"
+            }
+            if ($RemoveAllEmptyLines) {
+                # Remove all empty lines from the content
+                $Content = $Content -replace '(?m)^\s*$(\r?\n)?', ''
+            }
+            if ($Content) {
+                $Content = $Content.Trim()
+            }
+            if ($DestinationFilePath) {
+                $Content | Set-Content -Path $DestinationFilePath -Encoding utf8
+            } else {
+                $Content
+            }
+        }
+
+        function Remove-Newline {
+            <#
+            .SYNOPSIS
+            Remove unnecessary newlines from Powershell code.
+
+            This is beta stage. Use at your own risk!
+            #>
+            [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+                'PSUseShouldProcessForStateChangingFunctions', '')]
+            [CmdletBinding()]
+            param (
+                [string] $Content
+            )
+
+            process {
+
+                # remove newlines before else, elseif, catch, finally
+                $ElsePattern = "\}\s*(?:\r?\n\s*#.*\r?\n)?\s*(else|elseif|catch|finally)\s*([\{\(])"
+                $ElseReplace = '} $1 $2'
+                $Content = $Content -replace $ElsePattern, $ElseReplace
+
+                # remove newlines after logical operators
+                $LogicalPattern = "-(and|or|xor|not)\s*\n\s*"
+                $LogicalReplace = '-$1 '
+                $Content = $Content -replace $LogicalPattern, $LogicalReplace
+
+                # remove newlines before/after pipes
+                $PipePattern = "\s*\|\s*"
+                $PipeReplace = "|"
+                $Content = $Content -replace $PipePattern, $PipeReplace
+
+                # remove newline from parameters
+                $ParamNames = 'Alias|CmdletBinding|Parameter|ValidateScript' +
+                '|ValidateSet|ValidateRange'
+                $CmdletBindingPattern = "(\[(${ParamNames})\((.*?)\)])\s*\n\s*"
+                $CmdletBindingReplace = '$1 '
+                $Content = $Content -replace $CmdletBindingPattern, $CmdletBindingReplace
+
+                # remove newlines after commas
+                $CommaPattern = ",\s*\n\s*"
+                $CommaReplace = ', '
+                $Content = $Content -replace $CommaPattern, $CommaReplace
+
+                # remove newlines after opening parenthesis/brackets
+                $OpenPattern = "([\(\{])\s*"
+                $OpenReplace = '$1'
+                $Content = $Content -replace $OpenPattern, $OpenReplace
+
+                # remove newlines before closing parenthesis/brackets
+                $ClosePattern = "\s*([\)\}])"
+                $CloseReplace = '$1'
+                $Content = $Content -replace $ClosePattern, $CloseReplace
+
+                # remove newlines, replace with semicolons. must be last
+                $Content = $Content -replace '\n', ';'
+
+                return $Content
+            }
+        }
+
+        function Remove-WhitespaceFromLine {
+            [CmdletBinding(SupportsShouldProcess = $true)]
+            param (
+                [Parameter(
+                    Position = 0,
+                    ValueFromPipeline = $true
+                )]
+                [string]$Content
+            )
+
+            process {
+
+                # split the content into individual lines
+                $Lines = $Content -split "`n"
+
+                # trim each line
+                $Lines = $Lines | ForEach-Object { $_.Trim() }
+
+                # change tabs to spaces
+                $Lines = $Lines -replace "\t", ' '
+
+                # remove instances of multiple spaces
+                $Lines = $Lines -replace " +", ' '
+
+                # join lines back together
+                $Output = $Lines -join "`n"
+
+                Write-Output $Output
+
+            } # end process
+        }
+
+        #endregion helpers
+
+    } # end begin
 
     process {
 
@@ -3005,7 +3250,7 @@ function Format-Powershell {
 
         # insert version number
         if ( $KeepVersion ) {
-            # separate into l$Cines
+            # separate into lines
             $SplitContent = $Content -Split "\r?\n"
 
             # insert version into the second line
@@ -3039,302 +3284,13 @@ function Format-Powershell {
         }
 
     } # end process
+
+    end {
+    } # end end
+
 }
-#EndRegion '.\Private\Lib\Format-Powershell\Format-Powershell.ps1' 102
-#Region '.\Private\Lib\Format-Powershell\Remove-Comment.ps1' -1
-
-function Remove-Comment {
-    <#
-    .SYNOPSIS
-    Remove comments from PowerShell file
-
-    .DESCRIPTION
-    Remove comments from PowerShell file and optionally remove empty lines
-    By default comments in param block are not removed
-    By default comments before param block are not removed
-
-    .PARAMETER SourceFilePath
-    File path to the source file
-
-    .PARAMETER Content
-    Content of the file
-
-    .PARAMETER DestinationFilePath
-    File path to the destination file. If not provided, the content will be returned
-
-    .PARAMETER RemoveEmptyLines
-    Remove empty lines if more than one empty line is found
-
-    .PARAMETER RemoveAllEmptyLines
-    Remove all empty lines from the content
-
-    .PARAMETER RemoveCommentsInParamBlock
-    Remove comments in param block. By default comments in param block are not removed
-
-    .PARAMETER RemoveCommentsBeforeParamBlock
-    Remove comments before param block. By default comments before param block are not removed
-
-    .EXAMPLE
-    Remove-Comments
-        -SourceFilePath 'C:\Support\GitHub\PSPublishModule\Examples\TestScript.ps1'
-        -DestinationFilePath 'C:\Support\GitHub\PSPublishModule\Examples\TestScript1.ps1'
-        -RemoveAllEmptyLines -RemoveCommentsInParamBlock -RemoveCommentsBeforeParamBlock
-
-    .NOTES
-    Most of the work done by Chris Dent, with improvements by Przemyslaw Klys
-    https://evotec.xyz/how-to-efficiently-remove-comments-from-your-powershell-script/
-    #>
-    [CmdletBinding(DefaultParameterSetName = 'FilePath', SupportsShouldProcess = $true)]
-    param(
-        [Parameter(Mandatory, ParameterSetName = 'FilePath')]
-        [alias('FilePath', 'Path', 'LiteralPath')]
-        [string] $SourceFilePath,
-
-        [Parameter(Mandatory, ParameterSetName = 'Content')]
-        [string] $Content,
-
-        [Parameter(ParameterSetName = 'Content')]
-        [Parameter(ParameterSetName = 'FilePath')]
-        [alias('Destination')]
-        [string] $DestinationFilePath,
-
-        [Parameter(ParameterSetName = 'Content')]
-        [Parameter(ParameterSetName = 'FilePath')]
-        [switch] $RemoveAllEmptyLines,
-
-        [Parameter(ParameterSetName = 'Content')]
-        [Parameter(ParameterSetName = 'FilePath')]
-        [switch] $RemoveEmptyLines,
-
-        [Parameter(ParameterSetName = 'Content')]
-        [Parameter(ParameterSetName = 'FilePath')]
-        [switch] $RemoveCommentsInParamBlock,
-
-        [Parameter(ParameterSetName = 'Content')]
-        [Parameter(ParameterSetName = 'FilePath')]
-        [switch] $RemoveCommentsBeforeParamBlock,
-
-        [Parameter(ParameterSetName = 'Content')]
-        [Parameter(ParameterSetName = 'FilePath')]
-        [switch] $DoNotRemoveSignatureBlock
-    )
-    if ($SourceFilePath) {
-        $Fullpath = Resolve-Path -LiteralPath $SourceFilePath
-        $Content = [IO.File]::ReadAllText($FullPath, [System.Text.Encoding]::UTF8)
-    }
-
-    $Tokens = $Errors = @()
-    $Ast = [System.Management.Automation.Language.Parser]::ParseInput(
-        $Content, [ref]$Tokens, [ref]$Errors
-    )
-    #$functionDefinition = $ast.Find({ $args[0] -is [FunctionDefinitionAst] }, $false)
-    $GroupedTokens = $Tokens | Group-Object { $_.Extent.StartLineNumber }
-    $DoNotRemove = $false
-    $DoNotRemoveCommentParam = $false
-    $CountParams = 0
-    $ParamFound = $false
-    $SignatureBlock = $false
-    $ToRemove = foreach ($Line in $GroupedTokens) {
-        if ($Ast.Body.ParamBlock.Extent.StartLineNumber -gt $Line.Name) {
-            continue
-        }
-        $Tokens = $Line.Group
-        for ($i = 0; $i -lt $Line.Count; $i++) {
-            $Token = $Tokens[$i]
-            if ($Token.Extent.StartOffset -lt $Ast.Body.ParamBlock.Extent.StartOffset) {
-                continue
-            }
-
-            # Lets find comments between function and param block and not remove them
-            if ($Token.Extent.Text -eq 'function') {
-                if (-not $RemoveCommentsBeforeParamBlock) {
-                    $DoNotRemove = $true
-                }
-                continue
-            }
-            if ($Token.Extent.Text -eq 'param') {
-                $ParamFound = $true
-                $DoNotRemove = $false
-            }
-            if ($DoNotRemove) {
-                continue
-            }
-            # lets find comments between param block and end of param block
-            if ($Token.Extent.Text -eq 'param') {
-                if (-not $RemoveCommentsInParamBlock) {
-                    $DoNotRemoveCommentParam = $true
-                }
-                continue
-            }
-            if ($ParamFound -and ($Token.Extent.Text -eq '(' -or $Token.Extent.Text -eq '@(')) {
-                $CountParams += 1
-            } elseif ($ParamFound -and $Token.Extent.Text -eq ')') {
-                $CountParams -= 1
-            }
-            if ($ParamFound -and $Token.Extent.Text -eq ')') {
-                if ($CountParams -eq 0) {
-                    $DoNotRemoveCommentParam = $false
-                    $ParamFound = $false
-                }
-            }
-            if ($DoNotRemoveCommentParam) {
-                continue
-            }
-            # if token not comment we leave it as is
-            if ($Token.Kind -ne 'Comment') {
-                continue
-            }
-
-            # kind of useless to not remove signature block if we're not removing comments
-            # this changes the structure of a file and signature will be invalid
-            if ($DoNotRemoveSignatureBlock) {
-                if ($Token.Kind -eq 'Comment' -and
-                    $Token.Text -eq '# SIG # Begin signature block'
-                ) {
-                    $SignatureBlock = $true
-                    continue
-                }
-                if ($SignatureBlock) {
-                    if ($Token.Kind -eq 'Comment' -and
-                        $Token.Text -eq '# SIG # End signature block'
-                    ) {
-                        $SignatureBlock = $false
-                    }
-                    continue
-                }
-            }
-            $Token
-        }
-    }
-    $ToRemove = $ToRemove | Sort-Object { $_.Extent.StartOffset } -Descending
-    foreach ($Token in $ToRemove) {
-        $StartIndex = $Token.Extent.StartOffset
-        $HowManyChars = $Token.Extent.EndOffset - $Token.Extent.StartOffset
-        $Content = $Content.Remove($StartIndex, $HowManyChars)
-    }
-    if ($RemoveEmptyLines) {
-        # Remove empty lines if more than one empty line is found.
-        # If it's just one line, leave it as is.
-        #$Content = $Content -replace '(?m)^\s*$', ''
-        #$Content = $Content -replace "(`r?`n){2,}", "`r`n"
-        # $Content = $Content -replace "(`r?`n){2,}", "`r`n`r`n"
-        $Content = $Content -replace '(?m)^\s*$', ''
-        $Content = $Content -replace "(?:`r?`n|\n|\r)", "`r`n"
-    }
-    if ($RemoveAllEmptyLines) {
-        # Remove all empty lines from the content
-        $Content = $Content -replace '(?m)^\s*$(\r?\n)?', ''
-    }
-    if ($Content) {
-        $Content = $Content.Trim()
-    }
-    if ($DestinationFilePath) {
-        $Content | Set-Content -Path $DestinationFilePath -Encoding utf8
-    } else {
-        $Content
-    }
-}
-#EndRegion '.\Private\Lib\Format-Powershell\Remove-Comment.ps1' 192
-#Region '.\Private\Lib\Format-Powershell\Remove-Newline.ps1' -1
-
-function Remove-Newline {
-    <#
-	.SYNOPSIS
-	Remove unnecessary newlines from Powershell code.
-
-	.EXAMPLE
-
-
-	.NOTES
-		Version: 1.0.0
-	#>
-    [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
-        'PSUseShouldProcessForStateChangingFunctions', '')]
-    [CmdletBinding()]
-    param (
-        [string] $Content
-    )
-
-    process {
-
-        # remove newlines before else, elseif, catch, finally
-        $ElsePattern = "\}\s*(?:\r?\n\s*#.*\r?\n)?\s*(else|elseif|catch|finally)\s*([\{\(])"
-        $ElseReplace = '} $1 $2'
-        $Content = $Content -replace $ElsePattern, $ElseReplace
-
-        # remove newlines after logical operators
-        $LogicalPattern = "-(and|or|xor|not)\s*\n\s*"
-        $LogicalReplace = '-$1 '
-        $Content = $Content -replace $LogicalPattern, $LogicalReplace
-
-        # remove newlines before/after pipes
-        $PipePattern = "\s*\|\s*"
-        $PipeReplace = "|"
-        $Content = $Content -replace $PipePattern, $PipeReplace
-
-        # remove newline from parameters
-        $ParamNames = "Alias|CmdletBinding|Parameter|ValidateScript|ValidateSet|ValidateRange"
-        $CmdletBindingPattern = "(\[(${ParamNames})\((.*?)\)])\s*\n\s*"
-        $CmdletBindingReplace = '$1 '
-        $Content = $Content -replace $CmdletBindingPattern, $CmdletBindingReplace
-
-        # remove newlines after commas
-        $CommaPattern = ",\s*\n\s*"
-        $CommaReplace = ', '
-        $Content = $Content -replace $CommaPattern, $CommaReplace
-
-        # remove newlines after opening parenthesis/brackets
-        $OpenPattern = "([\(\{])\s*"
-        $OpenReplace = '$1'
-        $Content = $Content -replace $OpenPattern, $OpenReplace
-
-        # remove newlines before closing parenthesis/brackets
-        $ClosePattern = "\s*([\)\}])"
-        $CloseReplace = '$1'
-        $Content = $Content -replace $ClosePattern, $CloseReplace
-
-        # remove newlines, replace with semicolons. must be last
-        $Content = $Content -replace '\n', ';'
-
-        return $Content
-    }
-}
-#EndRegion '.\Private\Lib\Format-Powershell\Remove-Newline.ps1' 63
-#Region '.\Private\Lib\Format-Powershell\Remove-WhitespaceFromLine.ps1' -1
-
-function Remove-WhitespaceFromLine {
-    [CmdletBinding(SupportsShouldProcess = $true)]
-    param (
-        [Parameter(
-            Position = 0,
-            ValueFromPipeline = $true
-        )]
-        [string]$Content
-    )
-
-    process {
-
-        # split the content into individual lines
-        $Lines = $Content -split "`n"
-
-        # trim each line
-        $Lines = $Lines | ForEach-Object { $_.Trim() }
-
-        # change tabs to spaces
-        $Lines = $Lines -replace "\t", ' '
-
-        # remove instances of multiple spaces
-        $Lines = $Lines -replace " +", ' '
-
-        # join lines back together
-        $Output = $Lines -join "`n"
-
-        Write-Output $Output
-
-    } # end process
-}
-#EndRegion '.\Private\Lib\Format-Powershell\Remove-WhitespaceFromLine.ps1' 32
-#Region '.\Private\Lib\Format-Tree\Format-Tree.ps1' -1
+#EndRegion '.\Private\Lib\Format-Powershell.ps1' 400
+#Region '.\Private\Lib\Format-Tree.ps1' -1
 
 function Format-Tree {
     <#
@@ -3348,7 +3304,9 @@ displays a simple tree view of any object (ps 5.1+)
     [Alias('FTree', 'FTr')]
     [CmdletBinding()]
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', 'Depth',
-        Justification = 'Used by Out-Print helper function via PowerShell dynamic scoping.')]
+        Justification = 'Used by Out-Print helper via PowerShell dynamic scoping.')]
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '',
+        Justification = 'Intentional console output for terminal display function.')]
     param(
         [Parameter(Mandatory, ValueFromPipeline)]
         $InputObject,
@@ -3366,6 +3324,284 @@ displays a simple tree view of any object (ps 5.1+)
     )
 
     begin {
+
+        #region helpers
+
+        function Get-Indent([int]$CurrentDepth, [int]$Size) {
+            ' ' * ($CurrentDepth * $Size)
+        }
+
+        function Get-PropertyName($Obj) {
+            $Obj.PSObject.Properties |
+                Where-Object {
+                    $_.IsGettable -and
+                    $_.MemberType -in 'NoteProperty', 'Property', 'AliasProperty'
+                } |
+                Select-Object -ExpandProperty Name -Unique |
+                Sort-Object
+        }
+
+        function Resolve-Json($Value) {
+            ### if it's a string that looks like json, try to parse it
+            ### (handles one level of json-in-a-string)
+            # if the value is anything other than string, return it
+            if ($Value -isnot [string]) { return $Value }
+            $String = $Value.Trim()
+            if (-not (
+                    ($String.StartsWith('{') -and $String.EndsWith('}')) -or
+                    ($String.StartsWith('[') -and $String.EndsWith(']'))
+                )
+            ) {
+                return $Value
+            }
+
+            try {
+                # convert from json
+                $Parsed = $String | ConvertFrom-Json -ErrorAction Stop
+                # if the parsed result is itself a json-looking string, try one more pass
+                if ($Parsed -is [string]) {
+                    $Inner = $Parsed.Trim()
+                    if (
+                        ($Inner.StartsWith('{') -and $Inner.EndsWith('}')) -or
+                        ($Inner.StartsWith('[') -and $Inner.EndsWith(']'))
+                    ) {
+                        try { return ($Inner | ConvertFrom-Json -ErrorAction Stop) }
+                        catch { return $Parsed }
+                    }
+                }
+                return $Parsed
+            } catch { return $Value }
+        }
+
+        function Test-IsScalar($Value) {
+            # treat common primitives as scalars (and helpful extras)
+            $Value -is [string] -or $Value -is [bool] -or
+            $Value -is [int] -or $Value -is [long] -or
+            $Value -is [double] -or $Value -is [decimal] -or
+            $Value -is [datetime] -or $Value -is [guid] -or
+            $Value -is [timespan] -or $Value -is [uri] -or
+            $Value -is [version] -or $Value -is [enum]
+        }
+
+        function Test-IsEmptyScalar($Value) {
+            ($Value -is [string]) -and [string]::IsNullOrWhiteSpace($Value)
+        }
+
+        function Test-HasVisible($Value, [int]$CurrentDepth) {
+            # returns $true if value would produce visible output at this depth
+
+            if ($CurrentDepth -gt $Depth) { return $false }
+
+            # if value looks like json
+            $Value = Resolve-Json $Value
+
+            if ($CurrentDepth -eq $Depth) {
+                if ($null -eq $Value) { return (-not $OmitNullOrEmpty) }
+                if (Test-IsScalar $Value) {
+                    if ($OmitNullOrEmpty -and (Test-IsEmptyScalar $Value)) { return $false }
+                    return $true
+                }
+                return $true
+            }
+
+            if ($null -eq $Value) { return (-not $OmitNullOrEmpty) }
+
+            if (Test-IsScalar $Value) {
+                if ($OmitNullOrEmpty -and (Test-IsEmptyScalar $Value)) { return $false }
+                return $true
+            }
+
+            if ($Value -is [System.Collections.IDictionary]) {
+                foreach ($Key in $Value.Keys) {
+                    if (Test-HasVisible $Value[$Key] ($CurrentDepth + 1)) { return $true }
+                }
+                return $false
+            }
+
+            if ($Value -is [System.Collections.IEnumerable]) {
+                foreach ($E in $Value) {
+                    if (Test-HasVisible $E ($CurrentDepth + 1)) { return $true }
+                }
+                return $false
+            }
+
+            $Names = Get-PropertyName $Value
+            if ($ExcludeSet) { $Names = $Names | Where-Object { -not $ExcludeSet.Contains($_) } }
+            foreach ($N in $Names) {
+                try { $V = $Value.PSObject.Properties[$N].Value } catch { $V = $null }
+                if (Test-HasVisible $V ($CurrentDepth + 1)) { return $true }
+            }
+            return $false
+        }
+
+        function Write-NameEllipsis([string]$Name, [int]$CurrentDepth, [int]$Size) {
+            $indent = Get-Indent $CurrentDepth $Size
+            Write-Host -NoNewline $indent
+            Write-Host -NoNewline @Script:Green ($Name + ': ')
+            Write-Host @Script:Red '...'
+        }
+
+        function Write-NameValue {
+            param([string]$Name, [string]$ValueText, [int]$CurrentDepth, [int]$Size)
+            $Indent = Get-Indent $CurrentDepth $Size
+            $PlainPrefix = $Indent + $Name + ': '
+            $ContIndent = ' ' * ($PlainPrefix.Length)
+            $Lines = [regex]::Split($ValueText, '(?:\r\n|\n|\r)')
+            if ($Lines.Count -eq 0) { $Lines = @('') }
+
+            if ($PSVersionTable.PSVersion.Major -ge 6 -and $PSStyle) {
+                $First = $Indent + $PSStyle.Foreground.BrightGreen + $Name +
+                $PSStyle.Reset + ': ' + $Lines[0]
+                Write-Host $First
+                for ($i = 1; $i -lt $Lines.Count; $i++) {
+                    Write-Host ($ContIndent + $Lines[$i])
+                }
+            } else {
+                Write-Host @Script:Green ($PlainPrefix + $Lines[0])
+                for ($i = 1; $i -lt $Lines.Count; $i++) {
+                    Write-Host ($ContIndent + $Lines[$i])
+                }
+            }
+        }
+
+        function Out-Print {
+            param(
+                [Parameter(Position = 0)]
+                [string] $Name,
+                [Parameter(Position = 1)]
+                $Value,
+                [Parameter(Position = 2)]
+                [int] $CurrentDepth
+            )
+
+            # print node (returns $true if anything was printed)
+            if ($CurrentDepth -gt $Depth) { return $false }
+
+            $Value = Resolve-Json $Value
+
+            if ($null -eq $Value) {
+                if (-not $OmitNullOrEmpty) {
+                    $WnvParams = @{
+                        Name         = $Name
+                        ValueText    = '<null>'
+                        CurrentDepth = $CurrentDepth
+                        Size         = $IndentSize
+                    }
+                    Write-NameValue @WnvParams
+                    return $true
+                }
+                return $false
+            }
+
+            if (Test-IsScalar $Value) {
+                if ($OmitNullOrEmpty -and (Test-IsEmptyScalar $Value)) { return $false }
+                $WnvParams = @{
+                    Name         = $Name
+                    ValueText    = ([string]$Value)
+                    CurrentDepth = $CurrentDepth
+                    Size         = $IndentSize
+                }
+                Write-NameValue @WnvParams
+                return $true
+            }
+
+            # non-scalar at/over the depth limit -> print "NAME: ..."
+            if ($CurrentDepth -ge $Depth) {
+                Write-NameEllipsis -Name $Name -CurrentDepth $CurrentDepth -Size $IndentSize
+                return $true
+            }
+
+            if ($Value -is [System.Collections.IDictionary]) {
+                # one more level would exceed limit -> collapse whole map to ellipsis
+                if (($CurrentDepth + 1) -ge $Depth) {
+                    Write-NameEllipsis -Name $Name -CurrentDepth $CurrentDepth -Size $IndentSize
+                    return $true
+                }
+
+                $Printed = $false
+
+                if (($CurrentDepth + 1) -ge $Depth) {
+                    $indent = Get-Indent $CurrentDepth $IndentSize
+                    Write-Host -NoNewline $indent
+                    Write-Host -NoNewline @Script:Green ($Name + ': ')
+                    Write-Host @Script:Red '...'
+                    return $true
+                }
+                foreach ($Key in ($Value.Keys | Sort-Object)) {
+                    if (Test-HasVisible $Value[$Key] $ChildDepth) {
+                        if (-not $Printed) {
+                            $WnvParams = @{
+                                Name         = $Name
+                                ValueText    = ''
+                                CurrentDepth = $CurrentDepth
+                                Size         = $IndentSize
+                            }
+                            Write-NameValue @WnvParams
+                            $Printed = $true
+                        }
+                        $PrintParams = @{
+                            Name         = "[$Key]"
+                            Value        = $Value[$Key]
+                            CurrentDepth = $ChildDepth
+                        }
+                        $null = Out-Print @PrintParams
+                    }
+                }
+                return $Printed
+            }
+
+            if ($Value -is [System.Collections.IEnumerable]) {
+                # one more level would exceed limit -> collapse whole map to ellipsis
+                if (($CurrentDepth + 1) -ge $Depth) {
+                    Write-NameEllipsis -Name $Name -CurrentDepth $CurrentDepth -Size $IndentSize
+                    return $true
+                }
+
+                $Visible = @()
+                foreach ($E in $Value) {
+                    if (Test-HasVisible $E ($CurrentDepth + 1)) {
+                        $Visible += , $E
+                    }
+                }
+                if ($Visible.Count -eq 0) {
+                    return $false
+                }
+                $WnvParams = @{
+                    Name         = $Name
+                    ValueText    = "[$($Visible.Count)]"
+                    CurrentDepth = $CurrentDepth
+                    Size         = $IndentSize
+                }
+                Write-NameValue @WnvParams
+                for ($i = 0; $i -lt $Visible.Count; $i++) {
+                    $PrintParams = @{
+                        Name         = "[$i]"
+                        Value        = $Visible[$i]
+                        CurrentDepth = $CurrentDepth + 1
+                    }
+                    $null = Out-Print @PrintParams
+                }
+                return $true
+            }
+
+            $Names = Get-PropertyName $Value
+            if ($ExcludeSet) { $Names = $Names | Where-Object { -not $ExcludeSet.Contains($_) } }
+
+            $Pairs = @()
+            foreach ($N in $Names) {
+                try { $V = $Value.PSObject.Properties[$N].Value } catch { $V = $null }
+                if (Test-HasVisible $V ($CurrentDepth + 1)) { $Pairs += , @($N, $V) }
+            }
+            if ($Pairs.Count -eq 0) { return $false }
+
+            Write-NameValue -Name $Name -ValueText '' -CurrentDepth $CurrentDepth -Size $IndentSize
+            foreach ($P in $Pairs) {
+                $null = Out-Print -Name $P[0] -Value $P[1] -CurrentDepth ($CurrentDepth + 1)
+            }
+            return $true
+        }
+
+        #endregion helpers
 
         $Script:Green = @{ForegroundColor = 'Green' }
         $Script:Red = @{ForegroundColor = 'Red' }
@@ -3399,7 +3635,7 @@ displays a simple tree view of any object (ps 5.1+)
 
         if ($InputObject -is [System.Collections.IDictionary]) {
             foreach ($Key in ($InputObject.Keys | Sort-Object)) {
-                $null = Out-Print ("[$Key]") $InputObject[$Key] 0
+                $null = Out-Print -Name "[$Key]" -Value $InputObject[$Key] -CurrentDepth 0
             }
             return
         }
@@ -3416,7 +3652,7 @@ displays a simple tree view of any object (ps 5.1+)
                 catch {
                     $Value = $null
                 }
-                $null = Out-Print $Name $Value 0
+                $null = Out-Print -Name $Name -Value $Value -CurrentDepth 0
             }
             return
         }
@@ -3424,13 +3660,19 @@ displays a simple tree view of any object (ps 5.1+)
         if ($InputObject -is [System.Collections.IEnumerable]) {
             $i = 0
             foreach ($E in $InputObject) {
-                $null = Out-Print "[$i]" $E 0
+                $null = Out-Print -Name "[$i]" -Value $E -CurrentDepth 0
                 $i++
             }
             return
         }
 
-        Write-NameValue '<root>' "<$($InputObject.GetType().FullName)>" 0 $IndentSize
+        $WnvParams = @{
+            Name         = '<root>'
+            ValueText    = "<$($InputObject.GetType().FullName)>"
+            CurrentDepth = 0
+            Size         = $IndentSize
+        }
+        Write-NameValue @WnvParams
     }
 
     end {
@@ -3440,289 +3682,8 @@ displays a simple tree view of any object (ps 5.1+)
         }
     }
 }
-#EndRegion '.\Private\Lib\Format-Tree\Format-Tree.ps1' 105
-#Region '.\Private\Lib\Format-Tree\Get-Indent.ps1' -1
-
-function Get-Indent([int]$CurrentDepth, [int]$Size) {
-    ' ' * ($CurrentDepth * $Size)
-}
-#EndRegion '.\Private\Lib\Format-Tree\Get-Indent.ps1' 4
-#Region '.\Private\Lib\Format-Tree\Get-PropertyName.ps1' -1
-
-function Get-PropertyName($Obj) {
-    $Obj.PSObject.Properties |
-        Where-Object {
-            $_.IsGettable -and
-            $_.MemberType -in 'NoteProperty', 'Property', 'AliasProperty'
-        } |
-        Select-Object -ExpandProperty Name -Unique |
-        Sort-Object
-}
-#EndRegion '.\Private\Lib\Format-Tree\Get-PropertyName.ps1' 10
-#Region '.\Private\Lib\Format-Tree\Out-Print.ps1' -1
-
-function Out-Print {
-    param(
-        [Parameter(Position = 0)]
-        [string] $Name,
-        [Parameter(Position = 1)]
-        $Value,
-        [Parameter(Position = 2)]
-        [int] $CurrentDepth
-    )
-
-    # print node (returns $true if anything was printed)
-    if ($CurrentDepth -gt $Depth) { return $false }
-
-    $Value = Resolve-Json $Value
-
-    if ($null -eq $Value) {
-        if (-not $OmitNullOrEmpty) {
-            Write-NameValue $Name '<null>' $CurrentDepth $IndentSize
-            return $true
-        }
-        return $false
-    }
-
-    if (Test-IsScalar $Value) {
-        if ($OmitNullOrEmpty -and (Test-IsEmptyScalar $Value)) { return $false }
-        Write-NameValue $Name ([string]$Value) $CurrentDepth $IndentSize
-        return $true
-    }
-
-    # non-scalar at/over the depth limit -> print "NAME: ...""
-    if ($CurrentDepth -ge $Depth) {
-        Write-NameEllipsis $Name $CurrentDepth $IndentSize
-        return $true
-    }
-
-    if ($Value -is [System.Collections.IDictionary]) {
-        # one more level would exceed limit -> collapse whole map to ellipsis
-        if (($CurrentDepth + 1) -ge $Depth) {
-            Write-NameEllipsis $Name $CurrentDepth $IndentSize
-            return $true
-        }
-
-        $Printed = $false
-
-        if (($CurrentDepth + 1) -ge $Depth) {
-            $indent = Get-Indent $CurrentDepth $IndentSize
-            Write-Host -NoNewline $indent
-            Write-Host -NoNewline @Green ($Name + ': ')
-            Write-Host @Red '...'
-            return $true
-        }
-        foreach ($Key in ($Value.Keys | Sort-Object)) {
-            if (Test-HasVisible $Value[$Key] ($CurrentDepth + 1)) {
-                if (-not $Printed) {
-                    Write-NameValue $Name '' $CurrentDepth $IndentSize
-                    $Printed = $true
-                }
-                $null = Out-Print ("[$Key]") $Value[$Key] ($CurrentDepth + 1)
-            }
-        }
-        return $Printed
-    }
-
-    if ($Value -is [System.Collections.IEnumerable]) {
-        # one more level would exceed limit -> collapse whole map to ellipsis
-        if (($CurrentDepth + 1) -ge $Depth) {
-            Write-NameEllipsis $Name $CurrentDepth $IndentSize
-            return $true
-        }
-
-        $Visible = @()
-        foreach ($E in $Value) {
-            if (Test-HasVisible $E ($CurrentDepth + 1)) {
-                $Visible += , $E
-            }
-        }
-        if ($Visible.Count -eq 0) {
-            return $false
-        }
-        Write-NameValue $Name "[$($Visible.Count)]" $CurrentDepth $IndentSize
-        for ($i = 0; $i -lt $Visible.Count; $i++) {
-            $null = Out-Print "[$i]" $Visible[$i] ($CurrentDepth + 1)
-        }
-        return $true
-    }
-
-    $Names = Get-PropertyName $Value
-    if ($ExcludeSet) { $Names = $Names | Where-Object { -not $ExcludeSet.Contains($_) } }
-
-    $Pairs = @()
-    foreach ($N in $Names) {
-        try { $V = $Value.PSObject.Properties[$N].Value } catch { $V = $null }
-        if (Test-HasVisible $V ($CurrentDepth + 1)) { $Pairs += , @($N, $V) }
-    }
-    if ($Pairs.Count -eq 0) { return $false }
-
-    Write-NameValue $Name '' $CurrentDepth $IndentSize
-    foreach ($P in $Pairs) { $null = Out-Print $P[0] $P[1] ($CurrentDepth + 1) }
-    return $true
-}
-#EndRegion '.\Private\Lib\Format-Tree\Out-Print.ps1' 101
-#Region '.\Private\Lib\Format-Tree\Resolve-Json.ps1' -1
-
-function Resolve-Json($Value) {
-
-    ### if it's a string that looks like json, try to parse it
-    ### (handles one level of json-in-a-string)
-    # if the value is anything other than string, return it
-    if ($Value -isnot [string]) { return $Value }
-    $String = $Value.Trim()
-    if (-not (
-            ($String.StartsWith('{') -and $String.EndsWith('}')) -or
-            ($String.StartsWith('[') -and $String.EndsWith(']'))
-        )
-    ) {
-        return $Value
-    }
-
-    try {
-        # convert from json
-        $Parsed = $String | ConvertFrom-Json -ErrorAction Stop
-        # if the parsed result is itself a json-looking string, try one more pass
-        if ($Parsed -is [string]) {
-            $Inner = $Parsed.Trim()
-            if (
-                ($Inner.StartsWith('{') -and $Inner.EndsWith('}')) -or
-                ($Inner.StartsWith('[') -and $Inner.EndsWith(']'))
-            ) {
-                try { return ($Inner | ConvertFrom-Json -ErrorAction Stop) }
-                catch { return $Parsed }
-            }
-        }
-        return $Parsed
-    } catch { return $Value }
-}
-#EndRegion '.\Private\Lib\Format-Tree\Resolve-Json.ps1' 33
-#Region '.\Private\Lib\Format-Tree\Test-HasVisible.ps1' -1
-
-function Test-HasVisible($Value, [int]$CurrentDepth) {
-    # returns $true if value would produce visible output at this depth
-
-    if ($CurrentDepth -gt $Depth) { return $false }
-
-    # if value looks like json
-    $Value = Resolve-Json $Value
-
-    if ($CurrentDepth -eq $Depth) {
-        if ($null -eq $Value) { return (-not $OmitNullOrEmpty) }
-        if (Test-IsScalar $Value) {
-            if ($OmitNullOrEmpty -and (Test-IsEmptyScalar $Value)) { return $false }
-            return $true
-        }
-        return $true
-    }
-
-    if ($null -eq $Value) { return (-not $OmitNullOrEmpty) }
-
-    if (Test-IsScalar $Value) {
-        if ($OmitNullOrEmpty -and (Test-IsEmptyScalar $Value)) { return $false }
-        return $true
-    }
-
-    if ($Value -is [System.Collections.IDictionary]) {
-        foreach ($Key in $Value.Keys) {
-            if (Test-HasVisible $Value[$Key] ($CurrentDepth + 1)) { return $true }
-        }
-        return $false
-    }
-
-    if ($Value -is [System.Collections.IEnumerable]) {
-        foreach ($E in $Value) { if (Test-HasVisible $E ($CurrentDepth + 1)) { return $true } }
-        return $false
-    }
-
-    $Names = Get-PropertyName $Value
-    if ($ExcludeSet) { $Names = $Names | Where-Object { -not $ExcludeSet.Contains($_) } }
-    foreach ($N in $Names) {
-        try { $V = $Value.PSObject.Properties[$N].Value } catch { $V = $null }
-        if (Test-HasVisible $V ($CurrentDepth + 1)) { return $true }
-    }
-    return $false
-}
-#EndRegion '.\Private\Lib\Format-Tree\Test-HasVisible.ps1' 45
-#Region '.\Private\Lib\Format-Tree\Test-IsEmptyScalar.ps1' -1
-
-function Test-IsEmptyScalar($Value) {
-    ($Value -is [string]) -and [string]::IsNullOrWhiteSpace($Value)
-}
-#EndRegion '.\Private\Lib\Format-Tree\Test-IsEmptyScalar.ps1' 4
-#Region '.\Private\Lib\Format-Tree\Test-IsScalar.ps1' -1
-
-function Test-IsScalar($Value) {
-    # treat common primitives as scalars (and helpful extras)
-    $Value -is [string] -or $Value -is [bool] -or
-    $Value -is [int] -or $Value -is [long] -or
-    $Value -is [double] -or $Value -is [decimal] -or
-    $Value -is [datetime] -or $Value -is [guid] -or
-    $Value -is [timespan] -or $Value -is [uri] -or
-    $Value -is [version] -or $Value -is [enum]
-}
-#EndRegion '.\Private\Lib\Format-Tree\Test-IsScalar.ps1' 10
-#Region '.\Private\Lib\Format-Tree\Write-NameEllipsis.ps1' -1
-
-function Write-NameEllipsis([string]$Name, [int]$CurrentDepth, [int]$Size) {
-    $indent = Get-Indent $CurrentDepth $Size
-    Write-Host -NoNewline $indent
-    Write-Host -NoNewline @Green ($Name + ': ')
-    Write-Host @Red '...'
-}
-#EndRegion '.\Private\Lib\Format-Tree\Write-NameEllipsis.ps1' 7
-#Region '.\Private\Lib\Format-Tree\Write-NameValue.ps1' -1
-
-function Write-NameValue([string]$Name, [string]$ValueText, [int]$CurrentDepth, [int]$Size) {
-    $Indent = Get-Indent $CurrentDepth $Size
-    $PlainPrefix = $Indent + $Name + ': '
-    $ContIndent = ' ' * ($PlainPrefix.Length)
-    $Lines = [regex]::Split($ValueText, '(?:\r\n|\n|\r)')
-    if ($Lines.Count -eq 0) { $Lines = @('') }
-
-    if ($PSVersionTable.PSVersion.Major -ge 6 -and $PSStyle) {
-        $First = $Indent + $PSStyle.Foreground.BrightGreen + $Name +
-        $PSStyle.Reset + ': ' + $Lines[0]
-        Write-Host $First
-        for ($i = 1; $i -lt $Lines.Count; $i++) {
-            Write-Host ($ContIndent + $Lines[$i])
-        }
-    } else {
-        Write-Host @Green ($PlainPrefix + $Lines[0])
-        for ($i = 1; $i -lt $Lines.Count; $i++) {
-            Write-Host ($ContIndent + $Lines[$i])
-        }
-    }
-}
-#EndRegion '.\Private\Lib\Format-Tree\Write-NameValue.ps1' 22
-#Region '.\Private\Lib\Get-LicenseFullName\Get-LicenseCSVFile.ps1' -1
-
-function Get-LicenseCSVFile {
-    <#
-    .SYNOPSIS
-    Downloads the Microsoft license name CSV to $env:AppData if missing or older than 6 days.
-
-    .DESCRIPTION
-    Internal helper used by Get-LicenseFullNames. Downloads the Microsoft product names and
-    service plan identifiers CSV from the Microsoft Download Center. Skips the download if
-    the file already exists in $env:AppData and was last modified less than 6 days ago.
-    #>
-    param (
-        [string]$Url,
-        [string]$CsvPath
-    )
-
-    # Check if the file exists and if the last modified date is more than a week ago
-    if (
-        -not ( Test-Path $CsvPath ) -or
-        ((Get-Date) - (Get-Item $CsvPath).LastWriteTime) -gt (New-TimeSpan -Days 6)
-    ) {
-        # Download the file
-        Invoke-WebRequest -Uri $Url -OutFile $CsvPath
-    }
-}
-#EndRegion '.\Private\Lib\Get-LicenseFullName\Get-LicenseCSVFile.ps1' 25
-#Region '.\Private\Lib\Get-LicenseFullName\Get-LicenseFullName.ps1' -1
+#EndRegion '.\Private\Lib\Format-Tree.ps1' 391
+#Region '.\Private\Lib\Get-LicenseFullName.ps1' -1
 
 function Get-LicenseFullName {
     <#
@@ -3762,6 +3723,67 @@ function Get-LicenseFullName {
         [string]$SkuId,
         [string]$LicenseFullName
     )
+
+    begin {
+
+        #region helpers
+
+        function Get-LicenseCSVFile {
+            <#
+            .SYNOPSIS
+            Downloads the Microsoft license name CSV to $env:AppData if missing or
+            older than 6 days.
+
+            .DESCRIPTION
+            Internal helper used by Get-LicenseFullNames. Downloads the Microsoft product names and
+            service plan identifiers CSV from the Microsoft Download Center. Skips the download if
+            the file already exists in $env:AppData and was last modified less than 6 days ago.
+            #>
+            param (
+                [string]$Url,
+                [string]$CsvPath
+            )
+
+            # Check if the file exists and if the last modified date is more than a week ago
+            if (
+                -not ( Test-Path $CsvPath ) -or
+                ((Get-Date) - (Get-Item $CsvPath).LastWriteTime) -gt (New-TimeSpan -Days 6)
+            ) {
+                # Download the file
+                Invoke-WebRequest -Uri $Url -OutFile $CsvPath
+            }
+        }
+
+        function Get-LicenseNameFromCSV {
+            <#
+            .SYNOPSIS
+            Looks up a license SKU GUID in the Microsoft CSV file and returns
+            the friendly product name.
+
+            .DESCRIPTION
+            Internal helper used by Get-LicenseFullNames. Imports the CSV from the specified path
+            and returns the Product_Display_Name for the matching SKU GUID.
+            #>
+            param (
+                [string]$SkuId,
+                [string]$CsvPath
+            )
+
+            # import csv file
+            $CsvData = Import-Csv -Path $CsvPath
+
+            # finds the row that matches the skuid
+            $MatchingRow = $CsvData | Where-Object { $_.guid -eq $SkuId }
+
+            # pulls the full name from the matching row
+            $LicenseFullName = $Matchingrow.Product_Display_Name
+
+            return $LicenseFullName
+        }
+
+        #endregion helpers
+
+    }
 
     process {
         $ModuleName = $MyInvocation.MyCommand.ModuleName
@@ -3812,35 +3834,7 @@ function Get-LicenseFullName {
         }
     }
 }
-#EndRegion '.\Private\Lib\Get-LicenseFullName\Get-LicenseFullName.ps1' 89
-#Region '.\Private\Lib\Get-LicenseFullName\Get-LicenseNameFromCSV.ps1' -1
-
-function Get-LicenseNameFromCSV {
-    <#
-    .SYNOPSIS
-    Looks up a license SKU GUID in the Microsoft CSV file and returns the friendly product name.
-
-    .DESCRIPTION
-    Internal helper used by Get-LicenseFullNames. Imports the CSV from the specified path
-    and returns the Product_Display_Name for the matching SKU GUID.
-    #>
-    param (
-        [string]$SkuId,
-        [string]$CsvPath
-    )
-
-    # import csv file
-    $CsvData = Import-Csv -Path $CsvPath
-
-    # finds the row that matches the skuid
-    $MatchingRow = $CsvData | Where-Object { $_.guid -eq $SkuId }
-
-    # pulls the full name from the matching row
-    $LicenseFullName = $Matchingrow.Product_Display_Name
-
-    return $LicenseFullName
-}
-#EndRegion '.\Private\Lib\Get-LicenseFullName\Get-LicenseNameFromCSV.ps1' 26
+#EndRegion '.\Private\Lib\Get-LicenseFullName.ps1' 150
 #Region '.\Private\Lib\Open-Browser.ps1' -1
 
 function Open-Browser {
@@ -3909,24 +3903,15 @@ function Open-Browser {
     }
 }
 #EndRegion '.\Private\Lib\Open-Browser.ps1' 66
-#Region '.\Private\Lib\Set-TerminalTitle\Save-TerminalTitle.ps1' -1
-
-function Save-TerminalTitle {
-    [CmdletBinding()]
-    Param(
-        [switch] $Quiet
-    )
-
-    $Global:OriginalTerminalTitle = $Host.UI.RawUI.WindowTitle
-
-    if (-not $Quiet) {
-        Write-Host 'Original terminal title saved.'
-    }
-}
-#EndRegion '.\Private\Lib\Set-TerminalTitle\Save-TerminalTitle.ps1' 13
-#Region '.\Private\Lib\Set-TerminalTitle\Set-TerminalTitle.ps1' -1
+#Region '.\Private\Lib\Set-TerminalTitle.ps1' -1
 
 function Set-TerminalTitle {
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+        'PSAvoidUsingWriteHost', '',
+        Justification = 'Intentional console status message for interactive use.')]
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+        'PSUseShouldProcessForStateChangingFunctions', '',
+        Justification = 'Terminal title change; no ShouldProcess needed.')]
     [CmdletBinding()]
     Param(
         [Parameter(Position = 0)]
@@ -3934,6 +3919,19 @@ function Set-TerminalTitle {
         [switch] $Original,
         [switch] $Quiet
     )
+
+    function Save-TerminalTitle {
+        [CmdletBinding()]
+        Param(
+            [switch] $Quiet
+        )
+
+        $Global:OriginalTerminalTitle = $Host.UI.RawUI.WindowTitle
+
+        if (-not $Quiet) {
+            Write-Host 'Original terminal title saved.'
+        }
+    }
 
     if ($Original) {
         if ($Global:OriginalTerminalTitle) {
@@ -3950,7 +3948,7 @@ function Set-TerminalTitle {
         $Host.UI.RawUI.WindowTitle = $Title
     }
 }
-#EndRegion '.\Private\Lib\Set-TerminalTitle\Set-TerminalTitle.ps1' 25
+#EndRegion '.\Private\Lib\Set-TerminalTitle.ps1' 44
 #Region '.\Private\MessageTrace\Build-TraceContinuation.ps1' -1
 
 function Build-TraceContinuation {
@@ -5328,7 +5326,7 @@ function Build-AllOperationSheet {
             $OperationColumn = $OperationColEntry.Id | Convert-DecimalToExcelColumn
 
             # IP address conditional formatting
-            Add-IpAddressConditionalFormatting -Worksheet $Worksheet -ColumnName 'IpAddress'
+            Add-IpInfoToSheet -Worksheet $Worksheet -ColumnName 'IpAddress'
 
             # operations conditional formatting
             if ($OperationSheetData) {
@@ -5617,8 +5615,8 @@ function Build-UserLoginOperationsSheet {
 
             # IP address conditional formatting
             $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-            Write-Verbose "${FunctionName}: Add-IpAddressConditionalFormatting $Elapsed"
-            Add-IpAddressConditionalFormatting -Worksheet $Worksheet -ColumnName 'IpAddress'
+            Write-Verbose "${FunctionName}: Add-IpInfoToSheet $Elapsed"
+            Add-IpInfoToSheet -Worksheet $Worksheet -ColumnName 'IpAddress'
 
             # Application conditional formatting - highlight PowerShell/CLI tools
             $AppColEntry = $Worksheet.Tables[0].Columns | Where-Object { $_.Name -eq 'Application' }
@@ -5860,7 +5858,8 @@ function Get-ExchangeItemDeleteSummary {
 
 	.NOTES
 	Version: 2.1.0
-    2.1.0 - Moved wait logic to Show-IRTUnifiedAuditLog. Now receives resolved MessageTraceTable directly.
+    2.1.0 - Moved wait logic to Show-IRTUnifiedAuditLog. Now receives resolved
+            MessageTraceTable directly.
     2.0.0 - Replaced per-user variable with single IRT_MessageTraceTable. Added SharedState
             support for cross-runspace communication. Added timeout and -Test diagnostics.
     1.1.0 - Removed Auditdata param, added parsing for email subjects.
@@ -5941,7 +5940,7 @@ function Get-ExchangeItemDeleteSummary {
         return $EventObject
     }
 }
-#EndRegion '.\Private\UnifiedAuditLog\Get-ExchangeItemDeleteSummary.ps1' 89
+#EndRegion '.\Private\UnifiedAuditLog\Get-ExchangeItemDeleteSummary.ps1' 90
 #Region '.\Private\UnifiedAuditLog\Get-ExchangeItemUpdateSummary.ps1' -1
 
 function Get-ExchangeItemUpdateSummary {
@@ -6125,7 +6124,8 @@ function Get-MailItemsAccessedSummary {
 
 	.NOTES
 	Version: 2.1.0
-    2.1.0 - Moved wait logic to Show-IRTUnifiedAuditLog. Now receives resolved MessageTraceTable directly.
+    2.1.0 - Moved wait logic to Show-IRTUnifiedAuditLog. Now receives resolved
+            MessageTraceTable directly.
     2.0.0 - Replaced per-user variable with single IRT_MessageTraceTable. Added SharedState
             support for cross-runspace communication. Added timeout and -Test diagnostics.
 	#>
@@ -6183,7 +6183,7 @@ function Get-MailItemsAccessedSummary {
         return $EventObject
     }
 }
-#EndRegion '.\Private\UnifiedAuditLog\Get-MailItemsAccessedSummary.ps1' 66
+#EndRegion '.\Private\UnifiedAuditLog\Get-MailItemsAccessedSummary.ps1' 67
 #Region '.\Private\UnifiedAuditLog\Get-PageViewedSummary.ps1' -1
 
 function Get-PageViewedSummary {
@@ -6849,104 +6849,6 @@ function Show-GraphUserTree {
     }
 }
 #EndRegion '.\Private\User\Show-GraphUserTree.ps1' 50
-#Region '.\Private\Utility\Add-IpAddressConditionalFormatting.ps1' -1
-
-function Add-IpAddressConditionalFormatting {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)]
-        $Worksheet,
-
-        [Parameter(Mandatory)]
-        [string]$ColumnName
-    )
-
-    $IpAddressColumn = (
-        $Worksheet.Tables[0].Columns | Where-Object { $_.Name -eq $ColumnName }
-    ).Id | Convert-DecimalToExcelColumn
-
-    # microsoft
-    $CFParams = @{
-        Worksheet       = $WorkSheet
-        Address         = "${IpAddressColumn}:${IpAddressColumn}"
-        RuleType        = 'ContainsText'
-        ConditionValue  = 'microsoft'
-        BackgroundColor = 'LightBlue'
-        StopIfTrue = $true
-    }
-    Add-ConditionalFormatting @CFParams
-    # vpn
-    $CFParams = @{
-        Worksheet       = $WorkSheet
-        Address         = "${IpAddressColumn}:${IpAddressColumn}"
-        RuleType        = 'ContainsText'
-        ConditionValue  = ' vpn'
-        BackgroundColor = 'LightPink'
-        StopIfTrue = $true
-    }
-    Add-ConditionalFormatting @CFParams
-    # tor
-    $CFParams = @{
-        Worksheet       = $WorkSheet
-        Address         = "${IpAddressColumn}:${IpAddressColumn}"
-        RuleType        = 'ContainsText'
-        ConditionValue = ' tor'
-        BackgroundColor = 'LightPink'
-        StopIfTrue = $true
-    }
-    Add-ConditionalFormatting @CFParams
-    # proxy
-    $CFParams = @{
-        Worksheet       = $WorkSheet
-        Address         = "${IpAddressColumn}:${IpAddressColumn}"
-        RuleType        = 'ContainsText'
-        ConditionValue = ' proxy'
-        BackgroundColor = 'LightPink'
-        StopIfTrue = $true
-    }
-    Add-ConditionalFormatting @CFParams
-    # hosting
-    $CFParams = @{
-        Worksheet       = $WorkSheet
-        Address         = "${IpAddressColumn}:${IpAddressColumn}"
-        RuleType        = 'ContainsText'
-        ConditionValue  = ' hosting'
-        BackgroundColor = [System.Drawing.ColorTranslator]::FromHtml('#FACD90')
-        StopIfTrue = $true
-    }
-    Add-ConditionalFormatting @CFParams
-    # cloud
-    $CFParams = @{
-        Worksheet       = $WorkSheet
-        Address         = "${IpAddressColumn}:${IpAddressColumn}"
-        RuleType        = 'ContainsText'
-        ConditionValue  = ' cloud'
-        BackgroundColor = [System.Drawing.ColorTranslator]::FromHtml('#FACD90')
-        StopIfTrue = $true
-    }
-    Add-ConditionalFormatting @CFParams
-    # datacenter
-    $CFParams = @{
-        Worksheet       = $WorkSheet
-        Address         = "${IpAddressColumn}:${IpAddressColumn}"
-        RuleType        = 'ContainsText'
-        ConditionValue  = ' datacenter'
-        BackgroundColor = [System.Drawing.ColorTranslator]::FromHtml('#FACD90')
-        StopIfTrue = $true
-    }
-    Add-ConditionalFormatting @CFParams
-    # mobile
-    $CFParams = @{
-        Worksheet       = $WorkSheet
-        Address         = "${IpAddressColumn}:${IpAddressColumn}"
-        RuleType        = 'ContainsText'
-        ConditionValue  = 'mobile'
-        BackgroundColor = [System.Drawing.ColorTranslator]::FromHtml('#F2CEEF')
-        StopIfTrue = $true
-    }
-    Add-ConditionalFormatting @CFParams
-}
-#EndRegion '.\Private\Utility\Add-IpAddressConditionalFormatting.ps1' 96
 #Region '.\Private\Utility\Add-IpInfoToSheet.ps1' -1
 
 function Add-IpInfoToSheet {
@@ -7232,9 +7134,24 @@ function Copy-ConditionalFormatting {
 
 .DESCRIPTION
     For each rule on the source worksheet whose address intersects -SourceRange, the rule is
-    recreated on the destination worksheet and its attributes (formula(s), text, rank/percent,
-    std-dev, value objects for colour scales / data bars / icon sets, and the full dxf style)
-    are copied across.
+    recreated on the destination worksheet and the following attributes are copied across:
+
+    Scalar rule properties (when present on the rule type):
+      StopIfTrue, Formula, Formula2, Text, Rank, Percent, StdDev
+
+    Value objects - LowValue, MiddleValue, HighValue (colour scales / data bars),
+    and Icon1-Icon5 (icon sets) - each contribute:
+      Type, Value, Formula, Color
+
+    Constructor-time properties (supplied when creating the new rule object):
+      IconSet  (ThreeIconSet / FourIconSet / FiveIconSet rules)
+      Color    (DataBar rules)
+
+    DXF style (applied to all rule types via the Style property):
+      NumberFormat  : Format
+      Font          : Bold, Italic, Strike, Underline, Color
+      Fill          : PatternType, BackgroundColor, PatternColor
+      Border edges  : Left / Right / Top / Bottom - each: Style, Color
 
     Geometry is handled Format-Painter style: each rule's address is first clipped to -SourceRange,
     then shifted by the offset between the source range's top-left cell and the destination range's
@@ -7297,7 +7214,7 @@ function Copy-ConditionalFormatting {
     )
 
     # ---------------------------------------------------------------- helpers ----
-    function resolvePackage($in, [string]$role) {
+    function Resolve-Package($in, [string]$role) {
         if ($in -is [string]) {
             if (-not (Test-Path -LiteralPath $in)) { throw "$role file not found: $in" }
             return @{ Package = (Open-ExcelPackage -Path $in); Opened = $true }
@@ -7310,7 +7227,7 @@ function Copy-ConditionalFormatting {
         return @{ Package = $in; Opened = $false }
     }
 
-    function resolveSheet($pkg, [string]$name, [string]$role) {
+    function Resolve-Sheet($pkg, [string]$name, [string]$role) {
         $wb = $pkg.Workbook
         $names = @($wb.Worksheets | ForEach-Object Name)
         if ($name) {
@@ -7327,7 +7244,7 @@ function Copy-ConditionalFormatting {
     }
 
     # Return list of {FromRow,FromCol,ToRow,ToCol} for single- or multi-area addresses.
-    function getAreas($address) {
+    function Get-Area($address) {
         $out = New-Object System.Collections.Generic.List[object]
         $subs = $address.Addresses
         $list = if ($subs) { $subs } else { @($address) }
@@ -7340,46 +7257,68 @@ function Copy-ConditionalFormatting {
         return $out
     }
 
-    function copyDxfColor($s, $d) {
-        if (-not $s -or -not $d) { return }
-        foreach ($p in 'Color', 'Theme', 'Index', 'Tint', 'Auto') {
-            $sv = $s.$p
-            if ($null -ne $sv) { try { $d.$p = $sv } catch {} }
+    # Copy one DXF property from $srcContainer to $dstContainer.
+    # In EPPlus 5.x, DXF sub-properties (PatternType, Bold, Color, etc.) are
+    # ExcelDxfStyleXxx<T> wrapper objects whose property setters are internal.
+    # Direct assignment ($dst.Prop = $wrapperObj) therefore fails silently.
+    # The correct write path is $dst.Prop.Value = $wrapperObj.Value.
+    # For plain nullable values (EPPlus 4.x or non-wrapped props), fall back to
+    # direct assignment.
+    function Copy-DxfProp($srcContainer, $dstContainer, [string]$prop) {
+        $sv = $srcContainer.$prop
+        if ($null -eq $sv) { return }
+        if ($sv.PSObject.Properties['HasValue']) {
+            if ($sv.HasValue) { try { $dstContainer.$prop.Value = $sv.Value } catch {} }
+        } else {
+            try { $dstContainer.$prop = $sv } catch {}
         }
     }
 
-    function copyDxfStyle($s, $d) {
+    function Copy-DxfColor($s, $d) {
+        if (-not $s -or -not $d) { return }
+        foreach ($p in 'Color', 'Theme', 'Index', 'Tint', 'Auto') {
+            Copy-DxfProp -srcContainer $s -dstContainer $d -prop $p
+        }
+    }
+
+    function Copy-DxfStyle($s, $d) {
         if (-not $s -or -not $d) { return }
         if ($s.NumberFormat -and $s.NumberFormat.Format) {
             try { $d.NumberFormat.Format = $s.NumberFormat.Format } catch {}
         }
         if ($s.Font -and $d.Font) {
             foreach ($p in 'Bold', 'Italic', 'Strike', 'Underline') {
-                $sv = $s.Font.$p
-                if ($null -ne $sv) { try { $d.Font.$p = $sv } catch {} }
+                Copy-DxfProp -srcContainer $s.Font -dstContainer $d.Font -prop $p
             }
-            copyDxfColor $s.Font.Color $d.Font.Color
+            Copy-DxfColor $s.Font.Color $d.Font.Color
         }
         if ($s.Fill -and $d.Fill) {
-            $sv = $s.Fill.PatternType
-            if ($null -ne $sv) { try { $d.Fill.PatternType = $sv } catch {} }
-            copyDxfColor $s.Fill.BackgroundColor $d.Fill.BackgroundColor
-            copyDxfColor $s.Fill.PatternColor    $d.Fill.PatternColor
+            Copy-DxfProp -srcContainer $s.Fill -dstContainer $d.Fill -prop 'PatternType'
+            Copy-DxfColor $s.Fill.BackgroundColor $d.Fill.BackgroundColor
+            Copy-DxfColor $s.Fill.PatternColor    $d.Fill.PatternColor
+            # Excel encodes solid-fill CF rules without a patternType attribute, which EPPlus
+            # reads back as PatternType=None. Writing a rule with PatternType=None causes EPPlus
+            # to omit the fill from XML entirely. Upgrade to Solid when any fill color was copied.
+            $hasBg = $null -ne $d.Fill.BackgroundColor.Color
+            $hasPat = $null -ne $d.Fill.PatternColor.Color
+            if (($hasBg -or $hasPat) -and
+                $d.Fill.PatternType -ne [OfficeOpenXml.Style.ExcelFillStyle]::Solid) {
+                $d.Fill.PatternType = [OfficeOpenXml.Style.ExcelFillStyle]::Solid
+            }
         }
         if ($s.Border -and $d.Border) {
             foreach ($edge in 'Left', 'Right', 'Top', 'Bottom') {
                 $sb = $s.Border.$edge; $db = $d.Border.$edge
                 if ($sb -and $db) {
-                    $sv = $sb.Style
-                    if ($null -ne $sv) { try { $db.Style = $sv } catch {} }
-                    copyDxfColor $sb.Color $db.Color
+                    Copy-DxfProp -srcContainer $sb -dstContainer $db -prop 'Style'
+                    Copy-DxfColor $sb.Color $db.Color
                 }
             }
         }
     }
 
     # Copy a conditional-format value object (cfvo): used by colour scales, data bars, icon sets.
-    function copyValueObject($s, $d) {
+    function Copy-ValueObject($s, $d) {
         if (-not $s -or -not $d) { return }
         foreach ($p in 'Type', 'Value', 'Formula', 'Color') {
             if ($s.PSObject.Properties[$p] -and $d.PSObject.Properties[$p]) {
@@ -7389,7 +7328,7 @@ function Copy-ConditionalFormatting {
         }
     }
 
-    function copyScalars($s, $d) {
+    function Copy-Scalar($s, $d) {
         foreach ($p in 'StopIfTrue', 'Formula', 'Formula2', 'Text', 'Rank', 'Percent', 'StdDev') {
             if ($s.PSObject.Properties[$p] -and $d.PSObject.Properties[$p]) {
                 $sv = $s.$p
@@ -7401,11 +7340,11 @@ function Copy-ConditionalFormatting {
 
     $srcInfo = $null; $dstInfo = $null
     try {
-        $srcInfo = resolvePackage $Source      'Source'
-        $dstInfo = resolvePackage $Destination 'Destination'
+        $srcInfo = Resolve-Package $Source      'Source'
+        $dstInfo = Resolve-Package $Destination 'Destination'
 
-        $srcSheet = resolveSheet -pkg $srcInfo.Package -name $SourceSheet -role 'Source'
-        $dstSheet = resolveSheet -pkg $dstInfo.Package -name $DestinationSheet -role 'Destination'
+        $srcSheet = Resolve-Sheet -pkg $srcInfo.Package -name $SourceSheet -role 'Source'
+        $dstSheet = Resolve-Sheet -pkg $dstInfo.Package -name $DestinationSheet -role 'Destination'
 
         $srcAddr = [OfficeOpenXml.ExcelAddress]::new($SourceRange)
         $dstAddr = [OfficeOpenXml.ExcelAddress]::new($DestinationRange)
@@ -7433,7 +7372,7 @@ function Copy-ConditionalFormatting {
 
             # Build the destination address: clip each area to the source range, then offset.
             $parts = New-Object System.Collections.Generic.List[string]
-            foreach ($a in (getAreas $rule.Address)) {
+            foreach ($a in (Get-Area $rule.Address)) {
                 $ir1 = [math]::Max($a.FromRow, $sr1); $ic1 = [math]::Max($a.FromCol, $sc1)
                 $ir2 = [math]::Min($a.ToRow, $sr2); $ic2 = [math]::Min($a.ToCol, $sc2)
                 if ($ir1 -le $ir2 -and $ic1 -le $ic2) {
@@ -7464,16 +7403,16 @@ function Copy-ConditionalFormatting {
                     $cf.$addName($addr)
                 }
 
-                copyScalars $rule $newRule
+                Copy-Scalar $rule $newRule
 
                 foreach ($vo in 'LowValue', 'MiddleValue', 'HighValue') {
                     if ($rule.PSObject.Properties[$vo] -and $newRule.PSObject.Properties[$vo]) {
-                        copyValueObject $rule.$vo $newRule.$vo
+                        Copy-ValueObject $rule.$vo $newRule.$vo
                     }
                 }
                 foreach ($ic in 'Icon1', 'Icon2', 'Icon3', 'Icon4', 'Icon5') {
                     if ($rule.PSObject.Properties[$ic] -and $newRule.PSObject.Properties[$ic]) {
-                        copyValueObject $rule.$ic $newRule.$ic
+                        Copy-ValueObject $rule.$ic $newRule.$ic
                     }
                 }
                 foreach ($p in 'Reverse', 'ShowValue') {
@@ -7485,7 +7424,7 @@ function Copy-ConditionalFormatting {
 
                 if ($rule.PSObject.Properties['Style'] -and
                     $newRule.PSObject.Properties['Style'] -and $rule.Style) {
-                    copyDxfStyle $rule.Style $newRule.Style
+                    Copy-DxfStyle $rule.Style $newRule.Style
                 }
 
                 $copied++
@@ -7510,7 +7449,7 @@ function Copy-ConditionalFormatting {
         }
     }
 }
-#EndRegion '.\Private\Utility\Copy-ConditionalFormatting.ps1' 287
+#EndRegion '.\Private\Utility\Copy-ConditionalFormatting.ps1' 324
 #Region '.\Private\Utility\Format-PhoneNumber.ps1' -1
 
 function Format-PhoneNumber {
@@ -8544,6 +8483,102 @@ function Disconnect-IRT {
     }
 }
 #EndRegion '.\Public\Connect\Disconnect-IRT.ps1' 106
+#Region '.\Public\Connect\Open-IRTTab.ps1' -1
+
+function Open-IRTTab {
+    <#
+    .SYNOPSIS
+    Opens a new Windows Terminal tab and loads the module.
+
+    .DESCRIPTION
+    Opens a new tab in the current Windows Terminal window and imports
+    M365IncidentResponseTools. If an active IRT session exists, also calls
+    Connect-IRT to connect to the same tenant.
+
+    Must be run from within Windows Terminal; detected via the WT_SESSION
+    environment variable set by Windows Terminal in every hosted session.
+
+    .PARAMETER Title
+    Title for the new terminal tab. Defaults to '[IRT]'.
+
+    .PARAMETER Quiet
+    When set, silently returns without error if the current console is not
+    Windows Terminal. Useful when calling from a profile or script that may
+    run in multiple console hosts.
+
+    .EXAMPLE
+    Open-IRTTab
+    Opens a new tab. Connects to the current tenant if a session is active.
+
+    .EXAMPLE
+    Open-IRTTab -Quiet
+    Opens a new tab if in Windows Terminal; silently does nothing otherwise.
+
+    .EXAMPLE
+    Open-IRTTab -Title '[IRT] Secondary'
+    Opens a new tab with a custom title.
+
+    .OUTPUTS
+    None
+
+    .NOTES
+    Version: 1.1.0
+    1.1.0 - Requires Windows Terminal host. Opens without connecting when no
+            active session exists.
+    #>
+    [Alias('OpenIRTTab', 'Open-Tab', 'OpenTab', 'NewIRTTab', 'New-Tab', 'NewTab','IRTTab')]
+    [CmdletBinding()]
+    [OutputType([void])]
+    param(
+        [string] $Title = '[IRT]',
+
+        [switch] $Quiet
+    )
+
+    process {
+        if (-not $env:WT_SESSION) {
+            if (-not $Quiet) {
+                Write-Error 'This command must be run from within Windows Terminal.'
+            }
+            return
+        }
+
+        $ModuleName = $MyInvocation.MyCommand.Module.Name
+        $HasSession = $Global:IRT_Session -and $Global:IRT_Session.TenantId
+
+        if ($HasSession) {
+            $TenantId = $Global:IRT_Session.TenantId
+            $Cloud    = $Global:IRT_Session.Environment
+            $ClientId = $Global:IRT_Session.ClientId
+
+            $ConnectParts = [System.Collections.Generic.List[string]]::new()
+            $ConnectParts.Add("Connect-IRT -TenantId '$TenantId'")
+            if ($Cloud) { $ConnectParts.Add("-Cloud $Cloud") }
+            if ($ClientId) { $ConnectParts.Add("-ClientId '$ClientId'") }
+
+            $InnerScript = "Import-Module $ModuleName; $($ConnectParts -join ' ')"
+            Write-IRT "Opening new tab for tenant $TenantId"
+        } else {
+            $InnerScript = "Import-Module $ModuleName"
+            Write-IRT 'Opening new tab (no active session; module will load without connecting)'
+        }
+
+        $Encoded = [Convert]::ToBase64String(
+            [Text.Encoding]::Unicode.GetBytes($InnerScript)
+        )
+
+        $WtArgs = @(
+            '--window', '0',
+            'new-tab',
+            '--no-focus',
+            '--title', $Title,
+            '--',
+            'pwsh', '-NoExit', '-EncodedCommand', $Encoded
+        )
+        & wt $WtArgs
+    }
+}
+#EndRegion '.\Public\Connect\Open-IRTTab.ps1' 94
 #Region '.\Public\Connect\Test-IRTConnection.ps1' -1
 
 function Test-IRTConnection {
@@ -9771,13 +9806,13 @@ function Get-IRTEntraSignInLog {
                 # export excel spreadsheet
                 if ($Excel) {
                     $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-                    Write-Verbose "${FunctionName}: Show-IRTEntraSignIn $Elapsed"
+                    Write-Verbose "${FunctionName}: Show-IRTEntraSignInLog $Elapsed"
                     $Params = @{
                         Logs   = $Logs
                         IpInfo = $IpInfo
                         Open   = $Open
                     }
-                    Show-IRTEntraSignIn @Params
+                    Show-IRTEntraSignInLog @Params
                 }
             }
             else {
@@ -10700,9 +10735,9 @@ function Show-IRTEntraAuditLog {
     }
 }
 #EndRegion '.\Public\Entra\Show-IRTEntraAuditLog.ps1' 554
-#Region '.\Public\Entra\Show-IRTEntraSignIn.ps1' -1
+#Region '.\Public\Entra\Show-IRTEntraSignInLog.ps1' -1
 
-function Show-IRTEntraSignIn {
+function Show-IRTEntraSignInLog {
     <#
 	.SYNOPSIS
 	Processes Sign in log .XML file into Excel spreadsheet.
@@ -11018,7 +11053,7 @@ function Show-IRTEntraSignIn {
         }
     }
 }
-#EndRegion '.\Public\Entra\Show-IRTEntraSignIn.ps1' 317
+#EndRegion '.\Public\Entra\Show-IRTEntraSignInLog.ps1' 317
 #Region '.\Public\Entra\Show-IRTServicePrincipalSignIn.ps1' -1
 
 function Show-IRTServicePrincipalSignIn {
@@ -12969,6 +13004,167 @@ function Show-IRTMessageTrace {
     }
 }
 #EndRegion '.\Public\MessageTrace\Show-IRTMessageTrace.ps1' 313
+#Region '.\Public\OnPremAd\Copy-IRTFunction.ps1' -1
+
+function Copy-IRTFunction {
+    <#
+    .SYNOPSIS
+    Copies IRT helper functions to the clipboard for use on remote machines.
+
+    .DESCRIPTION
+    Retrieves function definitions from the loaded module in memory and
+    concatenates them into a single pasteable script, then sends the result
+    to the clipboard via Set-Clipboard.
+
+    A bootstrap block that initialises $Global:IRT_Config (using the current
+    session's color preferences as defaults) is prepended automatically.
+
+    The default set includes:
+      - Write-IRT, Get-RandomPassword
+      - Format-Tree and all of its private helpers
+      - All On-Prem AD functions
+
+    Use -FunctionName to include additional functions beyond the default set.
+
+    .PARAMETER FunctionName
+    One or more additional function names to include beyond the default set.
+    Accepts pipeline input.
+
+    .EXAMPLE
+    Copy-IRTFunction
+
+    Copies the default set of IRT helper functions to the clipboard.
+
+    .EXAMPLE
+    Copy-IRTFunction -FunctionName 'Get-IRTMessageTrace'
+
+    Copies the default set plus Get-IRTMessageTrace.
+
+    .EXAMPLE
+    'Get-IRTInboxRule', 'Get-IRTMessageTrace' | Copy-IRTFunction
+
+    Copies the default set plus both named functions via the pipeline.
+
+    .OUTPUTS
+    None. Output is sent to the clipboard.
+
+    .NOTES
+    Version: 2.0.0
+
+    #>
+    [Alias(
+        'Copy-IRTFunctions', 'CopyIRTFunctions', 'CopyIRTFunction', 'IRTFunction', 'IRTFunctions')]
+    [CmdletBinding()]
+    param (
+        [Parameter(Position = 0, ValueFromPipeline, ValueFromPipelineByPropertyName)]
+        [Alias('Name')]
+        [string[]] $FunctionName
+    )
+
+    begin {
+        $DefaultFunctions = @(
+            # Core helpers
+            'Write-IRT'
+            'Get-RandomPassword'
+            # Format-Tree and its private helpers (all compiled into the module)
+            'Format-Tree'
+            'Get-Indent'
+            'Get-PropertyName'
+            'Out-Print'
+            'Resolve-Json'
+            'Test-HasVisible'
+            'Test-IsEmptyScalar'
+            'Test-IsScalar'
+            'Write-NameEllipsis'
+            'Write-NameValue'
+            # On-prem AD functions
+            'Disable-IRTAdUser'
+            'Enable-IRTAdUser'
+            'Find-IRTAdDevice'
+            'Find-IRTAdOu'
+            'Find-IRTAdUser'
+            'Find-IRTDomainController'
+            'Get-IRTAdAdminUser'
+            'Push-IRTAdSync'
+            'Reset-IRTAdUserPassword'
+            'Show-IRTAdDevice'
+            'Show-IRTAdOus'
+            'Show-IRTAdUser'
+        )
+
+        $Queue = [System.Collections.Generic.List[string]]::new()
+        foreach ($F in $DefaultFunctions) { $Queue.Add($F) }
+    }
+
+    process {
+        foreach ($F in $FunctionName) {
+            if ($Queue -notcontains $F) { $Queue.Add($F) }
+        }
+    }
+
+    end {
+        # Resolve current color values (or fallbacks) at copy-time so the pasted
+        # code carries the user's preferences onto the remote machine.
+        $infoColor = if ($Global:IRT_Config?.InfoColor) {
+            $Global:IRT_Config.InfoColor
+        } else { 'DarkCyan' }
+        $warnColor = if ($Global:IRT_Config?.WarnColor) {
+            $Global:IRT_Config.WarnColor
+        } else { 'Yellow' }
+        $errorColor = if ($Global:IRT_Config?.ErrorColor) {
+            $Global:IRT_Config.ErrorColor
+        } else { 'Red' }
+
+        $Bootstrap = @"
+if (-not `$Global:IRT_Config) {
+    `$Global:IRT_Config = [PSCustomObject]@{
+        InfoColor  = '$infoColor'
+        WarnColor  = '$warnColor'
+        ErrorColor = '$errorColor'
+    }
+}
+"@
+
+        $Builder = [System.Text.StringBuilder]::new()
+        $null = $Builder.AppendLine($Bootstrap)
+
+        $Resolved = 0
+        foreach ($Name in $Queue) {
+            $GcParams = @{
+                Name        = $Name
+                CommandType = 'Function'
+                ErrorAction = 'SilentlyContinue'
+            }
+            $Cmd = Get-Command @GcParams
+            if (-not $Cmd) {
+                Write-IRT "Function not found in session: $Name" -Level Warn
+                continue
+            }
+            $null = $Builder.AppendLine("function $Name {")
+            $null = $Builder.AppendLine($Cmd.Definition)
+            $null = $Builder.AppendLine('}')
+            $null = $Builder.AppendLine()
+            $Resolved++
+        }
+
+        if ($Resolved -eq 0) {
+            Write-IRT 'No functions could be resolved.' -Level Warn
+            return
+        }
+
+        $FmtParams = @{
+            Content    = $Builder.ToString()
+            Script     = $true
+            Comments   = $true
+            EmptyLines = $true
+            Whitespace = $true
+        }
+        $Formatted = Format-Powershell @FmtParams
+        Set-Clipboard -Value $Formatted
+        Write-IRT "Copied $Resolved function(s) to clipboard."
+    }
+}
+#EndRegion '.\Public\OnPremAd\Copy-IRTFunction.ps1' 159
 #Region '.\Public\OnPremAd\Disable-IRTAdUser.ps1' -1
 
 function Disable-IRTAdUser {
@@ -13585,7 +13781,8 @@ function Find-IRTDomainController {
     [Alias(
         # DomainController
         'FindIRTDomainController', 'Find-IRTDomainControllers', 'FindIRTDomainControllers',
-        'Find-DomainController', 'FindDomainController', 'Find-DomainControllers', 'FindDomainControllers',
+        'Find-DomainController', 'FindDomainController',
+        'Find-DomainControllers', 'FindDomainControllers',
         # DC
         'Find-DC', 'FindDC', 'Find-DCs', 'FindDCs',
         'DC', 'DCs'
@@ -13599,7 +13796,7 @@ function Find-IRTDomainController {
 
     Get-ADDomainController -Filter * | Select-Object Name
 }
-#EndRegion '.\Public\OnPremAd\Find-IRTDomainController.ps1' 39
+#EndRegion '.\Public\OnPremAd\Find-IRTDomainController.ps1' 40
 #Region '.\Public\OnPremAd\Get-IRTAdAdminUser.ps1' -1
 
 function Get-IRTAdAdminUser {
@@ -18517,182 +18714,6 @@ function Compress-IRTInvestigationFolder {
     }
 }
 #EndRegion '.\Public\Utility\Compress-IRTInvestigationFolder.ps1' 82
-#Region '.\Public\Utility\Copy-IRTFunction.ps1' -1
-
-function Copy-IRTFunction {
-    <#
-    .SYNOPSIS
-    Copies the contents of the IRT helper functions to the clipboard.
-
-    .DESCRIPTION
-    Reads files from a hardcoded list of internal module paths and any
-    additional paths supplied via -Path, then concatenates their contents into
-    a single string with a header line showing each file's full path. The
-    combined text is sent to the clipboard via Set-Clipboard.
-
-    Hardcoded paths:
-      - onprem_ad\*  (all files in the onprem_ad folder)
-
-    When -Path is supplied, each entry is resolved as either a .ps1 file or a
-    directory whose .ps1 files are collected. Use -Recurse to walk
-    subdirectories for the extra paths.
-
-    .PARAMETER Path
-    One or more additional file or directory paths to include. Accepts pipeline
-    input. Directories are scanned for .ps1 files.
-
-    .PARAMETER Recurse
-    Recurse into subdirectories when expanding directory paths supplied via
-    -Path.
-
-    .EXAMPLE
-    Copy-IRTFunction
-
-    Copies the hardcoded IRT helper files to the clipboard.
-
-    .EXAMPLE
-    Copy-IRTFunction -Path .\modules
-
-    Copies hardcoded files plus all .ps1 files in the modules folder.
-
-    .NOTES
-    Version: 1.1.0
-
-    #>
-    [Alias(
-        'Copy-IRTFunctions', 'CopyIRTFunctions', 'CopyIRTFunction', 'IRTFunction', 'IRTFunctions')]
-    [CmdletBinding()]
-    param (
-        [Parameter(Position = 0, ValueFromPipeline, ValueFromPipelineByPropertyName)]
-        [Alias('FullName', 'PSPath')]
-        [string[]] $Path,
-
-        [switch] $Recurse
-    )
-
-    begin {
-        $ModuleRoot = Split-Path -Path $PSScriptRoot -Parent
-
-        $WriteIRTJoin = @{
-            Path                = $ModuleRoot
-            ChildPath           = 'modules'
-            AdditionalChildPath = 'Write-IRT.ps1'
-        }
-        $RandPwJoin = @{
-            Path                = $ModuleRoot
-            ChildPath           = 'modules'
-            AdditionalChildPath = 'Get-RandomPassword.ps1'
-        }
-        $FormatTreeJoin = @{
-            Path                = $ModuleRoot
-            ChildPath           = 'modules'
-            AdditionalChildPath = 'Format-Tree.ps1'
-        }
-        $HardcodedPaths = @(
-            Join-Path @WriteIRTJoin
-            Join-Path @RandPwJoin
-            Join-Path @FormatTreeJoin
-            Join-Path -Path $ModuleRoot -ChildPath 'onprem_ad'
-        )
-
-        $Files = [System.Collections.Generic.List[System.IO.FileSystemInfo]]::new()
-
-        foreach ($Target in $HardcodedPaths) {
-            if (-not (Test-Path -LiteralPath $Target)) {
-                Write-Warning "Hardcoded path not found: $Target"
-                continue
-            }
-
-            $Item = Get-Item -LiteralPath $Target
-            if ($Item.PSIsContainer) {
-                foreach ($C in (Get-ChildItem -LiteralPath $Target -File)) {
-                    $Files.Add($C)
-                }
-            }
-            else {
-                $Files.Add($Item)
-            }
-        }
-    }
-
-    process {
-        foreach ($P in $Path) {
-            $Resolved = Resolve-Path -Path $P -ErrorAction SilentlyContinue
-            if (-not $Resolved) {
-                Write-Warning "Path not found: $P"
-                continue
-            }
-
-            foreach ($R in $Resolved) {
-                $Item = Get-Item -LiteralPath $R.Path -ErrorAction SilentlyContinue
-                if (-not $Item) { continue }
-
-                if ($Item.PSIsContainer) {
-                    $GciParams = @{
-                        LiteralPath = $Item.FullName
-                        File        = $true
-                        Filter      = '*.ps1'
-                        Recurse     = [bool] $Recurse
-                    }
-                    foreach ($C in (Get-ChildItem @GciParams)) { $Files.Add($C) }
-                }
-                else {
-                    $Files.Add($Item)
-                }
-            }
-        }
-    }
-
-    end {
-        if ($Files.Count -eq 0) {
-            Write-Warning 'No files found to copy.'
-            return
-        }
-
-        # Resolve current color values (or fallbacks) at copy-time so the pasted
-        # code carries the user's preferences onto the remote machine.
-        $infoColor = if ($Global:IRT_Config?.InfoColor) {
-            $Global:IRT_Config.InfoColor
-        } else { 'DarkCyan' }
-        $warnColor = if ($Global:IRT_Config?.WarnColor) {
-            $Global:IRT_Config.WarnColor
-        } else { 'Yellow' }
-        $errorColor = if ($Global:IRT_Config?.ErrorColor) {
-            $Global:IRT_Config.ErrorColor
-        } else { 'Red' }
-
-        $bootstrap = @"
-if (-not `$Global:IRT_Config) {
-    `$Global:IRT_Config = [PSCustomObject]@{
-        InfoColor  = '$infoColor'
-        WarnColor  = '$warnColor'
-        ErrorColor = '$errorColor'
-    }
-}
-"@
-
-        $Builder = [System.Text.StringBuilder]::new()
-        $null = $Builder.AppendLine($bootstrap)
-        foreach ($F in $Files) {
-            $Content = Get-Content -LiteralPath $F.FullName -Raw -ErrorAction SilentlyContinue
-            if ($null -ne $Content) {
-                $null = $Builder.AppendLine($Content)
-            }
-        }
-
-        $FmtParams = @{
-            Content    = $Builder.ToString()
-            Script     = $true
-            Comments   = $true
-            EmptyLines = $true
-            Whitespace = $true
-        }
-        $Formatted = Format-Powershell @FmtParams
-        Set-Clipboard -Value $Formatted
-        Write-IRT "Copied contents of $($Files.Count) file(s) to clipboard."
-    }
-}
-#EndRegion '.\Public\Utility\Copy-IRTFunction.ps1' 174
 #Region '.\Public\Utility\Find-IRTDirectoryObject.ps1' -1
 
 function Find-IRTDirectoryObject {
@@ -20101,8 +20122,9 @@ function Start-IRTPlaybook {
     }
 }
 #EndRegion '.\Public\Utility\Start-IRTPlaybook.ps1' 646
-#Region '.\suffix.ps1' -1
+#Region '.\Suffix.ps1' -1
 
+# ModuleBuilder Notes: Code in this file will be appended to the built .psm1 file.
 
 # output info stream to host
 $InformationPreference = 'Continue'
@@ -20207,5 +20229,5 @@ if ($Global:IRT_LoadStopwatch) {
     Write-Verbose "Module loaded in $($Elapsed.ToString('N2'))s."
     Remove-Variable -Name 'IRT_LoadStopwatch' -Scope Global
 }
-#EndRegion '.\suffix.ps1' 105
+#EndRegion '.\Suffix.ps1' 106
 

@@ -446,5 +446,198 @@ InModuleScope M365IncidentResponseTools {
                 }
             }
         }
+
+        # -------------------------------------------------------------------
+        Context 'fill style copy (PatternType=None upgrade)' {
+            <#
+                Excel encodes solid CF fills without a patternType attribute, which EPPlus
+                reads back as PatternType=None. Copy-ConditionalFormatting must upgrade
+                None -> Solid when a fill color is present; otherwise EPPlus omits the fill
+                from XML entirely, causing white/missing fills in the output.
+
+                These tests verify that fills survive the copy and save/reload cycle.
+            #>
+
+            BeforeAll {
+                # Source with PatternType=None + BackgroundColor (simulates Excel-created CF).
+                $script:FillSrcPath = New-TempXlsxPath
+                New-TestWorkbook -Path $script:FillSrcPath -ConfigureSheet {
+                    param($ws)
+                    $ws.Cells['A1'].Value = 'test'
+                    $r = $ws.ConditionalFormatting.AddContainsText('A1:A100')
+                    $r.Text = 'test'
+                    # Set BackgroundColor but leave PatternType at default (None).
+                    $r.Style.Fill.BackgroundColor.Color = `
+                        [System.Drawing.Color]::FromArgb(255, 173, 216, 230)
+                }
+
+                # Destination for fill copy.
+                $script:FillDstPath = New-TempXlsxPath
+                New-TestWorkbook -Path $script:FillDstPath
+
+                $CfParams = @{
+                    Source           = $script:FillSrcPath
+                    SourceRange      = 'A1:A100'
+                    Destination      = $script:FillDstPath
+                    DestinationRange = 'A1'
+                }
+                Copy-ConditionalFormatting @CfParams
+
+                # Reload the destination and verify fill properties.
+                $pkg = Open-ExcelPackage -Path $script:FillDstPath
+                $script:FillDstRule = @($pkg.Workbook.Worksheets[1].ConditionalFormatting)[0]
+                Close-ExcelPackage -ExcelPackage $pkg -NoSave
+            }
+
+            AfterAll {
+                Remove-Item -LiteralPath $script:FillSrcPath -ErrorAction SilentlyContinue
+                Remove-Item -LiteralPath $script:FillDstPath -ErrorAction SilentlyContinue
+            }
+
+            It 'upgrades PatternType from None to Solid when BackgroundColor is set' {
+                $script:FillDstRule.Style.Fill.PatternType | Should -Be 'Solid'
+            }
+
+            It 'copies BackgroundColor.Color correctly' {
+                $c = $script:FillDstRule.Style.Fill.BackgroundColor.Color
+                $c.A | Should -Be 255
+                $c.R | Should -Be 173
+                $c.G | Should -Be 216
+                $c.B | Should -Be 230
+            }
+
+            It 'the fill survives save/reload (EPPlus persists it to XML)' {
+                # This is the core regression test: without the None->Solid upgrade,
+                # EPPlus omits the fill from XML and it disappears on reload.
+                $script:FillDstRule.Style.Fill.PatternType | Should -Not -BeNullOrEmpty
+                $script:FillDstRule.Style.Fill.BackgroundColor.Color | Should -Not -BeNullOrEmpty
+            }
+        }
+
+        # -------------------------------------------------------------------
+        Context 'fill style copy (PatternColor)' {
+            <#
+                Verify that PatternColor (foreground) is also copied correctly when
+                present alongside BackgroundColor.
+            #>
+
+            BeforeAll {
+                $script:PatSrcPath = New-TempXlsxPath
+                New-TestWorkbook -Path $script:PatSrcPath -ConfigureSheet {
+                    param($ws)
+                    $ws.Cells['A1'].Value = 'data'
+                    $r = $ws.ConditionalFormatting.AddContainsText('A1:A50')
+                    $r.Text = 'data'
+                    # Set both PatternColor and BackgroundColor.
+                    $r.Style.Fill.PatternColor.Color = `
+                        [System.Drawing.Color]::FromArgb(255, 255, 255, 0)
+                    $r.Style.Fill.BackgroundColor.Color = `
+                        [System.Drawing.Color]::FromArgb(255, 0, 128, 0)
+                }
+
+                $script:PatDstPath = New-TempXlsxPath
+                New-TestWorkbook -Path $script:PatDstPath
+
+                $CfParams = @{
+                    Source           = $script:PatSrcPath
+                    SourceRange      = 'A1:A50'
+                    Destination      = $script:PatDstPath
+                    DestinationRange = 'B1'
+                }
+                Copy-ConditionalFormatting @CfParams
+
+                $pkg = Open-ExcelPackage -Path $script:PatDstPath
+                $script:PatDstRule = @($pkg.Workbook.Worksheets[1].ConditionalFormatting)[0]
+                Close-ExcelPackage -ExcelPackage $pkg -NoSave
+            }
+
+            AfterAll {
+                Remove-Item -LiteralPath $script:PatSrcPath -ErrorAction SilentlyContinue
+                Remove-Item -LiteralPath $script:PatDstPath -ErrorAction SilentlyContinue
+            }
+
+            It 'copies PatternColor.Color (foreground)' {
+                $c = $script:PatDstRule.Style.Fill.PatternColor.Color
+                $c.A | Should -Be 255
+                $c.R | Should -Be 255
+                $c.G | Should -Be 255
+                $c.B | Should -Be 0
+            }
+
+            It 'copies BackgroundColor.Color alongside PatternColor' {
+                $c = $script:PatDstRule.Style.Fill.BackgroundColor.Color
+                $c.A | Should -Be 255
+                $c.R | Should -Be 0
+                $c.G | Should -Be 128
+                $c.B | Should -Be 0
+            }
+
+            It 'sets PatternType to Solid when colors are present' {
+                $script:PatDstRule.Style.Fill.PatternType | Should -Be 'Solid'
+            }
+        }
+
+        # -------------------------------------------------------------------
+        Context 'IpAddressConditionalFormattingTemplate.xlsx integration' {
+            <#
+                Verify that the real production template (used by Add-IpInfoToSheet)
+                works correctly. All nine rules in that template have PatternType=None
+                with BackgroundColor set.
+            #>
+
+            BeforeAll {
+                $templatePath = Join-Path -Path $PSScriptRoot -ChildPath `
+                    '..\Data\IpAddressConditionalFormattingTemplate.xlsx'
+
+                if (-not (Test-Path -LiteralPath $templatePath)) {
+                    $templatePath = Join-Path -Path $PSScriptRoot -ChildPath `
+                        '..\Source\Data\IpAddressConditionalFormattingTemplate.xlsx'
+                }
+
+                $script:TemplateExists = Test-Path -LiteralPath $templatePath
+                $script:TemplatePath = $templatePath
+            }
+
+            It 'the IpAddressConditionalFormattingTemplate.xlsx file exists' -Skip:(-not $script:TemplateExists) {
+                $script:TemplateExists | Should -BeTrue
+            }
+
+            It 'copies template CF rules with fills intact' -Skip:(-not $script:TemplateExists) {
+                $tmpDst = New-TempXlsxPath
+                New-TestWorkbook -Path $tmpDst
+
+                try {
+                    $CfParams = @{
+                        Source           = $script:TemplatePath
+                        SourceRange      = 'A1:A1048576'
+                        Destination      = $tmpDst
+                        DestinationRange = 'C1'
+                    }
+                    Copy-ConditionalFormatting @CfParams
+
+                    $pkg = Open-ExcelPackage -Path $tmpDst
+                    $rules = @($pkg.Workbook.Worksheets[1].ConditionalFormatting)
+                    Close-ExcelPackage -ExcelPackage $pkg -NoSave
+
+                    # Template has 9 CF rules, all should copy.
+                    $rules.Count | Should -Be 9
+
+                    # Every rule should have PatternType=Solid (upgraded from None).
+                    $solidCount = ($rules | Where-Object {
+                            $_.Style.Fill.PatternType -eq 'Solid'
+                        }).Count
+                    $solidCount | Should -Be 9
+
+                    # Every rule should have a BackgroundColor.Color set.
+                    $colorCount = ($rules | Where-Object {
+                            $null -ne $_.Style.Fill.BackgroundColor.Color
+                        }).Count
+                    $colorCount | Should -Be 9
+                }
+                finally {
+                    Remove-Item -LiteralPath $tmpDst -ErrorAction SilentlyContinue
+                }
+            }
+        }
     }
 }

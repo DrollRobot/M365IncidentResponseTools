@@ -336,13 +336,13 @@ function Get-IRTEntraSignInLog {
                 # export excel spreadsheet
                 if ($Excel) {
                     $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-                    Write-Verbose "${FunctionName}: Show-IRTEntraSignIn $Elapsed"
+                    Write-Verbose "${FunctionName}: Show-IRTEntraSignInLog $Elapsed"
                     $Params = @{
                         Logs   = $Logs
                         IpInfo = $IpInfo
                         Open   = $Open
                     }
-                    Show-IRTEntraSignIn @Params
+                    Show-IRTEntraSignInLog @Params
                 }
             }
             else {

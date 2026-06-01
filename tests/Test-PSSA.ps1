@@ -55,9 +55,20 @@ $AnalyzerSettings = @{
     Rules        = @{
         PSAvoidUsingPositionalParameters = @{
             Enable           = $true
-            CommandAllowList = @('Write-IRT') # allow Write-IRT to use positional params
+            CommandAllowList = @('Write-IRT')
         }
     }
+}
+
+# Per-file rule suppressions. Add entries here for findings that cannot be suppressed
+# in source (e.g. psd1 files) and where a global ExcludeRules entry would be too broad.
+# Key: path relative to the scan root. Value: array of rule names to suppress.
+$PerFileSuppressions = @{
+    # FunctionsToExport = '*' is intentional in the Source manifest;
+    # ModuleBuilder replaces it with the real export list on build.
+    'Source\M365IncidentResponseTools.psd1'             = @('PSUseToExportFieldsInManifest')
+    # Format-Tree internal helpers use positional parameters intentionally.
+    'Source\Private\Lib\Format-Tree\Format-Tree.ps1'   = @('PSAvoidUsingPositionalParameters')
 }
 
 # Formatting rules applied by Invoke-Formatter when -AutoFormat is used.
@@ -110,7 +121,7 @@ $ExcludedFolders = @()
 
 # Merge exclusions from the test orchestrator when called via Tests.ps1.
 if ($Global:IRT_FormattingExclusions) {
-    $ExcludedFiles   += $Global:IRT_FormattingExclusions.ExcludeFiles
+    $ExcludedFiles += $Global:IRT_FormattingExclusions.ExcludeFiles
     $ExcludedFolders += $Global:IRT_FormattingExclusions.ExcludeFolders
 }
 
@@ -141,9 +152,11 @@ if ($AutoFormat) {
             Path     = $FormatFile.FullName
             Fix      = $true
             Settings = $AnalyzerSettings
+            ErrorAction = 'SilentlyContinue'
+            ErrorVariable = 'FixErrors'
         }
         $FixErrors = $null
-        $null = Invoke-ScriptAnalyzer @FixParams -ErrorAction SilentlyContinue -ErrorVariable FixErrors
+        $null = Invoke-ScriptAnalyzer @FixParams
         if ($FixErrors) {
             foreach ($fe in $FixErrors) {
                 Write-Warning "PSSA internal error on $($FormatFile.Name): $($fe.Exception.Message)"
@@ -203,6 +216,14 @@ try {
         $Rel = [System.IO.Path]::GetRelativePath($Path, $_.ScriptPath)
         (-not ($ExcludedFiles -contains $Rel)) -and
         (-not ($ExcludedFolders | Where-Object { $Rel -like "$_\*" -or $Rel -like "*\$_\*" }))
+    }
+    # Apply per-file rule suppressions defined in $PerFileSuppressions above.
+    if ($PerFileSuppressions.Count -gt 0) {
+        $Results = $Results | Where-Object {
+            $Rel = [System.IO.Path]::GetRelativePath($Path, $_.ScriptPath)
+            -not ($PerFileSuppressions.ContainsKey($Rel) -and
+                $PerFileSuppressions[$Rel] -contains $_.RuleName)
+        }
     }
     $FileCount = ($AllOutput | Where-Object {
             ($_ -is [System.Management.Automation.VerboseRecord]) -and

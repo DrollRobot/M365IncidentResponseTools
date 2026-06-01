@@ -6,9 +6,24 @@ function Copy-ConditionalFormatting {
 
 .DESCRIPTION
     For each rule on the source worksheet whose address intersects -SourceRange, the rule is
-    recreated on the destination worksheet and its attributes (formula(s), text, rank/percent,
-    std-dev, value objects for colour scales / data bars / icon sets, and the full dxf style)
-    are copied across.
+    recreated on the destination worksheet and the following attributes are copied across:
+
+    Scalar rule properties (when present on the rule type):
+      StopIfTrue, Formula, Formula2, Text, Rank, Percent, StdDev
+
+    Value objects - LowValue, MiddleValue, HighValue (colour scales / data bars),
+    and Icon1-Icon5 (icon sets) - each contribute:
+      Type, Value, Formula, Color
+
+    Constructor-time properties (supplied when creating the new rule object):
+      IconSet  (ThreeIconSet / FourIconSet / FiveIconSet rules)
+      Color    (DataBar rules)
+
+    DXF style (applied to all rule types via the Style property):
+      NumberFormat  : Format
+      Font          : Bold, Italic, Strike, Underline, Color
+      Fill          : PatternType, BackgroundColor, PatternColor
+      Border edges  : Left / Right / Top / Bottom - each: Style, Color
 
     Geometry is handled Format-Painter style: each rule's address is first clipped to -SourceRange,
     then shifted by the offset between the source range's top-left cell and the destination range's
@@ -71,7 +86,7 @@ function Copy-ConditionalFormatting {
     )
 
     # ---------------------------------------------------------------- helpers ----
-    function resolvePackage($in, [string]$role) {
+    function Resolve-Package($in, [string]$role) {
         if ($in -is [string]) {
             if (-not (Test-Path -LiteralPath $in)) { throw "$role file not found: $in" }
             return @{ Package = (Open-ExcelPackage -Path $in); Opened = $true }
@@ -84,7 +99,7 @@ function Copy-ConditionalFormatting {
         return @{ Package = $in; Opened = $false }
     }
 
-    function resolveSheet($pkg, [string]$name, [string]$role) {
+    function Resolve-Sheet($pkg, [string]$name, [string]$role) {
         $wb = $pkg.Workbook
         $names = @($wb.Worksheets | ForEach-Object Name)
         if ($name) {
@@ -101,7 +116,7 @@ function Copy-ConditionalFormatting {
     }
 
     # Return list of {FromRow,FromCol,ToRow,ToCol} for single- or multi-area addresses.
-    function getAreas($address) {
+    function Get-Area($address) {
         $out = New-Object System.Collections.Generic.List[object]
         $subs = $address.Addresses
         $list = if ($subs) { $subs } else { @($address) }
@@ -114,46 +129,68 @@ function Copy-ConditionalFormatting {
         return $out
     }
 
-    function copyDxfColor($s, $d) {
-        if (-not $s -or -not $d) { return }
-        foreach ($p in 'Color', 'Theme', 'Index', 'Tint', 'Auto') {
-            $sv = $s.$p
-            if ($null -ne $sv) { try { $d.$p = $sv } catch {} }
+    # Copy one DXF property from $srcContainer to $dstContainer.
+    # In EPPlus 5.x, DXF sub-properties (PatternType, Bold, Color, etc.) are
+    # ExcelDxfStyleXxx<T> wrapper objects whose property setters are internal.
+    # Direct assignment ($dst.Prop = $wrapperObj) therefore fails silently.
+    # The correct write path is $dst.Prop.Value = $wrapperObj.Value.
+    # For plain nullable values (EPPlus 4.x or non-wrapped props), fall back to
+    # direct assignment.
+    function Copy-DxfProp($srcContainer, $dstContainer, [string]$prop) {
+        $sv = $srcContainer.$prop
+        if ($null -eq $sv) { return }
+        if ($sv.PSObject.Properties['HasValue']) {
+            if ($sv.HasValue) { try { $dstContainer.$prop.Value = $sv.Value } catch {} }
+        } else {
+            try { $dstContainer.$prop = $sv } catch {}
         }
     }
 
-    function copyDxfStyle($s, $d) {
+    function Copy-DxfColor($s, $d) {
+        if (-not $s -or -not $d) { return }
+        foreach ($p in 'Color', 'Theme', 'Index', 'Tint', 'Auto') {
+            Copy-DxfProp -srcContainer $s -dstContainer $d -prop $p
+        }
+    }
+
+    function Copy-DxfStyle($s, $d) {
         if (-not $s -or -not $d) { return }
         if ($s.NumberFormat -and $s.NumberFormat.Format) {
             try { $d.NumberFormat.Format = $s.NumberFormat.Format } catch {}
         }
         if ($s.Font -and $d.Font) {
             foreach ($p in 'Bold', 'Italic', 'Strike', 'Underline') {
-                $sv = $s.Font.$p
-                if ($null -ne $sv) { try { $d.Font.$p = $sv } catch {} }
+                Copy-DxfProp -srcContainer $s.Font -dstContainer $d.Font -prop $p
             }
-            copyDxfColor $s.Font.Color $d.Font.Color
+            Copy-DxfColor $s.Font.Color $d.Font.Color
         }
         if ($s.Fill -and $d.Fill) {
-            $sv = $s.Fill.PatternType
-            if ($null -ne $sv) { try { $d.Fill.PatternType = $sv } catch {} }
-            copyDxfColor $s.Fill.BackgroundColor $d.Fill.BackgroundColor
-            copyDxfColor $s.Fill.PatternColor    $d.Fill.PatternColor
+            Copy-DxfProp -srcContainer $s.Fill -dstContainer $d.Fill -prop 'PatternType'
+            Copy-DxfColor $s.Fill.BackgroundColor $d.Fill.BackgroundColor
+            Copy-DxfColor $s.Fill.PatternColor    $d.Fill.PatternColor
+            # Excel encodes solid-fill CF rules without a patternType attribute, which EPPlus
+            # reads back as PatternType=None. Writing a rule with PatternType=None causes EPPlus
+            # to omit the fill from XML entirely. Upgrade to Solid when any fill color was copied.
+            $hasBg = $null -ne $d.Fill.BackgroundColor.Color
+            $hasPat = $null -ne $d.Fill.PatternColor.Color
+            if (($hasBg -or $hasPat) -and
+                $d.Fill.PatternType -ne [OfficeOpenXml.Style.ExcelFillStyle]::Solid) {
+                $d.Fill.PatternType = [OfficeOpenXml.Style.ExcelFillStyle]::Solid
+            }
         }
         if ($s.Border -and $d.Border) {
             foreach ($edge in 'Left', 'Right', 'Top', 'Bottom') {
                 $sb = $s.Border.$edge; $db = $d.Border.$edge
                 if ($sb -and $db) {
-                    $sv = $sb.Style
-                    if ($null -ne $sv) { try { $db.Style = $sv } catch {} }
-                    copyDxfColor $sb.Color $db.Color
+                    Copy-DxfProp -srcContainer $sb -dstContainer $db -prop 'Style'
+                    Copy-DxfColor $sb.Color $db.Color
                 }
             }
         }
     }
 
     # Copy a conditional-format value object (cfvo): used by colour scales, data bars, icon sets.
-    function copyValueObject($s, $d) {
+    function Copy-ValueObject($s, $d) {
         if (-not $s -or -not $d) { return }
         foreach ($p in 'Type', 'Value', 'Formula', 'Color') {
             if ($s.PSObject.Properties[$p] -and $d.PSObject.Properties[$p]) {
@@ -163,7 +200,7 @@ function Copy-ConditionalFormatting {
         }
     }
 
-    function copyScalars($s, $d) {
+    function Copy-Scalar($s, $d) {
         foreach ($p in 'StopIfTrue', 'Formula', 'Formula2', 'Text', 'Rank', 'Percent', 'StdDev') {
             if ($s.PSObject.Properties[$p] -and $d.PSObject.Properties[$p]) {
                 $sv = $s.$p
@@ -175,11 +212,11 @@ function Copy-ConditionalFormatting {
 
     $srcInfo = $null; $dstInfo = $null
     try {
-        $srcInfo = resolvePackage $Source      'Source'
-        $dstInfo = resolvePackage $Destination 'Destination'
+        $srcInfo = Resolve-Package $Source      'Source'
+        $dstInfo = Resolve-Package $Destination 'Destination'
 
-        $srcSheet = resolveSheet -pkg $srcInfo.Package -name $SourceSheet -role 'Source'
-        $dstSheet = resolveSheet -pkg $dstInfo.Package -name $DestinationSheet -role 'Destination'
+        $srcSheet = Resolve-Sheet -pkg $srcInfo.Package -name $SourceSheet -role 'Source'
+        $dstSheet = Resolve-Sheet -pkg $dstInfo.Package -name $DestinationSheet -role 'Destination'
 
         $srcAddr = [OfficeOpenXml.ExcelAddress]::new($SourceRange)
         $dstAddr = [OfficeOpenXml.ExcelAddress]::new($DestinationRange)
@@ -207,7 +244,7 @@ function Copy-ConditionalFormatting {
 
             # Build the destination address: clip each area to the source range, then offset.
             $parts = New-Object System.Collections.Generic.List[string]
-            foreach ($a in (getAreas $rule.Address)) {
+            foreach ($a in (Get-Area $rule.Address)) {
                 $ir1 = [math]::Max($a.FromRow, $sr1); $ic1 = [math]::Max($a.FromCol, $sc1)
                 $ir2 = [math]::Min($a.ToRow, $sr2); $ic2 = [math]::Min($a.ToCol, $sc2)
                 if ($ir1 -le $ir2 -and $ic1 -le $ic2) {
@@ -238,16 +275,16 @@ function Copy-ConditionalFormatting {
                     $cf.$addName($addr)
                 }
 
-                copyScalars $rule $newRule
+                Copy-Scalar $rule $newRule
 
                 foreach ($vo in 'LowValue', 'MiddleValue', 'HighValue') {
                     if ($rule.PSObject.Properties[$vo] -and $newRule.PSObject.Properties[$vo]) {
-                        copyValueObject $rule.$vo $newRule.$vo
+                        Copy-ValueObject $rule.$vo $newRule.$vo
                     }
                 }
                 foreach ($ic in 'Icon1', 'Icon2', 'Icon3', 'Icon4', 'Icon5') {
                     if ($rule.PSObject.Properties[$ic] -and $newRule.PSObject.Properties[$ic]) {
-                        copyValueObject $rule.$ic $newRule.$ic
+                        Copy-ValueObject $rule.$ic $newRule.$ic
                     }
                 }
                 foreach ($p in 'Reverse', 'ShowValue') {
@@ -259,7 +296,7 @@ function Copy-ConditionalFormatting {
 
                 if ($rule.PSObject.Properties['Style'] -and
                     $newRule.PSObject.Properties['Style'] -and $rule.Style) {
-                    copyDxfStyle $rule.Style $newRule.Style
+                    Copy-DxfStyle $rule.Style $newRule.Style
                 }
 
                 $copied++

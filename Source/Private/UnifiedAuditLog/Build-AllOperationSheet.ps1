@@ -276,7 +276,7 @@ function Build-AllOperationSheet {
             $OperationColumn = $OperationColEntry.Id | Convert-DecimalToExcelColumn
 
             # IP address conditional formatting
-            Add-IpAddressConditionalFormatting -Worksheet $Worksheet -ColumnName 'IpAddress'
+            Add-IpInfoToSheet -Worksheet $Worksheet -ColumnName 'IpAddress'
 
             # operations conditional formatting
             if ($OperationSheetData) {

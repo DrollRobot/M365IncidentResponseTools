@@ -171,8 +171,8 @@ function Build-UserLoginOperationsSheet {
 
             # IP address conditional formatting
             $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-            Write-Verbose "${FunctionName}: Add-IpAddressConditionalFormatting $Elapsed"
-            Add-IpAddressConditionalFormatting -Worksheet $Worksheet -ColumnName 'IpAddress'
+            Write-Verbose "${FunctionName}: Add-IpInfoToSheet $Elapsed"
+            Add-IpInfoToSheet -Worksheet $Worksheet -ColumnName 'IpAddress'
 
             # Application conditional formatting - highlight PowerShell/CLI tools
             $AppColEntry = $Worksheet.Tables[0].Columns | Where-Object { $_.Name -eq 'Application' }

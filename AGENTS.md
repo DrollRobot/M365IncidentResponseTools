@@ -20,7 +20,7 @@ M365IncidentResponseTools/
 │   │   ├── ...
 │   │   ├── Lib/                          # general helpers, not IRT specific
 │   │   └── Utility/                      # misc IRT specific helpers
-│   ├── Classes/                          # Optional, load-order-sensitive.
+│   ├── Classes/                          # No used as this time
 │   ├── ScriptsToProcess/                 # Module initialization scripts.
 │   └── Files/
 ├── docs/
@@ -116,10 +116,9 @@ After making changes, run the test suite from the repo root:
 
 **First: Pester tests**
 ```powershell
-# invoke offline pester tests for rapid feedback
+# run offline pester tests for rapid feedback
 .\Tests.ps1 Offline
-
-# run online pester tests, if changes touch graph/exchange/ipps code
+# then run online tests
 .\Tests.ps1 Online
 # (if changes touched interactive auth code, use -InteractiveAuth to force a fresh sign-in)
 .\Tests.ps1 Online -InteractiveAuth

@@ -13,6 +13,19 @@ function Set-TerminalTitle {
         [switch] $Quiet
     )
 
+    function Save-TerminalTitle {
+        [CmdletBinding()]
+        Param(
+            [switch] $Quiet
+        )
+
+        $Global:OriginalTerminalTitle = $Host.UI.RawUI.WindowTitle
+
+        if (-not $Quiet) {
+            Write-Host 'Original terminal title saved.'
+        }
+    }
+
     if ($Original) {
         if ($Global:OriginalTerminalTitle) {
             $Host.UI.RawUI.WindowTitle = $Global:OriginalTerminalTitle
