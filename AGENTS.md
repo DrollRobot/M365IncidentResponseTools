@@ -154,14 +154,11 @@ Do not move on to formatting until all Pester tests are passing.
 **Tests**
 Run all tests again on the built module
 ```powershell
-.\Tests.ps1 Offline Online -Built
+.\Tests.ps1 Offline,Online -Built
 ```
 
 **Update docs**
 ```powershell
-.\docs.ps1
-
-# if orphaned files found
 .\docs.ps1 -DeleteOrphaned
 ```
 

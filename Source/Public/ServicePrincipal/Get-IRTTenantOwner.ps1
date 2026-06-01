@@ -167,7 +167,7 @@ function Get-IRTTenantOwner {
 
             # --- OIDC Discovery ---
             # Provides cloud, region, Graph host, and confirms the tenant exists.
-            $TenantCloud = Get-TenantOidc -TenantId $Tid
+            $TenantCloud = Get-IRTTenantOidc -TenantId $Tid
             $cloudName = $TenantCloud?.Cloud
 
             if (-not $TenantCloud -and -not $graphSource) {

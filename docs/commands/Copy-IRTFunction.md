@@ -13,7 +13,7 @@ Copies the contents of the IRT helper functions to the clipboard.
 ## SYNTAX
 
 ```
-Copy-IRTFunction [[-Path] <String[]>] [-Recurse] [-ProgressAction <ActionPreference>] [<CommonParameters>]
+Copy-IRTFunction [[-FunctionName] <String[]>] [-ProgressAction <ActionPreference>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -49,37 +49,19 @@ Copies hardcoded files plus all .ps1 files in the signin_logs folder.
 
 ## PARAMETERS
 
-### -Path
-One or more additional file or directory paths to include.
-Accepts pipeline
-input.
-Directories are scanned for .ps1 files.
+### -FunctionName
+One or more additional function names to include beyond the default set.
+Accepts pipeline input.
 
 ```yaml
 Type: String[]
 Parameter Sets: (All)
-Aliases: FullName, PSPath
+Aliases: Name
 
 Required: False
 Position: 1
 Default value: None
 Accept pipeline input: True (ByPropertyName, ByValue)
-Accept wildcard characters: False
-```
-
-### -Recurse
-Recurse into subdirectories when expanding directory paths supplied via
--Path.
-
-```yaml
-Type: SwitchParameter
-Parameter Sets: (All)
-Aliases:
-
-Required: False
-Position: Named
-Default value: False
-Accept pipeline input: False
 Accept wildcard characters: False
 ```
 

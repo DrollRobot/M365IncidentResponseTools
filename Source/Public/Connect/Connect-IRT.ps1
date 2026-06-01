@@ -138,7 +138,7 @@ function Connect-IRT {
         # Use the OIDC lookup when -Cloud is not specified.
         $DetectedEnvironment = $Cloud
         if (-not $Cloud) {
-            $Oidc = Get-TenantOidc -TenantId $TenantId
+            $Oidc = Get-IRTTenantOidc -TenantId $TenantId
             if ($Oidc) {
                 $DetectedEnvironment = $Oidc.Cloud
             } else {

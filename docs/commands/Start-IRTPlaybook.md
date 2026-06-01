@@ -13,8 +13,8 @@ Runs multiple functions to assist in investigating a user's activity.
 ## SYNTAX
 
 ```
-Start-IRTPlaybook [[-UserObject] <PSObject[]>] [-Ticket <String>] [-NoFolder] [-MaxRunspaces <Int32>]
- [-ProgressAction <ActionPreference>] [-WhatIf] [-Confirm] [<CommonParameters>]
+Start-IRTPlaybook [[-UserObject] <PSObject[]>] [-Ticket <String>] [-NoFolder] [-NoNewTab]
+ [-MaxRunspaces <Int32>] [-ProgressAction <ActionPreference>] [-WhatIf] [-Confirm] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -94,6 +94,21 @@ Accept wildcard characters: False
 Skip creating an investigation output folder.
 Results are still displayed in the console
 but not written to disk.
+
+```yaml
+Type: SwitchParameter
+Parameter Sets: (All)
+Aliases:
+
+Required: False
+Position: Named
+Default value: False
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
+### -NoNewTab
+{{ Fill NoNewTab Description }}
 
 ```yaml
 Type: SwitchParameter
