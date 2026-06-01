@@ -62,6 +62,7 @@ function Start-IRTPlaybook {
 
         [string] $Ticket,
         [switch] $NoFolder,
+        [switch] $NoNewTab,
         [int] $MaxRunspaces = 15
     )
 
@@ -128,6 +129,10 @@ function Start-IRTPlaybook {
                 $DirParams['Confirm'] = $true
             }
             New-IRTInvestigationFolder @DirParams
+        }
+
+        if (-not $NoNewTab) {
+            Open-IRTTab
         }
 
         $WorkingPath = Get-Location
@@ -395,7 +400,7 @@ function Start-IRTPlaybook {
                 )
             }
 
-            @{  Name   = 'Get-IRTEntraSignIn'
+            @{  Name   = 'Get-IRTEntraSignInLog'
                 Script = {
                     param(
                         $WorkingPath,
@@ -405,7 +410,7 @@ function Start-IRTPlaybook {
                         Set-Variable -Scope Global -Name $k -Value $SharedRefs[$k]
                     }
                     Set-Location -Path $WorkingPath
-                    Get-IRTEntraSignIn
+                    Get-IRTEntraSignInLog
                 }
                 Args  = @(
                     $WorkingPath,

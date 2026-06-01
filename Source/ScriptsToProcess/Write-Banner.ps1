@@ -8,7 +8,7 @@
 $BannerVar = Get-Variable -Name 'IRT_Banner' -Scope Global -ErrorAction SilentlyContinue
 if ($null -eq $BannerVar -or $BannerVar.Value -ne $false) {
 
-Write-Host @"
+Write-Host Blue @"
 
 M365IncidentResponseTools
 

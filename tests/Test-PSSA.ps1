@@ -69,6 +69,9 @@ $PerFileSuppressions = @{
     'Source\M365IncidentResponseTools.psd1'             = @('PSUseToExportFieldsInManifest')
     # Format-Tree internal helpers use positional parameters intentionally.
     'Source\Private\Lib\Format-Tree\Format-Tree.ps1'   = @('PSAvoidUsingPositionalParameters')
+    # Build scripts use Write-Host for user-facing output.
+    'Build\PreBuild.ps1'                                = @('PSAvoidUsingWriteHost')
+    'Build\Add-IpAddressConditionalFormattingTemplate.ps1' = @('PSAvoidUsingWriteHost')
 }
 
 # Formatting rules applied by Invoke-Formatter when -AutoFormat is used.
@@ -117,7 +120,7 @@ $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
 $ExcludedFiles = @()
 
 # Folder names to exclude from scanning. Any file under a matching folder is skipped.
-$ExcludedFolders = @()
+$ExcludedFolders = @('.local')
 
 # Merge exclusions from the test orchestrator when called via Tests.ps1.
 if ($Global:IRT_FormattingExclusions) {
@@ -219,11 +222,16 @@ try {
     }
     # Apply per-file rule suppressions defined in $PerFileSuppressions above.
     if ($PerFileSuppressions.Count -gt 0) {
+        $BeforeCount = ($Results | Measure-Object).Count
         $Results = $Results | Where-Object {
             $Rel = [System.IO.Path]::GetRelativePath($Path, $_.ScriptPath)
-            -not ($PerFileSuppressions.ContainsKey($Rel) -and
-                $PerFileSuppressions[$Rel] -contains $_.RuleName)
+            $IsSuppressed = $PerFileSuppressions.ContainsKey($Rel) -and
+                $PerFileSuppressions[$Rel] -contains $_.RuleName
+            -not $IsSuppressed
         }
+        $AfterCount = ($Results | Measure-Object).Count
+        $SuppressedCount = $BeforeCount - $AfterCount
+        Write-Host "Suppressed $SuppressedCount issue(s) via per-file rules" -ForegroundColor Cyan
     }
     $FileCount = ($AllOutput | Where-Object {
             ($_ -is [System.Management.Automation.VerboseRecord]) -and

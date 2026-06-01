@@ -4,12 +4,12 @@ function Get-IRTNonInteractiveSignIn {
     Downloads non-interactive Entra ID sign-in logs for one or more users.
 
     .DESCRIPTION
-    A convenience wrapper around Get-IRTEntraSignIn that sets -NonInteractive automatically.
+    A convenience wrapper around Get-IRTEntraSignInLog that sets -NonInteractive automatically.
     Non-interactive sign-ins include token refresh events, legacy protocol logins, and
     service-to-service calls - often missed during investigations that focus only on
     interactive sign-ins.
 
-    Date range and output behavior are identical to Get-IRTEntraSignIn.
+    Date range and output behavior are identical to Get-IRTEntraSignInLog.
     Falls back to $Global:IRT_UserObjects if no -UserObject is passed.
 
     .PARAMETER UserObject
@@ -78,6 +78,6 @@ function Get-IRTNonInteractiveSignIn {
     process {
 
         # run command
-        Get-IRTEntraSignIn @Params
+        Get-IRTEntraSignInLog @Params
     }
 }

@@ -10,7 +10,8 @@ function Set-IRTConfig {
     .PARAMETER Reset
     Reset config to the template defaults without showing the menu.
     #>
-    [Alias('SetConfig')]
+    [Alias('SetIRTConfig', 'Set-IRTConfigs', 'SetIRTConfigs')]
+    [Alias('Set-Config', 'SetConfig', 'Set-Configs', 'SetConfigs')]
     [CmdletBinding(SupportsShouldProcess)]
     param(
         [switch] $Reset

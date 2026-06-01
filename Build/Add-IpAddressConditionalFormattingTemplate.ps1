@@ -217,4 +217,5 @@ Add-ConditionalFormatting @CFParams
 
 # Save and close
 Close-ExcelPackage -ExcelPackage $package
-Write-Host "Successfully updated IP address conditional formatting in template" -ForegroundColor Green
+$msg = "Successfully updated IP address conditional formatting in template"
+Write-Host $msg -ForegroundColor Green

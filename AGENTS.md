@@ -139,7 +139,6 @@ Do not move on to formatting until all Pester tests are passing.
 .\Tests.ps1 ModuleSyntax
 .\Tests.ps1 NonASCIICharacters
 .\Tests.ps1 FindUnwantedStrings
-.\Tests.ps1 FixmeComments
 .\Tests.ps1 PSSA
 ```
 

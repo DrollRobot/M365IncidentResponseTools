@@ -7196,10 +7196,11 @@ function Copy-ConditionalFormatting {
     Close-ExcelPackage $dst   # caller saves the destination
 
 .NOTES
-    * Relative references inside rule formulas are copied VERBATIM and are NOT re-based to the new
-      location (this mirrors EPPlus, which does not adjust formulas when an address changes). Keep
-      source and destination in the same columns/rows, or use absolute ($) references, to avoid
-      surprises. A warning is emitted when a non-zero offset is applied.
+    * Relative references inside Expression rule formulas (custom formulas) are copied VERBATIM and
+      are NOT re-based to the new location (this mirrors EPPlus, which does not adjust formulas when
+      an address changes). Keep source and destination in the same columns/rows, or use absolute ($)
+      references, to avoid surprises. A warning is emitted when Expression rules are copied with a
+      non-zero offset. Other rule types (text matching, value comparisons, etc.) are unaffected.
     * Colour scales, data bars and icon sets are copied best-effort (value objects + colours).
     * Any rule that cannot be recreated is skipped with a warning; the rest still copy.
 #>
@@ -7355,13 +7356,8 @@ function Copy-ConditionalFormatting {
         $rowOffset = $dstAddr.Start.Row - $sr1
         $colOffset = $dstAddr.Start.Column - $sc1
 
-        if (($rowOffset -ne 0 -or $colOffset -ne 0)) {
-            $Offset = "rows: $rowOffset, cols: $colOffset"
-            $WarnMsg = "Copy-ConditionalFormatting: Applying offset ($Offset). " +
-            'Relative references inside rule formulas are copied ' +
-            'as-is and will NOT be re-based.'
-            Write-Warning $WarnMsg
-        }
+        $hasOffset = ($rowOffset -ne 0 -or $colOffset -ne 0)
+        $hasWarnedAboutFormulas = $false
 
         $cf = $dstSheet.ConditionalFormatting
         $copied = 0
@@ -7385,6 +7381,18 @@ function Copy-ConditionalFormatting {
 
             $newAddrString = $parts -join ' '
             $typeName = $rule.Type.ToString()
+
+            # Only warn about formula offset issues for Expression rules (custom formulas).
+            # Other types like ContainsText, BeginsWith, etc., use auto-generated formulas
+            # that reference the cell being evaluated, so offsets don't affect them.
+            if ($hasOffset -and -not $hasWarnedAboutFormulas -and $typeName -eq 'Expression') {
+                $Offset = "rows: $rowOffset, cols: $colOffset"
+                $WarnMsg = "Copy-ConditionalFormatting: Applying offset ($Offset). " +
+                'Relative references inside Expression rule formulas are copied ' +
+                'as-is and will NOT be re-based.'
+                Write-Warning $WarnMsg
+                $hasWarnedAboutFormulas = $true
+            }
 
             try {
                 $addr = [OfficeOpenXml.ExcelAddress]::new($newAddrString)
@@ -7449,7 +7457,7 @@ function Copy-ConditionalFormatting {
         }
     }
 }
-#EndRegion '.\Private\Utility\Copy-ConditionalFormatting.ps1' 324
+#EndRegion '.\Private\Utility\Copy-ConditionalFormatting.ps1' 332
 #Region '.\Private\Utility\Format-PhoneNumber.ps1' -1
 
 function Format-PhoneNumber {
@@ -7759,6 +7767,7 @@ function Import-ReferenceData {
             ChildPath = 'Data\UALAllOperations.xlsx'
         }
         $AllOperationsPath = Join-Path @AopsJoin
+        $Global:IRT_Config.AllOperationsSheetPath = $AllOperationsPath
     }
     if (Test-Path -LiteralPath $AllOperationsPath) {
         $IeParams = @{
@@ -7796,7 +7805,7 @@ function Import-ReferenceData {
     }
     $Global:IRT_TenantInfoTable = $TenantTable
 }
-#EndRegion '.\Private\Utility\Import-ReferenceData.ps1' 89
+#EndRegion '.\Private\Utility\Import-ReferenceData.ps1' 90
 #Region '.\Private\Utility\Write-IRT.ps1' -1
 
 function Write-IRT {
@@ -8526,7 +8535,7 @@ function Open-IRTTab {
     1.1.0 - Requires Windows Terminal host. Opens without connecting when no
             active session exists.
     #>
-    [Alias('OpenIRTTab', 'Open-Tab', 'OpenTab', 'NewIRTTab', 'New-Tab', 'NewTab','IRTTab')]
+    [Alias('OpenIRTTab', 'Open-Tab', 'OpenTab', 'NewIRTTab', 'New-Tab', 'NewTab', 'IRTTab')]
     [CmdletBinding()]
     [OutputType([void])]
     param(
@@ -8548,7 +8557,7 @@ function Open-IRTTab {
 
         if ($HasSession) {
             $TenantId = $Global:IRT_Session.TenantId
-            $Cloud    = $Global:IRT_Session.Environment
+            $Cloud = $Global:IRT_Session.Environment
             $ClientId = $Global:IRT_Session.ClientId
 
             $ConnectParts = [System.Collections.Generic.List[string]]::new()
@@ -8570,6 +8579,7 @@ function Open-IRTTab {
         $WtArgs = @(
             '--window', '0',
             'new-tab',
+            '--startingDirectory', $PWD.Path,
             '--no-focus',
             '--title', $Title,
             '--',
@@ -8578,7 +8588,7 @@ function Open-IRTTab {
         & wt $WtArgs
     }
 }
-#EndRegion '.\Public\Connect\Open-IRTTab.ps1' 94
+#EndRegion '.\Public\Connect\Open-IRTTab.ps1' 95
 #Region '.\Public\Connect\Test-IRTConnection.ps1' -1
 
 function Test-IRTConnection {
@@ -9830,12 +9840,12 @@ function Get-IRTNonInteractiveSignIn {
     Downloads non-interactive Entra ID sign-in logs for one or more users.
 
     .DESCRIPTION
-    A convenience wrapper around Get-IRTEntraSignIn that sets -NonInteractive automatically.
+    A convenience wrapper around Get-IRTEntraSignInLog that sets -NonInteractive automatically.
     Non-interactive sign-ins include token refresh events, legacy protocol logins, and
     service-to-service calls - often missed during investigations that focus only on
     interactive sign-ins.
 
-    Date range and output behavior are identical to Get-IRTEntraSignIn.
+    Date range and output behavior are identical to Get-IRTEntraSignInLog.
     Falls back to $Global:IRT_UserObjects if no -UserObject is passed.
 
     .PARAMETER UserObject
@@ -9904,7 +9914,7 @@ function Get-IRTNonInteractiveSignIn {
     process {
 
         # run command
-        Get-IRTEntraSignIn @Params
+        Get-IRTEntraSignInLog @Params
     }
 }
 #EndRegion '.\Public\Entra\Get-IRTNonInteractiveSignIn.ps1' 84
@@ -19204,7 +19214,8 @@ function Set-IRTConfig {
     .PARAMETER Reset
     Reset config to the template defaults without showing the menu.
     #>
-    [Alias('SetConfig')]
+    [Alias('SetIRTConfig', 'Set-IRTConfigs', 'SetIRTConfigs')]
+    [Alias('Set-Config', 'SetConfig', 'Set-Configs', 'SetConfigs')]
     [CmdletBinding(SupportsShouldProcess)]
     param(
         [switch] $Reset
@@ -19473,7 +19484,7 @@ function Set-IRTConfig {
         }
     }
 }
-#EndRegion '.\Public\Utility\Set-IRTConfig.ps1' 282
+#EndRegion '.\Public\Utility\Set-IRTConfig.ps1' 283
 #Region '.\Public\Utility\Start-IRTPlaybook.ps1' -1
 
 function Start-IRTPlaybook {
@@ -19540,6 +19551,7 @@ function Start-IRTPlaybook {
 
         [string] $Ticket,
         [switch] $NoFolder,
+        [switch] $NoNewTab,
         [int] $MaxRunspaces = 15
     )
 
@@ -19606,6 +19618,10 @@ function Start-IRTPlaybook {
                 $DirParams['Confirm'] = $true
             }
             New-IRTInvestigationFolder @DirParams
+        }
+
+        if (-not $NoNewTab) {
+            Open-IRTTab
         }
 
         $WorkingPath = Get-Location
@@ -19873,7 +19889,7 @@ function Start-IRTPlaybook {
                 )
             }
 
-            @{  Name   = 'Get-IRTEntraSignIn'
+            @{  Name   = 'Get-IRTEntraSignInLog'
                 Script = {
                     param(
                         $WorkingPath,
@@ -19883,7 +19899,7 @@ function Start-IRTPlaybook {
                         Set-Variable -Scope Global -Name $k -Value $SharedRefs[$k]
                     }
                     Set-Location -Path $WorkingPath
-                    Get-IRTEntraSignIn
+                    Get-IRTEntraSignInLog
                 }
                 Args  = @(
                     $WorkingPath,
@@ -20121,7 +20137,7 @@ function Start-IRTPlaybook {
         Write-Verbose "${FunctionName}: Playbook complete. Total elapsed: $TotalElapsed"
     }
 }
-#EndRegion '.\Public\Utility\Start-IRTPlaybook.ps1' 646
+#EndRegion '.\Public\Utility\Start-IRTPlaybook.ps1' 651
 #Region '.\Suffix.ps1' -1
 
 # ModuleBuilder Notes: Code in this file will be appended to the built .psm1 file.

@@ -39,7 +39,7 @@ function Open-IRTTab {
     1.1.0 - Requires Windows Terminal host. Opens without connecting when no
             active session exists.
     #>
-    [Alias('OpenIRTTab', 'Open-Tab', 'OpenTab', 'NewIRTTab', 'New-Tab', 'NewTab','IRTTab')]
+    [Alias('OpenIRTTab', 'Open-Tab', 'OpenTab', 'NewIRTTab', 'New-Tab', 'NewTab', 'IRTTab')]
     [CmdletBinding()]
     [OutputType([void])]
     param(
@@ -61,7 +61,7 @@ function Open-IRTTab {
 
         if ($HasSession) {
             $TenantId = $Global:IRT_Session.TenantId
-            $Cloud    = $Global:IRT_Session.Environment
+            $Cloud = $Global:IRT_Session.Environment
             $ClientId = $Global:IRT_Session.ClientId
 
             $ConnectParts = [System.Collections.Generic.List[string]]::new()
@@ -83,6 +83,7 @@ function Open-IRTTab {
         $WtArgs = @(
             '--window', '0',
             'new-tab',
+            '--startingDirectory', $PWD.Path,
             '--no-focus',
             '--title', $Title,
             '--',

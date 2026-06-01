@@ -467,8 +467,8 @@ InModuleScope M365IncidentResponseTools {
                     $r = $ws.ConditionalFormatting.AddContainsText('A1:A100')
                     $r.Text = 'test'
                     # Set BackgroundColor but leave PatternType at default (None).
-                    $r.Style.Fill.BackgroundColor.Color = `
-                        [System.Drawing.Color]::FromArgb(255, 173, 216, 230)
+                    $r.Style.Fill.BackgroundColor.Color = (
+                        [System.Drawing.Color]::FromArgb(255, 173, 216, 230))
                 }
 
                 # Destination for fill copy.
@@ -529,10 +529,10 @@ InModuleScope M365IncidentResponseTools {
                     $r = $ws.ConditionalFormatting.AddContainsText('A1:A50')
                     $r.Text = 'data'
                     # Set both PatternColor and BackgroundColor.
-                    $r.Style.Fill.PatternColor.Color = `
-                        [System.Drawing.Color]::FromArgb(255, 255, 255, 0)
-                    $r.Style.Fill.BackgroundColor.Color = `
-                        [System.Drawing.Color]::FromArgb(255, 0, 128, 0)
+                    $r.Style.Fill.PatternColor.Color = (
+                        [System.Drawing.Color]::FromArgb(255, 255, 255, 0))
+                    $r.Style.Fill.BackgroundColor.Color = (
+                        [System.Drawing.Color]::FromArgb(255, 0, 128, 0))
                 }
 
                 $script:PatDstPath = New-TempXlsxPath
@@ -586,19 +586,19 @@ InModuleScope M365IncidentResponseTools {
             #>
 
             BeforeAll {
-                $templatePath = Join-Path -Path $PSScriptRoot -ChildPath `
-                    '..\Data\IpAddressConditionalFormattingTemplate.xlsx'
+                $templatePath = Join-Path -Path $PSScriptRoot -ChildPath (
+                    '..\Data\IpAddressConditionalFormattingTemplate.xlsx')
 
                 if (-not (Test-Path -LiteralPath $templatePath)) {
-                    $templatePath = Join-Path -Path $PSScriptRoot -ChildPath `
-                        '..\Source\Data\IpAddressConditionalFormattingTemplate.xlsx'
+                    $templatePath = Join-Path -Path $PSScriptRoot -ChildPath (
+                        '..\Source\Data\IpAddressConditionalFormattingTemplate.xlsx')
                 }
 
                 $script:TemplateExists = Test-Path -LiteralPath $templatePath
                 $script:TemplatePath = $templatePath
             }
 
-            It 'the IpAddressConditionalFormattingTemplate.xlsx file exists' -Skip:(-not $script:TemplateExists) {
+            It 'the IP formatting template file exists' -Skip:(-not $script:TemplateExists) {
                 $script:TemplateExists | Should -BeTrue
             }
 

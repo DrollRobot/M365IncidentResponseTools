@@ -49,6 +49,7 @@ function Import-ReferenceData {
             ChildPath = 'Data\UALAllOperations.xlsx'
         }
         $AllOperationsPath = Join-Path @AopsJoin
+        $Global:IRT_Config.AllOperationsSheetPath = $AllOperationsPath
     }
     if (Test-Path -LiteralPath $AllOperationsPath) {
         $IeParams = @{

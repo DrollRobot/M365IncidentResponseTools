@@ -68,10 +68,11 @@ function Copy-ConditionalFormatting {
     Close-ExcelPackage $dst   # caller saves the destination
 
 .NOTES
-    * Relative references inside rule formulas are copied VERBATIM and are NOT re-based to the new
-      location (this mirrors EPPlus, which does not adjust formulas when an address changes). Keep
-      source and destination in the same columns/rows, or use absolute ($) references, to avoid
-      surprises. A warning is emitted when a non-zero offset is applied.
+    * Relative references inside Expression rule formulas (custom formulas) are copied VERBATIM and
+      are NOT re-based to the new location (this mirrors EPPlus, which does not adjust formulas when
+      an address changes). Keep source and destination in the same columns/rows, or use absolute ($)
+      references, to avoid surprises. A warning is emitted when Expression rules are copied with a
+      non-zero offset. Other rule types (text matching, value comparisons, etc.) are unaffected.
     * Colour scales, data bars and icon sets are copied best-effort (value objects + colours).
     * Any rule that cannot be recreated is skipped with a warning; the rest still copy.
 #>
@@ -227,13 +228,8 @@ function Copy-ConditionalFormatting {
         $rowOffset = $dstAddr.Start.Row - $sr1
         $colOffset = $dstAddr.Start.Column - $sc1
 
-        if (($rowOffset -ne 0 -or $colOffset -ne 0)) {
-            $Offset = "rows: $rowOffset, cols: $colOffset"
-            $WarnMsg = "Copy-ConditionalFormatting: Applying offset ($Offset). " +
-            'Relative references inside rule formulas are copied ' +
-            'as-is and will NOT be re-based.'
-            Write-Warning $WarnMsg
-        }
+        $hasOffset = ($rowOffset -ne 0 -or $colOffset -ne 0)
+        $hasWarnedAboutFormulas = $false
 
         $cf = $dstSheet.ConditionalFormatting
         $copied = 0
@@ -257,6 +253,18 @@ function Copy-ConditionalFormatting {
 
             $newAddrString = $parts -join ' '
             $typeName = $rule.Type.ToString()
+
+            # Only warn about formula offset issues for Expression rules (custom formulas).
+            # Other types like ContainsText, BeginsWith, etc., use auto-generated formulas
+            # that reference the cell being evaluated, so offsets don't affect them.
+            if ($hasOffset -and -not $hasWarnedAboutFormulas -and $typeName -eq 'Expression') {
+                $Offset = "rows: $rowOffset, cols: $colOffset"
+                $WarnMsg = "Copy-ConditionalFormatting: Applying offset ($Offset). " +
+                'Relative references inside Expression rule formulas are copied ' +
+                'as-is and will NOT be re-based.'
+                Write-Warning $WarnMsg
+                $hasWarnedAboutFormulas = $true
+            }
 
             try {
                 $addr = [OfficeOpenXml.ExcelAddress]::new($newAddrString)
