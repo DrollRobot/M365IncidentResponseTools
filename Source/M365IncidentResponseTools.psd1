@@ -101,6 +101,9 @@
     # Scripts are dot-sourced dynamically in M365IncidentResponseTools.psm1
     # NestedModules     = @()
 
+    # ModuleBuilder Notes: FunctionsToExport must remain '*' in the source manifest.
+    # Build-Module replaces it at build time with the actual list of public function
+    # names it discovers via the PublicFilter pattern in Build.psd1.
     # Functions to export from this module, for best performance, do not use wildcards and
     # do not delete the entry, use an empty array if there are no functions to export.
     FunctionsToExport = '*'
@@ -112,6 +115,9 @@
     # Variables to export from this module
     VariablesToExport = @()
 
+    # ModuleBuilder Notes: AliasesToExport must remain '@()' in the source manifest.
+    # Build-Module replaces it with the aliases it discovers from [Alias()] attributes
+    # on public functions in the Public/ directory.
     # Aliases to export from this module, for best performance, do not use wildcards and
     # do not delete the entry, use an empty array if there are no aliases to export.
     AliasesToExport   = @()

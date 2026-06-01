@@ -11,30 +11,15 @@ M365IncidentResponseTools/
 │   ├── M365IncidentResponseTools.psd1    # Source manifest. The metadata source of truth.
 │   ├── Build.psd1                        # ModuleBuilder config.
 │   ├── Public/                           # All exported functions, one function per file.
-│   │   ├── Connect/
+│   │   ├── Connect/                      # separate folders for different categories
 │   │   ├── Device/
-│   │   ├── Entra/
-│   │   ├── Mailbox/
-│   │   ├── MessageTrace/
-│   │   ├── OnPremAd/
-│   │   ├── Role/
-│   │   ├── ServicePrincipal/
-│   │   ├── UnifiedAuditLog/
-│   │   ├── User/
-│   │   └── Utility/
+│   │   ├── ...
+│   │   └── Utility/                      # misc functions that don't fit into other categories
 │   ├── Private/                          # Internal helpers, not exported.
 │   │   ├── Connect/
-│   │   ├── Device/
-│   │   ├── Entra/
-│   │   ├── Graph/
-│   │   ├── Lib/
-│   │   ├── MessageTrace/
-│   │   ├── OnPremAd/
-│   │   ├── Role/
-│   │   ├── ServicePrincipal/
-│   │   ├── UnifiedAuditLog/
-│   │   ├── User/
-│   │   └── Utility/
+│   │   ├── ...
+│   │   ├── Lib/                          # general helpers, not IRT specific
+│   │   └── Utility/                      # misc IRT specific helpers
 │   ├── Classes/                          # Optional, load-order-sensitive.
 │   ├── ScriptsToProcess/                 # Module initialization scripts.
 │   └── Files/
@@ -129,42 +114,52 @@ You can also apply the tag at the `It` level if only some cases in a `Describe` 
 
 After making changes, run the test suite from the repo root:
 
+**First: Pester tests**
 ```powershell
-# first: invoke offline pester tests for rapid feedback
-.\tests.ps1 -Offline -Agent
+# invoke offline pester tests for rapid feedback
+.\Tests.ps1 Offline
 
-# second: run online pester tests, if changes touch graph/exchange/ipps code
-.\tests.ps1 -Online -CachedAuth -Agent
-# (if changes touched interactive auth code, don't use -CachedAuth)
-.\tests.ps1 -Online -Agent
-
-# third: only after all pester tests are passing, run this to autoformat, lint, apply custom formatting checks
-.\tests.ps1 -Formatting -Agent
-
-# if there are formatting issues found, apply fixes and use the individual scripts to verify.
-
-# fourth: after all formatting fixes, verify pester tests still pass
-.\tests.ps1 -Offline -Online -CachedAuth -Agent
+# run online pester tests, if changes touch graph/exchange/ipps code
+.\Tests.ps1 Online
+# (if changes touched interactive auth code, use -InteractiveAuth to force a fresh sign-in)
+.\Tests.ps1 Online -InteractiveAuth
 ```
+Do not move on to formatting until all Pester tests are passing.
+
+**Second: Autoformatting and Formatting tests**
+**Always fix every formatting finding immediately. Do not ask the user if they should be fixed.**
+```powershell
+# run AutoFormat first to apply trailing-whitespace fixes and PSSA auto-corrections
+.\Tests.ps1 AutoFormat
+
+# run the following tests one by one, fixing any findings before moving on to the next
+.\Tests.ps1 LineLength
+.\Tests.ps1 BacktickContinuation
+.\Tests.ps1 FormatOperator
+.\Tests.ps1 JoinPath
+.\Tests.ps1 ModuleSyntax
+.\Tests.ps1 NonASCIICharacters
+.\Tests.ps1 FindUnwantedStrings
+.\Tests.ps1 FixmeComments
+.\Tests.ps1 PSSA
+```
+
 
 
 ## Before pushing a new tag/release
 
-### Build
-
+**Build**
 ```powershell
 .\build.ps1 -BuildToRoot
 ```
 
-### Tests
-
+**Tests**
 Run all tests again on the built module
 ```powershell
-.\tests.ps1 -Offline -Online -CachedAuth -Agent -Built
+.\Tests.ps1 Offline Online -Built
 ```
 
-### Update docs
-
+**Update docs**
 ```powershell
 .\docs.ps1
 

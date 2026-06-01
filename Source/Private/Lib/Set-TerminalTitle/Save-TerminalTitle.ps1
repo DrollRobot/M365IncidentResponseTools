@@ -1,4 +1,6 @@
 function Save-TerminalTitle {
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '',
+        Justification = 'Intentional console status message for interactive use.')]
     [CmdletBinding()]
     Param(
         [switch] $Quiet

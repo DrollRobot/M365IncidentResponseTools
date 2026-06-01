@@ -50,12 +50,12 @@ function Out-Print {
             return $true
         }
         foreach ($Key in ($Value.Keys | Sort-Object)) {
-            if (Test-HasVisible $Value[$Key] ($CurrentDepth + 1)) {
+            if (Test-HasVisible $Value[$Key] $ChildDepth) {
                 if (-not $Printed) {
                     Write-NameValue $Name '' $CurrentDepth $IndentSize
                     $Printed = $true
                 }
-                $null = Out-Print ("[$Key]") $Value[$Key] ($CurrentDepth + 1)
+                $null = Out-Print -Name "[$Key]" -Value $Value[$Key] -CurrentDepth $ChildDepth
             }
         }
         return $Printed
@@ -79,7 +79,7 @@ function Out-Print {
         }
         Write-NameValue $Name "[$($Visible.Count)]" $CurrentDepth $IndentSize
         for ($i = 0; $i -lt $Visible.Count; $i++) {
-            $null = Out-Print "[$i]" $Visible[$i] ($CurrentDepth + 1)
+            $null = Out-Print -Name "[$i]" -Value $Visible[$i] -CurrentDepth ($CurrentDepth + 1)
         }
         return $true
     }
@@ -95,6 +95,8 @@ function Out-Print {
     if ($Pairs.Count -eq 0) { return $false }
 
     Write-NameValue $Name '' $CurrentDepth $IndentSize
-    foreach ($P in $Pairs) { $null = Out-Print $P[0] $P[1] ($CurrentDepth + 1) }
+    foreach ($P in $Pairs) {
+        $null = Out-Print -Name $P[0] -Value $P[1] -CurrentDepth ($CurrentDepth + 1)
+    }
     return $true
 }

@@ -1,11 +1,15 @@
 @{
-    # -------------------------------------------------------------------------
-    # ModuleBuilder configuration (build.psd1)
+    # =========================================================================
+    # ModuleBuilder Notes -- Build.psd1
     #
-    # Lives in source/ next to the module manifest. Build-Module reads this
-    # automatically when run with the manifest as -SourcePath. Every key here
-    # is just a default override for a Build-Module parameter.
-    # -------------------------------------------------------------------------
+    # This file lives in Source/ next to the module manifest. Build-Module
+    # reads it automatically when pointed at the manifest via -SourcePath.
+    # Every key here is a default override for a Build-Module parameter.
+    #
+    # Typical invocation:
+    #   Build-Module -SourcePath ./Source/<ModuleName>.psd1
+    #   (or just: Build-Module  -- if run from the Source/ folder)
+    # =========================================================================
 
     Path = 'M365IncidentResponseTools.psd1'
 
@@ -19,13 +23,13 @@
 
     CopyPaths = @(
         './ScriptsToProcess'
-        './data'
+        './Data'
     )
 
     # OutputDirectory          = '../output'
     # VersionedOutputDirectory = $true
 
     # Optional: text injected at the very top / bottom of the generated .psm1.
-    Prefix = 'prefix.ps1'
-    Suffix = 'suffix.ps1'
+    Prefix = 'Prefix.ps1'
+    Suffix = 'Suffix.ps1'
 }

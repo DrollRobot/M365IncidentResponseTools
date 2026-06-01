@@ -6,80 +6,97 @@
     Runs selected test categories for M365IncidentResponseTools.
 
 .DESCRIPTION
-    Runs each test category that is explicitly requested via a switch parameter.
-    Nothing runs by default -- you must pass at least one flag.
+    Selects and runs one or more test categories by name. Nothing runs by
+    default -- you must pass at least one value.
 
-.PARAMETER Offline
-    Run Pester tests that do not require connectivity.
+    Individual formatting checks (LineLength, PSSA, etc.) run in isolation,
+    with the same orchestrator setup (module load, exclusion globals) as a
+    full Formatting run.
 
-.PARAMETER Formatting
-    Run all Format-*.ps1 scripts, custom Test-*.ps1 scripts (excluding Test-PSSA),
-    and Test-PSSA.ps1 (which applies -AutoFormat then reports remaining issues).
-    This step takes 2-3 minutes to load PSScriptAnalyzer; run it after all Pester
-    tests are passing.
+.PARAMETER Test
+    One or more test categories to run. Accepted values:
 
-.PARAMETER Online
-    Run Pester tests tagged 'Online'. These tests expect an active connection to
-    Microsoft Graph, Exchange Online, and/or IPPS. Connect-IRT is called
-    automatically using $env:IRT_TEST_TENANT_ID from tests/.env.ps1.
+      Offline              -- Pester tests that do not require connectivity.
+      Online               -- Pester tests tagged Online. Requires an active
+                             Microsoft 365 session; Connect-IRT is called
+                             automatically.
+      AutoFormat           -- Trailing-whitespace fix followed by PSScriptAnalyzer
+                             auto-fix and format; suppresses lint findings output.
+      LineLength           -- Check lines exceeding 100 characters.
+      BacktickContinuation -- Check for backtick line-continuation escapes.
+      FormatOperator       -- Check for -f string format operator usage.
+      JoinPath             -- Check for path-building anti-patterns.
+      ModuleSyntax         -- Parse all files for syntax errors.
+      NonASCIICharacters   -- Check for non-ASCII characters.
+      FindUnwantedStrings  -- Scan for user-defined unwanted patterns.
+      FixmeComments        -- Report FIXME comments.
+      PSSA                 -- PSScriptAnalyzer detection only; reports issues without
+                             modifying any files.
 
-.PARAMETER CachedAuth
-    Used with -Online. When set, Connect-IRT runs in silent-only mode: MSAL
+      Formatting           -- All formatting checks in order: auto-fixers,
+                             linters, then PSSA. Equivalent to passing every
+                             individual formatting value at once. Intended for Human use. Agents should run individual checks.
+      TrailingWhitespace   -- Remove trailing whitespace (auto-fixes in place). Included in AutoFormat.
+
+
+.PARAMETER InteractiveAuth
+    Used with Online. Deletes the test token cache and prompts for interactive
+    sign-in, then immediately reconnects silently to verify the cache
+    round-trip.
+
+    When omitted (default), Connect-IRT runs in silent-only mode: MSAL
     attempts a token refresh from the test cache and fails immediately if no
-    cached credentials exist (no browser prompt). Intended for automated agent
-    runs where interactive auth is not possible.
+    cached credentials exist. This is the default for non-interactive runs.
 
-    When omitted, the test token cache is deleted, Connect-IRT prompts once for
-    interactive sign-in, then immediately reconnects silently to verify the full
-    cache round-trip -- all in the same run.
-
-.PARAMETER Agent
-    Suppresses human-only test scripts (e.g. Test-FixmeComments.ps1) when running
-    -Formatting. Pass this flag when running from an automated agent or CI context
-    to avoid spending tokens on informational output that is only useful to humans.
+    Requires Online; rejected without it.
 
 .PARAMETER Built
-    Load the module from the built artifact at the repo root (M365IncidentResponseTools.psd1)
-    instead of the source manifest. Use this to test the compiled output after running a build.
+    Load the module from the built artifact at the repo root instead of the
+    source manifest. Only valid with Offline and Online.
 
 .EXAMPLE
-    .\ tests.ps1 -Offline
+    .\Tests.ps1 Offline
     Runs Pester offline tests only.
 
 .EXAMPLE
-    .\ tests.ps1 -Offline -Online
+    .\Tests.ps1 Offline Online
     Runs all Pester tests (offline and online).
 
 .EXAMPLE
-    .\ tests.ps1 -Formatting
-    Runs formatting checks and auto-fixes.
+    .\Tests.ps1 Formatting
+    Runs all formatting checks and auto-fixes.
 
 .EXAMPLE
-    .\ tests.ps1 -Online
-    Runs online tests. Deletes the test token cache and prompts for sign-in.
+    .\Tests.ps1 LineLength JoinPath
+    Runs only the line-length and path-building checks.
 
 .EXAMPLE
-    .\ tests.ps1 -Online -CachedAuth
-    Runs online tests silently using cached credentials (no browser prompt).
+    .\Tests.ps1 AutoFormat
+    Fixes trailing whitespace then runs PSSA auto-fix and formatting; suppresses lint findings.
+
+.EXAMPLE
+    .\Tests.ps1 Online -InteractiveAuth
+    Runs online tests with interactive sign-in.
+
+.EXAMPLE
+    .\Tests.ps1 Offline Online -Built
+    Runs Pester tests against the compiled module artifact.
 #>
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '')]
 [CmdletBinding()]
 param(
-    [Parameter()]
-    [switch] $Offline,
+    [Parameter(Position = 0, Mandatory)]
+    [ValidateSet(
+        'Offline', 'Online', 'Formatting',
+        'LineLength', 'BacktickContinuation', 'FormatOperator', 'JoinPath',
+        'ModuleSyntax', 'NonASCIICharacters', 'TrailingWhitespace',
+        'FindUnwantedStrings', 'FixmeComments', 'PSSA', 'AutoFormat'
+    )]
+    [string[]] $Test,
 
     [Parameter()]
-    [switch] $Formatting,
-
-    [Parameter()]
-    [switch] $Online,
-
-    [Parameter()]
-    [switch] $CachedAuth,
-
-    [Parameter()]
-    [switch] $Agent,
+    [switch] $InteractiveAuth,
 
     [Parameter()]
     [switch] $Built
@@ -88,14 +105,20 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-# Scripts that produce informational output intended for human review only.
-# They are excluded when -Agent is passed.
-$HumanOnlyScripts = @('Test-FixmeComments')
+if ($InteractiveAuth -and 'Online' -notin $Test) {
+    Write-Host '-InteractiveAuth requires -Test Online.' -ForegroundColor Yellow
+    exit 1
+}
 
-if (-not ($Offline -or $Formatting -or $Online)) {
-    $Msg = "No test categories selected. Pass -Offline, -Formatting, or -Online."
-    Write-Host $Msg -ForegroundColor Yellow
-    exit 0
+$FormattingOnlyValues = @(
+    'Formatting', 'LineLength', 'BacktickContinuation', 'FormatOperator', 'JoinPath',
+    'ModuleSyntax', 'NonASCIICharacters', 'TrailingWhitespace',
+    'FindUnwantedStrings', 'FixmeComments', 'PSSA', 'AutoFormat'
+)
+if ($Built -and ($Test | Where-Object { $_ -in $FormattingOnlyValues })) {
+    $BadList = ($Test | Where-Object { $_ -in $FormattingOnlyValues }) -join ', '
+    Write-Host "-Built cannot be used with: $BadList" -ForegroundColor Yellow
+    exit 1
 }
 
 # Import the module under test so Pester tests and PSScriptAnalyzer both have
@@ -121,7 +144,7 @@ if (Test-Path $ManifestPath) {
     $IrtConfigVar = Get-Variable -Name 'IRT_Config' -Scope Global -ErrorAction SilentlyContinue
     if (-not $IrtConfigVar -or -not $IrtConfigVar.Value) {
         $ErrMsg = '$Global:IRT_Config not found. ' +
-            "If you've never run the module before, try importing to create the user config file."
+        "If you've never run the module before, try importing to create the user config file."
         Write-Error $ErrMsg
         exit 1
     }
@@ -138,14 +161,67 @@ else {
 $TestsFolder = Join-Path -Path $PSScriptRoot -ChildPath 'tests'
 $LocalTestsFolder = Join-Path -Path $PSScriptRoot -ChildPath '.local\tests'
 
+# Compute build-artifact exclusions once; formatting scripts merge these at runtime.
+# CopyPaths in Build.psd1 land at the repo root after a build, alongside the built psm1/psd1.
+$BuildPsd1Path = Join-Path -Path $PSScriptRoot -ChildPath 'source\Build.psd1'
+$BuildConfig = Import-PowerShellDataFile -Path $BuildPsd1Path
+$CopiedFolderNames = @($BuildConfig.CopyPaths | ForEach-Object { Split-Path -Path $_ -Leaf })
+$Global:IRT_FormattingExclusions = @{
+    ExcludeFiles   = @(
+        "$ModuleName.psd1"
+        "$ModuleName.psm1"
+    )
+    ExcludeFolders = $CopiedFolderNames
+}
+
+# Map each individual formatting test name to its script file.
+$FormattingScriptMap = @{
+    'TrailingWhitespace'   = 'Format-TrailingWhitespace.ps1'
+    'BacktickContinuation' = 'Test-BacktickContinuation.ps1'
+    'FindUnwantedStrings'  = 'Test-FindUnwantedStrings.ps1'
+    'FixmeComments'        = 'Test-FixmeComments.ps1'
+    'FormatOperator'       = 'Test-FormatOperator.ps1'
+    'JoinPath'             = 'Test-JoinPath.ps1'
+    'LineLength'           = 'Test-LineLength.ps1'
+    'ModuleSyntax'         = 'Test-ModuleSyntax.ps1'
+    'NonASCIICharacters'   = 'Test-NonASCIICharacters.ps1'
+    'PSSA'                 = 'Test-PSSA.ps1'
+    'AutoFormat'           = 'Test-PSSA.ps1'
+}
+
+$IndividualTests = @($Test | Where-Object { $FormattingScriptMap.ContainsKey($_) })
+
 # --- Offline ---
-if ($Offline) {
+if ('Offline' -in $Test) {
     Write-Host "`n=== Invoke-Pester (Offline) ===" -ForegroundColor Cyan
     Invoke-Pester -Path $TestsFolder -ExcludeTagFilter 'Online'
 }
 
+# --- Individual formatting tests ---
+foreach ($IndividualTest in $IndividualTests) {
+    foreach ($ScriptsDir in @($TestsFolder, $LocalTestsFolder)) {
+        $ScriptPath = Join-Path -Path $ScriptsDir -ChildPath $FormattingScriptMap[$IndividualTest]
+        if (-not (Test-Path $ScriptPath)) { continue }
+        $RelPath = [System.IO.Path]::GetRelativePath($PSScriptRoot, $ScriptPath)
+        Write-Host "`n=== $RelPath ===" -ForegroundColor Cyan
+        switch ($IndividualTest) {
+            'PSSA'       { & $ScriptPath -Path $PSScriptRoot -Recurse }
+            'AutoFormat' {
+                $TwsPath = Join-Path -Path $ScriptsDir -ChildPath 'Format-TrailingWhitespace.ps1'
+                if (Test-Path $TwsPath) {
+                    $TwsRel = [System.IO.Path]::GetRelativePath($PSScriptRoot, $TwsPath)
+                    Write-Host "`n=== $TwsRel ===" -ForegroundColor Cyan
+                    & $TwsPath -Path $PSScriptRoot -Recurse
+                }
+                & $ScriptPath -Path $PSScriptRoot -Recurse -AutoFormat -Quiet
+            }
+            default      { & $ScriptPath -Path $PSScriptRoot -Recurse }
+        }
+    }
+}
+
 # --- Formatting ---
-if ($Formatting) {
+if ('Formatting' -in $Test) {
 
     # collect all Format-*.ps1 scripts from tests/ and .local/tests/
     $FormatScripts = [System.Collections.Generic.List[System.IO.FileInfo]](
@@ -171,8 +247,7 @@ if ($Formatting) {
         Get-ChildItem -Path $TestsFolder -Filter 'Test-*.ps1' |
             Where-Object {
                 $_.BaseName -ne 'Test-PSSA' -and
-                $_.Name -notlike '*.Tests.ps1' -and
-                -not ($Agent -and $HumanOnlyScripts -contains $_.BaseName)
+                $_.Name -notlike '*.Tests.ps1'
             }
     )
     if (Test-Path $LocalTestsFolder) {
@@ -195,7 +270,7 @@ if ($Formatting) {
 }
 
 # --- Online ---
-if ($Online) {
+if ('Online' -in $Test) {
     # Derive the test cache path alongside the primary cache.
     $PrimaryCache = $Global:IRT_Config.MsalCachePath
     $CacheParentDir = Split-Path $PrimaryCache -Parent
@@ -214,10 +289,7 @@ if ($Online) {
         Write-Host '         EnableTokenCache has been forced on for this run.' -ForegroundColor Red
     }
 
-    if ($CachedAuth) {
-        $env:IRT_TEST_SILENT_AUTH = '1'
-    }
-    else {
+    if ($InteractiveAuth) {
         $env:IRT_TEST_SILENT_AUTH = '0'
         if (Test-Path $TestCachePath) {
             Remove-Item -Path $TestCachePath -Force
@@ -225,6 +297,9 @@ if ($Online) {
             $Msg = '  Deleted existing test token cache. Interactive sign-in will be required.'
             Write-Host $Msg -ForegroundColor Cyan
         }
+    }
+    else {
+        $env:IRT_TEST_SILENT_AUTH = '1'
     }
 
     # Pass 1: Connect-IRT.Tests.ps1 runs first. Its BeforeAll genuinely tests

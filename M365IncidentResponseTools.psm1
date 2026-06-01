@@ -1,4 +1,4 @@
-﻿#Region '.\prefix.ps1' -1
+#Region '.\prefix.ps1' -1
 
 #EndRegion '.\prefix.ps1' 1
 #Region '.\Private\Connect\Connect-IRTExchange.ps1' -1
@@ -11699,7 +11699,7 @@ function Get-IRTInboxRule {
                     Add-ConditionalFormatting @CFParams
 
                     $DescRange = "${DescriptionColumn}${TableStartRow}" +
-                        ":${DescriptionColumn}${EndRow}"
+                    ":${DescriptionColumn}${EndRow}"
 
                     # if description column contains text, make background red
                     $Strings = @(
@@ -11746,51 +11746,51 @@ function Get-IRTInboxRule {
                     }
                     foreach ($ColName in $ColumnWidths.Keys) {
                         $Col = ($Worksheet.Tables[0].Columns |
-                            Where-Object { $_.Name -eq $ColName }).Id
-                        if ($Col) { $Worksheet.Column($Col).Width = $ColumnWidths[$ColName] }
-                    }
+                                Where-Object { $_.Name -eq $ColName }).Id
+                if ($Col) { $Worksheet.Column($Col).Width = $ColumnWidths[$ColName] }
+            }
 
-                    #region FORMATTING
+            #region FORMATTING
 
-                    # set text wrapping in description column
-                    $WrappingParams = @{
-                        Worksheet = $Worksheet
-                        Range     = $DescRange
-                        WrapText  = $true
-                    }
-                    Set-ExcelRange @WrappingParams
+            # set text wrapping in description column
+            $WrappingParams = @{
+                Worksheet = $Worksheet
+                Range     = $DescRange
+                WrapText  = $true
+            }
+            Set-ExcelRange @WrappingParams
 
-                    # set font and size
-                    $SetParams = @{
-                        Worksheet = $Worksheet
-                        Range     = "${SheetStartColumn}${SheetStartRow}:${EndColumn}${EndRow}"
-                        FontName  = $Font
-                    }
-                    Set-ExcelRange @SetParams
+            # set font and size
+            $SetParams = @{
+                Worksheet = $Worksheet
+                Range     = "${SheetStartColumn}${SheetStartRow}:${EndColumn}${EndRow}"
+                FontName  = $Font
+            }
+            Set-ExcelRange @SetParams
 
-                    # add left side border
-                    $BorderParams = @{
-                        Worksheet = $Worksheet
-                        Range = "${TableStartColumn}${TableStartRow}:${EndColumn}${EndRow}"
-                        BorderLeft = 'Thin'
-                        BorderColor = 'Black'
-                    }
-                    Set-ExcelRange @BorderParams
+            # add left side border
+            $BorderParams = @{
+                Worksheet = $Worksheet
+                Range = "${TableStartColumn}${TableStartRow}:${EndColumn}${EndRow}"
+                BorderLeft = 'Thin'
+                BorderColor = 'Black'
+            }
+            Set-ExcelRange @BorderParams
 
-                    #region OUTPUT
+            #region OUTPUT
 
-                    # save and close
-                    Write-IRT "Exporting to: ${ExcelOutputPath}"
-                    if ( $Open ) {
-                        Write-IRT "Opening Excel."
-                        $Workbook | Close-ExcelPackage -Show
-                    }
-                    else {
-                        $Workbook | Close-ExcelPackage
-                    }
-                }
+            # save and close
+            Write-IRT "Exporting to: ${ExcelOutputPath}"
+            if ( $Open ) {
+                Write-IRT "Opening Excel."
+                $Workbook | Close-ExcelPackage -Show
+            }
+            else {
+                $Workbook | Close-ExcelPackage
             }
         }
+    }
+}
 #EndRegion '.\Public\Mailbox\Get-IRTInboxRule.ps1' 312
 #Region '.\Public\Mailbox\Open-IRTMailboxInOwa.ps1' -1
 

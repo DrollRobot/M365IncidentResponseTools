@@ -22,7 +22,8 @@ function Find-IRTDomainController {
     [Alias(
         # DomainController
         'FindIRTDomainController', 'Find-IRTDomainControllers', 'FindIRTDomainControllers',
-        'Find-DomainController', 'FindDomainController', 'Find-DomainControllers', 'FindDomainControllers',
+        'Find-DomainController', 'FindDomainController',
+        'Find-DomainControllers', 'FindDomainControllers',
         # DC
         'Find-DC', 'FindDC', 'Find-DCs', 'FindDCs',
         'DC', 'DCs'

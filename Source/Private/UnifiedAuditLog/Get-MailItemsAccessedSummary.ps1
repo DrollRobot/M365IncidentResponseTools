@@ -5,7 +5,8 @@ function Get-MailItemsAccessedSummary {
 
 	.NOTES
 	Version: 2.1.0
-    2.1.0 - Moved wait logic to Show-IRTUnifiedAuditLog. Now receives resolved MessageTraceTable directly.
+    2.1.0 - Moved wait logic to Show-IRTUnifiedAuditLog. Now receives resolved
+            MessageTraceTable directly.
     2.0.0 - Replaced per-user variable with single IRT_MessageTraceTable. Added SharedState
             support for cross-runspace communication. Added timeout and -Test diagnostics.
 	#>

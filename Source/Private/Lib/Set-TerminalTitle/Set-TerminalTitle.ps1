@@ -1,4 +1,10 @@
 function Set-TerminalTitle {
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+        'PSAvoidUsingWriteHost', '',
+        Justification = 'Intentional console status message for interactive use.')]
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+        'PSUseShouldProcessForStateChangingFunctions', '',
+        Justification = 'Terminal title change; no ShouldProcess needed.')]
     [CmdletBinding()]
     Param(
         [Parameter(Position = 0)]

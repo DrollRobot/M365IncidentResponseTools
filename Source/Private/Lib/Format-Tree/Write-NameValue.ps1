@@ -1,3 +1,6 @@
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '',
+    Justification = 'Intentional console output for terminal display function.')]
+param()
 function Write-NameValue([string]$Name, [string]$ValueText, [int]$CurrentDepth, [int]$Size) {
     $Indent = Get-Indent $CurrentDepth $Size
     $PlainPrefix = $Indent + $Name + ': '

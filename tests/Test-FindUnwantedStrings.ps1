@@ -57,6 +57,15 @@ $ExcludedFolders = @(
     '.local'    # local overrides and personal test files
 )
 
+# Root-level files to exclude (relative paths from $Path).
+$ExcludedFiles = @()
+
+# Merge exclusions from the test orchestrator when called via Tests.ps1.
+if ($Global:IRT_FormattingExclusions) {
+    $ExcludedFiles += $Global:IRT_FormattingExclusions.ExcludeFiles
+    $ExcludedFolders += $Global:IRT_FormattingExclusions.ExcludeFolders
+}
+
 if ($UnwantedPatterns.Count -eq 0) {
     Write-Host 'No patterns defined -- skipping.' -ForegroundColor DarkGray
     exit 0
@@ -80,7 +89,8 @@ else {
         Where-Object { $_.Extension -notin $ExcludedExtensions } |
         Where-Object {
             $Rel = [System.IO.Path]::GetRelativePath($Path, $_.FullName)
-            -not ($ExcludedFolders | Where-Object { $Rel -like "$_\*" -or $Rel -like "*\$_\*" })
+            (-not ($ExcludedFiles -contains $Rel)) -and
+            (-not ($ExcludedFolders | Where-Object { $Rel -like "$_\*" -or $Rel -like "*\$_\*" }))
         }
     $BaseDir = $Path
 }

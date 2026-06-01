@@ -30,6 +30,15 @@ $ExcludedFolders = @(
     # '.local'    # local overrides and personal test files
 )
 
+# Root-level files to exclude (relative paths from $Path).
+$ExcludedFiles = @()
+
+# Merge exclusions from the test orchestrator when called via Tests.ps1.
+if ($Global:IRT_FormattingExclusions) {
+    $ExcludedFiles += $Global:IRT_FormattingExclusions.ExcludeFiles
+    $ExcludedFolders += $Global:IRT_FormattingExclusions.ExcludeFolders
+}
+
 $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
 
 if (Test-Path $Path -PathType Leaf) {
@@ -48,7 +57,8 @@ else {
         Where-Object Extension -in '.ps1', '.psm1', '.psd1' |
         Where-Object {
             $Rel = [System.IO.Path]::GetRelativePath($Path, $_.FullName)
-            -not ($ExcludedFolders | Where-Object { $Rel -like "$_\*" -or $Rel -like "*\$_\*" })
+            (-not ($ExcludedFiles -contains $Rel)) -and
+            (-not ($ExcludedFolders | Where-Object { $Rel -like "$_\*" -or $Rel -like "*\$_\*" }))
         }
     $BaseDir = $Path
 }

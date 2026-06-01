@@ -21,6 +21,9 @@
 .PARAMETER AutoFormat
     Apply Invoke-ScriptAnalyzer -Fix and Invoke-Formatter to each file, then
     report remaining issues.
+.PARAMETER Quiet
+    Suppress the per-finding table and grouped output. Most useful with
+    -AutoFormat when you only want to format, not review findings.
 .OUTPUTS
     Formatted table to the host. No pipeline output.
 .EXAMPLE
@@ -29,13 +32,17 @@
 .EXAMPLE
     .\Test-PSSA.ps1 -Path . -Recurse -AutoFormat
     Auto-fixes and formats all files, then reports remaining issues.
+.EXAMPLE
+    .\Test-PSSA.ps1 -Path . -Recurse -AutoFormat -Quiet
+    Auto-fixes and formats all files, then shows only the summary line.
 #>
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '')]
 [CmdletBinding()]
 param(
     [string] $Path = (Get-Location).Path,
     [switch] $Recurse,
-    [switch] $AutoFormat
+    [switch] $AutoFormat,
+    [switch] $Quiet
 )
 
 # All analyzer configuration lives here.
@@ -48,7 +55,7 @@ $AnalyzerSettings = @{
     Rules        = @{
         PSAvoidUsingPositionalParameters = @{
             Enable           = $true
-            CommandAllowList = @('Write-IRT')
+            CommandAllowList = @('Write-IRT') # allow Write-IRT to use positional params
         }
     }
 }
@@ -95,6 +102,18 @@ if (-not (Get-Module -ListAvailable -Name PSScriptAnalyzer)) {
 
 $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
 
+# Root-level files to exclude (relative paths from $Path).
+$ExcludedFiles = @()
+
+# Folder names to exclude from scanning. Any file under a matching folder is skipped.
+$ExcludedFolders = @()
+
+# Merge exclusions from the test orchestrator when called via Tests.ps1.
+if ($Global:IRT_FormattingExclusions) {
+    $ExcludedFiles   += $Global:IRT_FormattingExclusions.ExcludeFiles
+    $ExcludedFolders += $Global:IRT_FormattingExclusions.ExcludeFolders
+}
+
 # --- AutoFormat pass ---
 $FixedCount = 0
 $FormattedCount = 0
@@ -106,7 +125,12 @@ if ($AutoFormat) {
         Recurse = $Recurse.IsPresent
     }
     $FormatFiles = Get-ChildItem @GetChildParams |
-        Where-Object Extension -in '.ps1', '.psm1', '.psd1'
+        Where-Object Extension -in '.ps1', '.psm1', '.psd1' |
+        Where-Object {
+            $Rel = [System.IO.Path]::GetRelativePath($Path, $_.FullName)
+            (-not ($ExcludedFiles -contains $Rel)) -and
+            (-not ($ExcludedFolders | Where-Object { $Rel -like "$_\*" -or $Rel -like "*\$_\*" }))
+        }
 
     Write-Host 'Applying auto-fixes and formatting...' -ForegroundColor Cyan
 
@@ -118,9 +142,18 @@ if ($AutoFormat) {
             Fix      = $true
             Settings = $AnalyzerSettings
         }
-        $null = Invoke-ScriptAnalyzer @FixParams
+        $FixErrors = $null
+        $null = Invoke-ScriptAnalyzer @FixParams -ErrorAction SilentlyContinue -ErrorVariable FixErrors
+        if ($FixErrors) {
+            foreach ($fe in $FixErrors) {
+                Write-Warning "PSSA internal error on $($FormatFile.Name): $($fe.Exception.Message)"
+            }
+        }
         $AfterFix = Get-Content -Path $FormatFile.FullName -Raw
         if ($AfterFix -ne $BeforeFix) { $FixedCount++ }
+
+        # Skip empty files -- Invoke-Formatter requires a non-null ScriptDefinition.
+        if ([string]::IsNullOrEmpty($AfterFix)) { continue }
 
         # Step 2: Invoke-Formatter (writes back only if content changed).
         $FormatParams = @{
@@ -165,6 +198,12 @@ try {
     $Results = $AllOutput | Where-Object {
         $_ -isnot [System.Management.Automation.VerboseRecord]
     }
+    # Exclude built artifacts and copy-path folders -- source files are already scanned.
+    $Results = $Results | Where-Object {
+        $Rel = [System.IO.Path]::GetRelativePath($Path, $_.ScriptPath)
+        (-not ($ExcludedFiles -contains $Rel)) -and
+        (-not ($ExcludedFolders | Where-Object { $Rel -like "$_\*" -or $Rel -like "*\$_\*" }))
+    }
     $FileCount = ($AllOutput | Where-Object {
             ($_ -is [System.Management.Automation.VerboseRecord]) -and
             ($_.Message -like 'Analyzing file: *')
@@ -189,12 +228,15 @@ if ($IssueCount -gt 0) {
     "even if they aren't related to changes you made. " +
     'Do this only after all Pester tests are passing.'
     Write-Host $Msg -ForegroundColor DarkGray
-    Write-Host 'Results' -ForegroundColor Cyan
-    $Results | Format-Table -AutoSize
 
-    if ($IssueCount -gt 5) {
-        Write-Host 'Results grouped by rule:' -ForegroundColor Cyan
-        $Results | Group-Object RuleName | Format-Table Count, Name, Group -AutoSize
+    if (-not $Quiet) {
+        Write-Host 'Results' -ForegroundColor Cyan
+        $Results | Format-Table -AutoSize
+
+        if ($IssueCount -gt 5) {
+            Write-Host 'Results grouped by rule:' -ForegroundColor Cyan
+            $Results | Group-Object RuleName | Format-Table Count, Name, Group -AutoSize
+        }
     }
 }
 

@@ -206,7 +206,10 @@ InModuleScope M365IncidentResponseTools {
         Context 'early-exit conditions' {
 
             It 'returns when IpInfoAvailable is false' {
-                $Global:IRT_Config = @{ IpInfoAvailable = $false; IPConditionalFormattingTemplatePath = '' }
+                $Global:IRT_Config = @{
+                    IpInfoAvailable                    = $false
+                    IPConditionalFormattingTemplatePath = ''
+                }
                 $wb = New-TestWorksheet -ColumnNames 'IpAddress' -Rows @(@{ IpAddress = '1.2.3.4' })
                 try {
                     { Add-IpInfoToSheet -Worksheet $wb.Ws -ColumnName 'IpAddress' } |
@@ -443,7 +446,10 @@ InModuleScope M365IncidentResponseTools {
             }
 
             It 'does not call Copy-ConditionalFormatting when IpInfoAvailable is false' {
-                $Global:IRT_Config = @{ IpInfoAvailable = $false; IPConditionalFormattingTemplatePath = '' }
+                $Global:IRT_Config = @{
+                    IpInfoAvailable                    = $false
+                    IPConditionalFormattingTemplatePath = ''
+                }
                 Mock Copy-ConditionalFormatting {}
                 $rows = @(@{ IpAddress = '10.8.0.1' })
                 $wb = New-TestWorksheet -ColumnNames 'IpAddress' -Rows $rows

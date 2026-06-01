@@ -11,6 +11,8 @@ displays a simple tree view of any object (ps 5.1+)
     [CmdletBinding()]
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', 'Depth',
         Justification = 'Used by Out-Print helper function via PowerShell dynamic scoping.')]
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '',
+        Justification = 'Intentional console output for terminal display function.')]
     param(
         [Parameter(Mandatory, ValueFromPipeline)]
         $InputObject,
