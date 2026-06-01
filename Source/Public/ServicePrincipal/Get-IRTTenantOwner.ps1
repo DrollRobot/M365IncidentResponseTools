@@ -54,6 +54,9 @@ function Get-IRTTenantOwner {
 
     .NOTES
     The Graph lookup requires the CrossTenantInformation.ReadBasic.All scope.
+
+    # FIXME Should probably separate this from the OIDC lookup. one task per function
+    
     Version: 1.2.0
     #>
     [CmdletBinding()]

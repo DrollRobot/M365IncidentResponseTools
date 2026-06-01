@@ -57,7 +57,7 @@ function Get-IRTTenantOidc {
 
     foreach ($cloud in $Global:IRT_CloudEnvironments.GetEnumerator()) {
 
-        $Url = "$( $cloud.Value.LoginHost )/$TenantId/v2.0/.well-known/openid-configuration"
+        $Url = "$( $cloud.Value.LoginHost )/$Tenant/v2.0/.well-known/openid-configuration"
         Write-Verbose "Probing $( $cloud.Key ): $Url"
 
         try {

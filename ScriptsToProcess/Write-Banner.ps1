@@ -8,16 +8,13 @@
 $BannerVar = Get-Variable -Name 'IRT_Banner' -Scope Global -ErrorAction SilentlyContinue
 if ($null -eq $BannerVar -or $BannerVar.Value -ne $false) {
 
-Write-Host Blue @"
-
-M365IncidentResponseTools
-
-Report bugs or contribute on GitHub:
-https://github.com/DrollRobot/M365IncidentResponseTools
-
-Module loading...
-
-"@
+    Write-Host @Color "M365IncidentResponseTools"
+    Write-Host ""
+    Write-Host "Report bugs or contribute on GitHub:"
+    Write-Host "https://github.com/DrollRobot/M365IncidentResponseTools"
+    Write-Host ""
+    Write-Host @Color "Module loading..."
+    Write-Host ""
 
 }
 
