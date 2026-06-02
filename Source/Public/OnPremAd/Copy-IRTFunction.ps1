@@ -12,8 +12,7 @@ function Copy-IRTFunction {
     session's color preferences as defaults) is prepended automatically.
 
     The default set includes:
-      - Write-IRT, Get-RandomPassword
-      - Format-Tree and all of its private helpers
+      - Write-IRT, Get-RandomPassword, Get-YesNo
       - All On-Prem AD functions
 
     Use -FunctionName to include additional functions beyond the default set.
@@ -58,17 +57,8 @@ function Copy-IRTFunction {
             # Core helpers
             'Write-IRT'
             'Get-RandomPassword'
-            # Format-Tree and its private helpers (all compiled into the module)
             'Format-Tree'
-            'Get-Indent'
-            'Get-PropertyName'
-            'Out-Print'
-            'Resolve-Json'
-            'Test-HasVisible'
-            'Test-IsEmptyScalar'
-            'Test-IsScalar'
-            'Write-NameEllipsis'
-            'Write-NameValue'
+            'Get-YesNo'
             # On-prem AD functions
             'Disable-IRTAdUser'
             'Enable-IRTAdUser'

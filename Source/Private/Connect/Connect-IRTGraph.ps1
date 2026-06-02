@@ -7,8 +7,8 @@ function Connect-IRTGraph {
     The TenantId GUID for the environment you want to connect to.
 
     .PARAMETER Cloud
-    Cloud to connect to. Valid values: Commercial, USGov, China.
-    When omitted the cloud defaults to Commercial.
+    Cloud to connect to. Valid values: Commercial, USGov, USGovDoD, China.
+    Mandatory - Connect-IRT resolves this via OIDC discovery and passes it in.
 
     .PARAMETER AdditionalScope
     Additional Graph scopes to request beyond the default set.
@@ -31,15 +31,14 @@ function Connect-IRTGraph {
     Version: 3.0.0
     #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
-        'PSReviewUnusedParameter', 'Silent', Justification = 'Used inside scriptblock')]
-    [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
         'PSAvoidUsingConvertToSecureStringWithPlainText', '')]
     [CmdletBinding()]
     param (
         [Parameter(Mandatory)]
         [string] $TenantId,
+        [Parameter(Mandatory)]
         [ValidateSet('Commercial', 'USGov', 'USGovDoD', 'China')]
-        [string] $Cloud = 'Commercial',
+        [string] $Cloud,
         [Alias('AdditionalScopes')]
         [string[]] $AdditionalScope,
 
@@ -105,69 +104,102 @@ function Connect-IRTGraph {
         $CloudConfig = $Global:IRT_CloudEnvironments[$Cloud]
         $GraphBaseUrl = $CloudConfig.Graph
         $Authority = "$($CloudConfig.LoginHost)/$TenantId"
+        # Bare login host (no scheme) used to match cached MSAL accounts and token issuers
+        # to the cloud we're connecting to.
+        $ExpectedLoginHost = $CloudConfig.LoginHost.Replace('https://', '')
+
+        Write-PSFMessage -Level 8 -Message "Connect-IRTGraph: TenantId=$TenantId, Cloud=$Cloud, Authority=$Authority, Scopes=$($Scopes.Count), Force=$Force, Silent=$Silent"
     }
 
     process {
 
         # ---------- Setup: MSAL app, token-acquisition helper ----------
 
+        # Ensure Microsoft.Graph.Authentication is loaded
         $GraphModule = Get-Module Microsoft.Graph.Authentication -ErrorAction SilentlyContinue
         if (-not $GraphModule) {
             throw 'Microsoft.Graph.Authentication must be imported before connecting to Graph.'
         }
-        $MsalDllParams = @{
-            Path                = $GraphModule.ModuleBase
-            ChildPath           = 'Dependencies'
-            AdditionalChildPath = 'Core', 'Microsoft.Identity.Client.dll'
-        }
-        $MsalDll = Join-Path @MsalDllParams
-        if (-not ([System.AppDomain]::CurrentDomain.GetAssemblies() |
-                    Where-Object { $_.FullName -like 'Microsoft.Identity.Client,*' })) {
+        Write-PSFMessage -Level 8 -Message "Microsoft.Graph.Authentication version: $($GraphModule.Version)"
+
+        # Ensure MSAL.NET is loaded
+        $MsalAssembly = [System.AppDomain]::CurrentDomain.GetAssemblies() |
+            Where-Object { $_.FullName -like 'Microsoft.Identity.Client,*' }
+
+        # if not, load it
+        if (-not $MsalAssembly) {
+            $MsalDllParams = @{
+                Path                = $GraphModule.ModuleBase
+                ChildPath           = 'Dependencies'
+                AdditionalChildPath = 'Core', 'Microsoft.Identity.Client.dll'
+            }
+            $MsalDll = Join-Path @MsalDllParams
+            Write-PSFMessage -Level 8 -Message "Loading MSAL assembly from: $MsalDll"
             Add-Type -Path $MsalDll
+        } else {
+            Write-PSFMessage -Level 8 -Message "MSAL assembly already loaded: $($MsalAssembly.FullName)"
         }
 
+        # build scopes urls
         $MsalScopes = [string[]]($Scopes | ForEach-Object { "$GraphBaseUrl/$_" })
 
-        # Reuse the cached MSAL app instance to preserve its token cache (refresh token).
+        # test whether there's already a valid client. if not create one
         $SameClient =
-        $Global:IRT_Session -and
-        $Global:IRT_Session.Graph -and
-        $Global:IRT_Session.Graph.PublicClientApplication -and
-        $Global:IRT_Session.TenantId -eq $TenantId -and
-        $Global:IRT_Session.Graph.PublicClientApplication.AppConfig.ClientId -eq $ClientId
-        $App = if ($SameClient) {
-            $Global:IRT_Session.Graph.PublicClientApplication
+            $Global:IRT_Session -and
+            $Global:IRT_Session.Graph -and
+            $Global:IRT_Session.Graph.PublicClientApplication -and
+            $Global:IRT_Session.TenantId -eq $TenantId -and
+            $Global:IRT_Session.Graph.PublicClientApplication.AppConfig.ClientId -eq $ClientId
+        if ($SameClient) {
+            Write-PSFMessage -Level 8 -Message "Reusing existing MSAL public client app (ClientId: $ClientId)."
+            $App = $Global:IRT_Session.Graph.PublicClientApplication
         } else {
+            Write-PSFMessage -Level 8 -Message "Building new MSAL public client app (ClientId: $ClientId, Authority: $Authority)."
             $PcaBuilder = [Microsoft.Identity.Client.PublicClientApplicationBuilder]
-            $NewApp = $PcaBuilder::Create($ClientId).
-            WithAuthority($Authority).
-            WithRedirectUri('http://localhost').
-            Build()
+            $NewApp = $PcaBuilder::Create($ClientId).WithAuthority($Authority).
+                WithRedirectUri('http://localhost').Build()
             if ($Global:IRT_Config.EnableTokenCache) {
-                try { Register-MsalCache -App $NewApp -CachePath $MsalCachePath }
-                catch { Write-IRT "Persistent token cache unavailable: $_" -Level Warn }
+                try {
+                    Register-MsalCache -App $NewApp -CachePath $MsalCachePath
+                    Write-PSFMessage -Level 8 -Message "MSAL persistent token cache registered at: $MsalCachePath"
+                }
+                catch {
+                    Write-IRT "Persistent token cache unavailable: $_" -Level Warn
+                }
             }
-            $NewApp
+            $App = $NewApp
         }
 
-        # Inline helper - closes over $App, $MsalScopes, $Browser, $Private.
+        # Local helper - reads $App, $MsalScopes, and $Silent from the enclosing scope.
         # Tries silent refresh first, then interactive auth.
         # -RequireConsent skips the silent path and forces a consent prompt.
-        $AcquireToken = {
+        function Get-GraphToken {
             param(
                 [switch] $RequireConsent,
-                $Account
+                [Microsoft.Identity.Client.IAccount] $Account
             )
             if (-not $RequireConsent) {
                 $Cached = $App.GetAccountsAsync().GetAwaiter().GetResult()
-                if ($Cached) {
+                Write-PSFMessage -Level 8 -Message "MSAL cached accounts: $($Cached.Count)"
+                # Select the account that belongs to the cloud we're connecting to. The
+                # shared persistent cache can hold accounts for several clouds, so picking
+                # by environment keeps silent acquisition cloud-correct without mutating the
+                # cache. AcquireTokenSilent handles access-token expiry/refresh internally.
+                $Match = $Cached |
+                    Where-Object { $_.Environment -eq $ExpectedLoginHost } |
+                    Select-Object -First 1
+                if ($Match) {
                     try {
-                        return $App.AcquireTokenSilent(
-                            $MsalScopes, ($Cached | Select-Object -First 1)
-                        ).ExecuteAsync().GetAwaiter().GetResult()
+                        Write-PSFMessage -Level 8 -Message "Attempting silent token acquisition for: $($Match.Username) (env: $($Match.Environment))"
+                        $Result = $App.AcquireTokenSilent($MsalScopes, $Match).
+                            ExecuteAsync().GetAwaiter().GetResult()
+                        Write-PSFMessage -Level 8 -Message "Silent token acquisition succeeded. Expiry: $($Result.ExpiresOn)"
+                        return $Result
                     } catch {
-                        Write-Verbose "Silent Graph token refresh failed: $_"
+                        Write-PSFMessage -Level 8 -Message "Silent token acquisition failed: $_"
                     }
+                } else {
+                    Write-PSFMessage -Level 8 -Message "No cached account matches expected environment '$ExpectedLoginHost'; will authenticate interactively."
                 }
             }
 
@@ -195,7 +227,9 @@ function Connect-IRTGraph {
                     $Cts.Cancel()
                     $Cts.Dispose()
                 }
-                return $Task.GetAwaiter().GetResult()
+                $Result = $Task.GetAwaiter().GetResult()
+                Write-PSFMessage -Level 8 -Message "Interactive token acquisition succeeded. Account: $($Result.Account.Username), Expiry: $($Result.ExpiresOn)"
+                return $Result
             } catch {
                 throw "Interactive token acquisition failed: $_"
             }
@@ -204,6 +238,8 @@ function Connect-IRTGraph {
         # ---------- Phase 1: token ----------
         # Use cached if: not forced, same tenant, not expired, has all requested scopes.
         # Otherwise acquire a new one (silent refresh inside the helper if possible).
+        # Cloud validation happens in Phase 1b below, after the token is in hand - that
+        # way it covers BOTH the session token and one pulled from the MSAL cache.
 
         $NeedNewToken = $true
 
@@ -226,10 +262,12 @@ function Connect-IRTGraph {
                 $NeedNewToken = $false
                 $Token = $Global:IRT_Session.Graph.Token
                 $Account = $Global:IRT_Session.Graph.Account
-                Write-Verbose 'Using cached Graph token.'
+                Write-PSFMessage -Level 8 -Message "Using cached Graph token from session (cloud: $Cloud, account: $Account)."
             } else {
-                Write-Verbose "Cached token missing scopes: $($TokenScopeMissing -join ', ')"
+                Write-PSFMessage -Level 8 -Message "Cached token missing scopes ($($TokenScopeMissing.Count)): $($TokenScopeMissing -join ', ')"
             }
+        } else {
+            Write-PSFMessage -Level 8 -Message "Session cache check skipped — Force=$Force, SessionExists=$([bool]$Global:IRT_Session), TokenExpired=$(if ($Global:IRT_Session.Graph.Token) { Test-TokenExpired -Token $Global:IRT_Session.Graph.Token } else { 'n/a' })"
         }
 
         if ($NeedNewToken) {
@@ -239,34 +277,106 @@ function Connect-IRTGraph {
             ) {
                 Write-IRT "Refreshing expired Graph token for tenant $TenantId." -Level Warn
             }
-            $TokenResult = & $AcquireToken
+            # Pulls from the MSAL persistent cache (silent) first, then interactive.
+            Write-PSFMessage -Level 8 -Message "Acquiring Graph token (silent from MSAL cache, else interactive)."
+            $TokenResult = Get-GraphToken
             if (-not $TokenResult.AccessToken) {
                 throw 'Failed to acquire Graph access token.'
             }
             $Token = $TokenResult.AccessToken
             $Account = $TokenResult.Account.Username
+            Write-PSFMessage -Level 8 -Message "Token acquired for account: $Account"
+        }
+
+        # ---------- Phase 1b: cloud validation ----------
+        # Confirm the token's audience (aud) is the Graph endpoint for the cloud we're
+        # connecting to. aud is the resource the token was minted for - e.g.
+        # https://graph.microsoft.us for USGov vs https://graph.microsoft.com for
+        # Commercial - so it's the authoritative cloud signal. (The iss claim is NOT:
+        # v1.0 Graph access tokens use https://sts.windows.net/{tenant}/ in every cloud.)
+        #
+        # A wrong-cloud token passes expiry/scope checks but fails at the Graph API with
+        # InvalidCloudInstance / 401. Get-GraphToken already selects cached accounts by
+        # environment, so silent acquisition can't hand back a wrong-cloud token; this
+        # guards the session-token path and acts as a final assertion. On mismatch, a
+        # clean re-acquire falls through to interactive sign-in for the correct cloud.
+        $TokenAud = (Get-TokenPayload -Token $Token).aud
+        Write-PSFMessage -Level 8 -Message "Token audience: $TokenAud | expected: $GraphBaseUrl"
+
+        if (-not $TokenAud) {
+            # Couldn't parse the token - don't punish an unparseable-but-valid token with
+            # a forced interactive loop. Only a positively-wrong audience triggers a re-auth.
+            Write-PSFMessage -Level 8 -Message "Could not decode token audience; skipping cloud validation."
+        }
+        elseif ($TokenAud -notlike 'http*') {
+            # aud is a resource GUID (the same across clouds) rather than a URL, so it
+            # can't distinguish cloud - skip rather than risk a false positive.
+            Write-PSFMessage -Level 8 -Message "Token audience is not a URL ('$TokenAud'); skipping cloud validation."
+        }
+        elseif ($TokenAud.TrimEnd('/') -ne $GraphBaseUrl.TrimEnd('/')) {
+            Write-IRT ("Graph token audience '$TokenAud' does not match the expected " +
+                "endpoint '$GraphBaseUrl'. Re-authenticating for the correct cloud.") -Level Warn
+
+            $TokenResult = Get-GraphToken
+            if (-not $TokenResult.AccessToken) {
+                throw 'Failed to acquire Graph access token after cloud mismatch.'
+            }
+            $Token = $TokenResult.AccessToken
+            $Account = $TokenResult.Account.Username
+            $NeedNewToken = $true  # force Phase 2 to reconnect with the corrected token
+
+            # Re-validate. If it's still wrong, the authority itself is misconfigured.
+            $TokenAud = (Get-TokenPayload -Token $Token).aud
+            if ($TokenAud.TrimEnd('/') -ne $GraphBaseUrl.TrimEnd('/')) {
+                throw ("Acquired Graph token audience '$TokenAud' still does not match " +
+                    "'$GraphBaseUrl'. Verify -Cloud '$Cloud' is correct for tenant $TenantId.")
+            }
+            Write-PSFMessage -Level 8 -Message "Re-acquired token audience now matches expected cloud."
         }
 
         # ---------- Phase 2: Connect-MgGraph ----------
-        # Connect if no context, wrong tenant, missing scopes, or we just acquired
-        # a fresh token (the existing MgContext is still bound to the old expired one).
+        # Connect if no context, wrong tenant, wrong cloud, missing scopes, or we just
+        # acquired a fresh token (the existing MgContext is still bound to the old one).
 
         $Ctx = Get-MgContext -ErrorAction SilentlyContinue
+        Write-PSFMessage -Level 8 -Message "Preconnect MgContext — TenantId: $($Ctx.TenantId), Environment: $($Ctx.Environment) (expected: $($CloudConfig.GraphEnv)), Account: $($Ctx.Account)"
+
         $NeedConnect = $NeedNewToken -or
-        (-not $Ctx) -or
-        ($Ctx.TenantId -ne $TenantId) -or
-        [bool]($Scopes | Where-Object { $Ctx.Scopes -notcontains $_ })
+            (-not $Ctx) -or                                                 # not connected
+            ($Ctx.TenantId -ne $TenantId) -or                              # wrong tenant
+            ($Ctx.Environment -ne $CloudConfig.GraphEnv) -or               # wrong cloud
+            [bool]($Scopes | Where-Object { $Ctx.Scopes -notcontains $_ }) # missing scopes
+
+        Write-PSFMessage -Level 8 -Message "NeedNewToken: $NeedNewToken | NeedConnect: $NeedConnect (pre-verify)"
+
+        # Trust but verify: the metadata checks above can all pass while the connection is
+        # actually dead (e.g. a token the API rejects). Confirm with a real, lightweight
+        # Graph call. The URI is RELATIVE so it follows the current context's cloud
+        # endpoint - an absolute URI is what causes cross-cloud breakage. On failure, fall
+        # through to the reconnect block below instead of returning a dead session.
+        if (-not $NeedConnect) {
+            try {
+                $null = Invoke-MgGraphRequest -Method GET `
+                    -Uri 'v1.0/organization?$select=id&$top=1' -ErrorAction Stop
+                Write-PSFMessage -Level 8 -Message "Live Graph verification succeeded; existing connection is healthy."
+            } catch {
+                Write-PSFMessage -Level 8 -Message "Metadata looked connected but a live Graph call failed; forcing reconnect. Error: $_"
+                $NeedConnect = $true
+            }
+        }
 
         if ($NeedConnect) {
             if ($Ctx) {
+                Write-PSFMessage -Level 8 -Message "Disconnecting existing MgGraph context before reconnect."
                 $null = Disconnect-MgGraph -ErrorAction SilentlyContinue
             }
             $Secure = ConvertTo-SecureString -String $Token -AsPlainText -Force
             $Params = @{
                 AccessToken = $Secure
-                NoWelcome = $true
+                NoWelcome   = $true
                 Environment = $CloudConfig.GraphEnv
             }
+            Write-PSFMessage -Level 8 -Message "Calling Connect-MgGraph (Environment: $($CloudConfig.GraphEnv))."
             $null = Connect-MgGraph @Params
         }
 
@@ -279,9 +389,9 @@ function Connect-IRTGraph {
 
         try {
             $MissingAdminScopes = Test-GraphAdminConsent -RequestedScope $Scopes
+            Write-PSFMessage -Level 8 -Message "Admin consent check: $($MissingAdminScopes.Count) scope(s) missing."
         } catch {
-            Write-Warning ("Admin consent check failed - skipping consent verification. " +
-                "Re-run Connect-IRT to retry. Error: $_")
+            Write-PSFMessage -Level Warning -Message "Admin consent check failed - skipping consent verification. Re-run Connect-IRT to retry. Error: $_"
             $MissingAdminScopes = @()
         }
 
@@ -293,7 +403,7 @@ function Connect-IRTGraph {
             $ConsentParams = @{
                 TenantId    = $TenantId
                 ClientId    = $ClientId
-                Scope       = $MissingAdminScopes  # only request what's actually missing
+                Scope       = $MissingAdminScopes
                 ResourceUri = $GraphBaseUrl
                 Browser     = $Browser
             }
@@ -311,13 +421,13 @@ function Connect-IRTGraph {
                 } catch {
                     $StillMissing = $Scopes
                 }
+                Write-PSFMessage -Level 8 -Message "Consent replication check attempt $Attempt/5: $($StillMissing.Count) scope(s) still missing."
             }
 
             if ($StillMissing) {
                 $AllMissing = $StillMissing -join ', '
-                Write-Warning ("Tenant-wide grant not yet visible for: $AllMissing")
-                Write-Warning ('Replication may still be in flight; ' +
-                    're-run Connect-IRT shortly to confirm.')
+                Write-PSFMessage -Level Warning -Message "Tenant-wide grant not yet visible for: $AllMissing"
+                Write-PSFMessage -Level Warning -Message "Replication may still be in flight; re-run Connect-IRT shortly to confirm."
             } else {
                 Write-IRT 'Admin consent granted tenant-wide.'
             }
@@ -327,12 +437,14 @@ function Connect-IRTGraph {
             Write-IRT "Already connected to Graph for tenant $TenantId." -Level Warn
         }
 
-        return [pscustomobject]@{
+        $Result = [pscustomobject]@{
             Token                   = $Token
             TokenExpiry             = Get-TokenExpiry -Token $Token
             Account                 = $Account
             TenantId                = $TenantId
             PublicClientApplication = $App
         }
+        Write-PSFMessage -Level 8 -Message "Connect-IRTGraph complete. Account: $Account, TokenExpiry: $($Result.TokenExpiry)"
+        return $Result
     }
 }

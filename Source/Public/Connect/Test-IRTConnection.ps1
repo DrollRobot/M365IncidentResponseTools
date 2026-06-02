@@ -37,7 +37,12 @@ function Test-IRTConnection {
             try {
                 $GraphParams = @{
                     Method      = 'GET'
-                    Uri         = 'https://graph.microsoft.com/v1.0/organization?$select=id&$top=1'
+                    # Relative URI so the request follows the current context's cloud
+                    # endpoint (e.g. graph.microsoft.us for USGov). An absolute
+                    # graph.microsoft.com URL sends the token to the commercial endpoint -
+                    # which 401s on sovereign clouds AND latches the SDK base URL to
+                    # commercial, breaking every subsequent Graph call in the session.
+                    Uri         = 'v1.0/organization?$select=id&$top=1'
                     ErrorAction = 'Stop'
                 }
                 $null = Invoke-MgGraphRequest @GraphParams

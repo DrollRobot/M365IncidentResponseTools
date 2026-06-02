@@ -4,7 +4,10 @@ function Invoke-AdminConsent {
         [Parameter(Mandatory)] [string]   $TenantId,
         [Parameter(Mandatory)] [string]   $ClientId,
         [Parameter(Mandatory)] [Alias('Scopes')] [string[]] $Scope,
-        [string] $ResourceUri = 'https://graph.microsoft.com',
+        # Mandatory and no default: the resource URI is cloud-specific (e.g.
+        # graph.microsoft.us for USGov). A wrong/commercial default silently produces
+        # cross-cloud consent URLs, so fail loudly rather than guess.
+        [Parameter(Mandatory)] [string] $ResourceUri,
         [ValidateSet('Commercial', 'USGov', 'USGovDoD', 'China')]
         [string] $Cloud,
         [string] $Browser = 'default',

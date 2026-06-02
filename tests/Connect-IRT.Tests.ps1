@@ -639,4 +639,100 @@ Describe 'Connect-IRT session state (live)' -Tag 'Online' {
     }
 }
 
+# ---------------------------------------------------------------------------
+# Admin consent workflow (live) [Tag: Online]
+#
+# Verifies that Connect-IRT detects missing tenant-wide consent and drives
+# the /adminconsent flow to completion. The test is intentionally destructive:
+# it revokes all oauth2PermissionGrants for the Graph CLI Tools app, then
+# forces a Graph reconnect, which must detect the missing consent, open the
+# admin consent URL in a browser, and re-grant tenant-wide consent.
+#
+# This test REQUIRES interactive auth - the user must sign in as a Global
+# Administrator in the browser and click Accept. It is skipped automatically
+# when running in -CachedAuth (silent) mode.
+#
+# Depends on the session established by 'Connect-IRT session state (live)'
+# earlier in this file - run order within a file is guaranteed by Pester.
+#
+# 'revoking consent removes at least one grant'
+#     Confirms the revoke helper actually found and removed grants. If this
+#     fails it means consent was already absent (nothing to test) or the
+#     helper failed silently.
+#
+# 'admin consent is re-granted after forced reconnect'
+#     The core assertion. After Connect-IRT -Force drives the browser consent
+#     flow, at least one AllPrincipals grant must exist for the Graph CLI
+#     Tools app. An empty result means the flow did not complete or the
+#     grant was not written.
+#
+# 'Graph token is valid after consent re-grant'
+#     Confirms the forced reconnect produced a fresh, usable token and that
+#     the session was updated correctly alongside the consent grant.
+# ---------------------------------------------------------------------------
+Describe 'Connect-IRT admin consent workflow (live)' -Tag 'Online' {
+
+    BeforeAll {
+        # This test requires browser interaction for the consent prompt.
+        # Skip the entire block when running in silent/cached-auth mode.
+        $script:SkipConsentTests = $env:IRT_TEST_SILENT_AUTH -eq '1'
+        if ($script:SkipConsentTests) { return }
+
+        if (-not $Global:IRT_Session?.Graph) {
+            throw ('Admin consent tests require an active Graph connection. ' +
+                "Run '.\tests.ps1 -Online' so the session is established first.")
+        }
+
+        . (Join-Path $PSScriptRoot 'Revoke-IRTGraphConsent.ps1')
+
+        Write-Host ''
+        Write-Host '--- Admin Consent Test Setup ---' -ForegroundColor Cyan
+        Write-Host 'Revoking all consent grants for the Graph CLI Tools app...' -ForegroundColor Yellow
+        $script:RevokedCount = Revoke-IRTGraphConsent
+        Write-Host "$($script:RevokedCount) grant(s) removed." -ForegroundColor Yellow
+        Write-Host ''
+        Write-Host 'Forcing a Graph reconnect. A browser window will open for admin consent.' -ForegroundColor Cyan
+        Write-Host 'Sign in as a Global Administrator and click Accept to continue.' -ForegroundColor Cyan
+        Write-Host '--------------------------------' -ForegroundColor Cyan
+        Write-Host ''
+
+        Connect-IRT -TenantId $Global:IRT_Session.TenantId -Graph -Force
+    }
+
+    It 'revoking consent removes at least one grant' {
+        if ($script:SkipConsentTests) {
+            Set-ItResult -Skipped -Because 'admin consent workflow requires interactive auth (-CachedAuth not supported)'
+            return
+        }
+        $script:RevokedCount | Should -BeGreaterThan 0 -Because 'the Graph CLI Tools app must have had at least one consent grant to revoke'
+    }
+
+    It 'admin consent is re-granted after forced reconnect' {
+        if ($script:SkipConsentTests) {
+            Set-ItResult -Skipped -Because 'admin consent workflow requires interactive auth'
+            return
+        }
+        # Query grants directly via Graph. At least one AllPrincipals grant must
+        # exist for the Graph CLI Tools SP after the consent flow completes.
+        $AppId = '14d82eec-204b-4c2f-b7e8-296a70dab67e'
+        $Sp = Invoke-MgGraphRequest -Method GET `
+            -Uri "v1.0/servicePrincipals(appId='$AppId')?`$select=id" -ErrorAction Stop
+        $Grants = (Invoke-MgGraphRequest -Method GET `
+            -Uri "v1.0/oauth2PermissionGrants?`$filter=clientId eq '$($Sp.id) and consentType eq ''AllPrincipals''" `
+            -ErrorAction Stop).value
+        $Grants | Should -Not -BeNullOrEmpty -Because 'Connect-IRT must re-grant tenant-wide consent after the browser flow completes'
+    }
+
+    It 'Graph token is valid after consent re-grant' {
+        if ($script:SkipConsentTests) {
+            Set-ItResult -Skipped -Because 'admin consent workflow requires interactive auth'
+            return
+        }
+        $Global:IRT_Session.Graph | Should -Not -BeNullOrEmpty
+        $Global:IRT_Session.Graph.TokenExpiry | Should -BeOfType [System.DateTime]
+        $Global:IRT_Session.Graph.TokenExpiry | Should -BeGreaterThan ([System.DateTime]::UtcNow) `
+            -Because 'the forced reconnect must produce a fresh token'
+    }
+}
+
 

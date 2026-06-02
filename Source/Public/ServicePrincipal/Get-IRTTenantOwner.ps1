@@ -131,7 +131,6 @@ function Get-IRTTenantOwner {
                     DisplayName         = $cached.DisplayName
                     DefaultDomain       = $cached.DefaultDomain
                     FederationBrandName = $cached.FederationBrandName
-                    Environment         = $cached.Environment
                     Cloud               = $cached.Cloud
                     GraphHost           = $cached.GraphHost
                     TokenEndpoint       = $cached.TokenEndpoint
@@ -170,16 +169,14 @@ function Get-IRTTenantOwner {
 
             # --- OIDC Discovery ---
             # Provides cloud, region, Graph host, and confirms the tenant exists.
-            $TenantCloud = Get-IRTTenantOidc -TenantId $Tid
-            $cloudName = $TenantCloud?.Cloud
+            $Oidc = Get-IRTTenantOidc -TenantId $Tid
+            $cloudName = $Oidc?.Cloud
 
-            if (-not $TenantCloud -and -not $graphSource) {
+            if (-not $Oidc -and -not $graphSource) {
                 Write-Warning "Tenant '$Tid' was not found."
                 [pscustomobject]@{ TenantId = $Tid; Exists = $false }
                 continue
             }
-
-            $environment = $TenantCloud?.Environment
 
             # --- Output ---
             [pscustomobject]@{
@@ -188,10 +185,9 @@ function Get-IRTTenantOwner {
                 DisplayName         = $displayName
                 DefaultDomain       = $defaultDomain
                 FederationBrandName = $fedBrandName
-                Environment         = $environment
                 Cloud               = $cloudName
-                GraphHost           = $TenantCloud?.msgraph_host
-                TokenEndpoint       = $TenantCloud?.token_endpoint
+                GraphHost           = $Oidc?.msgraph_host
+                TokenEndpoint       = $Oidc?.token_endpoint
                 Source              = if ($graphSource) { 'Graph' } else { 'PublicEndpoints' }
             }
 
@@ -202,10 +198,9 @@ function Get-IRTTenantOwner {
                     DisplayName         = $displayName
                     DefaultDomain       = $defaultDomain
                     FederationBrandName = $fedBrandName
-                    Environment         = $environment
                     Cloud               = $cloudName
-                    GraphHost           = $TenantCloud?.msgraph_host
-                    TokenEndpoint       = $TenantCloud?.token_endpoint
+                    GraphHost           = $Oidc?.msgraph_host
+                    TokenEndpoint       = $Oidc?.token_endpoint
                     CachedAt            = (Get-Date -Format 'o')
                 }
                 $Global:IRT_TenantInfoTable[$tid] = $cacheEntry

@@ -39,21 +39,23 @@ if ($env:TERM_PROGRAM -ne 'vscode') {
         catch { 'DarkYellow' }
         $PromptColor = @{ForegroundColor = $irt_color }
 
-        # Display connection status.
-        # Update-IRTToken handles expiry checks and refresh; -PassThru returns current status.
-        if ($Global:IRT_Session) {
-            $irt_status = Update-IRTToken -SkipIfNeverConnected -PassThru
-            $irt_connected = @('Graph', 'Exchange', 'IPPS') | Where-Object { $irt_status[$_] }
-            $irt_domain = $null
-            foreach ($irt_svc in $irt_connected) {
-                $irt_obj = $Global:IRT_Session.$irt_svc
-                $irt_upn = $irt_obj.Account ?? $irt_obj.UserPrincipalName
-                if ($irt_upn) { $irt_domain = ($irt_upn -split '@')[-1]; break }
-            }
-        } else {
-            $irt_connected = @()
-            $irt_domain = $null
-        }
+        # FIXME now that we're checking before every public command, is the prompt check 
+        # still necessary?
+        # # Display connection status.
+        # # Update-IRTToken handles expiry checks and refresh; -PassThru returns current status.
+        # if ($Global:IRT_Session) {
+        #     $irt_status = Update-IRTToken -SkipIfNeverConnected -PassThru
+        #     $irt_connected = @('Graph', 'Exchange', 'IPPS') | Where-Object { $irt_status[$_] }
+        #     $irt_domain = $null
+        #     foreach ($irt_svc in $irt_connected) {
+        #         $irt_obj = $Global:IRT_Session.$irt_svc
+        #         $irt_upn = $irt_obj.Account ?? $irt_obj.UserPrincipalName
+        #         if ($irt_upn) { $irt_domain = ($irt_upn -split '@')[-1]; break }
+        #     }
+        # } else {
+        #     $irt_connected = @()
+        #     $irt_domain = $null
+        # }
 
         Write-Host ''
         Write-Host @PromptColor '[IRT] Connected:' -NoNewline

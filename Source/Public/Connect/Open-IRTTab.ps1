@@ -61,7 +61,7 @@ function Open-IRTTab {
 
         if ($HasSession) {
             $TenantId = $Global:IRT_Session.TenantId
-            $Cloud = $Global:IRT_Session.Environment
+            $Cloud = $Global:IRT_Session.Cloud
             $ClientId = $Global:IRT_Session.ClientId
 
             $ConnectParts = [System.Collections.Generic.List[string]]::new()

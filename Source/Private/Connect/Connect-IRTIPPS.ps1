@@ -10,6 +10,10 @@ function Connect-IRTIPPS {
     an assembly version mismatch when the Microsoft.Graph.Authentication MSAL
     has been pre-loaded.
 
+    .PARAMETER Cloud
+    Cloud to connect to. Valid values: Commercial, USGov, USGovDoD, China.
+    Mandatory - Connect-IRT resolves this via OIDC discovery and passes it in.
+
     .PARAMETER SearchOnly
     Use the search-only audience (https://dataservice.o365filtering.com) and
     pass -EnableSearchOnlySession to Connect-IPPSSession. Required for newer
@@ -27,26 +31,17 @@ function Connect-IRTIPPS {
     .NOTES
     Version: 2.0.0
     #>
-    [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
-        'PSReviewUnusedParameter', 'Browser', Justification = 'Used inside scriptblock')]
-    [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
-        'PSReviewUnusedParameter', 'Private', Justification = 'Used inside scriptblock')]
-    [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
-        'PSReviewUnusedParameter', 'Silent', Justification = 'Used inside scriptblock')]
     [CmdletBinding()]
     param (
         [Parameter(Mandatory)]
         [string] $TenantId,
         [string] $UserPrincipalName,
+        [Parameter(Mandatory)]
         [ValidateSet('Commercial', 'USGov', 'USGovDoD', 'China')]
-        [string] $Cloud = 'Commercial',
+        [string] $Cloud,
         [string] $AccessToken,
 
         [bool]   $SearchOnly = $true,
-
-        [ValidateSet('msedge', 'chrome', 'firefox', 'brave', 'default')]
-        [string] $Browser = $Global:IRT_Config.Browser,
-        [switch] $Private,
 
         [switch] $Force,
         [switch] $Silent,
@@ -62,25 +57,42 @@ function Connect-IRTIPPS {
         $Authority = "$($CloudConfig.LoginHost)/$TenantId"
         $Scopes = [string[]]@($IPPSScope)
 
+        # Bare login host (no scheme) used to match cached MSAL accounts to this cloud.
+        $ExpectedLoginHost = $CloudConfig.LoginHost.Replace('https://', '')
+
         $ExoClientId = $ClientId
         $App = $null  # built lazily; not needed when -AccessToken provided
+
+        Write-PSFMessage -Level 8 -Message "Connect-IRTIPPS: TenantId=$TenantId, Cloud=$Cloud, Authority=$Authority, SearchOnly=$SearchOnly, Force=$Force, Silent=$Silent"
     }
 
     process {
 
         # ---------- Setup: scope, authority ----------
 
-        # Inline helper - closes over $App, $Scopes, $Browser, $Private, $Silent.
-        # Tries silent refresh first, then interactive auth.
-        $AcquireToken = {
+        # Local helper - reads $App, $Scopes, $Silent, and $ExpectedLoginHost from the
+        # enclosing scope. Tries silent refresh first, then interactive auth.
+        function Get-IppsToken {
+            [OutputType('Microsoft.Identity.Client.AuthenticationResult')]
+            param()
             $Cached = $App.GetAccountsAsync().GetAwaiter().GetResult()
-            if ($Cached) {
+            Write-PSFMessage -Level 8 -Message "MSAL cached accounts: $($Cached.Count)"
+            # Select the account that belongs to the cloud we're connecting to. The shared
+            # persistent cache can hold accounts for several clouds; picking by environment
+            # keeps silent acquisition cloud-correct. MSAL handles expiry/refresh.
+            $Match = $Cached |
+                Where-Object { $_.Environment -eq $ExpectedLoginHost } |
+                Select-Object -First 1
+            if ($Match) {
                 try {
-                    return $App.AcquireTokenSilent($Scopes, ($Cached | Select-Object -First 1)).
-                    ExecuteAsync().GetAwaiter().GetResult()
+                    Write-PSFMessage -Level 8 -Message "Attempting silent IPPS token acquisition for: $($Match.Username) (env: $($Match.Environment))"
+                    return $App.AcquireTokenSilent($Scopes, $Match).
+                        ExecuteAsync().GetAwaiter().GetResult()
                 } catch {
-                    Write-Verbose "Silent IPPS token refresh failed: $_"
+                    Write-PSFMessage -Level 8 -Message "Silent IPPS token acquisition failed: $_"
                 }
+            } else {
+                Write-PSFMessage -Level 8 -Message "No cached account matches expected environment '$ExpectedLoginHost'; will authenticate interactively."
             }
 
             if ($Silent) {
@@ -100,7 +112,9 @@ function Connect-IRTIPPS {
                     $Cts.Cancel()
                     $Cts.Dispose()
                 }
-                return $Task.GetAwaiter().GetResult()
+                $Result = $Task.GetAwaiter().GetResult()
+                Write-PSFMessage -Level 8 -Message "Interactive IPPS token acquisition succeeded. Account: $($Result.Account.Username), Expiry: $($Result.ExpiresOn)"
+                return $Result
             } catch {
                 throw "Interactive token acquisition failed: $_"
             }
@@ -116,10 +130,16 @@ function Connect-IRTIPPS {
         # The SearchOnly check on the cached path matters: a token issued for
         # the search-only audience won't authenticate against the full audience
         # and vice versa.
+        #
+        # Note: there is no Phase 1b cloud (aud) validation here as in Graph/Exchange.
+        # The search-only audience (dataservice.o365filtering.com) is identical across
+        # all clouds, so aud can't distinguish cloud. Cloud-correctness is enforced by
+        # the environment-filtered account selection in Get-IppsToken instead.
 
         $NeedNewToken = $false
 
         if ($AccessToken) {
+            Write-PSFMessage -Level 8 -Message "Using caller-supplied IPPS access token."
             $Token = $AccessToken
             $Upn = $UserPrincipalName
         }
@@ -135,7 +155,7 @@ function Connect-IRTIPPS {
             $Token = $Global:IRT_Session.IPPS.Token
             $Upn = $Global:IRT_Session.IPPS.UserPrincipalName
             $App = $Global:IRT_Session.IPPS.PublicClientApplication
-            Write-Verbose 'Using cached IPPS token.'
+            Write-PSFMessage -Level 8 -Message "Using cached IPPS token from session (account: $Upn)."
         }
         else {
             # MSAL setup, only needed when we actually have to acquire.
@@ -152,6 +172,7 @@ function Connect-IRTIPPS {
             $MsalDll = Join-Path @MsalDllParams
             if (-not ([System.AppDomain]::CurrentDomain.GetAssemblies() |
                         Where-Object { $_.FullName -like 'Microsoft.Identity.Client,*' })) {
+                Write-PSFMessage -Level 8 -Message "Loading MSAL assembly from: $MsalDll"
                 Add-Type -Path $MsalDll
             }
 
@@ -172,17 +193,23 @@ function Connect-IRTIPPS {
             $Global:IRT_Session.TenantId -eq $TenantId -and
             $Global:IRT_Session.IPPS.PublicClientApplication.AppConfig.ClientId -eq $ClientId
             $App = if ($UseExoApp) {
+                Write-PSFMessage -Level 8 -Message "Reusing Exchange MSAL app for silent IPPS audience swap."
                 $Global:IRT_Session.Exchange.PublicClientApplication
             } elseif ($UseIppsApp) {
+                Write-PSFMessage -Level 8 -Message "Reusing existing IPPS MSAL app (ClientId: $ClientId)."
                 $Global:IRT_Session.IPPS.PublicClientApplication
             } else {
+                Write-PSFMessage -Level 8 -Message "Building new MSAL public client app (ClientId: $ExoClientId, Authority: $Authority)."
                 $PcaBuilder = [Microsoft.Identity.Client.PublicClientApplicationBuilder]
                 $NewApp = $PcaBuilder::Create($ExoClientId).
                 WithAuthority($Authority).
                 WithRedirectUri('http://localhost').
                 Build()
                 if ($Global:IRT_Config.EnableTokenCache) {
-                    try { Register-MsalCache -App $NewApp -CachePath $MsalCachePath }
+                    try {
+                        Register-MsalCache -App $NewApp -CachePath $MsalCachePath
+                        Write-PSFMessage -Level 8 -Message "MSAL persistent token cache registered at: $MsalCachePath"
+                    }
                     catch { Write-IRT "Persistent token cache unavailable: $_" -Level Warn }
                 }
                 $NewApp
@@ -196,30 +223,35 @@ function Connect-IRTIPPS {
             ) {
                 Write-IRT "Refreshing expired IPPS token for tenant $TenantId..." -Level Warn
             }
-            $TokenResult = & $AcquireToken
+            Write-PSFMessage -Level 8 -Message "Acquiring IPPS token (silent from MSAL cache, else interactive)."
+            $TokenResult = Get-IppsToken
             if (-not $TokenResult.AccessToken) {
                 throw 'Failed to acquire IPPS access token.'
             }
             $Token = $TokenResult.AccessToken
             $Upn = $TokenResult.Account.Username
             $NeedNewToken = $true
+            Write-PSFMessage -Level 8 -Message "IPPS token acquired for account: $Upn"
         }
 
         # ---------- Phase 2: Connect-IPPSSession ----------
         # IPPS connections show up in Get-ConnectionInformation alongside EXO.
-        # Distinguish by ConnectionUri matching the compliance endpoint.
+        # Distinguish by ConnectionUri matching the compliance endpoint - which differs
+        # per cloud (outlook.com commercial, office365.us for USGov/DoD), so match both.
 
         $ExistingConnection = Get-ConnectionInformation -ErrorAction SilentlyContinue |
             Where-Object {
                 $_.State -eq 'Connected' -and
                 $_.TenantID -eq $TenantId -and
-                $_.ConnectionUri -match 'compliance\.protection\.outlook\.com'
+                $_.ConnectionUri -match 'compliance\.protection\.(outlook\.com|office365\.us)'
             }
 
         $NeedConnect = $Force -or -not $ExistingConnection
+        Write-PSFMessage -Level 8 -Message "NeedNewToken: $NeedNewToken | NeedConnect: $NeedConnect"
 
         if ($NeedConnect) {
             if ($ExistingConnection) {
+                Write-PSFMessage -Level 8 -Message "Disconnecting existing IPPS connection before reconnect."
                 Disconnect-ExchangeOnline -Confirm:$false -ErrorAction SilentlyContinue
             }
             $Params = @{
@@ -231,14 +263,16 @@ function Connect-IRTIPPS {
                 $Params['EnableSearchOnlySession'] = $true
             }
             $Params['ConnectionUri'] = $CloudConfig.IPPS
+            Write-PSFMessage -Level 8 -Message "Calling Connect-IPPSSession (ConnectionUri: $($CloudConfig.IPPS), SearchOnly: $SearchOnly)."
             Connect-IPPSSession @Params
+            Write-PSFMessage -Level 8 -Message "Connect-IPPSSession completed."
         }
 
         if (-not $NeedNewToken -and -not $NeedConnect) {
             Write-IRT "Already connected to IPPS for tenant $TenantId." -Level Warn
         }
 
-        return [pscustomobject]@{
+        $Result = [pscustomobject]@{
             Token                   = $Token
             TokenExpiry             = Get-TokenExpiry -Token $Token
             UserPrincipalName       = $Upn
@@ -246,5 +280,7 @@ function Connect-IRTIPPS {
             PublicClientApplication = $App
             SearchOnly              = [bool]$SearchOnly
         }
+        Write-PSFMessage -Level 8 -Message "Connect-IRTIPPS complete. Account: $Upn, TokenExpiry: $($Result.TokenExpiry)"
+        return $Result
     }
 }

@@ -108,7 +108,7 @@ function Connect-IRT {
             }
             $RefreshParams = @{
                 TenantId = $Global:IRT_Session.TenantId
-                Cloud    = $Global:IRT_Session.Environment
+                Cloud    = $Global:IRT_Session.Cloud
                 Force    = $true
             }
             if ($Silent) { $RefreshParams['Silent'] = $true }
@@ -136,16 +136,17 @@ function Connect-IRT {
 
         # --- Resolve cloud ---
         # Use the OIDC lookup when -Cloud is not specified.
-        $DetectedEnvironment = $Cloud
+        $DetectedCloud = $Cloud
         if (-not $Cloud) {
             $Oidc = Get-IRTTenantOidc -TenantId $TenantId
             if ($Oidc) {
-                $DetectedEnvironment = $Oidc.Cloud
+                $DetectedCloud = $Oidc.Cloud
             } else {
-                $DetectedEnvironment = 'Commercial'
-                $Msg = 'OIDC discovery did not find the tenant cloud; ' +
-                'defaulting to "-Cloud Commercial".'
-                Write-IRT $Msg -Level Warn
+                # Don't guess - a wrong cloud produces cross-cloud tokens that fail at the
+                # API. Make the user specify rather than silently defaulting.
+                throw ('OIDC discovery could not determine the cloud for this tenant. ' +
+                    'Re-run Connect-IRT with an explicit -Cloud ' +
+                    '(Commercial, USGov, USGovDoD, or China).')
             }
         }
 
@@ -159,8 +160,8 @@ function Connect-IRT {
         if (-not $Global:IRT_Session) {
             $Global:IRT_Session = [pscustomobject]@{
                 TenantId    = $TenantId
-                Environment = $DetectedEnvironment
                 ClientId    = $ClientId
+                Cloud       = $DetectedCloud
                 Graph       = $null
                 Exchange    = $null
                 IPPS        = $null
@@ -173,7 +174,7 @@ function Connect-IRT {
             $GraphParams = @{
                 TenantId = $TenantId
             }
-            $GraphParams['Cloud'] = $DetectedEnvironment
+            $GraphParams['Cloud'] = $DetectedCloud
             if ($Force) { $GraphParams['Force'] = $true }
             $GraphParams['Browser'] = $Browser
             if ($Private) { $GraphParams['Private'] = $true }
@@ -184,7 +185,11 @@ function Connect-IRT {
             if ($ClientId) { $GraphParams['ClientId'] = $ClientId }
 
             $GraphConnection = Connect-IRTGraph @GraphParams
-            if ($GraphConnection) { $Global:IRT_Session.Graph = $GraphConnection }
+            if ($GraphConnection) {
+                $Global:IRT_Session.Graph = $GraphConnection
+            } else {
+                Write-IRT 'Failed to connect to Microsoft Graph.' -Level Error
+            }
         }
 
         # --- Exchange Online ---
@@ -193,29 +198,33 @@ function Connect-IRT {
             $ExchangeParams = @{
                 TenantId          = $TenantId
             }
-            $ExchangeParams['Cloud'] = $DetectedEnvironment
+            $ExchangeParams['Cloud'] = $DetectedCloud
             if ($Force) { $ExchangeParams['Force'] = $true }
-            $ExchangeParams['Browser'] = $Browser
-            if ($Private) { $ExchangeParams['Private'] = $true }
             if ($Silent) { $ExchangeParams['Silent'] = $true }
             if ($ClientId) { $ExchangeParams['ClientId'] = $ClientId }
 
             $ExchangeConnection = Connect-IRTExchange @ExchangeParams
-            if ($ExchangeConnection) { $Global:IRT_Session.Exchange = $ExchangeConnection }
+            if ($ExchangeConnection) {
+                $Global:IRT_Session.Exchange = $ExchangeConnection
+            } else {
+                Write-IRT 'Failed to connect to Exchange Online.' -Level Error
+            }
         }
 
         # --- IPPS ---
         if ($ConnectIPPS) {
             $IPPSParams = @{ TenantId = $TenantId }
-            $IPPSParams['Cloud'] = $DetectedEnvironment
+            $IPPSParams['Cloud'] = $DetectedCloud
             if ($Force) { $IPPSParams['Force'] = $true }
-            $IPPSParams['Browser'] = $Browser
-            if ($Private) { $IPPSParams['Private'] = $true }
             if ($Silent) { $IPPSParams['Silent'] = $true }
             if ($ClientId) { $IPPSParams['ClientId'] = $ClientId }
 
             $IPPSConnection = Connect-IRTIPPS @IPPSParams
-            if ($IPPSConnection) { $Global:IRT_Session.IPPS = $IPPSConnection }
+            if ($IPPSConnection) {
+                $Global:IRT_Session.IPPS = $IPPSConnection
+            } else {
+                Write-IRT 'Failed to connect to IPPS.' -Level Error
+            }
         }
 
         # display status if at least one connection succeeded

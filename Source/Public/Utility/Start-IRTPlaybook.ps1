@@ -196,9 +196,8 @@ function Start-IRTPlaybook {
             UserPrincipalName = $Global:IRT_Session.Exchange.UserPrincipalName
             ShowBanner        = $false
         }
-        if ($Global:IRT_Session.Environment -in @('GCC High', 'DoD', 'USGov')) {
-            $ExoConnectParams['ExchangeEnvironmentName'] = 'O365USGovGCCHigh'
-        }
+        $ExoConnectParams['ExchangeEnvironmentName'] =
+            $Global:IRT_CloudEnvironments[$Global:IRT_Session.Cloud].ExchangeEnv
 
         #region playbook steps
 

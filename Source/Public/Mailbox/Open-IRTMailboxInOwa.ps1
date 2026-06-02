@@ -76,7 +76,7 @@ function Open-IRTMailboxInOwa {
                 continue
             }
 
-            $OwaHost = if ($Global:IRT_Session.Environment -in @('GCC High', 'DoD', 'USGov')) {
+            $OwaHost = if ($Global:IRT_Session.Cloud -in @('USGov', 'USGovDoD')) {
                 'outlook.office365.us'
             } else {
                 'outlook.office.com'
