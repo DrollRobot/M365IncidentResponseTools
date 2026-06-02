@@ -5,15 +5,17 @@
     Set environmment variable $Global:IRT_Banner = $false  to suppress.
 #>
 
+
+
 $BannerVar = Get-Variable -Name 'IRT_Banner' -Scope Global -ErrorAction SilentlyContinue
 if ($null -eq $BannerVar -or $BannerVar.Value -ne $false) {
 
-    Write-Host @Color "M365IncidentResponseTools"
+    Write-Host "M365IncidentResponseTools" -ForegroundColor Blue
     Write-Host ""
     Write-Host "Report bugs or contribute on GitHub:"
     Write-Host "https://github.com/DrollRobot/M365IncidentResponseTools"
     Write-Host ""
-    Write-Host @Color "Module loading..."
+    Write-Host "Module loading..."
     Write-Host ""
 
 }

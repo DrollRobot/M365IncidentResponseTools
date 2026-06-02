@@ -381,7 +381,7 @@ InModuleScope M365IncidentResponseTools {
                 )?.Value
                 $Global:IRT_Session = [pscustomobject]@{
                     TenantId    = 'aaaaaaaa-0000-0000-0000-aaaaaaaaaaaa'
-                    Environment = 'Commercial'
+                    Cloud = 'Commercial'
                     Graph       = $null
                     Exchange    = $null
                     IPPS        = $null
@@ -421,7 +421,7 @@ InModuleScope M365IncidentResponseTools {
                 $script:RefreshedExpiry = [System.DateTime]::UtcNow.AddHours(1)
                 $Global:IRT_Session = [pscustomobject]@{
                     TenantId    = 'bbbbbbbb-0000-0000-0000-bbbbbbbbbbbb'
-                    Environment = 'Commercial'
+                    Cloud = 'Commercial'
                     Graph       = [pscustomobject]@{
                         Token                   = 'old-graph-token'
                         TokenExpiry             = [System.DateTime]::UtcNow.AddMinutes(5)
@@ -678,7 +678,7 @@ Describe 'Connect-IRT admin consent workflow (live)' -Tag 'Online' {
         $script:SkipConsentTests = $env:IRT_TEST_SILENT_AUTH -eq '1'
         if ($script:SkipConsentTests) { return }
 
-        if (-not $Global:IRT_Session?.Graph) {
+        if (-not ($Global:IRT_Session -and $Global:IRT_Session.Graph)) {
             throw ('Admin consent tests require an active Graph connection. ' +
                 "Run '.\tests.ps1 -Online' so the session is established first.")
         }
@@ -712,14 +712,26 @@ Describe 'Connect-IRT admin consent workflow (live)' -Tag 'Online' {
             Set-ItResult -Skipped -Because 'admin consent workflow requires interactive auth'
             return
         }
-        # Query grants directly via Graph. At least one AllPrincipals grant must
-        # exist for the Graph CLI Tools SP after the consent flow completes.
+        # Entra ID replication for oauth2PermissionGrants can lag up to ~60 seconds
+        # after the browser consent flow completes, so poll until the grant is visible
+        # rather than asserting immediately. Connect-IRT already warned if replication
+        # was still in flight when it returned.
         $AppId = '14d82eec-204b-4c2f-b7e8-296a70dab67e'
         $Sp = Invoke-MgGraphRequest -Method GET `
             -Uri "v1.0/servicePrincipals(appId='$AppId')?`$select=id" -ErrorAction Stop
-        $Grants = (Invoke-MgGraphRequest -Method GET `
-            -Uri "v1.0/oauth2PermissionGrants?`$filter=clientId eq '$($Sp.id) and consentType eq ''AllPrincipals''" `
-            -ErrorAction Stop).value
+
+        $Grants = $null
+        $Deadline = [datetime]::UtcNow.AddSeconds(90)
+        while (-not $Grants -and [datetime]::UtcNow -lt $Deadline) {
+            $Grants = (Invoke-MgGraphRequest -Method GET `
+                -Uri "v1.0/oauth2PermissionGrants?`$filter=clientId eq '$($Sp.id)' and consentType eq 'AllPrincipals'" `
+                -ErrorAction Stop).value
+            if (-not $Grants) {
+                Write-Host '  Waiting for grant replication...' -ForegroundColor DarkGray
+                Start-Sleep -Seconds 5
+            }
+        }
+
         $Grants | Should -Not -BeNullOrEmpty -Because 'Connect-IRT must re-grant tenant-wide consent after the browser flow completes'
     }
 

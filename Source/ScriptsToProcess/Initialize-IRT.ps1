@@ -39,23 +39,53 @@ if ($env:TERM_PROGRAM -ne 'vscode') {
         catch { 'DarkYellow' }
         $PromptColor = @{ForegroundColor = $irt_color }
 
-        # FIXME now that we're checking before every public command, is the prompt check 
-        # still necessary?
-        # # Display connection status.
-        # # Update-IRTToken handles expiry checks and refresh; -PassThru returns current status.
-        # if ($Global:IRT_Session) {
-        #     $irt_status = Update-IRTToken -SkipIfNeverConnected -PassThru
-        #     $irt_connected = @('Graph', 'Exchange', 'IPPS') | Where-Object { $irt_status[$_] }
-        #     $irt_domain = $null
-        #     foreach ($irt_svc in $irt_connected) {
-        #         $irt_obj = $Global:IRT_Session.$irt_svc
-        #         $irt_upn = $irt_obj.Account ?? $irt_obj.UserPrincipalName
-        #         if ($irt_upn) { $irt_domain = ($irt_upn -split '@')[-1]; break }
-        #     }
-        # } else {
-        #     $irt_connected = @()
-        #     $irt_domain = $null
-        # }
+        # Check actual live connections to display real status in the prompt.
+        $irt_connected = @()
+        $irt_domain = $null
+
+        try {
+            $GraphCtx = Get-MgContext -ErrorAction SilentlyContinue
+            if ($GraphCtx -and $GraphCtx.Account) {
+                try {
+                    $null = Invoke-MgGraphRequest -Uri 'v1.0/organization?$select=id&$top=1' -ErrorAction Stop
+                    $irt_connected += 'Graph'
+                    if (-not $irt_domain) {
+                        $irt_domain = ($GraphCtx.Account -split '@')[-1]
+                    }
+                } catch {
+                    # Graph token invalid or expired
+                }
+            }
+        } catch {
+            # Ignore errors; Graph not available
+        }
+
+        try {
+            $IppsPattern = 'compliance\.protection\.(outlook\.com|office365\.us)'
+            $AllExoConns = Get-ConnectionInformation -ErrorAction SilentlyContinue |
+                Where-Object { $_.State -eq 'Connected' }
+            $ExoConn = $AllExoConns |
+                Where-Object { $_.ConnectionUri -notmatch $IppsPattern } |
+                Select-Object -First 1
+            $IppsConn = $AllExoConns |
+                Where-Object { $_.ConnectionUri -match $IppsPattern } |
+                Select-Object -First 1
+
+            if ($ExoConn) {
+                $irt_connected += 'Exchange'
+                if (-not $irt_domain -and $ExoConn.UserPrincipalName) {
+                    $irt_domain = ($ExoConn.UserPrincipalName -split '@')[-1]
+                }
+            }
+            if ($IppsConn) {
+                $irt_connected += 'IPPS'
+                if (-not $irt_domain -and $IppsConn.UserPrincipalName) {
+                    $irt_domain = ($IppsConn.UserPrincipalName -split '@')[-1]
+                }
+            }
+        } catch {
+            # Ignore errors; Exchange/IPPS not available
+        }
 
         Write-Host ''
         Write-Host @PromptColor '[IRT] Connected:' -NoNewline

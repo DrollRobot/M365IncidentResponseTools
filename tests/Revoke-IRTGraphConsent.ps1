@@ -20,7 +20,7 @@ function Revoke-IRTGraphConsent {
     .OUTPUTS
     The number of grants removed.
     #>
-    [CmdletBinding(SupportsShouldProcess)]
+    [CmdletBinding()]
     [OutputType([int])]
     param (
         [string] $AppId = '14d82eec-204b-4c2f-b7e8-296a70dab67e'  # Graph CLI Tools
@@ -45,12 +45,10 @@ function Revoke-IRTGraphConsent {
 
     $Removed = 0
     foreach ($Grant in $Grants) {
-        if ($PSCmdlet.ShouldProcess("Grant $($Grant.id) ($($Grant.scope -replace '\s+', ', '))", 'Remove')) {
-            Invoke-MgGraphRequest -Method DELETE `
-                -Uri "v1.0/oauth2PermissionGrants/$($Grant.id)" `
-                -ErrorAction Stop
-            $Removed++
-        }
+        $null = Invoke-MgGraphRequest -Method DELETE `
+            -Uri "v1.0/oauth2PermissionGrants/$($Grant.id)" `
+            -ErrorAction Stop
+        $Removed++
     }
 
     Write-Verbose "Removed $Removed consent grant(s) for '$($SpResult.displayName)'."

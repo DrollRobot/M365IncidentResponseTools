@@ -166,6 +166,7 @@ function Start-IRTPlaybook {
 
         # pack references for injection into child runspace globals
         $SharedRefs = @{
+            IRT_Banner                     = $Global:IRT_Banner
             IRT_IpInfo                     = $Global:IRT_IpInfo
             IRT_MessageTraceTable          = $Global:IRT_MessageTraceTable
             IRT_WaitFlags                  = $Global:IRT_WaitFlags

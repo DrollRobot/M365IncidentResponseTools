@@ -86,9 +86,7 @@
     # Runs in caller scope (not module scope), so functions defined here are NOT tracked by
     # the module and survive Import-Module -Force reimports.
     ScriptsToProcess  = @(
-        'ScriptsToProcess\Write-Banner.ps1'
-        'ScriptsToProcess\Start-ImportTimer.ps1'
-        'ScriptsToProcess\Confirm-Dependencies.ps1'
+        # 'ScriptsToProcess\Write-Banner.ps1'
         'ScriptsToProcess\Initialize-IRT.ps1'
     )
 

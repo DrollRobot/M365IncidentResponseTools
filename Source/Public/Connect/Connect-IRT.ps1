@@ -143,7 +143,7 @@ function Connect-IRT {
                 $DetectedCloud = $Oidc.Cloud
             } else {
                 # Don't guess - a wrong cloud produces cross-cloud tokens that fail at the
-                # API. Make the user specify rather than silently defaulting.
+                # API. Make the user specify rather than silently defaulting to Commercial.
                 throw ('OIDC discovery could not determine the cloud for this tenant. ' +
                     'Re-run Connect-IRT with an explicit -Cloud ' +
                     '(Commercial, USGov, USGovDoD, or China).')
