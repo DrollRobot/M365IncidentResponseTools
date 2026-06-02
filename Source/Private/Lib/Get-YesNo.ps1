@@ -1,7 +1,8 @@
 function Get-YesNo {
     <#
     .SYNOPSIS
-    A utility function for asking the user to answer y or n. Returns $true if y, $false if n. If any other input is given, it will ask the user again.
+    A utility function for asking the user to answer y or n. Returns $true if y,
+    $false if n. If any other input is given, it will ask the user again.
 
     .PARAMETER Prompt
     The message to present to the user. The function appends " (y/n)"
@@ -12,15 +13,21 @@ function Get-YesNo {
     .NOTES
     Version: 1.2.2
     1.2.2 - Fixed bug where incorrect input would generate errors.
-    1.2.1 - Fixed bug where random text would be added to prompt. 
+    1.2.1 - Fixed bug where random text would be added to prompt.
     1.2.0 - Added color option.
     #>
     [CmdletBinding()]
+    [OutputType([bool])]
     param (
         [Parameter( Position = 0 )]
         [string] $Prompt,
 
-        [ValidateSet( 'Black', 'Blue', 'Cyan', 'DarkBlue', 'DarkCyan', 'DarkGray', 'DarkGreen', 'DarkMagenta', 'DarkRed', 'DarkYellow', 'Gray', 'Green', 'Magenta', 'Red', 'White', 'Yellow' )]
+        [ValidateSet(
+            'Black', 'Blue', 'Cyan', 'DarkBlue',
+            'DarkCyan', 'DarkGray', 'DarkGreen', 'DarkMagenta',
+            'DarkRed', 'DarkYellow', 'Gray', 'Green',
+            'Magenta', 'Red', 'White', 'Yellow'
+        )]
         [string] $ForegroundColor
     )
 

@@ -18,7 +18,7 @@ Function Get-GraphConsent {
         try {
             $Context = Get-MgContext
         }
-        catch{
+        catch {
             throw "Must be connected to Graph."
         }
         if (-not $Context) {
@@ -41,7 +41,7 @@ Function Get-GraphConsent {
                 $MissingScopes.Add($Scope)
             }
         }
-        
+
         # reconnect with missing scopes
         if (($MissingScopes | Measure-Object).Count -gt 0) {
             $ConnectParams = @{
@@ -78,7 +78,7 @@ Function Get-GraphConsent {
                     }
                 }
                 $ConsentStrings = $ConsentStrings | Sort-Object
-                foreach ($String in $ConsentStrings) {Write-Host $String}
+                foreach ($String in $ConsentStrings) { Write-Host $String }
             }
         }
     }

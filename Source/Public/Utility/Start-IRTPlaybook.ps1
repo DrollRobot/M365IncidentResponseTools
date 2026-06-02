@@ -198,7 +198,7 @@ function Start-IRTPlaybook {
             ShowBanner        = $false
         }
         $ExoConnectParams['ExchangeEnvironmentName'] =
-            $Global:IRT_CloudEnvironments[$Global:IRT_Session.Cloud].ExchangeEnv
+        $Global:IRT_CloudEnvironments[$Global:IRT_Session.Cloud].ExchangeEnv
 
         #region playbook steps
 

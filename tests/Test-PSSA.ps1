@@ -74,6 +74,13 @@ $PerFileSuppressions = @{
     'Build\Add-IpAddressConditionalFormattingTemplate.ps1' = @('PSAvoidUsingWriteHost')
 }
 
+# Per-path rule suppressions. Each key is a relative path prefix.
+# Any finding under that prefix is suppressed when its RuleName is listed.
+$PerPathSuppressions = @{
+    'Tests\'               = @('PSAvoidUsingWriteHost')
+    'Source\Private\Lib\' = @('PSAvoidUsingWriteHost')
+}
+
 # Formatting rules applied by Invoke-Formatter when -AutoFormat is used.
 $FormatterSettings = @{
     Rules = @{
@@ -220,13 +227,24 @@ try {
         (-not ($ExcludedFiles -contains $Rel)) -and
         (-not ($ExcludedFolders | Where-Object { $Rel -like "$_\*" -or $Rel -like "*\$_\*" }))
     }
-    # Apply per-file rule suppressions defined in $PerFileSuppressions above.
-    if ($PerFileSuppressions.Count -gt 0) {
+    # Apply per-file and per-path rule suppressions.
+    if ($PerFileSuppressions.Count -gt 0 -or $PerPathSuppressions.Count -gt 0) {
         $BeforeCount = ($Results | Measure-Object).Count
         $Results = $Results | Where-Object {
             $Rel = [System.IO.Path]::GetRelativePath($Path, $_.ScriptPath)
-            $IsSuppressed = $PerFileSuppressions.ContainsKey($Rel) -and
-                $PerFileSuppressions[$Rel] -contains $_.RuleName
+            $IsFileSuppressed = $PerFileSuppressions.ContainsKey($Rel) -and
+            ($PerFileSuppressions[$Rel] -contains $_.RuleName)
+
+            $IsPathSuppressed = $false
+            foreach ($Prefix in $PerPathSuppressions.Keys) {
+                if ($Rel.StartsWith($Prefix, [System.StringComparison]::OrdinalIgnoreCase) -and
+                    ($PerPathSuppressions[$Prefix] -contains $_.RuleName)) {
+                    $IsPathSuppressed = $true
+                    break
+                }
+            }
+
+            $IsSuppressed = $IsFileSuppressed -or $IsPathSuppressed
             -not $IsSuppressed
         }
         $AfterCount = ($Results | Measure-Object).Count

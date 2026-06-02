@@ -27,15 +27,21 @@ function Revoke-IRTGraphConsent {
     )
 
     # Resolve the service principal object ID for this app in the tenant.
-    $SpResult = Invoke-MgGraphRequest -Method GET `
-        -Uri "v1.0/servicePrincipals(appId='$AppId')?`$select=id,displayName" `
-        -ErrorAction Stop
+    $SpRequest = @{
+        Method      = 'GET'
+        Uri         = "v1.0/servicePrincipals(appId='$AppId')?`$select=id,displayName"
+        ErrorAction = 'Stop'
+    }
+    $SpResult = Invoke-MgGraphRequest @SpRequest
     $SpId = $SpResult.id
 
     # Pull all grants where this SP is the client.
-    $GrantsResult = Invoke-MgGraphRequest -Method GET `
-        -Uri "v1.0/oauth2PermissionGrants?`$filter=clientId eq '$SpId'" `
-        -ErrorAction Stop
+    $GrantListRequest = @{
+        Method      = 'GET'
+        Uri         = "v1.0/oauth2PermissionGrants?`$filter=clientId eq '$SpId'"
+        ErrorAction = 'Stop'
+    }
+    $GrantsResult = Invoke-MgGraphRequest @GrantListRequest
     $Grants = $GrantsResult.value
 
     if (-not $Grants) {
@@ -45,9 +51,12 @@ function Revoke-IRTGraphConsent {
 
     $Removed = 0
     foreach ($Grant in $Grants) {
-        $null = Invoke-MgGraphRequest -Method DELETE `
-            -Uri "v1.0/oauth2PermissionGrants/$($Grant.id)" `
-            -ErrorAction Stop
+        $DeleteGrantRequest = @{
+            Method      = 'DELETE'
+            Uri         = "v1.0/oauth2PermissionGrants/$($Grant.id)"
+            ErrorAction = 'Stop'
+        }
+        $null = Invoke-MgGraphRequest @DeleteGrantRequest
         $Removed++
     }
 

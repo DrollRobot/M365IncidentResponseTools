@@ -132,14 +132,15 @@ Do not move on to formatting until all Pester tests are passing.
 .\Tests.ps1 AutoFormat
 
 # run the following tests one by one, fixing any findings before moving on to the next
+.\Tests.ps1 ModuleSyntax
 .\Tests.ps1 LineLength
 .\Tests.ps1 BacktickContinuation
 .\Tests.ps1 FormatOperator
 .\Tests.ps1 JoinPath
-.\Tests.ps1 ModuleSyntax
 .\Tests.ps1 NonASCIICharacters
 .\Tests.ps1 FindUnwantedStrings
 .\Tests.ps1 PSSA
+# once you're done, run them all again to be sure fixes didn't create any new problems. 
 ```
 
 

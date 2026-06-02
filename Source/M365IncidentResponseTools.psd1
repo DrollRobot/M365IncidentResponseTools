@@ -71,7 +71,7 @@
         @{ModuleName = 'ExchangeOnlineManagement'; ModuleVersion = '3.4.0' }
         @{ModuleName = 'ImportExcel'; ModuleVersion = '7.8.0' }
         @{ModuleName = 'PSToml'; ModuleVersion = '0.3.0' }
-        @{ModuleName = 'PSFramework'; ModuleVersion = '1.13.426'}
+        @{ModuleName = 'PSFramework'; ModuleVersion = '1.13.426' }
 
         # Dev/test dependencies -- not required for most users
         # @{ModuleName = 'Pester';  ModuleVersion = '5.0.0'}

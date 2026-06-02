@@ -39,11 +39,13 @@ function Get-IRTTenantOidc {
 
     .EXAMPLE
     $oidc = Get-IRTTenantOidc -TenantId $value
-    Write-Host "TenantId: $( $oidc.TenantId ) | Cloud: $( $oidc.Cloud ) | Graph: $( $oidc.msgraph_host )"
+    Write-Host (
+        "TenantId: $( $oidc.TenantId ) | Cloud: $( $oidc.Cloud ) | " +
+        "Graph: $( $oidc.msgraph_host )")
 
     .OUTPUTS
     PSCustomObject (augmented OIDC discovery document), or $null if not found.
-    
+
     .NOTES
     Version: 1.1.0
     #>
@@ -78,10 +80,10 @@ function Get-IRTTenantOidc {
         # $cloud.Key would wrongly be 'Commercial' and yield the wrong authority
         # (AADSTS900384). GCC is commercial-hosted, so WW maps to Commercial.
         $cloudKey = switch ($RegionScope) {
-            'WW'    { 'Commercial' }                                       # incl. GCC
+            'WW' { 'Commercial' }                                       # incl. GCC
             'USGov' { if ($RegionSubScope -eq 'DOD') { 'USGovDoD' } else { 'USGov' } }
-            'USG'   { 'USGov' }                                            # GCC High
-            'DOD'   { 'USGovDoD' }
+            'USG' { 'USGov' }                                            # GCC High
+            'DOD' { 'USGovDoD' }
             default { $cloud.Key }                                         # China, etc.
         }
 

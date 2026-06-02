@@ -10,7 +10,8 @@ function Set-IRTConfig {
     .PARAMETER Reset
     Reset config to the template defaults without showing the menu.
 
-    # FIXME paths that haven't been explicitly set should show 'default', not the default path. Maybe?
+    # FIXME paths that have not been explicitly set should show 'default',
+    # not the default path. Maybe?
     # FIXME why some stuff in appdata/local and some in roaming?
     #>
     [Alias('SetIRTConfig', 'Set-IRTConfigs', 'SetIRTConfigs')]

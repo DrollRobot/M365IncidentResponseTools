@@ -683,28 +683,38 @@ Describe 'Connect-IRT admin consent workflow (live)' -Tag 'Online' {
                 "Run '.\tests.ps1 -Online' so the session is established first.")
         }
 
-        . (Join-Path $PSScriptRoot 'Revoke-IRTGraphConsent.ps1')
+        . (Join-Path -Path $PSScriptRoot -ChildPath 'Revoke-IRTGraphConsent.ps1')
 
-        Write-Host ''
-        Write-Host '--- Admin Consent Test Setup ---' -ForegroundColor Cyan
-        Write-Host 'Revoking all consent grants for the Graph CLI Tools app...' -ForegroundColor Yellow
+        Write-Output ''
+        Write-Output '--- Admin Consent Test Setup ---'
+        Write-Output (
+            'Revoking all consent grants for the Graph CLI Tools app...'
+        )
         $script:RevokedCount = Revoke-IRTGraphConsent
-        Write-Host "$($script:RevokedCount) grant(s) removed." -ForegroundColor Yellow
-        Write-Host ''
-        Write-Host 'Forcing a Graph reconnect. A browser window will open for admin consent.' -ForegroundColor Cyan
-        Write-Host 'Sign in as a Global Administrator and click Accept to continue.' -ForegroundColor Cyan
-        Write-Host '--------------------------------' -ForegroundColor Cyan
-        Write-Host ''
+        Write-Output "$($script:RevokedCount) grant(s) removed."
+        Write-Output ''
+        Write-Output (
+            'Forcing a Graph reconnect. A browser window will open for admin consent.'
+        )
+        Write-Output (
+            'Sign in as a Global Administrator and click Accept to continue.'
+        )
+        Write-Output '--------------------------------'
+        Write-Output ''
 
         Connect-IRT -TenantId $Global:IRT_Session.TenantId -Graph -Force
     }
 
     It 'revoking consent removes at least one grant' {
         if ($script:SkipConsentTests) {
-            Set-ItResult -Skipped -Because 'admin consent workflow requires interactive auth (-CachedAuth not supported)'
+            Set-ItResult -Skipped -Because (
+                'admin consent workflow requires interactive auth ' +
+                '(-CachedAuth not supported)')
             return
         }
-        $script:RevokedCount | Should -BeGreaterThan 0 -Because 'the Graph CLI Tools app must have had at least one consent grant to revoke'
+        $script:RevokedCount | Should -BeGreaterThan 0 -Because (
+            'the Graph CLI Tools app must have had at least ' +
+            'one consent grant to revoke')
     }
 
     It 'admin consent is re-granted after forced reconnect' {
@@ -717,22 +727,34 @@ Describe 'Connect-IRT admin consent workflow (live)' -Tag 'Online' {
         # rather than asserting immediately. Connect-IRT already warned if replication
         # was still in flight when it returned.
         $AppId = '14d82eec-204b-4c2f-b7e8-296a70dab67e'
-        $Sp = Invoke-MgGraphRequest -Method GET `
-            -Uri "v1.0/servicePrincipals(appId='$AppId')?`$select=id" -ErrorAction Stop
+        $SpRequest = @{
+            Method      = 'GET'
+            Uri         = "v1.0/servicePrincipals(appId='$AppId')?`$select=id"
+            ErrorAction = 'Stop'
+        }
+        $Sp = Invoke-MgGraphRequest @SpRequest
 
         $Grants = $null
         $Deadline = [datetime]::UtcNow.AddSeconds(90)
         while (-not $Grants -and [datetime]::UtcNow -lt $Deadline) {
-            $Grants = (Invoke-MgGraphRequest -Method GET `
-                -Uri "v1.0/oauth2PermissionGrants?`$filter=clientId eq '$($Sp.id)' and consentType eq 'AllPrincipals'" `
-                -ErrorAction Stop).value
+            $GrantRequest = @{
+                Method      = 'GET'
+                Uri         = (
+                    'v1.0/oauth2PermissionGrants?' +
+                    "`$filter=clientId eq '$($Sp.id)' " +
+                    "and consentType eq 'AllPrincipals'")
+                ErrorAction = 'Stop'
+            }
+            $Grants = (Invoke-MgGraphRequest @GrantRequest).value
             if (-not $Grants) {
-                Write-Host '  Waiting for grant replication...' -ForegroundColor DarkGray
+                Write-Output '  Waiting for grant replication...'
                 Start-Sleep -Seconds 5
             }
         }
 
-        $Grants | Should -Not -BeNullOrEmpty -Because 'Connect-IRT must re-grant tenant-wide consent after the browser flow completes'
+        $Grants | Should -Not -BeNullOrEmpty -Because (
+            'Connect-IRT must re-grant tenant-wide consent ' +
+            'after the browser flow completes')
     }
 
     It 'Graph token is valid after consent re-grant' {
@@ -742,8 +764,9 @@ Describe 'Connect-IRT admin consent workflow (live)' -Tag 'Online' {
         }
         $Global:IRT_Session.Graph | Should -Not -BeNullOrEmpty
         $Global:IRT_Session.Graph.TokenExpiry | Should -BeOfType [System.DateTime]
-        $Global:IRT_Session.Graph.TokenExpiry | Should -BeGreaterThan ([System.DateTime]::UtcNow) `
-            -Because 'the forced reconnect must produce a fresh token'
+        $Global:IRT_Session.Graph.TokenExpiry | Should -BeGreaterThan (
+            [System.DateTime]::UtcNow
+        ) -Because 'the forced reconnect must produce a fresh token'
     }
 }
 
