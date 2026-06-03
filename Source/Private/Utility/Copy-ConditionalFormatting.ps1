@@ -309,7 +309,7 @@ function Copy-ConditionalFormatting {
 
                 $copied++
                 Write-PSFMessage -Level 9 -Message (
-                    "Copy-ConditionalFormatting: Copied '$typeName' rule → $newAddrString")
+                    "Copy-ConditionalFormatting: Copied '$typeName' rule -> $newAddrString")
             }
             catch {
                 $warnMsg = ("Skipped rule (type '{0}', source '{1}'): {2}" -f

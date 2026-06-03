@@ -146,7 +146,7 @@ function Get-IRTTenantOwner {
             # --- OIDC Discovery ---
             # Done first so we know the target cloud before attempting Graph.
             # Provides cloud, region, Graph host, and confirms the tenant exists.
-            $Oidc = Get-IRTTenantOidc -TenantId $Tid
+            $Oidc = Get-TenantOidc -TenantId $Tid
             $Cloud = ($Oidc)?.Cloud
 
             Write-PSFMessage -Level 8 -Message (
@@ -163,8 +163,8 @@ function Get-IRTTenantOwner {
                 $Cloud -ne $Global:IRT_Session.Cloud) {
                 if (-not $Quiet) {
                     $Msg = "Tenant '$Tid' is in the $Cloud cloud but the active " +
-                        "Graph session is $( $Global:IRT_Session.Cloud ). " +
-                        "Skipping Graph query."
+                    "Graph session is $( $Global:IRT_Session.Cloud ). " +
+                    "Skipping Graph query."
                     Write-IRT $Msg -Level Warn
                 }
                 $UseGraph = $false

@@ -49,7 +49,7 @@ function Request-GraphUser {
             $Variable = Get-Variable -Scope Global -Name 'IRT_Users' -ErrorAction SilentlyContinue
             if ( $Variable ) {
                 Write-PSFMessage -Level 8 -Message (
-                    "${FunctionName}: Cache hit — returning $($Global:IRT_Users.Count) " +
+                    "${FunctionName}: Cache hit - returning $($Global:IRT_Users.Count) " +
                     "user(s) (Return=$Return)")
                 switch ( $Return ) {
                     'objects' { return $Global:IRT_Users }
@@ -80,7 +80,7 @@ function Request-GraphUser {
             if ( $o.Id ) { $Global:IRT_UsersById[$o.Id] = $o }
         }
         Write-PSFMessage -Level 8 -Message (
-            "${FunctionName}: Index built — $($Global:IRT_UsersById.Count) entry/entries.")
+            "${FunctionName}: Index built - $($Global:IRT_UsersById.Count) entry/entries.")
 
         # export to file
         if ($Xml) {
@@ -88,7 +88,7 @@ function Request-GraphUser {
             $XmlOutputPath = Join-Path -Path $CurrentPath -ChildPath $FileName
             $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
             Write-PSFMessage -Level 8 -Message (
-                "${FunctionName}: Export-Clixml → $XmlOutputPath [$Elapsed]")
+                "${FunctionName}: Export-Clixml -> $XmlOutputPath [$Elapsed]")
             $Objects | Export-Clixml -Depth 5 -Path $XmlOutputPath
         }
 

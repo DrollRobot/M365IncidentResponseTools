@@ -99,7 +99,8 @@ function Show-IRTUnifiedAuditLog {
 
             # wait for both user and AllUsers message traces to complete via WaitFlags
             $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-            Write-PSFMessage -Level 8 -Message "${FunctionName}: Waiting on message trace [$Elapsed]"
+            Write-PSFMessage -Level 8 -Message (
+                "${FunctionName}: Waiting on message trace [$Elapsed]")
             if ($Global:IRT_WaitFlags) {
                 while (-not ($Global:IRT_WaitFlags.MessageTraceUserDone -and
                         $Global:IRT_WaitFlags.MessageTraceAllUsersDone)) {
@@ -160,7 +161,8 @@ function Show-IRTUnifiedAuditLog {
 
         #region build workbook
         $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-        Write-PSFMessage -Level 8 -Message "${FunctionName}: Request-GraphServicePrincipal [$Elapsed]"
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: Request-GraphServicePrincipal [$Elapsed]")
         Request-GraphServicePrincipal -Return 'none' -Cached:$Cached
         $Workbook = Open-ExcelPackage -Path $ExcelOutputPath -Create
 
@@ -210,7 +212,8 @@ function Show-IRTUnifiedAuditLog {
             foreach ($ws in $Workbook.Workbook.Worksheets) {
                 $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
                 $WsName = $ws.Name
-                Write-PSFMessage -Level 8 -Message "${FunctionName}: Add-IpInfoToSheet ($WsName) [$Elapsed]"
+                Write-PSFMessage -Level 8 -Message (
+                    "${FunctionName}: Add-IpInfoToSheet ($WsName) [$Elapsed]")
                 Add-IpInfoToSheet -Worksheet $ws -ColumnName 'IpAddress'
             }
         }

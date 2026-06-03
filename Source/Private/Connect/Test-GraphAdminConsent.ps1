@@ -23,7 +23,7 @@ function Test-GraphAdminConsent {
     )
 
     Write-PSFMessage -Level 8 -Message (
-        "Test-GraphAdminConsent: Resolving SPs — Client=$ClientAppId, Resource=$ResourceAppId")
+        "Test-GraphAdminConsent: Resolving SPs - Client=$ClientAppId, Resource=$ResourceAppId")
 
     # Resolve SPs (these are tenant-scoped object IDs, not the app IDs)
     $ClientSpParams = @{

@@ -118,7 +118,8 @@ function Start-IRTPlaybook {
 
             # make directory
             $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-            Write-PSFMessage -Level 8 -Message "${FunctionName}: New-IRTInvestigationFolder [$Elapsed]"
+            Write-PSFMessage -Level 8 -Message (
+                "${FunctionName}: New-IRTInvestigationFolder [$Elapsed]")
             $DirParams = @{
                 UserObject = $ScriptUserObjects
             }
@@ -149,7 +150,8 @@ function Start-IRTPlaybook {
         Write-PSFMessage -Level 8 -Message "${FunctionName}: Request-DirectoryRole [$Elapsed]"
         Request-DirectoryRole -Return 'none'
         $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-        Write-PSFMessage -Level 8 -Message "${FunctionName}: Request-DirectoryRoleTemplate [$Elapsed]"
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: Request-DirectoryRoleTemplate [$Elapsed]")
         Request-DirectoryRoleTemplate -Return 'none'
         $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
         Write-PSFMessage -Level 8 -Message "${FunctionName}: Request-GraphGroup [$Elapsed]"
@@ -161,7 +163,8 @@ function Start-IRTPlaybook {
         Write-PSFMessage -Level 8 -Message "${FunctionName}: Request-GraphUser [$Elapsed]"
         Request-GraphUser -Return 'none'
         $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-        Write-PSFMessage -Level 8 -Message "${FunctionName}: Request-GraphServicePrincipal [$Elapsed]"
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: Request-GraphServicePrincipal [$Elapsed]")
         Request-GraphServicePrincipal -Return 'none'
 
         # pack references for injection into child runspace globals
@@ -198,7 +201,7 @@ function Start-IRTPlaybook {
             ShowBanner        = $false
         }
         $ExoConnectParams['ExchangeEnvironmentName'] =
-        $Global:IRT_CloudEnvironments[$Global:IRT_Session.Cloud].ExchangeEnv
+        $Global:IRT_Session.CloudConfig.ExchangeEnv
 
         #region playbook steps
 
@@ -645,6 +648,7 @@ function Start-IRTPlaybook {
 
         $Stopwatch.Stop()
         $TotalElapsed = $Stopwatch.Elapsed.ToString()
-        Write-PSFMessage -Level 8 -Message "${FunctionName}: Playbook complete. Total elapsed: $TotalElapsed"
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: Playbook complete. Total elapsed: $TotalElapsed")
     }
 }

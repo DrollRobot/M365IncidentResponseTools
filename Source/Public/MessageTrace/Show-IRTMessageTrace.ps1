@@ -97,7 +97,8 @@ function Show-IRTMessageTrace {
 
         $RowCount = $Message.Count
         $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-        Write-PSFMessage -Level 8 -Message "${FunctionName}: Row loop starting ($RowCount rows) [$Elapsed]"
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: Row loop starting ($RowCount rows) [$Elapsed]")
         $Rows = [System.Collections.Generic.List[PSCustomObject]]::new($RowCount)
         for ($i = 0; $i -lt $RowCount; $i++) {
 
@@ -142,7 +143,8 @@ function Show-IRTMessageTrace {
         }
 
         #region EXPORT EXCEL
-        Write-PSFMessage -Level 8 -Message "${FunctionName}: Export-Excel [$($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))]"
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: Export-Excel [$($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))]")
         $ExcelParams = @{
             Path          = $ExcelOutputPath
             WorkSheetname = $FileNamePrefix

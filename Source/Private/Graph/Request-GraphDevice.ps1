@@ -41,7 +41,7 @@ function Request-GraphDevice {
             $Variable = Get-Variable -Scope Global -Name 'IRT_Devices' -ErrorAction SilentlyContinue
             if ($Variable) {
                 Write-PSFMessage -Level 8 -Message (
-                    "${FunctionName}: Cache hit — returning $($Global:IRT_Devices.Count) " +
+                    "${FunctionName}: Cache hit - returning $($Global:IRT_Devices.Count) " +
                     "device(s) (Return=$Return)")
                 switch ($Return) {
                     'objects' { return $Global:IRT_Devices }
@@ -82,7 +82,7 @@ function Request-GraphDevice {
                 }
             }
             Write-PSFMessage -Level 8 -Message (
-                "${FunctionName}: Intune index built — $($IntuneDevicesByEntraId.Count) " +
+                "${FunctionName}: Intune index built - $($IntuneDevicesByEntraId.Count) " +
                 "matchable device(s).")
         }
 
@@ -157,7 +157,7 @@ function Request-GraphDevice {
             if ( $Device.DeviceId ) { $Global:IRT_DevicesById[$Device.DeviceId] = $Device }
         }
         Write-PSFMessage -Level 8 -Message (
-            "${FunctionName}: Index built — $($Global:IRT_DevicesById.Count) entry/entries.")
+            "${FunctionName}: Index built - $($Global:IRT_DevicesById.Count) entry/entries.")
 
         # export to file
         if ($Xml) {
@@ -165,7 +165,7 @@ function Request-GraphDevice {
             $XmlOutputPath = Join-Path -Path $CurrentPath -ChildPath $FileName
             $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
             Write-PSFMessage -Level 8 -Message (
-                "${FunctionName}: Export-Clixml → $XmlOutputPath [$Elapsed]")
+                "${FunctionName}: Export-Clixml -> $XmlOutputPath [$Elapsed]")
             $Objects | Export-Clixml -Depth 8 -Path $XmlOutputPath
         }
 

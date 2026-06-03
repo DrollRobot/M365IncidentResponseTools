@@ -45,7 +45,7 @@ function Request-GraphOauth2Grant {
             $Variable = Get-Variable @GvParams
             if ( $Variable ) {
                 Write-PSFMessage -Level 8 -Message (
-                    "${FunctionName}: Cache hit — returning $($Global:IRT_Oauth2Grants.Count) " +
+                    "${FunctionName}: Cache hit - returning $($Global:IRT_Oauth2Grants.Count) " +
                     "grant(s) (Return=$Return)")
                 switch ( $Return ) {
                     'objects' { return $Global:IRT_Oauth2Grants }
@@ -83,7 +83,7 @@ function Request-GraphOauth2Grant {
             }
         }
         Write-PSFMessage -Level 8 -Message (
-            "${FunctionName}: Index built — $($Global:IRT_Oauth2GrantsByClientId.Count) " +
+            "${FunctionName}: Index built - $($Global:IRT_Oauth2GrantsByClientId.Count) " +
             "unique client(s).")
 
         # export to file
@@ -92,7 +92,7 @@ function Request-GraphOauth2Grant {
             $XmlOutputPath = Join-Path -Path $CurrentPath -ChildPath $FileName
             $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
             Write-PSFMessage -Level 8 -Message (
-                "${FunctionName}: Export-Clixml → $XmlOutputPath [$Elapsed]")
+                "${FunctionName}: Export-Clixml -> $XmlOutputPath [$Elapsed]")
             $Objects | Export-Clixml -Depth 5 -Path $XmlOutputPath
         }
 

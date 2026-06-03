@@ -245,11 +245,12 @@ function Build-AllOperationSheet {
         Write-Progress -Id 1 -Activity 'Row loop' -Completed
         $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
         Write-PSFMessage -Level 8 -Message (
-            "${FunctionName}: Row loop complete — $RowCount row(s) processed [$Elapsed]")
+            "${FunctionName}: Row loop complete - $RowCount row(s) processed [$Elapsed]")
 
         #region EXPORT
         Write-PSFMessage -Level 8 -Message (
-            "${FunctionName}: Export-Excel → '$WorksheetName' [$($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))]")
+            "${FunctionName}: Export-Excel -> '$WorksheetName' " +
+            "[$($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))]")
         $ExcelParams = @{
             ExcelPackage  = $ExcelPackage
             WorkSheetname = $WorksheetName

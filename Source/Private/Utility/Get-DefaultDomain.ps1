@@ -79,7 +79,7 @@ function Get-DefaultDomain {
         # serve from cache when available
         if ($Global:IRT_Session -and $Global:IRT_Session.PSObject.Properties['DefaultDomain']) {
             Write-PSFMessage -Level 8 -Message (
-                "Get-DefaultDomain: Cache hit — '$($Global:IRT_Session.DefaultDomainName)'")
+                "Get-DefaultDomain: Cache hit - '$($Global:IRT_Session.DefaultDomainName)'")
             if ($Domain) { return $Global:IRT_Session.DefaultDomain }
             if ($SecondLevelDomain) { return $Global:IRT_Session.DefaultDomainName }
             return $Global:IRT_Session.DefaultDomainName

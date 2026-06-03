@@ -21,7 +21,8 @@ function Test-TokenExpired {
 
     $expiry = Get-TokenExpiry -Token $Token
     if ($null -eq $expiry) {
-        Write-PSFMessage -Level 8 -Message 'Test-TokenExpired: Could not decode expiry — treating as expired.'
+        Write-PSFMessage -Level 8 -Message (
+            'Test-TokenExpired: Could not decode expiry - treating as expired.')
         return $true
     }
 

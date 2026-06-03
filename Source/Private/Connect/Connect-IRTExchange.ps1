@@ -50,7 +50,7 @@ function Connect-IRTExchange {
     )
 
     begin {
-        $CloudConfig = $Global:IRT_CloudEnvironments[$Cloud]
+        $CloudConfig = $Global:IRT_Session.CloudConfig
         $ExchangeScope = $CloudConfig.Exchange
         $Authority = "$($CloudConfig.LoginHost)/$TenantId"
         $Scopes = [string[]]@($ExchangeScope)

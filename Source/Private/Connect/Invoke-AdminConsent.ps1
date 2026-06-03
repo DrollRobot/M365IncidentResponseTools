@@ -28,7 +28,7 @@ function Invoke-AdminConsent {
 
     process {
         try {
-            $LoginHost = $Global:IRT_CloudEnvironments[$Cloud].LoginHost
+            $LoginHost = $Global:IRT_Session.CloudConfig.LoginHost
             $State = [guid]::NewGuid().ToString('N')
             Write-PSFMessage -Level 8 -Message (
                 "Invoke-AdminConsent: TenantId=$TenantId, ClientId=$ClientId, " +
@@ -110,7 +110,8 @@ function Invoke-AdminConsent {
                 throw "Admin consent denied or failed: $ErrCode - $ErrDesc"
             }
             if ($Params['admin_consent'] -eq 'True') {
-                Write-PSFMessage -Level 8 -Message 'Invoke-AdminConsent: admin_consent=True received.'
+                Write-PSFMessage -Level 8 -Message (
+                    'Invoke-AdminConsent: admin_consent=True received.')
                 return $true
             }
             throw "Unexpected admin consent response: $Query"

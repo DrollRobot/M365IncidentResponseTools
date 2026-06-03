@@ -62,7 +62,8 @@ function Set-AdUserEnabled {
 
             # if none found, exit
             if ( -not $ScriptUserObjects -or $ScriptUserObjects.Count -eq 0 ) {
-                throw "No user objects passed or found in global variables." # FIXME find a way to replace throw, add function name to output
+                # FIXME: replace throw; add function name to output
+                throw "No user objects passed or found in global variables."
             }
         }
         else {

@@ -74,7 +74,8 @@ function Show-IRTEntraSignInLog {
 
         $RowCount = ($Log | Measure-Object).Count
         $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-        Write-PSFMessage -Level 8 -Message "${FunctionName}: Row loop starting ($RowCount rows) [$Elapsed]"
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: Row loop starting ($RowCount rows) [$Elapsed]")
         $Rows = [System.Collections.Generic.List[PSCustomObject]]::new($RowCount)
         for ($i = 0; $i -lt $RowCount; $i++) {
 
@@ -139,7 +140,8 @@ function Show-IRTEntraSignInLog {
         }
 
         #region EXPORT SPREADSHEET
-        Write-PSFMessage -Level 8 -Message "${FunctionName}: Export-Excel [$($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))]"
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: Export-Excel [$($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))]")
         $ExcelParams = @{
             Path          = $ExcelOutputPath
             WorkSheetname = $Metadata.FileNamePrefix

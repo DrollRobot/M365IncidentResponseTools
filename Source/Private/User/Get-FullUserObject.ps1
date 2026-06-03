@@ -77,7 +77,7 @@ function Get-FullUserObject {
 
         if (-not $ResolvedId) {
             Write-PSFMessage -Level 8 -Message (
-                "Get-FullUserObject: Skipping item — could not resolve an Id " +
+                "Get-FullUserObject: Skipping item - could not resolve an Id " +
                 "(ParameterSetName: $($PSCmdlet.ParameterSetName)).")
             return
         }

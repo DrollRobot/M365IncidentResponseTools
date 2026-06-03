@@ -446,7 +446,8 @@ function Get-IRTMessageTrace {
                     if ($AllUsers) { $Global:IRT_WaitFlags.MessageTraceAllUsersDone = $true }
                     else { $Global:IRT_WaitFlags.MessageTraceUserDone = $true }
                 }
-                Write-PSFMessage -Level 9 -Message "${FunctionName}: Table key count: $($Table.Count)"
+                Write-PSFMessage -Level 9 -Message (
+                    "${FunctionName}: Table key count: $($Table.Count)")
             }
 
             # export raw data
@@ -465,7 +466,8 @@ function Get-IRTMessageTrace {
             # create excel sheet
             if ($Excel) {
                 $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-                Write-PSFMessage -Level 8 -Message "${FunctionName}: Show-IRTMessageTrace [$Elapsed]"
+                Write-PSFMessage -Level 8 -Message (
+                    "${FunctionName}: Show-IRTMessageTrace [$Elapsed]")
                 $Params = @{
                     Messages   = $AllMessages
                     TableStyle = $TableStyle

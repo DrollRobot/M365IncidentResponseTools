@@ -60,7 +60,7 @@ function Request-MessageTraceV1 {
         }
 
         Write-PSFMessage -Level 8 -Message (
-            "Request-MessageTraceV1: Complete — $($AllMessages.Count) total record(s) " +
+            "Request-MessageTraceV1: Complete - $($AllMessages.Count) total record(s) " +
             "across $($Page) page(s).")
         return $AllMessages
     }

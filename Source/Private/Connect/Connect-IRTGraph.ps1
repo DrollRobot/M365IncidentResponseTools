@@ -101,7 +101,7 @@ function Connect-IRTGraph {
             $DefaultScopes
         }
 
-        $CloudConfig = $Global:IRT_CloudEnvironments[$Cloud]
+        $CloudConfig = $Global:IRT_Session.CloudConfig
         $GraphBaseUrl = $CloudConfig.Graph
         $Authority = "$($CloudConfig.LoginHost)/$TenantId"
         # Bare login host (no scheme) used to match cached MSAL accounts and token issuers

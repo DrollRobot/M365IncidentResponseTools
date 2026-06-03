@@ -55,7 +55,7 @@ $AnalyzerSettings = @{
     Rules        = @{
         PSAvoidUsingPositionalParameters = @{
             Enable           = $true
-            CommandAllowList = @('Write-IRT')
+            CommandAllowList = @('Write-IRT','Write-Trace')
         }
     }
 }
@@ -97,9 +97,9 @@ $FormatterSettings = @{
             CheckOpenParen                          = $true
             CheckOperator                           = $true
             CheckPipe                               = $true
-            CheckPipeForRedundantWhitespace         = $false
+            CheckPipeForRedundantWhitespace         = $true
             CheckSeparator                          = $true
-            CheckParameter                          = $false
+            CheckParameter                          = $true
             IgnoreAssignmentOperatorInsideHashTable = $true
         }
     }

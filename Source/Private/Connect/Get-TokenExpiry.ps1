@@ -32,11 +32,11 @@ function Get-TokenExpiry {
         if (-not $claims.exp) { return $null }
 
         $Expiry = [System.DateTimeOffset]::FromUnixTimeSeconds([long]$claims.exp).UtcDateTime
-        Write-PSFMessage -Level 8 -Message "Get-TokenExpiry: exp=$($claims.exp) → $Expiry UTC"
+        Write-PSFMessage -Level 8 -Message "Get-TokenExpiry: exp=$($claims.exp) -> $Expiry UTC"
         return $Expiry
     }
     catch {
-        Write-PSFMessage -Level 8 -Message "Get-TokenExpiry: Failed to decode token — $_"
+        Write-PSFMessage -Level 8 -Message "Get-TokenExpiry: Failed to decode token - $_"
         return $null
     }
 }

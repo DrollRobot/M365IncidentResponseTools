@@ -72,7 +72,7 @@ function Update-IRTToken {
         "SkipIfNeverConnected=$SkipIfNeverConnected")
 
     if (-not $Global:IRT_Session) {
-        Write-PSFMessage -Level 8 -Message 'Update-IRTToken: No session — not connected.'
+        Write-PSFMessage -Level 8 -Message 'Update-IRTToken: No session - not connected.'
         if (-not $SkipIfNeverConnected) {
             foreach ($svc in $Service) {
                 Write-IRT "Not connected to $svc. Run Connect-IRT first." -Level Error
@@ -85,7 +85,7 @@ function Update-IRTToken {
     foreach ($svc in $Service) {
         $svcObj = $Global:IRT_Session.$svc
         if (-not $svcObj -or -not $svcObj.Token -or -not $svcObj.TokenExpiry) {
-            Write-PSFMessage -Level 8 -Message "Update-IRTToken: $svc — no token present."
+            Write-PSFMessage -Level 8 -Message "Update-IRTToken: $svc - no token present."
             if (-not $SkipIfNeverConnected) {
                 Write-IRT "Not connected to $svc. Run Connect-IRT first." -Level Error
             }
@@ -93,7 +93,7 @@ function Update-IRTToken {
         }
         $MinutesLeft = [int](($svcObj.TokenExpiry - [datetime]::UtcNow).TotalMinutes)
         Write-PSFMessage -Level 8 -Message (
-            "Update-IRTToken: $svc — expires $($svcObj.TokenExpiry) UTC " +
+            "Update-IRTToken: $svc - expires $($svcObj.TokenExpiry) UTC " +
             "($MinutesLeft min remaining)")
         if ($MinutesLeft -lt 5) {
             $needsRefresh = $true
@@ -101,7 +101,8 @@ function Update-IRTToken {
     }
 
     if ($needsRefresh) {
-        Write-PSFMessage -Level 8 -Message 'Update-IRTToken: Token expiring soon — triggering refresh.'
+        Write-PSFMessage -Level 8 -Message (
+            'Update-IRTToken: Token expiring soon - triggering refresh.')
         Write-IRT 'Token expiring soon - refreshing...'
         try {
             $null = Connect-IRT -Refresh -ErrorAction Stop
@@ -112,7 +113,8 @@ function Update-IRTToken {
         }
     }
     else {
-        Write-PSFMessage -Level 8 -Message 'Update-IRTToken: All tokens healthy — no refresh needed.'
+        Write-PSFMessage -Level 8 -Message (
+            'Update-IRTToken: All tokens healthy - no refresh needed.')
     }
 
     if ($PassThru) {

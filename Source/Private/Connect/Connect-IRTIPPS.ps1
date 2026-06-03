@@ -52,7 +52,7 @@ function Connect-IRTIPPS {
     )
 
     begin {
-        $CloudConfig = $Global:IRT_CloudEnvironments[$Cloud]
+        $CloudConfig = $Global:IRT_Session.CloudConfig
         $IPPSScope = ($SearchOnly ? $CloudConfig.IPPSSearchOnly : $CloudConfig.Exchange)
         $Authority = "$($CloudConfig.LoginHost)/$TenantId"
         $Scopes = [string[]]@($IPPSScope)

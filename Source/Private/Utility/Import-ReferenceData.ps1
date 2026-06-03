@@ -91,7 +91,7 @@ function Import-ReferenceData {
     }
     $Global:IRT_TenantInfoTable = $TenantTable
     Write-PSFMessage -Level 8 -Message (
-        "Import-ReferenceData: Complete — " +
+        "Import-ReferenceData: Complete - " +
         "EntraErrors=$($Global:IRT_EntraErrorTable.Count), " +
         "UalOps=$($Global:IRT_UalOperationsData.Count), " +
         "UserTypes=$($Global:IRT_UalUserTypeTable.Count), " +

@@ -433,7 +433,8 @@ function Get-IRTUnifiedAuditLog {
                 Write-IRT $ConsoleOutput
                 $QueryKey = $QueryDict.Key
                 $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-                Write-PSFMessage -Level 8 -Message "${FunctionName}: Search-UnifiedAuditLog query $QueryKey [$Elapsed]"
+                Write-PSFMessage -Level 8 -Message (
+                    "${FunctionName}: Search-UnifiedAuditLog query $QueryKey [$Elapsed]")
                 $Page = Search-UnifiedAuditLog @FirstPageParams
                 $LogCount = ($Page | Measure-Object).Count
 
@@ -459,7 +460,8 @@ function Get-IRTUnifiedAuditLog {
 
                     Write-IRT "Requesting page ${PageCount}."
                     $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-                    Write-PSFMessage -Level 8 -Message "${FunctionName}: Search-UnifiedAuditLog page $PageCount [$Elapsed]"
+                    Write-PSFMessage -Level 8 -Message (
+                        "${FunctionName}: Search-UnifiedAuditLog page $PageCount [$Elapsed]")
                     $Page = Search-UnifiedAuditLog @NextPageParams
                     $LogCount = @($Page).Count
 
@@ -547,7 +549,8 @@ function Get-IRTUnifiedAuditLog {
             # export excel spreadsheet
             if ($Excel) {
                 $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-                Write-PSFMessage -Level 8 -Message "${FunctionName}: Starting Excel export [$Elapsed]"
+                Write-PSFMessage -Level 8 -Message (
+                    "${FunctionName}: Starting Excel export [$Elapsed]")
                 $Params = @{
                     Log = $Logs
                     WaitOnMessageTrace = $WaitOnMessageTrace

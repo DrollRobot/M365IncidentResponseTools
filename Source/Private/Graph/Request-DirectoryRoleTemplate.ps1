@@ -46,7 +46,7 @@ function Request-DirectoryRoleTemplate {
             $Variable = Get-Variable @GvParams
             if ( $Variable ) {
                 Write-PSFMessage -Level 8 -Message (
-                    "${FunctionName}: Cache hit — returning " +
+                    "${FunctionName}: Cache hit - returning " +
                     "$($Global:IRT_DirectoryRoleTemplates.Count) template(s) (Return=$Return)")
                 switch ( $Return ) {
                     'objects' { return $Global:IRT_DirectoryRoleTemplates }
@@ -82,7 +82,7 @@ function Request-DirectoryRoleTemplate {
             if ( $o.Id ) { $Global:IRT_DirectoryRoleTemplatesById[$o.Id] = $o }
         }
         Write-PSFMessage -Level 8 -Message (
-            "${FunctionName}: Index built — " +
+            "${FunctionName}: Index built - " +
             "$($Global:IRT_DirectoryRoleTemplatesById.Count) entry/entries.")
 
         # export to file
@@ -91,7 +91,7 @@ function Request-DirectoryRoleTemplate {
             $XmlOutputPath = Join-Path -Path $CurrentPath -ChildPath $FileName
             $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
             Write-PSFMessage -Level 8 -Message (
-                "${FunctionName}: Export-Clixml → $XmlOutputPath [$Elapsed]")
+                "${FunctionName}: Export-Clixml -> $XmlOutputPath [$Elapsed]")
             $Objects | Export-Clixml -Depth 5 -Path $XmlOutputPath
         }
 

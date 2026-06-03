@@ -47,7 +47,7 @@ function Request-GraphGroup {
             $Variable = Get-Variable -Scope Global -Name 'IRT_Groups' -ErrorAction SilentlyContinue
             if ( $Variable ) {
                 Write-PSFMessage -Level 8 -Message (
-                    "${FunctionName}: Cache hit — returning $($Global:IRT_Groups.Count) " +
+                    "${FunctionName}: Cache hit - returning $($Global:IRT_Groups.Count) " +
                     "group(s) (Return=$Return)")
                 switch ( $Return ) {
                     'objects' { return $Global:IRT_Groups }
@@ -92,7 +92,7 @@ function Request-GraphGroup {
             if ( $o.Id ) { $Global:IRT_GroupsById[$o.Id] = $o }
         }
         Write-PSFMessage -Level 8 -Message (
-            "${FunctionName}: Index built — $($Global:IRT_GroupsById.Count) entry/entries.")
+            "${FunctionName}: Index built - $($Global:IRT_GroupsById.Count) entry/entries.")
 
         # export to file
         if ($Xml) {
@@ -100,7 +100,7 @@ function Request-GraphGroup {
             $XmlOutputPath = Join-Path -Path $CurrentPath -ChildPath $FileName
             $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
             Write-PSFMessage -Level 8 -Message (
-                "${FunctionName}: Export-Clixml → $XmlOutputPath [$Elapsed]")
+                "${FunctionName}: Export-Clixml -> $XmlOutputPath [$Elapsed]")
             $Objects | Export-Clixml -Depth 5 -Path $XmlOutputPath
         }
 

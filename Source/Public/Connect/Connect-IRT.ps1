@@ -137,10 +137,12 @@ function Connect-IRT {
         # --- Resolve cloud ---
         # Use the OIDC lookup when -Cloud is not specified.
         $DetectedCloud = $Cloud
+        $CloudConfig = $null
         if (-not $Cloud) {
-            $Oidc = Get-IRTTenantOidc -TenantId $TenantId
+            $Oidc = Get-TenantOidc -TenantId $TenantId
             if ($Oidc) {
                 $DetectedCloud = $Oidc.Cloud
+                $CloudConfig = $Oidc.CloudConfig
             } else {
                 # Don't guess - a wrong cloud produces cross-cloud tokens that fail at the
                 # API. Make the user specify rather than silently defaulting to Commercial.
@@ -148,12 +150,15 @@ function Connect-IRT {
                     'Re-run Connect-IRT with an explicit -Cloud ' +
                     '(Commercial, USGov, USGovDoD, or China).')
             }
+        } else {
+            $CloudConfig = (Get-TenantOidc -CloudTable)[$DetectedCloud]
         }
 
         # --- Initialize session global before attempting connections ---
         if ($Global:IRT_Session -and $Global:IRT_Session.TenantId -ne $TenantId) {
             $OldTenant = $Global:IRT_Session.TenantId
-            Write-IRT "TenantId mismatch (current: $OldTenant). Disconnecting existing session." -Level Warn
+            $MismatchMsg = "TenantId mismatch (current: $OldTenant). Disconnecting session."
+            Write-IRT $MismatchMsg -Level Warn
             Disconnect-IRT
         }
 
@@ -162,10 +167,18 @@ function Connect-IRT {
                 TenantId    = $TenantId
                 ClientId    = $ClientId
                 Cloud       = $DetectedCloud
+                CloudConfig = $CloudConfig
                 Graph       = $null
                 Exchange    = $null
                 IPPS        = $null
             }
+        } else {
+            $AddMemberParams = @{
+                NotePropertyName  = 'CloudConfig'
+                NotePropertyValue = $CloudConfig
+                Force             = $true
+            }
+            $Global:IRT_Session | Add-Member @AddMemberParams
         }
 
         # --- Graph ---
