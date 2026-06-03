@@ -1,7 +1,9 @@
 # M365IncidentResponseTools
 
-M365IncidentResponseTools is a Powershell module for incident response investigations.
+A PowerShell module for incident response in Microsoft 365 and more.
+Focuses on:
+- Collecting, enriching, and exporting logs as spreadsheets.
+- Functions for quickly containing and remediating compromised user accounts and devices 
 
-It provides tools to collect sign-in logs, audit logs, user and mailbox info, device info, admin roles, message trace records. Also, tools for containment and remediation in M365 and Active Directory.
 
 **[Full documentation](https://DrollRobot.github.io/M365IncidentResponseTools/)**

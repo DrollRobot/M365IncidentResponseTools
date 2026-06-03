@@ -56,7 +56,7 @@ function Connect-IRTExchange {
     )
 
     begin {
-        $CloudConfig = $Global:IRT_CloudEnvironments[$Cloud]
+        $CloudConfig = $Global:IRT_Session.CloudConfig
         $ExchangeScope = $CloudConfig.Exchange
         $Authority = "$($CloudConfig.LoginHost)/$TenantId"
         $Scopes = [string[]]@($ExchangeScope)
@@ -457,7 +457,7 @@ function Connect-IRTGraph {
             $DefaultScopes
         }
 
-        $CloudConfig = $Global:IRT_CloudEnvironments[$Cloud]
+        $CloudConfig = $Global:IRT_Session.CloudConfig
         $GraphBaseUrl = $CloudConfig.Graph
         $Authority = "$($CloudConfig.LoginHost)/$TenantId"
         # Bare login host (no scheme) used to match cached MSAL accounts and token issuers
@@ -938,7 +938,7 @@ function Connect-IRTIPPS {
     )
 
     begin {
-        $CloudConfig = $Global:IRT_CloudEnvironments[$Cloud]
+        $CloudConfig = $Global:IRT_Session.CloudConfig
         $IPPSScope = ($SearchOnly ? $CloudConfig.IPPSSearchOnly : $CloudConfig.Exchange)
         $Authority = "$($CloudConfig.LoginHost)/$TenantId"
         $Scopes = [string[]]@($IPPSScope)
@@ -1235,11 +1235,11 @@ function Get-TokenExpiry {
         if (-not $claims.exp) { return $null }
 
         $Expiry = [System.DateTimeOffset]::FromUnixTimeSeconds([long]$claims.exp).UtcDateTime
-        Write-PSFMessage -Level 8 -Message "Get-TokenExpiry: exp=$($claims.exp) → $Expiry UTC"
+        Write-PSFMessage -Level 8 -Message "Get-TokenExpiry: exp=$($claims.exp) -> $Expiry UTC"
         return $Expiry
     }
     catch {
-        Write-PSFMessage -Level 8 -Message "Get-TokenExpiry: Failed to decode token — $_"
+        Write-PSFMessage -Level 8 -Message "Get-TokenExpiry: Failed to decode token - $_"
         return $null
     }
 }
@@ -1442,7 +1442,7 @@ function Invoke-AdminConsent {
 
     process {
         try {
-            $LoginHost = $Global:IRT_CloudEnvironments[$Cloud].LoginHost
+            $LoginHost = $Global:IRT_Session.CloudConfig.LoginHost
             $State = [guid]::NewGuid().ToString('N')
             Write-PSFMessage -Level 8 -Message (
                 "Invoke-AdminConsent: TenantId=$TenantId, ClientId=$ClientId, " +
@@ -1524,7 +1524,8 @@ function Invoke-AdminConsent {
                 throw "Admin consent denied or failed: $ErrCode - $ErrDesc"
             }
             if ($Params['admin_consent'] -eq 'True') {
-                Write-PSFMessage -Level 8 -Message 'Invoke-AdminConsent: admin_consent=True received.'
+                Write-PSFMessage -Level 8 -Message (
+                    'Invoke-AdminConsent: admin_consent=True received.')
                 return $true
             }
             throw "Unexpected admin consent response: $Query"
@@ -1535,7 +1536,7 @@ function Invoke-AdminConsent {
         }
     }
 }
-#EndRegion '.\Private\Connect\Invoke-AdminConsent.ps1' 124
+#EndRegion '.\Private\Connect\Invoke-AdminConsent.ps1' 125
 #Region '.\Private\Connect\Register-MsalCache.ps1' -1
 
 function Register-MsalCache {
@@ -1643,7 +1644,7 @@ function Test-GraphAdminConsent {
     )
 
     Write-PSFMessage -Level 8 -Message (
-        "Test-GraphAdminConsent: Resolving SPs — Client=$ClientAppId, Resource=$ResourceAppId")
+        "Test-GraphAdminConsent: Resolving SPs - Client=$ClientAppId, Resource=$ResourceAppId")
 
     # Resolve SPs (these are tenant-scoped object IDs, not the app IDs)
     $ClientSpParams = @{
@@ -1712,7 +1713,8 @@ function Test-TokenExpired {
 
     $expiry = Get-TokenExpiry -Token $Token
     if ($null -eq $expiry) {
-        Write-PSFMessage -Level 8 -Message 'Test-TokenExpired: Could not decode expiry — treating as expired.'
+        Write-PSFMessage -Level 8 -Message (
+            'Test-TokenExpired: Could not decode expiry - treating as expired.')
         return $true
     }
 
@@ -1724,7 +1726,7 @@ function Test-TokenExpired {
         "MinutesLeft=$minutesLeft, Expired=$expired")
     return $expired
 }
-#EndRegion '.\Private\Connect\Test-TokenExpired.ps1' 36
+#EndRegion '.\Private\Connect\Test-TokenExpired.ps1' 37
 #Region '.\Private\Device\Set-IRTDeviceEnabled.ps1' -1
 
 function Set-IRTDeviceEnabled {
@@ -1961,7 +1963,7 @@ function Request-DirectoryRole {
             $Variable = Get-Variable @GvParams
             if ( $Variable ) {
                 Write-PSFMessage -Level 8 -Message (
-                    "${FunctionName}: Cache hit — returning $($Global:IRT_DirectoryRoles.Count) " +
+                    "${FunctionName}: Cache hit - returning $($Global:IRT_DirectoryRoles.Count) " +
                     "role(s) (Return=$Return)")
                 switch ( $Return ) {
                     'objects' { return $Global:IRT_DirectoryRoles }
@@ -1998,7 +2000,7 @@ function Request-DirectoryRole {
             if ( $o.Id ) { $Global:IRT_DirectoryRolesById[$o.Id] = $o }
         }
         Write-PSFMessage -Level 8 -Message (
-            "${FunctionName}: Index built — $($Global:IRT_DirectoryRolesById.Count) entry/entries.")
+            "${FunctionName}: Index built - $($Global:IRT_DirectoryRolesById.Count) entry/entries.")
 
         # export to file
         if ($Xml) {
@@ -2006,7 +2008,7 @@ function Request-DirectoryRole {
             $XmlOutputPath = Join-Path -Path $CurrentPath -ChildPath $FileName
             $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
             Write-PSFMessage -Level 8 -Message (
-                "${FunctionName}: Export-Clixml → $XmlOutputPath [$Elapsed]")
+                "${FunctionName}: Export-Clixml -> $XmlOutputPath [$Elapsed]")
             $Objects | Export-Clixml -Depth 5 -Path $XmlOutputPath
         }
 
@@ -2069,7 +2071,7 @@ function Request-DirectoryRoleTemplate {
             $Variable = Get-Variable @GvParams
             if ( $Variable ) {
                 Write-PSFMessage -Level 8 -Message (
-                    "${FunctionName}: Cache hit — returning " +
+                    "${FunctionName}: Cache hit - returning " +
                     "$($Global:IRT_DirectoryRoleTemplates.Count) template(s) (Return=$Return)")
                 switch ( $Return ) {
                     'objects' { return $Global:IRT_DirectoryRoleTemplates }
@@ -2105,7 +2107,7 @@ function Request-DirectoryRoleTemplate {
             if ( $o.Id ) { $Global:IRT_DirectoryRoleTemplatesById[$o.Id] = $o }
         }
         Write-PSFMessage -Level 8 -Message (
-            "${FunctionName}: Index built — " +
+            "${FunctionName}: Index built - " +
             "$($Global:IRT_DirectoryRoleTemplatesById.Count) entry/entries.")
 
         # export to file
@@ -2114,7 +2116,7 @@ function Request-DirectoryRoleTemplate {
             $XmlOutputPath = Join-Path -Path $CurrentPath -ChildPath $FileName
             $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
             Write-PSFMessage -Level 8 -Message (
-                "${FunctionName}: Export-Clixml → $XmlOutputPath [$Elapsed]")
+                "${FunctionName}: Export-Clixml -> $XmlOutputPath [$Elapsed]")
             $Objects | Export-Clixml -Depth 5 -Path $XmlOutputPath
         }
 
@@ -2172,7 +2174,7 @@ function Request-GraphDevice {
             $Variable = Get-Variable -Scope Global -Name 'IRT_Devices' -ErrorAction SilentlyContinue
             if ($Variable) {
                 Write-PSFMessage -Level 8 -Message (
-                    "${FunctionName}: Cache hit — returning $($Global:IRT_Devices.Count) " +
+                    "${FunctionName}: Cache hit - returning $($Global:IRT_Devices.Count) " +
                     "device(s) (Return=$Return)")
                 switch ($Return) {
                     'objects' { return $Global:IRT_Devices }
@@ -2213,7 +2215,7 @@ function Request-GraphDevice {
                 }
             }
             Write-PSFMessage -Level 8 -Message (
-                "${FunctionName}: Intune index built — $($IntuneDevicesByEntraId.Count) " +
+                "${FunctionName}: Intune index built - $($IntuneDevicesByEntraId.Count) " +
                 "matchable device(s).")
         }
 
@@ -2288,7 +2290,7 @@ function Request-GraphDevice {
             if ( $Device.DeviceId ) { $Global:IRT_DevicesById[$Device.DeviceId] = $Device }
         }
         Write-PSFMessage -Level 8 -Message (
-            "${FunctionName}: Index built — $($Global:IRT_DevicesById.Count) entry/entries.")
+            "${FunctionName}: Index built - $($Global:IRT_DevicesById.Count) entry/entries.")
 
         # export to file
         if ($Xml) {
@@ -2296,7 +2298,7 @@ function Request-GraphDevice {
             $XmlOutputPath = Join-Path -Path $CurrentPath -ChildPath $FileName
             $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
             Write-PSFMessage -Level 8 -Message (
-                "${FunctionName}: Export-Clixml → $XmlOutputPath [$Elapsed]")
+                "${FunctionName}: Export-Clixml -> $XmlOutputPath [$Elapsed]")
             $Objects | Export-Clixml -Depth 8 -Path $XmlOutputPath
         }
 
@@ -2360,7 +2362,7 @@ function Request-GraphGroup {
             $Variable = Get-Variable -Scope Global -Name 'IRT_Groups' -ErrorAction SilentlyContinue
             if ( $Variable ) {
                 Write-PSFMessage -Level 8 -Message (
-                    "${FunctionName}: Cache hit — returning $($Global:IRT_Groups.Count) " +
+                    "${FunctionName}: Cache hit - returning $($Global:IRT_Groups.Count) " +
                     "group(s) (Return=$Return)")
                 switch ( $Return ) {
                     'objects' { return $Global:IRT_Groups }
@@ -2405,7 +2407,7 @@ function Request-GraphGroup {
             if ( $o.Id ) { $Global:IRT_GroupsById[$o.Id] = $o }
         }
         Write-PSFMessage -Level 8 -Message (
-            "${FunctionName}: Index built — $($Global:IRT_GroupsById.Count) entry/entries.")
+            "${FunctionName}: Index built - $($Global:IRT_GroupsById.Count) entry/entries.")
 
         # export to file
         if ($Xml) {
@@ -2413,7 +2415,7 @@ function Request-GraphGroup {
             $XmlOutputPath = Join-Path -Path $CurrentPath -ChildPath $FileName
             $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
             Write-PSFMessage -Level 8 -Message (
-                "${FunctionName}: Export-Clixml → $XmlOutputPath [$Elapsed]")
+                "${FunctionName}: Export-Clixml -> $XmlOutputPath [$Elapsed]")
             $Objects | Export-Clixml -Depth 5 -Path $XmlOutputPath
         }
 
@@ -2475,7 +2477,7 @@ function Request-GraphOauth2Grant {
             $Variable = Get-Variable @GvParams
             if ( $Variable ) {
                 Write-PSFMessage -Level 8 -Message (
-                    "${FunctionName}: Cache hit — returning $($Global:IRT_Oauth2Grants.Count) " +
+                    "${FunctionName}: Cache hit - returning $($Global:IRT_Oauth2Grants.Count) " +
                     "grant(s) (Return=$Return)")
                 switch ( $Return ) {
                     'objects' { return $Global:IRT_Oauth2Grants }
@@ -2513,7 +2515,7 @@ function Request-GraphOauth2Grant {
             }
         }
         Write-PSFMessage -Level 8 -Message (
-            "${FunctionName}: Index built — $($Global:IRT_Oauth2GrantsByClientId.Count) " +
+            "${FunctionName}: Index built - $($Global:IRT_Oauth2GrantsByClientId.Count) " +
             "unique client(s).")
 
         # export to file
@@ -2522,7 +2524,7 @@ function Request-GraphOauth2Grant {
             $XmlOutputPath = Join-Path -Path $CurrentPath -ChildPath $FileName
             $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
             Write-PSFMessage -Level 8 -Message (
-                "${FunctionName}: Export-Clixml → $XmlOutputPath [$Elapsed]")
+                "${FunctionName}: Export-Clixml -> $XmlOutputPath [$Elapsed]")
             $Objects | Export-Clixml -Depth 5 -Path $XmlOutputPath
         }
 
@@ -2596,7 +2598,7 @@ function Request-GraphServicePrincipal {
             $Variable = Get-Variable @GvParams
             if ($Variable) {
                 Write-PSFMessage -Level 8 -Message (
-                    "${FunctionName}: Cache hit — returning " +
+                    "${FunctionName}: Cache hit - returning " +
                     "$($Global:IRT_ServicePrincipals.Count) SP(s) (Return=$Return)")
                 switch ($Return) {
                     'objects' { return $Global:IRT_ServicePrincipals }
@@ -2644,7 +2646,7 @@ function Request-GraphServicePrincipal {
             if ($o.Id) { $Global:IRT_ServicePrincipalsById[$o.Id] = $o }
         }
         Write-PSFMessage -Level 8 -Message (
-            "${FunctionName}: Indexes built — " +
+            "${FunctionName}: Indexes built - " +
             "$($Global:IRT_ServicePrincipalsByAppId.Count) by AppId, " +
             "$($Global:IRT_ServicePrincipalsById.Count) by Id.")
 
@@ -2654,7 +2656,7 @@ function Request-GraphServicePrincipal {
             $XmlOutputPath = Join-Path -Path $CurrentPath -ChildPath $FileName
             $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
             Write-PSFMessage -Level 8 -Message (
-                "${FunctionName}: Export-Clixml → $XmlOutputPath [$Elapsed]")
+                "${FunctionName}: Export-Clixml -> $XmlOutputPath [$Elapsed]")
             $Objects | Export-Clixml -Depth 10 -Path $XmlOutputPath
         }
 
@@ -2721,7 +2723,7 @@ function Request-GraphUser {
             $Variable = Get-Variable -Scope Global -Name 'IRT_Users' -ErrorAction SilentlyContinue
             if ( $Variable ) {
                 Write-PSFMessage -Level 8 -Message (
-                    "${FunctionName}: Cache hit — returning $($Global:IRT_Users.Count) " +
+                    "${FunctionName}: Cache hit - returning $($Global:IRT_Users.Count) " +
                     "user(s) (Return=$Return)")
                 switch ( $Return ) {
                     'objects' { return $Global:IRT_Users }
@@ -2752,7 +2754,7 @@ function Request-GraphUser {
             if ( $o.Id ) { $Global:IRT_UsersById[$o.Id] = $o }
         }
         Write-PSFMessage -Level 8 -Message (
-            "${FunctionName}: Index built — $($Global:IRT_UsersById.Count) entry/entries.")
+            "${FunctionName}: Index built - $($Global:IRT_UsersById.Count) entry/entries.")
 
         # export to file
         if ($Xml) {
@@ -2760,7 +2762,7 @@ function Request-GraphUser {
             $XmlOutputPath = Join-Path -Path $CurrentPath -ChildPath $FileName
             $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
             Write-PSFMessage -Level 8 -Message (
-                "${FunctionName}: Export-Clixml → $XmlOutputPath [$Elapsed]")
+                "${FunctionName}: Export-Clixml -> $XmlOutputPath [$Elapsed]")
             $Objects | Export-Clixml -Depth 5 -Path $XmlOutputPath
         }
 
@@ -5031,7 +5033,7 @@ function Request-MessageTraceV1 {
         }
 
         Write-PSFMessage -Level 8 -Message (
-            "Request-MessageTraceV1: Complete — $($AllMessages.Count) total record(s) " +
+            "Request-MessageTraceV1: Complete - $($AllMessages.Count) total record(s) " +
             "across $($Page) page(s).")
         return $AllMessages
     }
@@ -5299,7 +5301,8 @@ function Set-AdUserEnabled {
 
             # if none found, exit
             if ( -not $ScriptUserObjects -or $ScriptUserObjects.Count -eq 0 ) {
-                throw "No user objects passed or found in global variables." # FIXME find a way to replace throw, add function name to output
+                # FIXME: replace throw; add function name to output
+                throw "No user objects passed or found in global variables."
             }
         }
         else {
@@ -5350,7 +5353,6 @@ function Set-AdUserEnabled {
         # push ad replication
         if ( Test-RunningOnDomainController ) {
             Write-IRT "Pushing AD replication."
-            Write-PSFMessage -Level 8 -Message "Set-AdUserEnabled: Invoking repadmin /syncall."
             $null = & repadmin /syncall $env:ComputerName /APed *>&1
         }
         else {
@@ -5847,11 +5849,12 @@ function Build-AllOperationSheet {
         Write-Progress -Id 1 -Activity 'Row loop' -Completed
         $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
         Write-PSFMessage -Level 8 -Message (
-            "${FunctionName}: Row loop complete — $RowCount row(s) processed [$Elapsed]")
+            "${FunctionName}: Row loop complete - $RowCount row(s) processed [$Elapsed]")
 
         #region EXPORT
         Write-PSFMessage -Level 8 -Message (
-            "${FunctionName}: Export-Excel → '$WorksheetName' [$($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))]")
+            "${FunctionName}: Export-Excel -> '$WorksheetName' " +
+            "[$($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))]")
         $ExcelParams = @{
             ExcelPackage  = $ExcelPackage
             WorkSheetname = $WorksheetName
@@ -5996,7 +5999,7 @@ function Build-AllOperationSheet {
         return $Workbook
     }
 }
-#EndRegion '.\Private\UnifiedAuditLog\Build-AllOperationSheet.ps1' 397
+#EndRegion '.\Private\UnifiedAuditLog\Build-AllOperationSheet.ps1' 398
 #Region '.\Private\UnifiedAuditLog\Build-UserLoginOperationsSheet.ps1' -1
 
 function Build-UserLoginOperationsSheet {
@@ -6148,11 +6151,12 @@ function Build-UserLoginOperationsSheet {
 
         $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
         Write-PSFMessage -Level 8 -Message (
-            "${FunctionName}: Row loop complete — $RowCount row(s) processed [$Elapsed]")
+            "${FunctionName}: Row loop complete - $RowCount row(s) processed [$Elapsed]")
 
         #region EXPORT
         Write-PSFMessage -Level 8 -Message (
-            "${FunctionName}: Export-Excel → '$WorksheetName' [$($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))]")
+            "${FunctionName}: Export-Excel -> '$WorksheetName' " +
+            "[$($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))]")
         $ExcelParams = @{
             ExcelPackage  = $ExcelPackage
             WorkSheetname = $WorksheetName
@@ -6179,7 +6183,8 @@ function Build-UserLoginOperationsSheet {
 
             # IP address conditional formatting
             Write-PSFMessage -Level 8 -Message (
-                "${FunctionName}: Add-IpInfoToSheet [$($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))]")
+                "${FunctionName}: Add-IpInfoToSheet " +
+                "[$($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))]")
             Add-IpInfoToSheet -Worksheet $Worksheet -ColumnName 'IpAddress'
 
             # Application conditional formatting - highlight PowerShell/CLI tools
@@ -6266,7 +6271,7 @@ function Build-UserLoginOperationsSheet {
         return $Workbook
     }
 }
-#EndRegion '.\Private\UnifiedAuditLog\Build-UserLoginOperationsSheet.ps1' 268
+#EndRegion '.\Private\UnifiedAuditLog\Build-UserLoginOperationsSheet.ps1' 270
 #Region '.\Private\UnifiedAuditLog\Get-AddRemoveRoleSummary.ps1' -1
 
 function Get-AddRemoveRoleSummary {
@@ -7185,7 +7190,7 @@ function Get-FullUserObject {
 
         if (-not $ResolvedId) {
             Write-PSFMessage -Level 8 -Message (
-                "Get-FullUserObject: Skipping item — could not resolve an Id " +
+                "Get-FullUserObject: Skipping item - could not resolve an Id " +
                 "(ParameterSetName: $($PSCmdlet.ParameterSetName)).")
             return
         }
@@ -8008,7 +8013,7 @@ function Copy-ConditionalFormatting {
 
                 $copied++
                 Write-PSFMessage -Level 9 -Message (
-                    "Copy-ConditionalFormatting: Copied '$typeName' rule → $newAddrString")
+                    "Copy-ConditionalFormatting: Copied '$typeName' rule -> $newAddrString")
             }
             catch {
                 $warnMsg = ("Skipped rule (type '{0}', source '{1}'): {2}" -f
@@ -8160,7 +8165,7 @@ function Get-DefaultDomain {
         # serve from cache when available
         if ($Global:IRT_Session -and $Global:IRT_Session.PSObject.Properties['DefaultDomain']) {
             Write-PSFMessage -Level 8 -Message (
-                "Get-DefaultDomain: Cache hit — '$($Global:IRT_Session.DefaultDomainName)'")
+                "Get-DefaultDomain: Cache hit - '$($Global:IRT_Session.DefaultDomainName)'")
             if ($Domain) { return $Global:IRT_Session.DefaultDomain }
             if ($SecondLevelDomain) { return $Global:IRT_Session.DefaultDomainName }
             return $Global:IRT_Session.DefaultDomainName
@@ -8386,7 +8391,7 @@ function Import-ReferenceData {
     }
     $Global:IRT_TenantInfoTable = $TenantTable
     Write-PSFMessage -Level 8 -Message (
-        "Import-ReferenceData: Complete — " +
+        "Import-ReferenceData: Complete - " +
         "EntraErrors=$($Global:IRT_EntraErrorTable.Count), " +
         "UalOps=$($Global:IRT_UalOperationsData.Count), " +
         "UserTypes=$($Global:IRT_UalUserTypeTable.Count), " +
@@ -8715,10 +8720,12 @@ function Connect-IRT {
         # --- Resolve cloud ---
         # Use the OIDC lookup when -Cloud is not specified.
         $DetectedCloud = $Cloud
+        $CloudConfig = $null
         if (-not $Cloud) {
-            $Oidc = Get-IRTTenantOidc -TenantId $TenantId
+            $Oidc = Get-TenantOidc -TenantId $TenantId
             if ($Oidc) {
                 $DetectedCloud = $Oidc.Cloud
+                $CloudConfig = $Oidc.CloudConfig
             } else {
                 # Don't guess - a wrong cloud produces cross-cloud tokens that fail at the
                 # API. Make the user specify rather than silently defaulting to Commercial.
@@ -8726,12 +8733,15 @@ function Connect-IRT {
                     'Re-run Connect-IRT with an explicit -Cloud ' +
                     '(Commercial, USGov, USGovDoD, or China).')
             }
+        } else {
+            $CloudConfig = (Get-TenantOidc -CloudTable)[$DetectedCloud]
         }
 
         # --- Initialize session global before attempting connections ---
         if ($Global:IRT_Session -and $Global:IRT_Session.TenantId -ne $TenantId) {
             $OldTenant = $Global:IRT_Session.TenantId
-            Write-IRT "TenantId mismatch (current: $OldTenant). Disconnecting existing session." -Level Warn
+            $MismatchMsg = "TenantId mismatch (current: $OldTenant). Disconnecting session."
+            Write-IRT $MismatchMsg -Level Warn
             Disconnect-IRT
         }
 
@@ -8740,10 +8750,18 @@ function Connect-IRT {
                 TenantId    = $TenantId
                 ClientId    = $ClientId
                 Cloud       = $DetectedCloud
+                CloudConfig = $CloudConfig
                 Graph       = $null
                 Exchange    = $null
                 IPPS        = $null
             }
+        } else {
+            $AddMemberParams = @{
+                NotePropertyName  = 'CloudConfig'
+                NotePropertyValue = $CloudConfig
+                Force             = $true
+            }
+            $Global:IRT_Session | Add-Member @AddMemberParams
         }
 
         # --- Graph ---
@@ -8820,7 +8838,7 @@ function Connect-IRT {
         }
     }
 }
-#EndRegion '.\Public\Connect\Connect-IRT.ps1' 245
+#EndRegion '.\Public\Connect\Connect-IRT.ps1' 258
 #Region '.\Public\Connect\Connect-IRTTenant.ps1' -1
 
 function Connect-IRTTenant {
@@ -9495,7 +9513,7 @@ function Update-IRTToken {
         "SkipIfNeverConnected=$SkipIfNeverConnected")
 
     if (-not $Global:IRT_Session) {
-        Write-PSFMessage -Level 8 -Message 'Update-IRTToken: No session — not connected.'
+        Write-PSFMessage -Level 8 -Message 'Update-IRTToken: No session - not connected.'
         if (-not $SkipIfNeverConnected) {
             foreach ($svc in $Service) {
                 Write-IRT "Not connected to $svc. Run Connect-IRT first." -Level Error
@@ -9508,7 +9526,7 @@ function Update-IRTToken {
     foreach ($svc in $Service) {
         $svcObj = $Global:IRT_Session.$svc
         if (-not $svcObj -or -not $svcObj.Token -or -not $svcObj.TokenExpiry) {
-            Write-PSFMessage -Level 8 -Message "Update-IRTToken: $svc — no token present."
+            Write-PSFMessage -Level 8 -Message "Update-IRTToken: $svc - no token present."
             if (-not $SkipIfNeverConnected) {
                 Write-IRT "Not connected to $svc. Run Connect-IRT first." -Level Error
             }
@@ -9516,7 +9534,7 @@ function Update-IRTToken {
         }
         $MinutesLeft = [int](($svcObj.TokenExpiry - [datetime]::UtcNow).TotalMinutes)
         Write-PSFMessage -Level 8 -Message (
-            "Update-IRTToken: $svc — expires $($svcObj.TokenExpiry) UTC " +
+            "Update-IRTToken: $svc - expires $($svcObj.TokenExpiry) UTC " +
             "($MinutesLeft min remaining)")
         if ($MinutesLeft -lt 5) {
             $needsRefresh = $true
@@ -9524,7 +9542,8 @@ function Update-IRTToken {
     }
 
     if ($needsRefresh) {
-        Write-PSFMessage -Level 8 -Message 'Update-IRTToken: Token expiring soon — triggering refresh.'
+        Write-PSFMessage -Level 8 -Message (
+            'Update-IRTToken: Token expiring soon - triggering refresh.')
         Write-IRT 'Token expiring soon - refreshing...'
         try {
             $null = Connect-IRT -Refresh -ErrorAction Stop
@@ -9535,7 +9554,8 @@ function Update-IRTToken {
         }
     }
     else {
-        Write-PSFMessage -Level 8 -Message 'Update-IRTToken: All tokens healthy — no refresh needed.'
+        Write-PSFMessage -Level 8 -Message (
+            'Update-IRTToken: All tokens healthy - no refresh needed.')
     }
 
     if ($PassThru) {
@@ -9550,7 +9570,7 @@ function Update-IRTToken {
         return $status
     }
 }
-#EndRegion '.\Public\Connect\Update-IRTToken.ps1' 130
+#EndRegion '.\Public\Connect\Update-IRTToken.ps1' 132
 #Region '.\Public\Device\Disable-IRTDevice.ps1' -1
 
 function Disable-IRTDevice {
@@ -11554,7 +11574,8 @@ function Show-IRTEntraSignInLog {
 
         $RowCount = ($Log | Measure-Object).Count
         $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-        Write-PSFMessage -Level 8 -Message "${FunctionName}: Row loop starting ($RowCount rows) [$Elapsed]"
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: Row loop starting ($RowCount rows) [$Elapsed]")
         $Rows = [System.Collections.Generic.List[PSCustomObject]]::new($RowCount)
         for ($i = 0; $i -lt $RowCount; $i++) {
 
@@ -11619,7 +11640,8 @@ function Show-IRTEntraSignInLog {
         }
 
         #region EXPORT SPREADSHEET
-        Write-PSFMessage -Level 8 -Message "${FunctionName}: Export-Excel [$($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))]"
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: Export-Excel [$($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))]")
         $ExcelParams = @{
             Path          = $ExcelOutputPath
             WorkSheetname = $Metadata.FileNamePrefix
@@ -11794,7 +11816,7 @@ function Show-IRTEntraSignInLog {
         }
     }
 }
-#EndRegion '.\Public\Entra\Show-IRTEntraSignInLog.ps1' 317
+#EndRegion '.\Public\Entra\Show-IRTEntraSignInLog.ps1' 319
 #Region '.\Public\Entra\Show-IRTServicePrincipalSignIn.ps1' -1
 
 function Show-IRTServicePrincipalSignIn {
@@ -11898,7 +11920,8 @@ function Show-IRTServicePrincipalSignIn {
 
         $RowCount = ($Log | Measure-Object).Count
         $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-        Write-PSFMessage -Level 8 -Message "${FunctionName}: Row loop starting ($RowCount rows) [$Elapsed]"
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: Row loop starting ($RowCount rows) [$Elapsed]")
         $Rows = [System.Collections.Generic.List[PSCustomObject]]::new($RowCount)
         for ($i = 0; $i -lt $RowCount; $i++) {
 
@@ -11947,7 +11970,8 @@ function Show-IRTServicePrincipalSignIn {
 
         #region EXPORT SPREADSHEET
 
-        Write-PSFMessage -Level 8 -Message "${FunctionName}: Export-Excel [$($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))]"
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: Export-Excel [$($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))]")
         $ExcelParams = @{
             Path          = $ExcelOutputPath
             WorkSheetname = $Metadata.FileNamePrefix
@@ -12071,7 +12095,212 @@ function Show-IRTServicePrincipalSignIn {
         }
     }
 }
-#EndRegion '.\Public\Entra\Show-IRTServicePrincipalSignIn.ps1' 275
+#EndRegion '.\Public\Entra\Show-IRTServicePrincipalSignIn.ps1' 277
+#Region '.\Public\Lib\Get-TenantOidc.ps1' -1
+
+function Get-TenantOidc {
+    <#
+    .SYNOPSIS
+    Probes Microsoft cloud OIDC discovery endpoints to identify a tenant's cloud
+    environment and return the full discovery document, including its tenant ID.
+
+    .DESCRIPTION
+    Queries the public OpenID Connect discovery endpoints for the Commercial,
+    US Government, and China clouds to locate the given tenant. Accepts either a
+    tenant GUID or any verified domain (a custom domain such as 'contoso.com' or
+    the '.onmicrosoft.com' default), since the discovery endpoint resolves both
+    forms in the authority path. Returns the complete OIDC discovery document from
+    whichever cloud responds, supplemented with four context properties:
+        TenantId    - The canonical tenant GUID, extracted from the issuer claim.
+                      Populated even when the lookup was performed by domain.
+        Cloud       - The cloud that hosts the tenant, determined from the OIDC region
+                      fields. One of the cloud table keys (Commercial, USGov, USGovDoD,
+                      China). This is the key every Connect-IRT* command uses to select
+                      endpoints.
+        LoginHost   - The login authority hostname used for the successful probe.
+        CloudConfig - The full endpoint record for the tenant's cloud (the same object
+                      returned by Get-TenantOidc -CloudTable for that key). Callers can
+                      store this in the session and use it directly without re-indexing.
+    All raw OIDC fields (token_endpoint, authorization_endpoint, msgraph_host, issuer,
+    jwks_uri, etc.) are preserved as returned by the discovery endpoint.
+    Returns $null when the tenant is not found in any supported cloud.
+    This function is unauthenticated and makes no Graph API calls.
+
+    Note that a verified domain belongs to exactly one tenant, so a domain lookup
+    resolves a single tenant. An organization that runs multiple tenants will have
+    distinct domains per tenant; enumerate those separately to cover its full footprint.
+
+    Use -CloudTable to retrieve the ordered endpoint table without performing a probe.
+    The table is the data this function owns; it is the authoritative source of
+    Microsoft cloud endpoint metadata for the module.
+
+    .PARAMETER TenantId
+    The tenant to probe, given as either an Entra ID tenant GUID or a verified
+    domain name. Accepts the aliases 'Tenant' and 'Domain'.
+
+    .PARAMETER CloudTable
+    When specified, returns the ordered endpoint hashtable (Commercial, USGov,
+    USGovDoD, China) without performing any network probe. Use this to resolve a
+    known cloud key to its endpoint record.
+
+    .EXAMPLE
+    Get-TenantOidc -TenantId 'f8cdef31-a31e-4b4a-93e4-5f571e91255a'
+
+    .EXAMPLE
+    Get-TenantOidc -Domain 'contoso.com'
+
+    .EXAMPLE
+    $oidc = Get-TenantOidc -TenantId $value
+    Write-Host (
+        "TenantId: $( $oidc.TenantId ) | Cloud: $( $oidc.Cloud ) | " +
+        "Graph: $( $oidc.msgraph_host )")
+
+    .EXAMPLE
+    # Resolve a known cloud key to its endpoints without probing.
+    $endpoints = (Get-TenantOidc -CloudTable)['USGov']
+    $endpoints.Graph   # https://graph.microsoft.us
+
+    .EXAMPLE
+    # List all supported cloud keys.
+    (Get-TenantOidc -CloudTable).Keys
+
+    .EXAMPLE
+    # Shape of the CloudConfig object (also returned as $oidc.CloudConfig after a probe).
+    # All keys present on every cloud entry:
+    #
+    #   LoginHost      - https://login.microsoftonline.com
+    #   Graph          - https://graph.microsoft.com          (Graph API base URL)
+    #   GraphEnv       - Global                               (Connect-MgGraph -Environment)
+    #   Exchange       - https://outlook.office365.com/.default
+    #   ExchangeEnv    - O365Default    (Connect-ExchangeOnline -ExchangeEnvironmentName)
+    #   IPPS           - https://ps.compliance.protection.outlook.com/powershell-liveid/
+    #   IPPSSearchOnly - https://dataservice.o365filtering.com/.default
+    $cc = (Get-TenantOidc -CloudTable)['Commercial']
+    $cc.GraphEnv        # Global
+    $cc.ExchangeEnv     # O365Default
+
+    .OUTPUTS
+    PSCustomObject (augmented OIDC discovery document), or $null if not found.
+    System.Collections.Specialized.OrderedDictionary when -CloudTable is specified.
+
+    .NOTES
+    Version: 1.2.0
+    #>
+    [CmdletBinding(DefaultParameterSetName = 'Probe')]
+    [OutputType([pscustomobject], ParameterSetName = 'Probe')]
+    [OutputType([System.Collections.Specialized.OrderedDictionary],
+        ParameterSetName = 'CloudTable')]
+    param (
+        [Parameter( Mandatory, Position = 0, ParameterSetName = 'Probe' )]
+        [Alias( 'Tenant', 'Domain' )]
+        [string] $TenantId,
+
+        [Parameter( Mandatory, ParameterSetName = 'CloudTable' )]
+        [switch] $CloudTable,
+
+        [switch] $Trace
+    )
+
+    # debug output
+    if ($Trace) { $InformationPreference  = 'Continue' }
+    function Write-Trace {
+        param([Parameter(Mandatory)][string]$Message)
+        Write-Information $Message -Tags 'Trace'
+    }
+
+    # Cloud endpoint definitions. Ordered so OIDC probing tries Commercial first,
+    # then USGov, then USGovDoD, then China.
+    $CloudEnvironments = [ordered]@{
+        Commercial = @{
+            LoginHost      = 'https://login.microsoftonline.com'
+            Graph          = 'https://graph.microsoft.com'
+            GraphEnv       = 'Global'
+            Exchange       = 'https://outlook.office365.com/.default'
+            ExchangeEnv    = 'O365Default'
+            IPPS           = 'https://ps.compliance.protection.outlook.com/powershell-liveid/'
+            IPPSSearchOnly = 'https://dataservice.o365filtering.com/.default'
+        }
+        USGov      = @{
+            LoginHost      = 'https://login.microsoftonline.us'
+            Graph          = 'https://graph.microsoft.us'
+            GraphEnv       = 'USGov'
+            Exchange       = 'https://outlook.office365.us/.default'
+            ExchangeEnv    = 'O365USGovGCCHigh'
+            IPPS           = 'https://ps.compliance.protection.office365.us/powershell-liveid/'
+            IPPSSearchOnly = 'https://dataservice.o365filtering.com/.default'
+        }
+        USGovDoD   = @{
+            LoginHost      = 'https://login.microsoftonline.us'
+            Graph          = 'https://dod-graph.microsoft.us'
+            GraphEnv       = 'USGovDoD'
+            Exchange       = 'https://outlook-dod.office365.us/.default'
+            ExchangeEnv    = 'O365USGovDoD'
+            IPPS           = 'https://l5.ps.compliance.protection.office365.us/powershell-liveid/'
+            # maybe this instead? md docs inconsistent:
+            # https://compliance.dod.microsoft.com/powershell-liveid
+            IPPSSearchOnly = 'https://dataservice.o365filtering.com/.default'
+        }
+        China      = @{
+            LoginHost      = 'https://login.chinacloudapi.cn'
+            Graph          = 'https://microsoftgraph.chinacloudapi.cn'
+            GraphEnv       = 'China'
+            Exchange       = 'https://partner.outlook.cn/.default'
+            ExchangeEnv    = 'O365China'
+            IPPS           = 'https://ps.compliance.protection.partner.outlook.cn/powershell-liveid'
+            IPPSSearchOnly = 'https://dataservice.o365filtering.com/.default'
+        }
+    }
+
+    if ($CloudTable) { return $CloudEnvironments }
+
+    foreach ($cloud in $CloudEnvironments.GetEnumerator()) {
+
+        $Url = "$( $cloud.Value.LoginHost )/$TenantId/v2.0/.well-known/openid-configuration"
+        Write-Trace "Get-TenantOidc: Probing $( $cloud.Key ): $Url"
+
+        try {
+            $Oidc = Invoke-RestMethod -Uri $Url -ErrorAction Stop
+        }
+        catch {
+            Write-Trace "Get-TenantOidc: Tenant not found in $( $cloud.Key )."
+            continue
+        }
+
+        $RegionScope = $Oidc.tenant_region_scope
+        $RegionSubScope = $Oidc.tenant_region_sub_scope
+
+        # Determine the cloud directly from the OIDC region fields. The cloud is a
+        # cloud table key and the only value the Connect-IRT* commands need. It must
+        # not come from which probe answered: the Commercial endpoint also responds for
+        # GCC High/DoD tenants (returning tenant_region_scope=USGov), so $cloud.Key
+        # would wrongly be 'Commercial' and yield the wrong authority (AADSTS900384).
+        # GCC is commercial-hosted, so WW maps to Commercial.
+        $cloudKey = switch ($RegionScope) {
+            'WW' { 'Commercial' }                                       # incl. GCC
+            'USGov' { if ($RegionSubScope -eq 'DOD') { 'USGovDoD' } else { 'USGov' } }
+            'USG' { 'USGov' }                                            # GCC High
+            'DOD' { 'USGovDoD' }
+            default { $cloud.Key }                                         # China, etc.
+        }
+
+        $Oidc | Add-Member -NotePropertyName 'Cloud'     -NotePropertyValue $cloudKey
+        $Oidc | Add-Member -NotePropertyName 'LoginHost' -NotePropertyValue $cloud.Value.LoginHost
+        $CloudConfigValue = $CloudEnvironments[$cloudKey]
+        $Oidc | Add-Member -NotePropertyName 'CloudConfig' -NotePropertyValue $CloudConfigValue
+
+        # issuer is https://login.microsoftonline.<tld>/{tenant-guid}/v2.0
+        # Extract the canonical GUID so a domain-based lookup still returns the tenant ID.
+        $guidPattern = '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}'
+        $tenantId = if ($Oidc.issuer -match $guidPattern) { $Matches[0] } else { $null }
+
+        $Oidc | Add-Member -NotePropertyName 'TenantId' -NotePropertyValue $tenantId
+
+        return $Oidc
+    }
+
+    return $null
+}
+#EndRegion '.\Public\Lib\Get-TenantOidc.ps1' 203
 #Region '.\Public\Mailbox\Add-IRTMailboxFullAccess.ps1' -1
 
 function Add-IRTMailboxFullAccess {
@@ -13399,7 +13628,8 @@ function Get-IRTMessageTrace {
                     if ($AllUsers) { $Global:IRT_WaitFlags.MessageTraceAllUsersDone = $true }
                     else { $Global:IRT_WaitFlags.MessageTraceUserDone = $true }
                 }
-                Write-PSFMessage -Level 9 -Message "${FunctionName}: Table key count: $($Table.Count)"
+                Write-PSFMessage -Level 9 -Message (
+                    "${FunctionName}: Table key count: $($Table.Count)")
             }
 
             # export raw data
@@ -13418,7 +13648,8 @@ function Get-IRTMessageTrace {
             # create excel sheet
             if ($Excel) {
                 $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-                Write-PSFMessage -Level 8 -Message "${FunctionName}: Show-IRTMessageTrace [$Elapsed]"
+                Write-PSFMessage -Level 8 -Message (
+                    "${FunctionName}: Show-IRTMessageTrace [$Elapsed]")
                 $Params = @{
                     Messages   = $AllMessages
                     TableStyle = $TableStyle
@@ -13429,7 +13660,7 @@ function Get-IRTMessageTrace {
         }
     }
 }
-#EndRegion '.\Public\MessageTrace\Get-IRTMessageTrace.ps1' 479
+#EndRegion '.\Public\MessageTrace\Get-IRTMessageTrace.ps1' 481
 #Region '.\Public\MessageTrace\Show-IRTMessageTrace.ps1' -1
 
 function Show-IRTMessageTrace {
@@ -13531,7 +13762,8 @@ function Show-IRTMessageTrace {
 
         $RowCount = $Message.Count
         $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-        Write-PSFMessage -Level 8 -Message "${FunctionName}: Row loop starting ($RowCount rows) [$Elapsed]"
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: Row loop starting ($RowCount rows) [$Elapsed]")
         $Rows = [System.Collections.Generic.List[PSCustomObject]]::new($RowCount)
         for ($i = 0; $i -lt $RowCount; $i++) {
 
@@ -13576,7 +13808,8 @@ function Show-IRTMessageTrace {
         }
 
         #region EXPORT EXCEL
-        Write-PSFMessage -Level 8 -Message "${FunctionName}: Export-Excel [$($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))]"
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: Export-Excel [$($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))]")
         $ExcelParams = @{
             Path          = $ExcelOutputPath
             WorkSheetname = $FileNamePrefix
@@ -13744,7 +13977,7 @@ function Show-IRTMessageTrace {
         $Workbook | Close-ExcelPackage -Show
     }
 }
-#EndRegion '.\Public\MessageTrace\Show-IRTMessageTrace.ps1' 313
+#EndRegion '.\Public\MessageTrace\Show-IRTMessageTrace.ps1' 315
 #Region '.\Public\OnPremAd\Disable-IRTAdUser.ps1' -1
 
 function Disable-IRTAdUser {
@@ -16472,7 +16705,7 @@ function Get-IRTTenantOwner {
             # --- OIDC Discovery ---
             # Done first so we know the target cloud before attempting Graph.
             # Provides cloud, region, Graph host, and confirms the tenant exists.
-            $Oidc = Get-IRTTenantOidc -TenantId $Tid
+            $Oidc = Get-TenantOidc -TenantId $Tid
             $Cloud = ($Oidc)?.Cloud
 
             Write-PSFMessage -Level 8 -Message (
@@ -16489,8 +16722,8 @@ function Get-IRTTenantOwner {
                 $Cloud -ne $Global:IRT_Session.Cloud) {
                 if (-not $Quiet) {
                     $Msg = "Tenant '$Tid' is in the $Cloud cloud but the active " +
-                        "Graph session is $( $Global:IRT_Session.Cloud ). " +
-                        "Skipping Graph query."
+                    "Graph session is $( $Global:IRT_Session.Cloud ). " +
+                    "Skipping Graph query."
                     Write-IRT $Msg -Level Warn
                 }
                 $UseGraph = $false
@@ -17672,7 +17905,8 @@ function Get-IRTUnifiedAuditLog {
                 Write-IRT $ConsoleOutput
                 $QueryKey = $QueryDict.Key
                 $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-                Write-PSFMessage -Level 8 -Message "${FunctionName}: Search-UnifiedAuditLog query $QueryKey [$Elapsed]"
+                Write-PSFMessage -Level 8 -Message (
+                    "${FunctionName}: Search-UnifiedAuditLog query $QueryKey [$Elapsed]")
                 $Page = Search-UnifiedAuditLog @FirstPageParams
                 $LogCount = ($Page | Measure-Object).Count
 
@@ -17698,7 +17932,8 @@ function Get-IRTUnifiedAuditLog {
 
                     Write-IRT "Requesting page ${PageCount}."
                     $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-                    Write-PSFMessage -Level 8 -Message "${FunctionName}: Search-UnifiedAuditLog page $PageCount [$Elapsed]"
+                    Write-PSFMessage -Level 8 -Message (
+                        "${FunctionName}: Search-UnifiedAuditLog page $PageCount [$Elapsed]")
                     $Page = Search-UnifiedAuditLog @NextPageParams
                     $LogCount = @($Page).Count
 
@@ -17786,7 +18021,8 @@ function Get-IRTUnifiedAuditLog {
             # export excel spreadsheet
             if ($Excel) {
                 $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-                Write-PSFMessage -Level 8 -Message "${FunctionName}: Starting Excel export [$Elapsed]"
+                Write-PSFMessage -Level 8 -Message (
+                    "${FunctionName}: Starting Excel export [$Elapsed]")
                 $Params = @{
                     Log = $Logs
                     WaitOnMessageTrace = $WaitOnMessageTrace
@@ -17797,7 +18033,7 @@ function Get-IRTUnifiedAuditLog {
         }
     }
 }
-#EndRegion '.\Public\UnifiedAuditLog\Get-IRTUnifiedAuditLog.ps1' 561
+#EndRegion '.\Public\UnifiedAuditLog\Get-IRTUnifiedAuditLog.ps1' 564
 #Region '.\Public\UnifiedAuditLog\Open-IRTAllOperationsSheet.ps1' -1
 
 function Open-IRTAllOperationsSheet {
@@ -17931,7 +18167,8 @@ function Show-IRTUnifiedAuditLog {
 
             # wait for both user and AllUsers message traces to complete via WaitFlags
             $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-            Write-PSFMessage -Level 8 -Message "${FunctionName}: Waiting on message trace [$Elapsed]"
+            Write-PSFMessage -Level 8 -Message (
+                "${FunctionName}: Waiting on message trace [$Elapsed]")
             if ($Global:IRT_WaitFlags) {
                 while (-not ($Global:IRT_WaitFlags.MessageTraceUserDone -and
                         $Global:IRT_WaitFlags.MessageTraceAllUsersDone)) {
@@ -17992,7 +18229,8 @@ function Show-IRTUnifiedAuditLog {
 
         #region build workbook
         $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-        Write-PSFMessage -Level 8 -Message "${FunctionName}: Request-GraphServicePrincipal [$Elapsed]"
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: Request-GraphServicePrincipal [$Elapsed]")
         Request-GraphServicePrincipal -Return 'none' -Cached:$Cached
         $Workbook = Open-ExcelPackage -Path $ExcelOutputPath -Create
 
@@ -18042,7 +18280,8 @@ function Show-IRTUnifiedAuditLog {
             foreach ($ws in $Workbook.Workbook.Worksheets) {
                 $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
                 $WsName = $ws.Name
-                Write-PSFMessage -Level 8 -Message "${FunctionName}: Add-IpInfoToSheet ($WsName) [$Elapsed]"
+                Write-PSFMessage -Level 8 -Message (
+                    "${FunctionName}: Add-IpInfoToSheet ($WsName) [$Elapsed]")
                 Add-IpInfoToSheet -Worksheet $ws -ColumnName 'IpAddress'
             }
         }
@@ -18058,7 +18297,7 @@ function Show-IRTUnifiedAuditLog {
         }
     }
 }
-#EndRegion '.\Public\UnifiedAuditLog\Show-IRTUnifiedAuditLog.ps1' 229
+#EndRegion '.\Public\UnifiedAuditLog\Show-IRTUnifiedAuditLog.ps1' 232
 #Region '.\Public\User\Disable-IRTUser.ps1' -1
 
 function Disable-IRTUser {
@@ -20377,7 +20616,8 @@ function Start-IRTPlaybook {
 
             # make directory
             $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-            Write-PSFMessage -Level 8 -Message "${FunctionName}: New-IRTInvestigationFolder [$Elapsed]"
+            Write-PSFMessage -Level 8 -Message (
+                "${FunctionName}: New-IRTInvestigationFolder [$Elapsed]")
             $DirParams = @{
                 UserObject = $ScriptUserObjects
             }
@@ -20408,7 +20648,8 @@ function Start-IRTPlaybook {
         Write-PSFMessage -Level 8 -Message "${FunctionName}: Request-DirectoryRole [$Elapsed]"
         Request-DirectoryRole -Return 'none'
         $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-        Write-PSFMessage -Level 8 -Message "${FunctionName}: Request-DirectoryRoleTemplate [$Elapsed]"
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: Request-DirectoryRoleTemplate [$Elapsed]")
         Request-DirectoryRoleTemplate -Return 'none'
         $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
         Write-PSFMessage -Level 8 -Message "${FunctionName}: Request-GraphGroup [$Elapsed]"
@@ -20420,7 +20661,8 @@ function Start-IRTPlaybook {
         Write-PSFMessage -Level 8 -Message "${FunctionName}: Request-GraphUser [$Elapsed]"
         Request-GraphUser -Return 'none'
         $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-        Write-PSFMessage -Level 8 -Message "${FunctionName}: Request-GraphServicePrincipal [$Elapsed]"
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: Request-GraphServicePrincipal [$Elapsed]")
         Request-GraphServicePrincipal -Return 'none'
 
         # pack references for injection into child runspace globals
@@ -20457,7 +20699,7 @@ function Start-IRTPlaybook {
             ShowBanner        = $false
         }
         $ExoConnectParams['ExchangeEnvironmentName'] =
-        $Global:IRT_CloudEnvironments[$Global:IRT_Session.Cloud].ExchangeEnv
+        $Global:IRT_Session.CloudConfig.ExchangeEnv
 
         #region playbook steps
 
@@ -20904,10 +21146,11 @@ function Start-IRTPlaybook {
 
         $Stopwatch.Stop()
         $TotalElapsed = $Stopwatch.Elapsed.ToString()
-        Write-PSFMessage -Level 8 -Message "${FunctionName}: Playbook complete. Total elapsed: $TotalElapsed"
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: Playbook complete. Total elapsed: $TotalElapsed")
     }
 }
-#EndRegion '.\Public\Utility\Start-IRTPlaybook.ps1' 651
+#EndRegion '.\Public\Utility\Start-IRTPlaybook.ps1' 655
 #Region '.\Suffix.ps1' -1
 
 # ModuleBuilder Notes: Code in this file will be appended to the built .psm1 file.
@@ -20933,48 +21176,8 @@ foreach ($VarName in 'IRT_IpInfo', 'IRT_MessageTraceTable') {
     }
 }
 
-# Cloud endpoint definitions used by OIDC probing and all Connect-IRT* functions.
-# Ordered so OIDC probing tries Commercial first, then USGov, then China.
-$Global:IRT_CloudEnvironments = [ordered]@{
-    Commercial = @{
-        LoginHost      = 'https://login.microsoftonline.com'
-        Graph          = 'https://graph.microsoft.com'
-        GraphEnv       = 'Global'
-        Exchange       = 'https://outlook.office365.com/.default'
-        ExchangeEnv    = 'O365Default'
-        IPPS           = 'https://ps.compliance.protection.outlook.com/powershell-liveid/'
-        IPPSSearchOnly = 'https://dataservice.o365filtering.com/.default'
-    }
-    USGov      = @{
-        LoginHost      = 'https://login.microsoftonline.us'
-        Graph          = 'https://graph.microsoft.us'
-        GraphEnv       = 'USGov'
-        Exchange       = 'https://outlook.office365.us/.default'
-        ExchangeEnv    = 'O365USGovGCCHigh'
-        IPPS           = 'https://ps.compliance.protection.office365.us/powershell-liveid/'
-        IPPSSearchOnly = 'https://dataservice.o365filtering.com/.default'
-    }
-    USGovDoD   = @{
-        LoginHost      = 'https://login.microsoftonline.us'
-        Graph          = 'https://dod-graph.microsoft.us'
-        GraphEnv       = 'USGovDoD'
-        Exchange       = 'https://outlook-dod.office365.us/.default'
-        ExchangeEnv    = 'O365USGovDoD'
-        IPPS           = 'https://l5.ps.compliance.protection.office365.us/powershell-liveid/'
-        # maybe this instead? md docs inconsistent:
-        # https://compliance.dod.microsoft.com/powershell-liveid
-        IPPSSearchOnly = 'https://dataservice.o365filtering.com/.default'
-    }
-    China      = @{
-        LoginHost      = 'https://login.chinacloudapi.cn'
-        Graph          = 'https://microsoftgraph.chinacloudapi.cn'
-        GraphEnv       = 'China'
-        Exchange       = 'https://partner.outlook.cn/.default'
-        ExchangeEnv    = 'O365China'
-        IPPS           = 'https://ps.compliance.protection.partner.outlook.cn/powershell-liveid'
-        IPPSSearchOnly = 'https://dataservice.o365filtering.com/.default'
-    }
-}
+# FIXME: remove once all callers have migrated to Get-TenantOidc
+# Set-Alias -Name Get-IRTTenantOidc -Value Get-TenantOidc -Scope Global
 
 # Load user config on module import
 Import-IRTConfig
@@ -21015,5 +21218,5 @@ if ($Global:IRT_LoadStopwatch) {
     Write-Verbose "Module loaded in $($Elapsed.ToString('N2'))s."
     Remove-Variable -Name 'IRT_LoadStopwatch' -Scope Global
 }
-#EndRegion '.\Suffix.ps1' 106
+#EndRegion '.\Suffix.ps1' 66
 
