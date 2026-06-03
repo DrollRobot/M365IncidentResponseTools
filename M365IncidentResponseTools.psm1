@@ -70,7 +70,9 @@ function Connect-IRTExchange {
         $ExoClientId = $ClientId
         $App = $null  # built lazily; not needed when -AccessToken provided
 
-        Write-PSFMessage -Level 8 -Message "Connect-IRTExchange: TenantId=$TenantId, Cloud=$Cloud, Authority=$Authority, Force=$Force, Silent=$Silent"
+        Write-PSFMessage -Level 8 -Message (
+            "Connect-IRTExchange: TenantId=$TenantId, Cloud=$Cloud, " +
+            "Authority=$Authority, Force=$Force, Silent=$Silent")
     }
 
     process {
@@ -92,14 +94,19 @@ function Connect-IRTExchange {
                 Select-Object -First 1
             if ($Match) {
                 try {
-                    Write-PSFMessage -Level 8 -Message "Attempting silent Exchange token acquisition for: $($Match.Username) (env: $($Match.Environment))"
+                    Write-PSFMessage -Level 8 -Message (
+                        "Attempting silent Exchange token acquisition for: " +
+                        "$($Match.Username) (env: $($Match.Environment))")
                     return $App.AcquireTokenSilent($Scopes, $Match).
-                        ExecuteAsync().GetAwaiter().GetResult()
+                    ExecuteAsync().GetAwaiter().GetResult()
                 } catch {
-                    Write-PSFMessage -Level 8 -Message "Silent Exchange token acquisition failed: $_"
+                    Write-PSFMessage -Level 8 -Message (
+                        "Silent Exchange token acquisition failed: $_")
                 }
             } else {
-                Write-PSFMessage -Level 8 -Message "No cached account matches expected environment '$ExpectedLoginHost'; will authenticate interactively."
+                Write-PSFMessage -Level 8 -Message (
+                    "No cached account matches expected environment " +
+                    "'$ExpectedLoginHost'; will authenticate interactively.")
             }
 
             if ($Silent) {
@@ -120,7 +127,10 @@ function Connect-IRTExchange {
                     $Cts.Dispose()
                 }
                 $Result = $Task.GetAwaiter().GetResult()
-                Write-PSFMessage -Level 8 -Message "Interactive Exchange token acquisition succeeded. Account: $($Result.Account.Username), Expiry: $($Result.ExpiresOn)"
+                Write-PSFMessage -Level 8 -Message (
+                    'Interactive Exchange token acquisition succeeded. ' +
+                    "Account: $($Result.Account.Username), " +
+                    "Expiry: $($Result.ExpiresOn)")
                 return $Result
             } catch {
                 throw "Interactive token acquisition failed: $_"
@@ -148,7 +158,8 @@ function Connect-IRTExchange {
             $Token = $Global:IRT_Session.Exchange.Token
             $Upn = $Global:IRT_Session.Exchange.UserPrincipalName
             $App = $Global:IRT_Session.Exchange.PublicClientApplication
-            Write-PSFMessage -Level 8 -Message "Using cached Exchange token from session (account: $Upn)."
+            Write-PSFMessage -Level 8 -Message (
+                "Using cached Exchange token from session (account: $Upn).")
         } else {
             # MSAL setup, only needed when we actually have to acquire.
             $GraphModule = Get-Module Microsoft.Graph.Authentication -ErrorAction SilentlyContinue
@@ -176,10 +187,14 @@ function Connect-IRTExchange {
             $Global:IRT_Session.TenantId -eq $TenantId -and
             $AppClientId -eq $ClientId
             if ($SameClient) {
-                Write-PSFMessage -Level 8 -Message "Reusing existing MSAL public client app (ClientId: $ClientId)."
+                Write-PSFMessage -Level 8 -Message (
+                    "Reusing existing MSAL public client app " +
+                    "(ClientId: $ClientId).")
                 $App = $Global:IRT_Session.Exchange.PublicClientApplication
             } else {
-                Write-PSFMessage -Level 8 -Message "Building new MSAL public client app (ClientId: $ExoClientId, Authority: $Authority)."
+                Write-PSFMessage -Level 8 -Message (
+                    "Building new MSAL public client app " +
+                    "(ClientId: $ExoClientId, Authority: $Authority).")
                 $PcaBuilder = [Microsoft.Identity.Client.PublicClientApplicationBuilder]
                 $NewApp = $PcaBuilder::Create($ExoClientId).
                 WithAuthority($Authority).
@@ -188,7 +203,9 @@ function Connect-IRTExchange {
                 if ($Global:IRT_Config.EnableTokenCache) {
                     try {
                         Register-MsalCache -App $NewApp -CachePath $MsalCachePath
-                        Write-PSFMessage -Level 8 -Message "MSAL persistent token cache registered at: $MsalCachePath"
+                        Write-PSFMessage -Level 8 -Message (
+                            "MSAL persistent token cache " +
+                            "registered at: $MsalCachePath")
                     }
                     catch { Write-IRT "Persistent token cache unavailable: $_" -Level Warn }
                 }
@@ -203,7 +220,9 @@ function Connect-IRTExchange {
             ) {
                 Write-IRT "Refreshing expired Exchange token for tenant $TenantId..." -Level Warn
             }
-            Write-PSFMessage -Level 8 -Message "Acquiring Exchange token (silent from MSAL cache, else interactive)."
+            Write-PSFMessage -Level 8 -Message (
+                'Acquiring Exchange token (silent from MSAL ' +
+                'cache, else interactive).')
             $TokenResult = Get-ExchangeToken
             if (-not $TokenResult.AccessToken) {
                 throw 'Failed to acquire Exchange access token.'
@@ -221,13 +240,19 @@ function Connect-IRTExchange {
         # cache from returning a wrong-cloud token; this guards the caller-supplied and
         # session-cached paths.
         $TokenAud = (Get-TokenPayload -Token $Token).aud
-        Write-PSFMessage -Level 8 -Message "Exchange token audience: $TokenAud | expected host: $ExpectedExchangeHost"
+        Write-PSFMessage -Level 8 -Message (
+            "Exchange token audience: $TokenAud | " +
+            "expected host: $ExpectedExchangeHost")
 
         if (-not $TokenAud) {
-            Write-PSFMessage -Level 8 -Message "Could not decode token audience; skipping cloud validation."
+            Write-PSFMessage -Level 8 -Message (
+                'Could not decode token audience; ' +
+                'skipping cloud validation.')
         }
         elseif ($TokenAud -notlike 'http*') {
-            Write-PSFMessage -Level 8 -Message "Token audience is not a URL ('$TokenAud'); skipping cloud validation."
+            Write-PSFMessage -Level 8 -Message (
+                "Token audience is not a URL ('$TokenAud'); " +
+                'skipping cloud validation.')
         }
         elseif (([uri]$TokenAud).Host -ne $ExpectedExchangeHost) {
             if (-not $App) {
@@ -235,8 +260,11 @@ function Connect-IRTExchange {
                 throw ("Exchange token audience '$TokenAud' does not match expected host " +
                     "'$ExpectedExchangeHost' for cloud '$Cloud'.")
             }
-            Write-IRT ("Exchange token audience '$TokenAud' does not match the expected " +
-                "host '$ExpectedExchangeHost'. Re-authenticating for the correct cloud.") -Level Warn
+            Write-IRT (
+                "Exchange token audience '$TokenAud' " +
+                'does not match the expected ' +
+                "host '$ExpectedExchangeHost'. " +
+                'Re-authenticating for the correct cloud.') -Level Warn
             $TokenResult = Get-ExchangeToken
             if (-not $TokenResult.AccessToken) {
                 throw 'Failed to acquire Exchange access token after cloud mismatch.'
@@ -246,10 +274,16 @@ function Connect-IRTExchange {
             $NeedNewToken = $true
             $TokenAud = (Get-TokenPayload -Token $Token).aud
             if (([uri]$TokenAud).Host -ne $ExpectedExchangeHost) {
-                throw ("Acquired Exchange token audience '$TokenAud' still does not match " +
-                    "'$ExpectedExchangeHost'. Verify -Cloud '$Cloud' is correct for tenant $TenantId.")
+                throw (
+                    "Acquired Exchange token audience '$TokenAud' " +
+                    'still does not match ' +
+                    "'$ExpectedExchangeHost'. " +
+                    "Verify -Cloud '$Cloud' is correct " +
+                    "for tenant $TenantId.")
             }
-            Write-PSFMessage -Level 8 -Message "Re-acquired Exchange token audience now matches expected cloud."
+            Write-PSFMessage -Level 8 -Message (
+                'Re-acquired Exchange token audience ' +
+                'now matches expected cloud.')
         }
 
         # ---------- Phase 2: Connect-ExchangeOnline ----------
@@ -259,7 +293,9 @@ function Connect-IRTExchange {
             Where-Object { $_.State -eq 'Connected' -and $_.TenantID -eq $TenantId }
 
         $NeedConnect = $Force -or -not $ExistingConnection
-        Write-PSFMessage -Level 8 -Message "NeedNewToken: $NeedNewToken | NeedConnect: $NeedConnect (pre-verify)"
+        Write-PSFMessage -Level 8 -Message (
+            "NeedNewToken: $NeedNewToken | " +
+            "NeedConnect: $NeedConnect (pre-verify)")
 
         # Trust but verify: Get-ConnectionInformation reflects local session state, which
         # can report "Connected" while the session is actually dead. If we think we're
@@ -267,16 +303,22 @@ function Connect-IRTExchange {
         if (-not $NeedConnect) {
             try {
                 $null = Get-OrganizationConfig -ErrorAction Stop
-                Write-PSFMessage -Level 8 -Message "Live Exchange verification succeeded; existing connection is healthy."
+                Write-PSFMessage -Level 8 -Message (
+                    'Live Exchange verification succeeded; ' +
+                    'existing connection is healthy.')
             } catch {
-                Write-PSFMessage -Level 8 -Message "Exchange session looked connected but a live call failed; forcing reconnect. Error: $_"
+                Write-PSFMessage -Level 8 -Message (
+                    'Exchange session looked connected but a ' +
+                    "live call failed; forcing reconnect. Error: $_")
                 $NeedConnect = $true
             }
         }
 
         if ($NeedConnect) {
             if ($ExistingConnection) {
-                Write-PSFMessage -Level 8 -Message "Disconnecting existing Exchange connection before reconnect."
+                Write-PSFMessage -Level 8 -Message (
+                    'Disconnecting existing Exchange ' +
+                    'connection before reconnect.')
                 Disconnect-ExchangeOnline -Confirm:$false -ErrorAction SilentlyContinue
             }
             $Params = @{
@@ -285,7 +327,9 @@ function Connect-IRTExchange {
                 ShowBanner        = $false
             }
             $Params['ExchangeEnvironmentName'] = $CloudConfig.ExchangeEnv
-            Write-PSFMessage -Level 8 -Message "Calling Connect-ExchangeOnline (ExchangeEnvironmentName: $($CloudConfig.ExchangeEnv))."
+            Write-PSFMessage -Level 8 -Message (
+                'Calling Connect-ExchangeOnline ' +
+                "(ExchangeEnvironmentName: $($CloudConfig.ExchangeEnv)).")
             Connect-ExchangeOnline @Params
             Write-PSFMessage -Level 8 -Message "Connect-ExchangeOnline completed."
         }
@@ -301,11 +345,13 @@ function Connect-IRTExchange {
             TenantId                = $TenantId
             PublicClientApplication = $App
         }
-        Write-PSFMessage -Level 8 -Message "Connect-IRTExchange complete. Account: $Upn, TokenExpiry: $($Result.TokenExpiry)"
+        Write-PSFMessage -Level 8 -Message (
+            "Connect-IRTExchange complete. Account: " +
+            "$Upn, TokenExpiry: $($Result.TokenExpiry)")
         return $Result
     }
 }
-#EndRegion '.\Private\Connect\Connect-IRTExchange.ps1' 302
+#EndRegion '.\Private\Connect\Connect-IRTExchange.ps1' 348
 #Region '.\Private\Connect\Connect-IRTGraph.ps1' -1
 
 function Connect-IRTGraph {
@@ -418,7 +464,10 @@ function Connect-IRTGraph {
         # to the cloud we're connecting to.
         $ExpectedLoginHost = $CloudConfig.LoginHost.Replace('https://', '')
 
-        Write-PSFMessage -Level 8 -Message "Connect-IRTGraph: TenantId=$TenantId, Cloud=$Cloud, Authority=$Authority, Scopes=$($Scopes.Count), Force=$Force, Silent=$Silent"
+        Write-PSFMessage -Level 8 -Message (
+            "Connect-IRTGraph: TenantId=$TenantId, Cloud=$Cloud, " +
+            "Authority=$Authority, Scopes=$($Scopes.Count), " +
+            "Force=$Force, Silent=$Silent")
     }
 
     process {
@@ -430,7 +479,9 @@ function Connect-IRTGraph {
         if (-not $GraphModule) {
             throw 'Microsoft.Graph.Authentication must be imported before connecting to Graph.'
         }
-        Write-PSFMessage -Level 8 -Message "Microsoft.Graph.Authentication version: $($GraphModule.Version)"
+        Write-PSFMessage -Level 8 -Message (
+            "Microsoft.Graph.Authentication version: " +
+            "$($GraphModule.Version)")
 
         # Ensure MSAL.NET is loaded
         $MsalAssembly = [System.AppDomain]::CurrentDomain.GetAssemblies() |
@@ -447,7 +498,9 @@ function Connect-IRTGraph {
             Write-PSFMessage -Level 8 -Message "Loading MSAL assembly from: $MsalDll"
             Add-Type -Path $MsalDll
         } else {
-            Write-PSFMessage -Level 8 -Message "MSAL assembly already loaded: $($MsalAssembly.FullName)"
+            Write-PSFMessage -Level 8 -Message (
+                "MSAL assembly already loaded: " +
+                "$($MsalAssembly.FullName)")
         }
 
         # build scopes urls
@@ -455,23 +508,29 @@ function Connect-IRTGraph {
 
         # test whether there's already a valid client. if not create one
         $SameClient =
-            $Global:IRT_Session -and
-            $Global:IRT_Session.Graph -and
-            $Global:IRT_Session.Graph.PublicClientApplication -and
-            $Global:IRT_Session.TenantId -eq $TenantId -and
-            $Global:IRT_Session.Graph.PublicClientApplication.AppConfig.ClientId -eq $ClientId
+        $Global:IRT_Session -and
+        $Global:IRT_Session.Graph -and
+        $Global:IRT_Session.Graph.PublicClientApplication -and
+        $Global:IRT_Session.TenantId -eq $TenantId -and
+        $Global:IRT_Session.Graph.PublicClientApplication.AppConfig.ClientId -eq $ClientId
         if ($SameClient) {
-            Write-PSFMessage -Level 8 -Message "Reusing existing MSAL public client app (ClientId: $ClientId)."
+            Write-PSFMessage -Level 8 -Message (
+                "Reusing existing MSAL public client app " +
+                "(ClientId: $ClientId).")
             $App = $Global:IRT_Session.Graph.PublicClientApplication
         } else {
-            Write-PSFMessage -Level 8 -Message "Building new MSAL public client app (ClientId: $ClientId, Authority: $Authority)."
+            Write-PSFMessage -Level 8 -Message (
+                "Building new MSAL public client app " +
+                "(ClientId: $ClientId, Authority: $Authority).")
             $PcaBuilder = [Microsoft.Identity.Client.PublicClientApplicationBuilder]
             $NewApp = $PcaBuilder::Create($ClientId).WithAuthority($Authority).
-                WithRedirectUri('http://localhost').Build()
+            WithRedirectUri('http://localhost').Build()
             if ($Global:IRT_Config.EnableTokenCache) {
                 try {
                     Register-MsalCache -App $NewApp -CachePath $MsalCachePath
-                    Write-PSFMessage -Level 8 -Message "MSAL persistent token cache registered at: $MsalCachePath"
+                    Write-PSFMessage -Level 8 -Message (
+                        "MSAL persistent token cache " +
+                        "registered at: $MsalCachePath")
                 }
                 catch {
                     Write-IRT "Persistent token cache unavailable: $_" -Level Warn
@@ -500,16 +559,24 @@ function Connect-IRTGraph {
                     Select-Object -First 1
                 if ($Match) {
                     try {
-                        Write-PSFMessage -Level 8 -Message "Attempting silent token acquisition for: $($Match.Username) (env: $($Match.Environment))"
+                        Write-PSFMessage -Level 8 -Message (
+                            "Attempting silent token acquisition for: " +
+                            "$($Match.Username) " +
+                            "(env: $($Match.Environment))")
                         $Result = $App.AcquireTokenSilent($MsalScopes, $Match).
-                            ExecuteAsync().GetAwaiter().GetResult()
-                        Write-PSFMessage -Level 8 -Message "Silent token acquisition succeeded. Expiry: $($Result.ExpiresOn)"
+                        ExecuteAsync().GetAwaiter().GetResult()
+                        Write-PSFMessage -Level 8 -Message (
+                            'Silent token acquisition succeeded. ' +
+                            "Expiry: $($Result.ExpiresOn)")
                         return $Result
                     } catch {
                         Write-PSFMessage -Level 8 -Message "Silent token acquisition failed: $_"
                     }
                 } else {
-                    Write-PSFMessage -Level 8 -Message "No cached account matches expected environment '$ExpectedLoginHost'; will authenticate interactively."
+                    Write-PSFMessage -Level 8 -Message (
+                        "No cached account matches expected environment " +
+                        "'$ExpectedLoginHost'; " +
+                        'will authenticate interactively.')
                 }
             }
 
@@ -538,7 +605,10 @@ function Connect-IRTGraph {
                     $Cts.Dispose()
                 }
                 $Result = $Task.GetAwaiter().GetResult()
-                Write-PSFMessage -Level 8 -Message "Interactive token acquisition succeeded. Account: $($Result.Account.Username), Expiry: $($Result.ExpiresOn)"
+                Write-PSFMessage -Level 8 -Message (
+                    'Interactive token acquisition succeeded. ' +
+                    "Account: $($Result.Account.Username), " +
+                    "Expiry: $($Result.ExpiresOn)")
                 return $Result
             } catch {
                 throw "Interactive token acquisition failed: $_"
@@ -572,12 +642,26 @@ function Connect-IRTGraph {
                 $NeedNewToken = $false
                 $Token = $Global:IRT_Session.Graph.Token
                 $Account = $Global:IRT_Session.Graph.Account
-                Write-PSFMessage -Level 8 -Message "Using cached Graph token from session (cloud: $Cloud, account: $Account)."
+                Write-PSFMessage -Level 8 -Message (
+                    'Using cached Graph token from session ' +
+                    "(cloud: $Cloud, account: $Account).")
             } else {
-                Write-PSFMessage -Level 8 -Message "Cached token missing scopes ($($TokenScopeMissing.Count)): $($TokenScopeMissing -join ', ')"
+                Write-PSFMessage -Level 8 -Message (
+                    "Cached token missing scopes " +
+                    "($($TokenScopeMissing.Count)): " +
+                    "$($TokenScopeMissing -join ', ')")
             }
         } else {
-            Write-PSFMessage -Level 8 -Message "Session cache check skipped — Force=$Force, SessionExists=$([bool]$Global:IRT_Session), TokenExpired=$(if ($Global:IRT_Session.Graph.Token) { Test-TokenExpired -Token $Global:IRT_Session.Graph.Token } else { 'n/a' })"
+            $TokenExpiredStatus = if ($Global:IRT_Session.Graph.Token) {
+                Test-TokenExpired -Token $Global:IRT_Session.Graph.Token
+            } else {
+                'n/a'
+            }
+            Write-PSFMessage -Level 8 -Message (
+                'Session cache check skipped - ' +
+                "Force=$Force, " +
+                "SessionExists=$([bool]$Global:IRT_Session), " +
+                "TokenExpired=$TokenExpiredStatus")
         }
 
         if ($NeedNewToken) {
@@ -588,7 +672,9 @@ function Connect-IRTGraph {
                 Write-IRT "Refreshing expired Graph token for tenant $TenantId." -Level Warn
             }
             # Pulls from the MSAL persistent cache (silent) first, then interactive.
-            Write-PSFMessage -Level 8 -Message "Acquiring Graph token (silent from MSAL cache, else interactive)."
+            Write-PSFMessage -Level 8 -Message (
+                'Acquiring Graph token (silent from MSAL ' +
+                'cache, else interactive).')
             $TokenResult = Get-GraphToken
             if (-not $TokenResult.AccessToken) {
                 throw 'Failed to acquire Graph access token.'
@@ -616,12 +702,16 @@ function Connect-IRTGraph {
         if (-not $TokenAud) {
             # Couldn't parse the token - don't punish an unparseable-but-valid token with
             # a forced interactive loop. Only a positively-wrong audience triggers a re-auth.
-            Write-PSFMessage -Level 8 -Message "Could not decode token audience; skipping cloud validation."
+            Write-PSFMessage -Level 8 -Message (
+                'Could not decode token audience; ' +
+                'skipping cloud validation.')
         }
         elseif ($TokenAud -notlike 'http*') {
             # aud is a resource GUID (the same across clouds) rather than a URL, so it
             # can't distinguish cloud - skip rather than risk a false positive.
-            Write-PSFMessage -Level 8 -Message "Token audience is not a URL ('$TokenAud'); skipping cloud validation."
+            Write-PSFMessage -Level 8 -Message (
+                "Token audience is not a URL ('$TokenAud'); " +
+                'skipping cloud validation.')
         }
         elseif ($TokenAud.TrimEnd('/') -ne $GraphBaseUrl.TrimEnd('/')) {
             Write-IRT ("Graph token audience '$TokenAud' does not match the expected " +
@@ -641,7 +731,9 @@ function Connect-IRTGraph {
                 throw ("Acquired Graph token audience '$TokenAud' still does not match " +
                     "'$GraphBaseUrl'. Verify -Cloud '$Cloud' is correct for tenant $TenantId.")
             }
-            Write-PSFMessage -Level 8 -Message "Re-acquired token audience now matches expected cloud."
+            Write-PSFMessage -Level 8 -Message (
+                'Re-acquired token audience now ' +
+                'matches expected cloud.')
         }
 
         # ---------- Phase 2: Connect-MgGraph ----------
@@ -649,15 +741,22 @@ function Connect-IRTGraph {
         # acquired a fresh token (the existing MgContext is still bound to the old one).
 
         $Ctx = Get-MgContext -ErrorAction SilentlyContinue
-        Write-PSFMessage -Level 8 -Message "Preconnect MgContext — TenantId: $($Ctx.TenantId), Environment: $($Ctx.Environment) (expected: $($CloudConfig.GraphEnv)), Account: $($Ctx.Account)"
+        Write-PSFMessage -Level 8 -Message (
+            'Preconnect MgContext - ' +
+            "TenantId: $($Ctx.TenantId), " +
+            "Environment: $($Ctx.Environment) " +
+            "(expected: $($CloudConfig.GraphEnv)), " +
+            "Account: $($Ctx.Account)")
 
         $NeedConnect = $NeedNewToken -or
-            (-not $Ctx) -or                                                 # not connected
-            ($Ctx.TenantId -ne $TenantId) -or                              # wrong tenant
-            ($Ctx.Environment -ne $CloudConfig.GraphEnv) -or               # wrong cloud
-            [bool]($Scopes | Where-Object { $Ctx.Scopes -notcontains $_ }) # missing scopes
+        (-not $Ctx) -or # not connected
+        ($Ctx.TenantId -ne $TenantId) -or # wrong tenant
+        ($Ctx.Environment -ne $CloudConfig.GraphEnv) -or # wrong cloud
+        [bool]($Scopes | Where-Object { $Ctx.Scopes -notcontains $_ }) # missing scopes
 
-        Write-PSFMessage -Level 8 -Message "NeedNewToken: $NeedNewToken | NeedConnect: $NeedConnect (pre-verify)"
+        Write-PSFMessage -Level 8 -Message (
+            "NeedNewToken: $NeedNewToken | " +
+            "NeedConnect: $NeedConnect (pre-verify)")
 
         # Trust but verify: the metadata checks above can all pass while the connection is
         # actually dead (e.g. a token the API rejects). Confirm with a real, lightweight
@@ -666,18 +765,28 @@ function Connect-IRTGraph {
         # through to the reconnect block below instead of returning a dead session.
         if (-not $NeedConnect) {
             try {
-                $null = Invoke-MgGraphRequest -Method GET `
-                    -Uri 'v1.0/organization?$select=id&$top=1' -ErrorAction Stop
-                Write-PSFMessage -Level 8 -Message "Live Graph verification succeeded; existing connection is healthy."
+                $VerifyRequest = @{
+                    Method      = 'GET'
+                    Uri         = 'v1.0/organization?$select=id&$top=1'
+                    ErrorAction = 'Stop'
+                }
+                $null = Invoke-MgGraphRequest @VerifyRequest
+                Write-PSFMessage -Level 8 -Message (
+                    'Live Graph verification succeeded; ' +
+                    'existing connection is healthy.')
             } catch {
-                Write-PSFMessage -Level 8 -Message "Metadata looked connected but a live Graph call failed; forcing reconnect. Error: $_"
+                Write-PSFMessage -Level 8 -Message (
+                    'Metadata looked connected but a live Graph ' +
+                    "call failed; forcing reconnect. Error: $_")
                 $NeedConnect = $true
             }
         }
 
         if ($NeedConnect) {
             if ($Ctx) {
-                Write-PSFMessage -Level 8 -Message "Disconnecting existing MgGraph context before reconnect."
+                Write-PSFMessage -Level 8 -Message (
+                    'Disconnecting existing MgGraph ' +
+                    'context before reconnect.')
                 $null = Disconnect-MgGraph -ErrorAction SilentlyContinue
             }
             $Secure = ConvertTo-SecureString -String $Token -AsPlainText -Force
@@ -686,7 +795,9 @@ function Connect-IRTGraph {
                 NoWelcome   = $true
                 Environment = $CloudConfig.GraphEnv
             }
-            Write-PSFMessage -Level 8 -Message "Calling Connect-MgGraph (Environment: $($CloudConfig.GraphEnv))."
+            Write-PSFMessage -Level 8 -Message (
+                'Calling Connect-MgGraph ' +
+                "(Environment: $($CloudConfig.GraphEnv)).")
             $null = Connect-MgGraph @Params
         }
 
@@ -699,9 +810,14 @@ function Connect-IRTGraph {
 
         try {
             $MissingAdminScopes = Test-GraphAdminConsent -RequestedScope $Scopes
-            Write-PSFMessage -Level 8 -Message "Admin consent check: $($MissingAdminScopes.Count) scope(s) missing."
+            Write-PSFMessage -Level 8 -Message (
+                'Admin consent check: ' +
+                "$($MissingAdminScopes.Count) scope(s) missing.")
         } catch {
-            Write-PSFMessage -Level Warning -Message "Admin consent check failed - skipping consent verification. Re-run Connect-IRT to retry. Error: $_"
+            Write-PSFMessage -Level Warning -Message (
+                'Admin consent check failed - skipping consent ' +
+                'verification. Re-run Connect-IRT to retry. ' +
+                "Error: $_")
             $MissingAdminScopes = @()
         }
 
@@ -731,13 +847,18 @@ function Connect-IRTGraph {
                 } catch {
                     $StillMissing = $Scopes
                 }
-                Write-PSFMessage -Level 8 -Message "Consent replication check attempt $Attempt/5: $($StillMissing.Count) scope(s) still missing."
+                Write-PSFMessage -Level 8 -Message (
+                    "Consent replication check attempt $Attempt/5: " +
+                    "$($StillMissing.Count) scope(s) still missing.")
             }
 
             if ($StillMissing) {
                 $AllMissing = $StillMissing -join ', '
-                Write-PSFMessage -Level Warning -Message "Tenant-wide grant not yet visible for: $AllMissing"
-                Write-PSFMessage -Level Warning -Message "Replication may still be in flight; re-run Connect-IRT shortly to confirm."
+                Write-PSFMessage -Level Warning -Message (
+                    "Tenant-wide grant not yet visible for: $AllMissing")
+                Write-PSFMessage -Level Warning -Message (
+                    'Replication may still be in flight; ' +
+                    're-run Connect-IRT shortly to confirm.')
             } else {
                 Write-IRT 'Admin consent granted tenant-wide.'
             }
@@ -754,11 +875,13 @@ function Connect-IRTGraph {
             TenantId                = $TenantId
             PublicClientApplication = $App
         }
-        Write-PSFMessage -Level 8 -Message "Connect-IRTGraph complete. Account: $Account, TokenExpiry: $($Result.TokenExpiry)"
+        Write-PSFMessage -Level 8 -Message (
+            "Connect-IRTGraph complete. Account: $Account, " +
+            "TokenExpiry: $($Result.TokenExpiry)")
         return $Result
     }
 }
-#EndRegion '.\Private\Connect\Connect-IRTGraph.ps1' 451
+#EndRegion '.\Private\Connect\Connect-IRTGraph.ps1' 528
 #Region '.\Private\Connect\Connect-IRTIPPS.ps1' -1
 
 function Connect-IRTIPPS {
@@ -826,7 +949,10 @@ function Connect-IRTIPPS {
         $ExoClientId = $ClientId
         $App = $null  # built lazily; not needed when -AccessToken provided
 
-        Write-PSFMessage -Level 8 -Message "Connect-IRTIPPS: TenantId=$TenantId, Cloud=$Cloud, Authority=$Authority, SearchOnly=$SearchOnly, Force=$Force, Silent=$Silent"
+        Write-PSFMessage -Level 8 -Message (
+            "Connect-IRTIPPS: TenantId=$TenantId, Cloud=$Cloud, " +
+            "Authority=$Authority, SearchOnly=$SearchOnly, " +
+            "Force=$Force, Silent=$Silent")
     }
 
     process {
@@ -848,14 +974,18 @@ function Connect-IRTIPPS {
                 Select-Object -First 1
             if ($Match) {
                 try {
-                    Write-PSFMessage -Level 8 -Message "Attempting silent IPPS token acquisition for: $($Match.Username) (env: $($Match.Environment))"
+                    Write-PSFMessage -Level 8 -Message (
+                        "Attempting silent IPPS token acquisition for: " +
+                        "$($Match.Username) (env: $($Match.Environment))")
                     return $App.AcquireTokenSilent($Scopes, $Match).
-                        ExecuteAsync().GetAwaiter().GetResult()
+                    ExecuteAsync().GetAwaiter().GetResult()
                 } catch {
                     Write-PSFMessage -Level 8 -Message "Silent IPPS token acquisition failed: $_"
                 }
             } else {
-                Write-PSFMessage -Level 8 -Message "No cached account matches expected environment '$ExpectedLoginHost'; will authenticate interactively."
+                Write-PSFMessage -Level 8 -Message (
+                    "No cached account matches expected environment " +
+                    "'$ExpectedLoginHost'; will authenticate interactively.")
             }
 
             if ($Silent) {
@@ -876,7 +1006,10 @@ function Connect-IRTIPPS {
                     $Cts.Dispose()
                 }
                 $Result = $Task.GetAwaiter().GetResult()
-                Write-PSFMessage -Level 8 -Message "Interactive IPPS token acquisition succeeded. Account: $($Result.Account.Username), Expiry: $($Result.ExpiresOn)"
+                Write-PSFMessage -Level 8 -Message (
+                    'Interactive IPPS token acquisition succeeded. ' +
+                    "Account: $($Result.Account.Username), " +
+                    "Expiry: $($Result.ExpiresOn)")
                 return $Result
             } catch {
                 throw "Interactive token acquisition failed: $_"
@@ -918,7 +1051,8 @@ function Connect-IRTIPPS {
             $Token = $Global:IRT_Session.IPPS.Token
             $Upn = $Global:IRT_Session.IPPS.UserPrincipalName
             $App = $Global:IRT_Session.IPPS.PublicClientApplication
-            Write-PSFMessage -Level 8 -Message "Using cached IPPS token from session (account: $Upn)."
+            Write-PSFMessage -Level 8 -Message (
+                "Using cached IPPS token from session (account: $Upn).")
         }
         else {
             # MSAL setup, only needed when we actually have to acquire.
@@ -956,13 +1090,19 @@ function Connect-IRTIPPS {
             $Global:IRT_Session.TenantId -eq $TenantId -and
             $Global:IRT_Session.IPPS.PublicClientApplication.AppConfig.ClientId -eq $ClientId
             $App = if ($UseExoApp) {
-                Write-PSFMessage -Level 8 -Message "Reusing Exchange MSAL app for silent IPPS audience swap."
+                Write-PSFMessage -Level 8 -Message (
+                    'Reusing Exchange MSAL app for ' +
+                    'silent IPPS audience swap.')
                 $Global:IRT_Session.Exchange.PublicClientApplication
             } elseif ($UseIppsApp) {
-                Write-PSFMessage -Level 8 -Message "Reusing existing IPPS MSAL app (ClientId: $ClientId)."
+                Write-PSFMessage -Level 8 -Message (
+                    "Reusing existing IPPS MSAL app " +
+                    "(ClientId: $ClientId).")
                 $Global:IRT_Session.IPPS.PublicClientApplication
             } else {
-                Write-PSFMessage -Level 8 -Message "Building new MSAL public client app (ClientId: $ExoClientId, Authority: $Authority)."
+                Write-PSFMessage -Level 8 -Message (
+                    "Building new MSAL public client app " +
+                    "(ClientId: $ExoClientId, Authority: $Authority).")
                 $PcaBuilder = [Microsoft.Identity.Client.PublicClientApplicationBuilder]
                 $NewApp = $PcaBuilder::Create($ExoClientId).
                 WithAuthority($Authority).
@@ -971,7 +1111,9 @@ function Connect-IRTIPPS {
                 if ($Global:IRT_Config.EnableTokenCache) {
                     try {
                         Register-MsalCache -App $NewApp -CachePath $MsalCachePath
-                        Write-PSFMessage -Level 8 -Message "MSAL persistent token cache registered at: $MsalCachePath"
+                        Write-PSFMessage -Level 8 -Message (
+                            "MSAL persistent token cache " +
+                            "registered at: $MsalCachePath")
                     }
                     catch { Write-IRT "Persistent token cache unavailable: $_" -Level Warn }
                 }
@@ -986,7 +1128,9 @@ function Connect-IRTIPPS {
             ) {
                 Write-IRT "Refreshing expired IPPS token for tenant $TenantId..." -Level Warn
             }
-            Write-PSFMessage -Level 8 -Message "Acquiring IPPS token (silent from MSAL cache, else interactive)."
+            Write-PSFMessage -Level 8 -Message (
+                'Acquiring IPPS token (silent from MSAL ' +
+                'cache, else interactive).')
             $TokenResult = Get-IppsToken
             if (-not $TokenResult.AccessToken) {
                 throw 'Failed to acquire IPPS access token.'
@@ -1014,7 +1158,9 @@ function Connect-IRTIPPS {
 
         if ($NeedConnect) {
             if ($ExistingConnection) {
-                Write-PSFMessage -Level 8 -Message "Disconnecting existing IPPS connection before reconnect."
+                Write-PSFMessage -Level 8 -Message (
+                    'Disconnecting existing IPPS ' +
+                    'connection before reconnect.')
                 Disconnect-ExchangeOnline -Confirm:$false -ErrorAction SilentlyContinue
             }
             $Params = @{
@@ -1026,7 +1172,10 @@ function Connect-IRTIPPS {
                 $Params['EnableSearchOnlySession'] = $true
             }
             $Params['ConnectionUri'] = $CloudConfig.IPPS
-            Write-PSFMessage -Level 8 -Message "Calling Connect-IPPSSession (ConnectionUri: $($CloudConfig.IPPS), SearchOnly: $SearchOnly)."
+            Write-PSFMessage -Level 8 -Message (
+                'Calling Connect-IPPSSession ' +
+                "(ConnectionUri: $($CloudConfig.IPPS), " +
+                "SearchOnly: $SearchOnly).")
             Connect-IPPSSession @Params
             Write-PSFMessage -Level 8 -Message "Connect-IPPSSession completed."
         }
@@ -1043,11 +1192,13 @@ function Connect-IRTIPPS {
             PublicClientApplication = $App
             SearchOnly              = [bool]$SearchOnly
         }
-        Write-PSFMessage -Level 8 -Message "Connect-IRTIPPS complete. Account: $Upn, TokenExpiry: $($Result.TokenExpiry)"
+        Write-PSFMessage -Level 8 -Message (
+            "Connect-IRTIPPS complete. Account: $Upn, " +
+            "TokenExpiry: $($Result.TokenExpiry)")
         return $Result
     }
 }
-#EndRegion '.\Private\Connect\Connect-IRTIPPS.ps1' 287
+#EndRegion '.\Private\Connect\Connect-IRTIPPS.ps1' 315
 #Region '.\Private\Connect\Get-TokenExpiry.ps1' -1
 
 function Get-TokenExpiry {
@@ -4012,7 +4163,8 @@ function Get-LicenseFullName {
 function Get-YesNo {
     <#
     .SYNOPSIS
-    A utility function for asking the user to answer y or n. Returns $true if y, $false if n. If any other input is given, it will ask the user again.
+    A utility function for asking the user to answer y or n. Returns $true if y,
+    $false if n. If any other input is given, it will ask the user again.
 
     .PARAMETER Prompt
     The message to present to the user. The function appends " (y/n)"
@@ -4023,15 +4175,21 @@ function Get-YesNo {
     .NOTES
     Version: 1.2.2
     1.2.2 - Fixed bug where incorrect input would generate errors.
-    1.2.1 - Fixed bug where random text would be added to prompt. 
+    1.2.1 - Fixed bug where random text would be added to prompt.
     1.2.0 - Added color option.
     #>
     [CmdletBinding()]
+    [OutputType([bool])]
     param (
         [Parameter( Position = 0 )]
         [string] $Prompt,
 
-        [ValidateSet( 'Black', 'Blue', 'Cyan', 'DarkBlue', 'DarkCyan', 'DarkGray', 'DarkGreen', 'DarkMagenta', 'DarkRed', 'DarkYellow', 'Gray', 'Green', 'Magenta', 'Red', 'White', 'Yellow' )]
+        [ValidateSet(
+            'Black', 'Blue', 'Cyan', 'DarkBlue',
+            'DarkCyan', 'DarkGray', 'DarkGreen', 'DarkMagenta',
+            'DarkRed', 'DarkYellow', 'Gray', 'Green',
+            'Magenta', 'Red', 'White', 'Yellow'
+        )]
         [string] $ForegroundColor
     )
 
@@ -4060,7 +4218,7 @@ function Get-YesNo {
         return $false
     }
 }
-#EndRegion '.\Private\Lib\Get-YesNo.ps1' 52
+#EndRegion '.\Private\Lib\Get-YesNo.ps1' 59
 #Region '.\Private\Lib\Open-Browser.ps1' -1
 
 function Open-Browser {
@@ -8770,11 +8928,13 @@ function Get-IRTTenantOidc {
 
     .EXAMPLE
     $oidc = Get-IRTTenantOidc -TenantId $value
-    Write-Host "TenantId: $( $oidc.TenantId ) | Cloud: $( $oidc.Cloud ) | Graph: $( $oidc.msgraph_host )"
+    Write-Host (
+        "TenantId: $( $oidc.TenantId ) | Cloud: $( $oidc.Cloud ) | " +
+        "Graph: $( $oidc.msgraph_host )")
 
     .OUTPUTS
     PSCustomObject (augmented OIDC discovery document), or $null if not found.
-    
+
     .NOTES
     Version: 1.1.0
     #>
@@ -8809,10 +8969,10 @@ function Get-IRTTenantOidc {
         # $cloud.Key would wrongly be 'Commercial' and yield the wrong authority
         # (AADSTS900384). GCC is commercial-hosted, so WW maps to Commercial.
         $cloudKey = switch ($RegionScope) {
-            'WW'    { 'Commercial' }                                       # incl. GCC
+            'WW' { 'Commercial' }                                       # incl. GCC
             'USGov' { if ($RegionSubScope -eq 'DOD') { 'USGovDoD' } else { 'USGov' } }
-            'USG'   { 'USGov' }                                            # GCC High
-            'DOD'   { 'USGovDoD' }
+            'USG' { 'USGov' }                                            # GCC High
+            'DOD' { 'USGovDoD' }
             default { $cloud.Key }                                         # China, etc.
         }
 
@@ -8831,7 +8991,7 @@ function Get-IRTTenantOidc {
 
     return $null
 }
-#EndRegion '.\Public\Connect\Get-IRTTenantOidc.ps1' 103
+#EndRegion '.\Public\Connect\Get-IRTTenantOidc.ps1' 105
 #Region '.\Public\Connect\Open-IRTTab.ps1' -1
 
 function Open-IRTTab {
@@ -13359,157 +13519,6 @@ function Show-IRTMessageTrace {
     }
 }
 #EndRegion '.\Public\MessageTrace\Show-IRTMessageTrace.ps1' 313
-#Region '.\Public\OnPremAd\Copy-IRTFunction.ps1' -1
-
-function Copy-IRTFunction {
-    <#
-    .SYNOPSIS
-    Copies IRT helper functions to the clipboard for use on remote machines.
-
-    .DESCRIPTION
-    Retrieves function definitions from the loaded module in memory and
-    concatenates them into a single pasteable script, then sends the result
-    to the clipboard via Set-Clipboard.
-
-    A bootstrap block that initialises $Global:IRT_Config (using the current
-    session's color preferences as defaults) is prepended automatically.
-
-    The default set includes:
-      - Write-IRT, Get-RandomPassword, Get-YesNo
-      - All On-Prem AD functions
-
-    Use -FunctionName to include additional functions beyond the default set.
-
-    .PARAMETER FunctionName
-    One or more additional function names to include beyond the default set.
-    Accepts pipeline input.
-
-    .EXAMPLE
-    Copy-IRTFunction
-
-    Copies the default set of IRT helper functions to the clipboard.
-
-    .EXAMPLE
-    Copy-IRTFunction -FunctionName 'Get-IRTMessageTrace'
-
-    Copies the default set plus Get-IRTMessageTrace.
-
-    .EXAMPLE
-    'Get-IRTInboxRule', 'Get-IRTMessageTrace' | Copy-IRTFunction
-
-    Copies the default set plus both named functions via the pipeline.
-
-    .OUTPUTS
-    None. Output is sent to the clipboard.
-
-    .NOTES
-    Version: 2.0.0
-
-    #>
-    [Alias(
-        'Copy-IRTFunctions', 'CopyIRTFunctions', 'CopyIRTFunction', 'IRTFunction', 'IRTFunctions')]
-    [CmdletBinding()]
-    param (
-        [Parameter(Position = 0, ValueFromPipeline, ValueFromPipelineByPropertyName)]
-        [Alias('Name')]
-        [string[]] $FunctionName
-    )
-
-    begin {
-        $DefaultFunctions = @(
-            # Core helpers
-            'Write-IRT'
-            'Get-RandomPassword'
-            'Format-Tree'
-            'Get-YesNo'
-            # On-prem AD functions
-            'Disable-IRTAdUser'
-            'Enable-IRTAdUser'
-            'Find-IRTAdDevice'
-            'Find-IRTAdOu'
-            'Find-IRTAdUser'
-            'Find-IRTDomainController'
-            'Get-IRTAdAdminUser'
-            'Push-IRTAdSync'
-            'Reset-IRTAdUserPassword'
-            'Show-IRTAdDevice'
-            'Show-IRTAdOus'
-            'Show-IRTAdUser'
-        )
-
-        $Queue = [System.Collections.Generic.List[string]]::new()
-        foreach ($F in $DefaultFunctions) { $Queue.Add($F) }
-    }
-
-    process {
-        foreach ($F in $FunctionName) {
-            if ($Queue -notcontains $F) { $Queue.Add($F) }
-        }
-    }
-
-    end {
-        # Resolve current color values (or fallbacks) at copy-time so the pasted
-        # code carries the user's preferences onto the remote machine.
-        $infoColor = if ($Global:IRT_Config?.InfoColor) {
-            $Global:IRT_Config.InfoColor
-        } else { 'DarkCyan' }
-        $warnColor = if ($Global:IRT_Config?.WarnColor) {
-            $Global:IRT_Config.WarnColor
-        } else { 'Yellow' }
-        $errorColor = if ($Global:IRT_Config?.ErrorColor) {
-            $Global:IRT_Config.ErrorColor
-        } else { 'Red' }
-
-        $Bootstrap = @"
-if (-not `$Global:IRT_Config) {
-    `$Global:IRT_Config = [PSCustomObject]@{
-        InfoColor  = '$infoColor'
-        WarnColor  = '$warnColor'
-        ErrorColor = '$errorColor'
-    }
-}
-"@
-
-        $Builder = [System.Text.StringBuilder]::new()
-        $null = $Builder.AppendLine($Bootstrap)
-
-        $Resolved = 0
-        foreach ($Name in $Queue) {
-            $GcParams = @{
-                Name        = $Name
-                CommandType = 'Function'
-                ErrorAction = 'SilentlyContinue'
-            }
-            $Cmd = Get-Command @GcParams
-            if (-not $Cmd) {
-                Write-IRT "Function not found in session: $Name" -Level Warn
-                continue
-            }
-            $null = $Builder.AppendLine("function $Name {")
-            $null = $Builder.AppendLine($Cmd.Definition)
-            $null = $Builder.AppendLine('}')
-            $null = $Builder.AppendLine()
-            $Resolved++
-        }
-
-        if ($Resolved -eq 0) {
-            Write-IRT 'No functions could be resolved.' -Level Warn
-            return
-        }
-
-        $FmtParams = @{
-            Content    = $Builder.ToString()
-            Script     = $true
-            Comments   = $true
-            EmptyLines = $true
-            Whitespace = $true
-        }
-        $Formatted = Format-Powershell @FmtParams
-        Set-Clipboard -Value $Formatted
-        Write-IRT "Copied $Resolved function(s) to clipboard."
-    }
-}
-#EndRegion '.\Public\OnPremAd\Copy-IRTFunction.ps1' 149
 #Region '.\Public\OnPremAd\Disable-IRTAdUser.ps1' -1
 
 function Disable-IRTAdUser {
@@ -16147,7 +16156,7 @@ function Get-IRTTenantOwner {
     The Graph lookup requires the CrossTenantInformation.ReadBasic.All scope.
 
     # FIXME Should probably separate this from the OIDC lookup. one task per function
-    
+
     Version: 1.2.0
     #>
     [CmdletBinding()]
@@ -19057,6 +19066,161 @@ function Compress-IRTInvestigationFolder {
     }
 }
 #EndRegion '.\Public\Utility\Compress-IRTInvestigationFolder.ps1' 82
+#Region '.\Public\Utility\Copy-IRTFunction.ps1' -1
+
+function Copy-IRTFunction {
+    <#
+    .SYNOPSIS
+    Copies IRT helper functions to the clipboard for use on remote machines.
+
+    .DESCRIPTION
+    Retrieves function definitions from the loaded module in memory and
+    concatenates them into a single pasteable script, then sends the result
+    to the clipboard via Set-Clipboard.
+
+    A bootstrap block that initialises $Global:IRT_Config (using the current
+    session's color preferences as defaults) is prepended automatically.
+
+    The default set includes:
+      - Write-IRT, Get-RandomPassword, Get-YesNo
+      - All On-Prem AD functions
+
+    Use -FunctionName to include additional functions beyond the default set.
+
+    .PARAMETER FunctionName
+    One or more additional function names to include beyond the default set.
+    Accepts pipeline input.
+
+    .EXAMPLE
+    Copy-IRTFunction
+
+    Copies the default set of IRT helper functions to the clipboard.
+
+    .EXAMPLE
+    Copy-IRTFunction -FunctionName 'Get-IRTMessageTrace'
+
+    Copies the default set plus Get-IRTMessageTrace.
+
+    .EXAMPLE
+    'Get-IRTInboxRule', 'Get-IRTMessageTrace' | Copy-IRTFunction
+
+    Copies the default set plus both named functions via the pipeline.
+
+    .OUTPUTS
+    None. Output is sent to the clipboard.
+
+    .NOTES
+    Version: 2.0.0
+
+    #>
+    [Alias(
+        'Copy-IRTFunctions', 'CopyIRTFunctions', 'CopyIRTFunction', 'IRTFunction', 'IRTFunctions')]
+    [CmdletBinding()]
+    param (
+        [Parameter(Position = 0, ValueFromPipeline, ValueFromPipelineByPropertyName)]
+        [Alias('Name')]
+        [string[]] $FunctionName
+    )
+
+    begin {
+        $DefaultFunctions = @(
+            # Core helpers
+            'Write-IRT'
+            'Get-RandomPassword'
+            'Format-Tree'
+            'Get-YesNo'
+            # On-prem AD functions
+            'Disable-IRTAdUser'
+            'Enable-IRTAdUser'
+            'Find-IRTAdDevice'
+            'Find-IRTAdOu'
+            'Find-IRTAdUser'
+            'Find-IRTDomainController'
+            'Get-IRTAdAdminUser'
+            'Get-AdGlobalUserObject'
+            'Push-IRTAdSync'
+            'Reset-IRTAdUserPassword'
+            'Set-AdUserEnabled'
+            'Show-IRTAdDevice'
+            'Show-IRTAdOus'
+            'Show-IRTAdUser'
+            'Test-AdAvailable'
+            'Test-RunningOnDomainController'
+        )
+
+        $Queue = [System.Collections.Generic.List[string]]::new()
+        foreach ($F in $DefaultFunctions) { $Queue.Add($F) }
+    }
+
+    process {
+        foreach ($F in $FunctionName) {
+            if ($Queue -notcontains $F) { $Queue.Add($F) }
+        }
+    }
+
+    end {
+        # Resolve current color values (or fallbacks) at copy-time so the pasted
+        # code carries the user's preferences onto the remote machine.
+        $infoColor = if ($Global:IRT_Config?.InfoColor) {
+            $Global:IRT_Config.InfoColor
+        } else { 'DarkCyan' }
+        $warnColor = if ($Global:IRT_Config?.WarnColor) {
+            $Global:IRT_Config.WarnColor
+        } else { 'Yellow' }
+        $errorColor = if ($Global:IRT_Config?.ErrorColor) {
+            $Global:IRT_Config.ErrorColor
+        } else { 'Red' }
+
+        $Bootstrap = @"
+if (-not `$Global:IRT_Config) {
+    `$Global:IRT_Config = [PSCustomObject]@{
+        InfoColor  = '$infoColor'
+        WarnColor  = '$warnColor'
+        ErrorColor = '$errorColor'
+    }
+}
+"@
+
+        $Builder = [System.Text.StringBuilder]::new()
+        $null = $Builder.AppendLine($Bootstrap)
+
+        $Resolved = 0
+        foreach ($Name in $Queue) {
+            $GcParams = @{
+                Name        = $Name
+                CommandType = 'Function'
+                ErrorAction = 'SilentlyContinue'
+            }
+            $Cmd = Get-Command @GcParams
+            if (-not $Cmd) {
+                Write-IRT "Function not found in session: $Name" -Level Warn
+                continue
+            }
+            $null = $Builder.AppendLine("function $Name {")
+            $null = $Builder.AppendLine($Cmd.Definition)
+            $null = $Builder.AppendLine('}')
+            $null = $Builder.AppendLine()
+            $Resolved++
+        }
+
+        if ($Resolved -eq 0) {
+            Write-IRT 'No functions could be resolved.' -Level Warn
+            return
+        }
+
+        $FmtParams = @{
+            Content    = $Builder.ToString()
+            Script     = $true
+            Comments   = $true
+            EmptyLines = $true
+            Whitespace = $true
+        }
+        $Formatted = Format-Powershell @FmtParams
+        Set-Clipboard -Value $Formatted
+        Write-IRT "Copied $Resolved function(s) to clipboard."
+    }
+}
+#EndRegion '.\Public\Utility\Copy-IRTFunction.ps1' 153
 #Region '.\Public\Utility\Find-IRTDirectoryObject.ps1' -1
 
 function Find-IRTDirectoryObject {
@@ -19547,7 +19711,8 @@ function Set-IRTConfig {
     .PARAMETER Reset
     Reset config to the template defaults without showing the menu.
 
-    # FIXME paths that haven't been explicitly set should show 'default', not the default path. Maybe?
+    # FIXME paths that have not been explicitly set should show 'default',
+    # not the default path. Maybe?
     # FIXME why some stuff in appdata/local and some in roaming?
     #>
     [Alias('SetIRTConfig', 'Set-IRTConfigs', 'SetIRTConfigs')]
@@ -19820,7 +19985,7 @@ function Set-IRTConfig {
         }
     }
 }
-#EndRegion '.\Public\Utility\Set-IRTConfig.ps1' 286
+#EndRegion '.\Public\Utility\Set-IRTConfig.ps1' 287
 #Region '.\Public\Utility\Start-IRTPlaybook.ps1' -1
 
 function Start-IRTPlaybook {
@@ -20023,7 +20188,7 @@ function Start-IRTPlaybook {
             ShowBanner        = $false
         }
         $ExoConnectParams['ExchangeEnvironmentName'] =
-            $Global:IRT_CloudEnvironments[$Global:IRT_Session.Cloud].ExchangeEnv
+        $Global:IRT_CloudEnvironments[$Global:IRT_Session.Cloud].ExchangeEnv
 
         #region playbook steps
 

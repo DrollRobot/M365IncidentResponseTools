@@ -42,6 +42,8 @@ function Copy-IRTFunction {
     .NOTES
     Version: 2.0.0
 
+    # FIXME add aliases matching m365 commands? finduser, disableuser, etc.?
+
     #>
     [Alias(
         'Copy-IRTFunctions', 'CopyIRTFunctions', 'CopyIRTFunction', 'IRTFunction', 'IRTFunctions')]

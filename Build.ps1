@@ -75,7 +75,7 @@ param(
     [string] $OutputDirectory = (Join-Path -Path $PSScriptRoot -ChildPath 'Output'),
     [string] $Version,
 
-    [switch] $BuildToRoot
+    [boolean] $BuildToRoot = $true # FIXME switch back to switch when deploying to PSGallery
 )
 
 $ErrorActionPreference = 'Stop'

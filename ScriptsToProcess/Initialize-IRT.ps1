@@ -10,7 +10,9 @@ if ($env:TERM_PROGRAM -ne 'vscode') {
     # Back up the current prompt only if we haven't done so yet.
     # On a -Force reimport the current prompt is already the IRT prompt, so we must not
     # overwrite $Global:IRT_OriginalPrompt with our own scriptblock.
-    if (-not $Global:IRT_OriginalPrompt -or $Global:IRT_OriginalPrompt -isnot [scriptblock]) {
+    # Use Get-Variable to avoid strict-mode errors when the variable is not yet set.
+    $_irtPromptVar = Get-Variable -Name 'IRT_OriginalPrompt' -Scope Global -ErrorAction SilentlyContinue
+    if ($null -eq $_irtPromptVar -or $_irtPromptVar.Value -isnot [scriptblock]) {
         $Global:IRT_OriginalPrompt = (Get-Command prompt -ErrorAction SilentlyContinue).ScriptBlock
         if (-not $Global:IRT_OriginalPrompt) {
             $Global:IRT_OriginalPrompt = {
