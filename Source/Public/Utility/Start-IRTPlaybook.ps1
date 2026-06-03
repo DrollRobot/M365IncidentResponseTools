@@ -131,7 +131,7 @@ function Start-IRTPlaybook {
             New-IRTInvestigationFolder @DirParams
         }
 
-        if (-not $NoNewTab) {
+        if (-not $NoNewTab) { # FIXME make this a config option
             Open-IRTTab
         }
 
