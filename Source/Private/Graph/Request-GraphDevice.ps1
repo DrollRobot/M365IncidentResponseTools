@@ -40,24 +40,36 @@ function Request-GraphDevice {
         if ($Cached) {
             $Variable = Get-Variable -Scope Global -Name 'IRT_Devices' -ErrorAction SilentlyContinue
             if ($Variable) {
+                Write-PSFMessage -Level 8 -Message (
+                    "${FunctionName}: Cache hit — returning $($Global:IRT_Devices.Count) " +
+                    "device(s) (Return=$Return)")
                 switch ($Return) {
                     'objects' { return $Global:IRT_Devices }
                     'tablebyid' { return $Global:IRT_DevicesById }
                     'none' { return }
                 }
             }
+            Write-PSFMessage -Level 8 -Message (
+                "${FunctionName}: -Cached requested but cache is empty; querying Graph.")
         }
 
         # get client domain name
         $DomainName = Get-DefaultDomain
 
         # --- Entra devices ---
-        Write-Verbose "${FunctionName}: Get-MgDevice $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: Get-MgDevice [$($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))]")
         $EntraDevices = Get-MgDevice -All -ExpandProperty 'RegisteredOwners'
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: Entra returned $($EntraDevices.Count) device(s) " +
+            "[$($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))]")
 
         # --- Intune devices (optional - skipped when not licensed / no permission) ---
         $IntuneDevices = Request-IntuneDevice   # returns $null when Intune is unavailable
         $TenantHasIntune = $null -ne $IntuneDevices
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: TenantHasIntune=$TenantHasIntune" +
+            $(if ($TenantHasIntune) { ", $($IntuneDevices.Count) Intune device(s)" } else { '' }))
 
         # build local lookup keyed by AzureADDeviceId for the Entra-Intune join
         $IntuneDevicesByEntraId = @{}
@@ -69,6 +81,9 @@ function Request-GraphDevice {
                     $IntuneDevicesByEntraId[$Device.AzureADDeviceId] = $Device
                 }
             }
+            Write-PSFMessage -Level 8 -Message (
+                "${FunctionName}: Intune index built — $($IntuneDevicesByEntraId.Count) " +
+                "matchable device(s).")
         }
 
         # --- Build combined objects ---
@@ -76,6 +91,9 @@ function Request-GraphDevice {
         $SeenIntuneIds = [System.Collections.Generic.HashSet[string]]::new()
 
         foreach ($EntraDevice in $EntraDevices) {
+            Write-PSFMessage -Level 9 -Message (
+                "${FunctionName}: Combining Entra device '$($EntraDevice.DisplayName)' " +
+                "(DeviceId: $($EntraDevice.DeviceId))")
 
             $OwnerUpn = ($EntraDevice.RegisteredOwners | ForEach-Object {
                     $_.AdditionalProperties['userPrincipalName']
@@ -99,12 +117,17 @@ function Request-GraphDevice {
 
         # --- Intune-only devices (managed but no Entra record, e.g. some BYOD scenarios) ---
         if ($TenantHasIntune) {
+            $IntuneOnlyCount = 0
             foreach ($IntuneDevice in $IntuneDevices) {
                 if ($SeenIntuneIds.Contains($IntuneDevice.Id)) { continue }
 
                 $AadId = ($IntuneDevice.AzureADDeviceId -and
                     $IntuneDevice.AzureADDeviceId -ne '00000000-0000-0000-0000-000000000000') ?
                 $IntuneDevice.AzureADDeviceId : $null
+
+                Write-PSFMessage -Level 9 -Message (
+                    "${FunctionName}: Intune-only device '$($IntuneDevice.DeviceName)' " +
+                    "(no Entra record)")
 
                 $Combined = [PSCustomObject]@{
                     DisplayName     = $IntuneDevice.DeviceName
@@ -116,10 +139,16 @@ function Request-GraphDevice {
                     Intune          = $IntuneDevice
                 }
                 $CombinedObjects.Add($Combined)
+                $IntuneOnlyCount++
             }
+            Write-PSFMessage -Level 8 -Message (
+                "${FunctionName}: $IntuneOnlyCount Intune-only device(s) added.")
         }
 
         $Objects = @($CombinedObjects)
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: Combined total: $($Objects.Count) device(s) " +
+            "[$($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))]")
 
         # store in global variables
         $Global:IRT_Devices = $Objects
@@ -127,13 +156,16 @@ function Request-GraphDevice {
         foreach ( $Device in $Objects ) {
             if ( $Device.DeviceId ) { $Global:IRT_DevicesById[$Device.DeviceId] = $Device }
         }
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: Index built — $($Global:IRT_DevicesById.Count) entry/entries.")
 
         # export to file
         if ($Xml) {
             $FileName = "Devices_Raw_${DomainName}_${FileNameDate}.xml"
             $XmlOutputPath = Join-Path -Path $CurrentPath -ChildPath $FileName
             $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-            Write-Verbose "${FunctionName}: Export-Clixml $Elapsed"
+            Write-PSFMessage -Level 8 -Message (
+                "${FunctionName}: Export-Clixml → $XmlOutputPath [$Elapsed]")
             $Objects | Export-Clixml -Depth 8 -Path $XmlOutputPath
         }
 

@@ -57,9 +57,13 @@ function Import-ReferenceData {
             WorksheetName = 'Operations'
         }
         $Global:IRT_UalOperationsData = @(Import-Excel @IeParams)
+        Write-PSFMessage -Level 8 -Message (
+            "Import-ReferenceData: Loaded $($Global:IRT_UalOperationsData.Count) " +
+            "UAL operation(s) from '$AllOperationsPath'.")
     } else {
         $Global:IRT_UalOperationsData = @()
-        Write-Warning ('Import-ReferenceData: AllOperations sheet not found at: ' +
+        Write-PSFMessage -Level Warning -Message (
+            'Import-ReferenceData: AllOperations sheet not found at: ' +
             $AllOperationsPath)
     }
 
@@ -86,4 +90,10 @@ function Import-ReferenceData {
         }
     }
     $Global:IRT_TenantInfoTable = $TenantTable
+    Write-PSFMessage -Level 8 -Message (
+        "Import-ReferenceData: Complete — " +
+        "EntraErrors=$($Global:IRT_EntraErrorTable.Count), " +
+        "UalOps=$($Global:IRT_UalOperationsData.Count), " +
+        "UserTypes=$($Global:IRT_UalUserTypeTable.Count), " +
+        "TenantCache=$($Global:IRT_TenantInfoTable.Count)")
 }

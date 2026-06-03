@@ -1234,13 +1234,16 @@ function Get-TokenExpiry {
 
         if (-not $claims.exp) { return $null }
 
-        return [System.DateTimeOffset]::FromUnixTimeSeconds([long]$claims.exp).UtcDateTime
+        $Expiry = [System.DateTimeOffset]::FromUnixTimeSeconds([long]$claims.exp).UtcDateTime
+        Write-PSFMessage -Level 8 -Message "Get-TokenExpiry: exp=$($claims.exp) → $Expiry UTC"
+        return $Expiry
     }
     catch {
+        Write-PSFMessage -Level 8 -Message "Get-TokenExpiry: Failed to decode token — $_"
         return $null
     }
 }
-#EndRegion '.\Private\Connect\Get-TokenExpiry.ps1' 40
+#EndRegion '.\Private\Connect\Get-TokenExpiry.ps1' 43
 #Region '.\Private\Connect\Get-TokenPayload.ps1' -1
 
 function Get-TokenPayload {
@@ -1318,6 +1321,8 @@ function Install-MsalExtensions {
     $Loaded = [System.AppDomain]::CurrentDomain.GetAssemblies() |
         Where-Object { $_.GetName().Name -eq 'Microsoft.Identity.Client.Extensions.Msal' }
     if ($Loaded) {
+        Write-PSFMessage -Level 8 -Message (
+            "Install-MsalExtensions: Already loaded from $($Loaded.Location)")
         return $Loaded.Location
     }
 
@@ -1330,6 +1335,8 @@ function Install-MsalExtensions {
         'Import a connect function (which loads MSAL) before calling Install-MsalExtensions.'
     }
     $MsalVersion = [version]$Msal.GetName().Version
+    Write-PSFMessage -Level 8 -Message (
+        "Install-MsalExtensions: Loaded MSAL version: $MsalVersion (floor: $MsalFloor)")
     if ($MsalVersion -lt $MsalFloor) {
         throw ("Loaded MSAL version $MsalVersion is older than Extensions.Msal $Version requires " +
             "($MsalFloor). Update Microsoft.Graph.Authentication.")
@@ -1345,6 +1352,7 @@ function Install-MsalExtensions {
     $DllPath = Join-Path @JpParams
     $DllDir = Split-Path $DllPath -Parent
 
+    Write-PSFMessage -Level 8 -Message "Install-MsalExtensions: DLL target: $DllPath"
     if (-not (Test-Path $DllPath)) {
         if (-not (Test-Path $DllDir)) {
             $null = New-Item -ItemType Directory -Path $DllDir -Force
@@ -1354,6 +1362,7 @@ function Install-MsalExtensions {
         $LowerId = 'microsoft.identity.client.extensions.msal'
         $NupkgUrl = "https://api.nuget.org/v3-flatcontainer/$LowerId/$Version/" +
         "$LowerId.$Version.nupkg"
+        Write-PSFMessage -Level 8 -Message "Install-MsalExtensions: Downloading from $NupkgUrl"
         $TempDir = [System.IO.Path]::GetTempPath()
         $TempNupkg = Join-Path -Path $TempDir -ChildPath "$LowerId.$Version.nupkg"
         $ExtractDir = Join-Path -Path $TempDir -ChildPath "$LowerId.$Version"
@@ -1396,10 +1405,11 @@ function Install-MsalExtensions {
         }
     }
 
+    Write-PSFMessage -Level 8 -Message "Install-MsalExtensions: Loading assembly from $DllPath"
     Add-Type -Path $DllPath
     return $DllPath
 }
-#EndRegion '.\Private\Connect\Install-MsalExtensions.ps1' 115
+#EndRegion '.\Private\Connect\Install-MsalExtensions.ps1' 122
 #Region '.\Private\Connect\Invoke-AdminConsent.ps1' -1
 
 function Invoke-AdminConsent {
@@ -1425,12 +1435,18 @@ function Invoke-AdminConsent {
         $Listener.Start()
         $Port = ([System.Net.IPEndPoint]$Listener.LocalEndpoint).Port
         $RedirectUri = "http://localhost:$Port/"
+        Write-PSFMessage -Level 8 -Message (
+            "Invoke-AdminConsent: Listener started on port $Port, " +
+            "RedirectUri=$RedirectUri")
     }
 
     process {
         try {
             $LoginHost = $Global:IRT_CloudEnvironments[$Cloud].LoginHost
             $State = [guid]::NewGuid().ToString('N')
+            Write-PSFMessage -Level 8 -Message (
+                "Invoke-AdminConsent: TenantId=$TenantId, ClientId=$ClientId, " +
+                "Cloud=$Cloud, Scope count=$($Scope.Count), State=$State")
 
             # Fully-qualify each scope with the resource URI, then space-delimit.
             # This is what makes /v2.0/adminconsent work for dynamic-consent apps
@@ -1508,6 +1524,7 @@ function Invoke-AdminConsent {
                 throw "Admin consent denied or failed: $ErrCode - $ErrDesc"
             }
             if ($Params['admin_consent'] -eq 'True') {
+                Write-PSFMessage -Level 8 -Message 'Invoke-AdminConsent: admin_consent=True received.'
                 return $true
             }
             throw "Unexpected admin consent response: $Query"
@@ -1518,7 +1535,7 @@ function Invoke-AdminConsent {
         }
     }
 }
-#EndRegion '.\Private\Connect\Invoke-AdminConsent.ps1' 117
+#EndRegion '.\Private\Connect\Invoke-AdminConsent.ps1' 124
 #Region '.\Private\Connect\Register-MsalCache.ps1' -1
 
 function Register-MsalCache {
@@ -1561,6 +1578,8 @@ function Register-MsalCache {
         [string] $CachePath = $Global:IRT_Config.MsalCachePath
     )
 
+    Write-PSFMessage -Level 8 -Message "Register-MsalCache: CachePath=$CachePath"
+
     if (-not $IsWindows -and $PSVersionTable.PSVersion.Major -ge 6) {
         Write-IRT 'Persistent MSAL cache is currently Windows-only.' -Level Warn
         return
@@ -1572,6 +1591,7 @@ function Register-MsalCache {
     $CacheFile = Split-Path $CachePath -Leaf
 
     if (-not (Test-Path $CacheDir)) {
+        Write-PSFMessage -Level 8 -Message "Register-MsalCache: Creating cache directory: $CacheDir"
         $null = New-Item -ItemType Directory -Path $CacheDir -Force
     }
 
@@ -1592,9 +1612,10 @@ function Register-MsalCache {
     $Helper =
     [Microsoft.Identity.Client.Extensions.Msal.MsalCacheHelper]::CreateAsync(
         $StorageProps).GetAwaiter().GetResult()
+    Write-PSFMessage -Level 8 -Message "Register-MsalCache: Registering cache at: $CachePath"
     $Helper.RegisterCache($App.UserTokenCache)
 }
-#EndRegion '.\Private\Connect\Register-MsalCache.ps1' 74
+#EndRegion '.\Private\Connect\Register-MsalCache.ps1' 78
 #Region '.\Private\Connect\Test-GraphAdminConsent.ps1' -1
 
 function Test-GraphAdminConsent {
@@ -1621,6 +1642,9 @@ function Test-GraphAdminConsent {
         [string] $ResourceAppId = '00000003-0000-0000-c000-000000000000' # Microsoft Graph
     )
 
+    Write-PSFMessage -Level 8 -Message (
+        "Test-GraphAdminConsent: Resolving SPs — Client=$ClientAppId, Resource=$ResourceAppId")
+
     # Resolve SPs (these are tenant-scoped object IDs, not the app IDs)
     $ClientSpParams = @{
         Method      = 'GET'
@@ -1634,6 +1658,8 @@ function Test-GraphAdminConsent {
         ErrorAction = 'Stop'
     }
     $ResourceSp = Invoke-MgGraphRequest @ResourceSpParams
+    Write-PSFMessage -Level 8 -Message (
+        "Test-GraphAdminConsent: ClientSP.id=$($ClientSp.id), ResourceSP.id=$($ResourceSp.id)")
 
     # Pull all AllPrincipals grants for this client/resource pair.
     # In practice there's usually one, but multiple are possible if
@@ -1653,10 +1679,14 @@ function Test-GraphAdminConsent {
     $Granted = @($Grants.value | ForEach-Object { $_.scope -split '\s+' } |
             Where-Object { $_ } | Select-Object -Unique)
 
-    # Return the missing ones (case-insensitive compare)
-    $RequestedScope | Where-Object { $Granted -notcontains $_ }
+    $MissingScopes = @($RequestedScope | Where-Object { $Granted -notcontains $_ })
+    Write-PSFMessage -Level 8 -Message (
+        "Test-GraphAdminConsent: Grants=$($Grants.value.Count), " +
+        "Granted=$($Granted.Count) scope(s), " +
+        "Requested=$($RequestedScope.Count), Missing=$($MissingScopes.Count)")
+    $MissingScopes
 }
-#EndRegion '.\Private\Connect\Test-GraphAdminConsent.ps1' 60
+#EndRegion '.\Private\Connect\Test-GraphAdminConsent.ps1' 69
 #Region '.\Private\Connect\Test-TokenExpired.ps1' -1
 
 function Test-TokenExpired {
@@ -1681,12 +1711,20 @@ function Test-TokenExpired {
     )
 
     $expiry = Get-TokenExpiry -Token $Token
-    if ($null -eq $expiry) { return $true }
+    if ($null -eq $expiry) {
+        Write-PSFMessage -Level 8 -Message 'Test-TokenExpired: Could not decode expiry — treating as expired.'
+        return $true
+    }
 
     $threshold = [System.DateTime]::UtcNow.AddSeconds($BufferSeconds)
-    return $expiry -le $threshold
+    $expired = $expiry -le $threshold
+    $minutesLeft = [int](($expiry - [datetime]::UtcNow).TotalMinutes)
+    Write-PSFMessage -Level 8 -Message (
+        "Test-TokenExpired: Expiry=$expiry UTC, Buffer=${BufferSeconds}s, " +
+        "MinutesLeft=$minutesLeft, Expired=$expired")
+    return $expired
 }
-#EndRegion '.\Private\Connect\Test-TokenExpired.ps1' 28
+#EndRegion '.\Private\Connect\Test-TokenExpired.ps1' 36
 #Region '.\Private\Device\Set-IRTDeviceEnabled.ps1' -1
 
 function Set-IRTDeviceEnabled {
@@ -1922,12 +1960,17 @@ function Request-DirectoryRole {
             }
             $Variable = Get-Variable @GvParams
             if ( $Variable ) {
+                Write-PSFMessage -Level 8 -Message (
+                    "${FunctionName}: Cache hit — returning $($Global:IRT_DirectoryRoles.Count) " +
+                    "role(s) (Return=$Return)")
                 switch ( $Return ) {
                     'objects' { return $Global:IRT_DirectoryRoles }
                     'tablebyid' { return $Global:IRT_DirectoryRolesById }
                     'none' { return }
                 }
             }
+            Write-PSFMessage -Level 8 -Message (
+                "${FunctionName}: -Cached requested but cache is empty; querying Graph.")
         }
 
         # get client domain name
@@ -1935,7 +1978,7 @@ function Request-DirectoryRole {
 
         # query graph
         $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-        Write-Verbose "${FunctionName}: Get-MgDirectoryRole $Elapsed"
+        Write-PSFMessage -Level 8 -Message "${FunctionName}: Get-MgDirectoryRole [$Elapsed]"
         $GdrParams = @{
             All            = $true
             Property       = $GetProperties
@@ -1944,19 +1987,26 @@ function Request-DirectoryRole {
         $Objects = Get-MgDirectoryRole @GdrParams |
             Select-Object ( $GetProperties + $ExpandProperties )
 
+        $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: Graph returned $($Objects.Count) role(s) [$Elapsed]")
+
         # store in global variables
         $Global:IRT_DirectoryRoles = $Objects
         $Global:IRT_DirectoryRolesById = [hashtable]::Synchronized(@{})
         foreach ( $o in $Objects ) {
             if ( $o.Id ) { $Global:IRT_DirectoryRolesById[$o.Id] = $o }
         }
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: Index built — $($Global:IRT_DirectoryRolesById.Count) entry/entries.")
 
         # export to file
         if ($Xml) {
             $FileName = "DirectoryRoles_Raw_${DomainName}_${FileNameDate}.xml"
             $XmlOutputPath = Join-Path -Path $CurrentPath -ChildPath $FileName
             $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-            Write-Verbose "${FunctionName}: Export-Clixml $Elapsed"
+            Write-PSFMessage -Level 8 -Message (
+                "${FunctionName}: Export-Clixml → $XmlOutputPath [$Elapsed]")
             $Objects | Export-Clixml -Depth 5 -Path $XmlOutputPath
         }
 
@@ -1968,7 +2018,7 @@ function Request-DirectoryRole {
         }
     }
 }
-#EndRegion '.\Private\Graph\Request-DirectoryRole.ps1' 97
+#EndRegion '.\Private\Graph\Request-DirectoryRole.ps1' 109
 #Region '.\Private\Graph\Request-DirectoryRoleTemplate.ps1' -1
 
 function Request-DirectoryRoleTemplate {
@@ -2018,12 +2068,17 @@ function Request-DirectoryRoleTemplate {
             }
             $Variable = Get-Variable @GvParams
             if ( $Variable ) {
+                Write-PSFMessage -Level 8 -Message (
+                    "${FunctionName}: Cache hit — returning " +
+                    "$($Global:IRT_DirectoryRoleTemplates.Count) template(s) (Return=$Return)")
                 switch ( $Return ) {
                     'objects' { return $Global:IRT_DirectoryRoleTemplates }
                     'tablebyid' { return $Global:IRT_DirectoryRoleTemplatesById }
                     'none' { return }
                 }
             }
+            Write-PSFMessage -Level 8 -Message (
+                "${FunctionName}: -Cached requested but cache is empty; querying Graph.")
         }
 
         # get client domain name
@@ -2031,12 +2086,17 @@ function Request-DirectoryRoleTemplate {
 
         # query graph
         $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-        Write-Verbose "${FunctionName}: Get-MgDirectoryRoleTemplate $Elapsed"
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: Get-MgDirectoryRoleTemplate [$Elapsed]")
         $GdrtParams = @{
             All      = $true
             Property = $GetProperties
         }
         $Objects = Get-MgDirectoryRoleTemplate @GdrtParams | Select-Object $GetProperties
+
+        $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: Graph returned $($Objects.Count) template(s) [$Elapsed]")
 
         # store in global variables
         $Global:IRT_DirectoryRoleTemplates = $Objects
@@ -2044,13 +2104,17 @@ function Request-DirectoryRoleTemplate {
         foreach ( $o in $Objects ) {
             if ( $o.Id ) { $Global:IRT_DirectoryRoleTemplatesById[$o.Id] = $o }
         }
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: Index built — " +
+            "$($Global:IRT_DirectoryRoleTemplatesById.Count) entry/entries.")
 
         # export to file
         if ($Xml) {
             $FileName = "DirectoryRoleTemplates_Raw_${DomainName}_${FileNameDate}.xml"
             $XmlOutputPath = Join-Path -Path $CurrentPath -ChildPath $FileName
             $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-            Write-Verbose "${FunctionName}: Export-Clixml $Elapsed"
+            Write-PSFMessage -Level 8 -Message (
+                "${FunctionName}: Export-Clixml → $XmlOutputPath [$Elapsed]")
             $Objects | Export-Clixml -Depth 5 -Path $XmlOutputPath
         }
 
@@ -2062,7 +2126,7 @@ function Request-DirectoryRoleTemplate {
         }
     }
 }
-#EndRegion '.\Private\Graph\Request-DirectoryRoleTemplate.ps1' 92
+#EndRegion '.\Private\Graph\Request-DirectoryRoleTemplate.ps1' 106
 #Region '.\Private\Graph\Request-GraphDevice.ps1' -1
 
 function Request-GraphDevice {
@@ -2107,24 +2171,36 @@ function Request-GraphDevice {
         if ($Cached) {
             $Variable = Get-Variable -Scope Global -Name 'IRT_Devices' -ErrorAction SilentlyContinue
             if ($Variable) {
+                Write-PSFMessage -Level 8 -Message (
+                    "${FunctionName}: Cache hit — returning $($Global:IRT_Devices.Count) " +
+                    "device(s) (Return=$Return)")
                 switch ($Return) {
                     'objects' { return $Global:IRT_Devices }
                     'tablebyid' { return $Global:IRT_DevicesById }
                     'none' { return }
                 }
             }
+            Write-PSFMessage -Level 8 -Message (
+                "${FunctionName}: -Cached requested but cache is empty; querying Graph.")
         }
 
         # get client domain name
         $DomainName = Get-DefaultDomain
 
         # --- Entra devices ---
-        Write-Verbose "${FunctionName}: Get-MgDevice $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: Get-MgDevice [$($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))]")
         $EntraDevices = Get-MgDevice -All -ExpandProperty 'RegisteredOwners'
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: Entra returned $($EntraDevices.Count) device(s) " +
+            "[$($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))]")
 
         # --- Intune devices (optional - skipped when not licensed / no permission) ---
         $IntuneDevices = Request-IntuneDevice   # returns $null when Intune is unavailable
         $TenantHasIntune = $null -ne $IntuneDevices
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: TenantHasIntune=$TenantHasIntune" +
+            $(if ($TenantHasIntune) { ", $($IntuneDevices.Count) Intune device(s)" } else { '' }))
 
         # build local lookup keyed by AzureADDeviceId for the Entra-Intune join
         $IntuneDevicesByEntraId = @{}
@@ -2136,6 +2212,9 @@ function Request-GraphDevice {
                     $IntuneDevicesByEntraId[$Device.AzureADDeviceId] = $Device
                 }
             }
+            Write-PSFMessage -Level 8 -Message (
+                "${FunctionName}: Intune index built — $($IntuneDevicesByEntraId.Count) " +
+                "matchable device(s).")
         }
 
         # --- Build combined objects ---
@@ -2143,6 +2222,9 @@ function Request-GraphDevice {
         $SeenIntuneIds = [System.Collections.Generic.HashSet[string]]::new()
 
         foreach ($EntraDevice in $EntraDevices) {
+            Write-PSFMessage -Level 9 -Message (
+                "${FunctionName}: Combining Entra device '$($EntraDevice.DisplayName)' " +
+                "(DeviceId: $($EntraDevice.DeviceId))")
 
             $OwnerUpn = ($EntraDevice.RegisteredOwners | ForEach-Object {
                     $_.AdditionalProperties['userPrincipalName']
@@ -2166,12 +2248,17 @@ function Request-GraphDevice {
 
         # --- Intune-only devices (managed but no Entra record, e.g. some BYOD scenarios) ---
         if ($TenantHasIntune) {
+            $IntuneOnlyCount = 0
             foreach ($IntuneDevice in $IntuneDevices) {
                 if ($SeenIntuneIds.Contains($IntuneDevice.Id)) { continue }
 
                 $AadId = ($IntuneDevice.AzureADDeviceId -and
                     $IntuneDevice.AzureADDeviceId -ne '00000000-0000-0000-0000-000000000000') ?
                 $IntuneDevice.AzureADDeviceId : $null
+
+                Write-PSFMessage -Level 9 -Message (
+                    "${FunctionName}: Intune-only device '$($IntuneDevice.DeviceName)' " +
+                    "(no Entra record)")
 
                 $Combined = [PSCustomObject]@{
                     DisplayName     = $IntuneDevice.DeviceName
@@ -2183,10 +2270,16 @@ function Request-GraphDevice {
                     Intune          = $IntuneDevice
                 }
                 $CombinedObjects.Add($Combined)
+                $IntuneOnlyCount++
             }
+            Write-PSFMessage -Level 8 -Message (
+                "${FunctionName}: $IntuneOnlyCount Intune-only device(s) added.")
         }
 
         $Objects = @($CombinedObjects)
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: Combined total: $($Objects.Count) device(s) " +
+            "[$($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))]")
 
         # store in global variables
         $Global:IRT_Devices = $Objects
@@ -2194,13 +2287,16 @@ function Request-GraphDevice {
         foreach ( $Device in $Objects ) {
             if ( $Device.DeviceId ) { $Global:IRT_DevicesById[$Device.DeviceId] = $Device }
         }
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: Index built — $($Global:IRT_DevicesById.Count) entry/entries.")
 
         # export to file
         if ($Xml) {
             $FileName = "Devices_Raw_${DomainName}_${FileNameDate}.xml"
             $XmlOutputPath = Join-Path -Path $CurrentPath -ChildPath $FileName
             $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-            Write-Verbose "${FunctionName}: Export-Clixml $Elapsed"
+            Write-PSFMessage -Level 8 -Message (
+                "${FunctionName}: Export-Clixml → $XmlOutputPath [$Elapsed]")
             $Objects | Export-Clixml -Depth 8 -Path $XmlOutputPath
         }
 
@@ -2212,7 +2308,7 @@ function Request-GraphDevice {
         }
     }
 }
-#EndRegion '.\Private\Graph\Request-GraphDevice.ps1' 148
+#EndRegion '.\Private\Graph\Request-GraphDevice.ps1' 180
 #Region '.\Private\Graph\Request-GraphGroup.ps1' -1
 
 function Request-GraphGroup {
@@ -2263,30 +2359,44 @@ function Request-GraphGroup {
         if ( $Cached ) {
             $Variable = Get-Variable -Scope Global -Name 'IRT_Groups' -ErrorAction SilentlyContinue
             if ( $Variable ) {
+                Write-PSFMessage -Level 8 -Message (
+                    "${FunctionName}: Cache hit — returning $($Global:IRT_Groups.Count) " +
+                    "group(s) (Return=$Return)")
                 switch ( $Return ) {
                     'objects' { return $Global:IRT_Groups }
                     'tablebyid' { return $Global:IRT_GroupsById }
                     'none' { return }
                 }
             }
+            Write-PSFMessage -Level 8 -Message (
+                "${FunctionName}: -Cached requested but cache is empty; querying Graph.")
         }
 
         # get client domain name
         $DomainName = Get-DefaultDomain
 
         # query graph
-        Write-Verbose "${FunctionName}: Get-MgGroup $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: Get-MgGroup [$($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))]")
         $Params = @{
             All = $true
             Property = $GetProperties
         }
         $Objects = Get-MgGroup @Params | Select-Object $GetProperties
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: Graph returned $($Objects.Count) group(s) " +
+            "[$($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))]")
 
         # fetch all members for each group (ExpandProperty is limited to 20)
         foreach ( $o in $Objects ) {
+            Write-PSFMessage -Level 9 -Message (
+                "${FunctionName}: Get-MgGroupMember for '$($o.DisplayName)' ($($o.Id))")
             $Members = Get-MgGroupMember -GroupId $o.Id -All
             $o | Add-Member -NotePropertyName 'Members' -NotePropertyValue $Members
         }
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: Member fetch complete " +
+            "[$($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))]")
 
         # store in global variables
         $Global:IRT_Groups = $Objects
@@ -2294,13 +2404,16 @@ function Request-GraphGroup {
         foreach ( $o in $Objects ) {
             if ( $o.Id ) { $Global:IRT_GroupsById[$o.Id] = $o }
         }
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: Index built — $($Global:IRT_GroupsById.Count) entry/entries.")
 
         # export to file
         if ($Xml) {
             $FileName = "Groups_Raw_${DomainName}_${FileNameDate}.xml"
             $XmlOutputPath = Join-Path -Path $CurrentPath -ChildPath $FileName
             $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-            Write-Verbose "${FunctionName}: Export-Clixml $Elapsed"
+            Write-PSFMessage -Level 8 -Message (
+                "${FunctionName}: Export-Clixml → $XmlOutputPath [$Elapsed]")
             $Objects | Export-Clixml -Depth 5 -Path $XmlOutputPath
         }
 
@@ -2312,7 +2425,7 @@ function Request-GraphGroup {
         }
     }
 }
-#EndRegion '.\Private\Graph\Request-GraphGroup.ps1' 98
+#EndRegion '.\Private\Graph\Request-GraphGroup.ps1' 115
 #Region '.\Private\Graph\Request-GraphOauth2Grant.ps1' -1
 
 function Request-GraphOauth2Grant {
@@ -2361,12 +2474,17 @@ function Request-GraphOauth2Grant {
             }
             $Variable = Get-Variable @GvParams
             if ( $Variable ) {
+                Write-PSFMessage -Level 8 -Message (
+                    "${FunctionName}: Cache hit — returning $($Global:IRT_Oauth2Grants.Count) " +
+                    "grant(s) (Return=$Return)")
                 switch ( $Return ) {
                     'objects' { return $Global:IRT_Oauth2Grants }
                     'tablebyclientid' { return $Global:IRT_Oauth2GrantsByClientId }
                     'none' { return }
                 }
             }
+            Write-PSFMessage -Level 8 -Message (
+                "${FunctionName}: -Cached requested but cache is empty; querying Graph.")
         }
 
         # get client domain name
@@ -2374,8 +2492,13 @@ function Request-GraphOauth2Grant {
 
         # query graph
         $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-        Write-Verbose "${FunctionName}: Get-MgOauth2PermissionGrant $Elapsed"
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: Get-MgOauth2PermissionGrant [$Elapsed]")
         $Objects = Get-MgOauth2PermissionGrant -All
+
+        $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: Graph returned $($Objects.Count) grant(s) [$Elapsed]")
 
         # store in global variables
         $Global:IRT_Oauth2Grants = $Objects
@@ -2389,13 +2512,17 @@ function Request-GraphOauth2Grant {
                 $Global:IRT_Oauth2GrantsByClientId[$ClientId] += $o
             }
         }
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: Index built — $($Global:IRT_Oauth2GrantsByClientId.Count) " +
+            "unique client(s).")
 
         # export to file
         if ($Xml) {
             $FileName = "Oauth2Grants_Raw_${DomainName}_${FileNameDate}.xml"
             $XmlOutputPath = Join-Path -Path $CurrentPath -ChildPath $FileName
             $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-            Write-Verbose "${FunctionName}: Export-Clixml $Elapsed"
+            Write-PSFMessage -Level 8 -Message (
+                "${FunctionName}: Export-Clixml → $XmlOutputPath [$Elapsed]")
             $Objects | Export-Clixml -Depth 5 -Path $XmlOutputPath
         }
 
@@ -2407,7 +2534,7 @@ function Request-GraphOauth2Grant {
         }
     }
 }
-#EndRegion '.\Private\Graph\Request-GraphOauth2Grant.ps1' 93
+#EndRegion '.\Private\Graph\Request-GraphOauth2Grant.ps1' 107
 #Region '.\Private\Graph\Request-GraphServicePrincipal.ps1' -1
 
 function Request-GraphServicePrincipal {
@@ -2468,6 +2595,9 @@ function Request-GraphServicePrincipal {
             }
             $Variable = Get-Variable @GvParams
             if ($Variable) {
+                Write-PSFMessage -Level 8 -Message (
+                    "${FunctionName}: Cache hit — returning " +
+                    "$($Global:IRT_ServicePrincipals.Count) SP(s) (Return=$Return)")
                 switch ($Return) {
                     'objects' { return $Global:IRT_ServicePrincipals }
                     'tablebyappid' { return $Global:IRT_ServicePrincipalsByAppId }
@@ -2475,6 +2605,8 @@ function Request-GraphServicePrincipal {
                     'none' { return }
                 }
             }
+            Write-PSFMessage -Level 8 -Message (
+                "${FunctionName}: -Cached requested but cache is empty; querying Graph.")
         }
 
         # get client domain name
@@ -2482,8 +2614,13 @@ function Request-GraphServicePrincipal {
 
         # query graph
         $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-        Write-Verbose "${FunctionName}: Get-MgServicePrincipal $Elapsed"
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: Get-MgServicePrincipal [$Elapsed]")
         $Objects = Get-MgServicePrincipal -All | Select-Object ($GetProperties)
+
+        $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: Graph returned $($Objects.Count) SP(s) [$Elapsed]")
 
         # extract CreatedDateTime from AdditionalProperties
         foreach ($o in $Objects) {
@@ -2506,13 +2643,18 @@ function Request-GraphServicePrincipal {
             if ($o.AppId) { $Global:IRT_ServicePrincipalsByAppId[$o.AppId] = $o }
             if ($o.Id) { $Global:IRT_ServicePrincipalsById[$o.Id] = $o }
         }
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: Indexes built — " +
+            "$($Global:IRT_ServicePrincipalsByAppId.Count) by AppId, " +
+            "$($Global:IRT_ServicePrincipalsById.Count) by Id.")
 
         # export to file
         if ($Xml) {
             $FileName = "ServicePrincipals_Raw_${DomainName}_${FileNameDate}.xml"
             $XmlOutputPath = Join-Path -Path $CurrentPath -ChildPath $FileName
             $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-            Write-Verbose "${FunctionName}: Export-Clixml $Elapsed"
+            Write-PSFMessage -Level 8 -Message (
+                "${FunctionName}: Export-Clixml → $XmlOutputPath [$Elapsed]")
             $Objects | Export-Clixml -Depth 10 -Path $XmlOutputPath
         }
 
@@ -2525,7 +2667,7 @@ function Request-GraphServicePrincipal {
         }
     }
 }
-#EndRegion '.\Private\Graph\Request-GraphServicePrincipal.ps1' 116
+#EndRegion '.\Private\Graph\Request-GraphServicePrincipal.ps1' 131
 #Region '.\Private\Graph\Request-GraphUser.ps1' -1
 
 function Request-GraphUser {
@@ -2578,20 +2720,30 @@ function Request-GraphUser {
         if ( $Cached ) {
             $Variable = Get-Variable -Scope Global -Name 'IRT_Users' -ErrorAction SilentlyContinue
             if ( $Variable ) {
+                Write-PSFMessage -Level 8 -Message (
+                    "${FunctionName}: Cache hit — returning $($Global:IRT_Users.Count) " +
+                    "user(s) (Return=$Return)")
                 switch ( $Return ) {
                     'objects' { return $Global:IRT_Users }
                     'tablebyid' { return $Global:IRT_UsersById }
                     'none' { return }
                 }
             }
+            Write-PSFMessage -Level 8 -Message (
+                "${FunctionName}: -Cached requested but cache is empty; querying Graph.")
         }
 
         # get client domain name
         $DomainName = Get-DefaultDomain
 
         # query graph
-        Write-Verbose "${FunctionName}: Get-MgUser $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: Get-MgUser [$($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))]")
         $Objects = Get-MgUser -All -Property $GetProperties | Select-Object $GetProperties
+
+        $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: Graph returned $($Objects.Count) user(s) [$Elapsed]")
 
         # store in global variables
         $Global:IRT_Users = $Objects
@@ -2599,13 +2751,16 @@ function Request-GraphUser {
         foreach ( $o in $Objects ) {
             if ( $o.Id ) { $Global:IRT_UsersById[$o.Id] = $o }
         }
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: Index built — $($Global:IRT_UsersById.Count) entry/entries.")
 
         # export to file
         if ($Xml) {
             $FileName = "Users_Raw_${DomainName}_${FileNameDate}.xml"
             $XmlOutputPath = Join-Path -Path $CurrentPath -ChildPath $FileName
             $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-            Write-Verbose "${FunctionName}: Export-Clixml $Elapsed"
+            Write-PSFMessage -Level 8 -Message (
+                "${FunctionName}: Export-Clixml → $XmlOutputPath [$Elapsed]")
             $Objects | Export-Clixml -Depth 5 -Path $XmlOutputPath
         }
 
@@ -2617,7 +2772,7 @@ function Request-GraphUser {
         }
     }
 }
-#EndRegion '.\Private\Graph\Request-GraphUser.ps1' 90
+#EndRegion '.\Private\Graph\Request-GraphUser.ps1' 103
 #Region '.\Private\Graph\Request-IntuneDevice.ps1' -1
 
 function Request-IntuneDevice {
@@ -2636,16 +2791,20 @@ function Request-IntuneDevice {
     process {
 
         try {
-            return @(Get-MgDeviceManagementManagedDevice -All -ErrorAction Stop)
+            $Devices = @(Get-MgDeviceManagementManagedDevice -All -ErrorAction Stop)
+            Write-PSFMessage -Level 8 -Message (
+                "Request-IntuneDevice: $($Devices.Count) managed device(s) returned.")
+            return $Devices
         }
         catch {
             $Message = $_.Exception.Message
-            Write-Verbose "Intune not available or insufficient permissions: $Message"
+            Write-PSFMessage -Level 8 -Message (
+                "Request-IntuneDevice: Intune unavailable or insufficient permissions: $Message")
             return $null
         }
     }
 }
-#EndRegion '.\Private\Graph\Request-IntuneDevice.ps1' 26
+#EndRegion '.\Private\Graph\Request-IntuneDevice.ps1' 30
 #Region '.\Private\Graph\Resolve-DateRange.ps1' -1
 
 function Resolve-DateRange {
@@ -4850,11 +5009,16 @@ function Request-MessageTraceV1 {
 
             # retrieve one page
             if (-not $Quiet) { Write-IRT "Requesting message trace page ${Page}" }
+            Write-PSFMessage -Level 8 -Message (
+                "Request-MessageTraceV1: Fetching page $Page " +
+                "(collected so far: $($AllMessages.Count))")
             $Params['WarningAction'] = 'SilentlyContinue'
             $Params['WarningVariable'] = 'mtWarnings'
             $PageResults = [psobject[]]@(Get-MessageTrace @Params)
             $mtWarnings | Where-Object { $_ -notlike '*Get-MessageTrace will start deprecating*' } |
-                ForEach-Object { Write-Warning $_ }
+                ForEach-Object { Write-PSFMessage -Level Warning -Message $_ }
+            Write-PSFMessage -Level 8 -Message (
+                "Request-MessageTraceV1: Page $Page returned $($PageResults.Count) record(s).")
             foreach ($i in $PageResults) { [void]$AllMessages.Add($i) }
 
             # stop if the page had less than max page size
@@ -4866,10 +5030,13 @@ function Request-MessageTraceV1 {
             }
         }
 
+        Write-PSFMessage -Level 8 -Message (
+            "Request-MessageTraceV1: Complete — $($AllMessages.Count) total record(s) " +
+            "across $($Page) page(s).")
         return $AllMessages
     }
 }
-#EndRegion '.\Private\MessageTrace\Request-MessageTraceV1.ps1' 60
+#EndRegion '.\Private\MessageTrace\Request-MessageTraceV1.ps1' 68
 #Region '.\Private\MessageTrace\Test-IsSorted.ps1' -1
 
 function Test-IsSorted {
@@ -5132,7 +5299,7 @@ function Set-AdUserEnabled {
 
             # if none found, exit
             if ( -not $ScriptUserObjects -or $ScriptUserObjects.Count -eq 0 ) {
-                throw "No user objects passed or found in global variables."
+                throw "No user objects passed or found in global variables." # FIXME find a way to replace throw, add function name to output
             }
         }
         else {
@@ -5183,10 +5350,11 @@ function Set-AdUserEnabled {
         # push ad replication
         if ( Test-RunningOnDomainController ) {
             Write-IRT "Pushing AD replication."
+            Write-PSFMessage -Level 8 -Message "Set-AdUserEnabled: Invoking repadmin /syncall."
             $null = & repadmin /syncall $env:ComputerName /APed *>&1
         }
         else {
-            Write-Warning "Not running on a domain controller; skipping replication push."
+            Write-IRT "Not running on a domain controller; skipping replication push." -Level Warn
         }
 
         # push azure sync, if on this server
@@ -5202,7 +5370,7 @@ function Set-AdUserEnabled {
         }
     }
 }
-#EndRegion '.\Private\OnPremAd\Set-AdUserEnabled.ps1' 135
+#EndRegion '.\Private\OnPremAd\Set-AdUserEnabled.ps1' 136
 #Region '.\Private\OnPremAd\Test-AdAvailable.ps1' -1
 
 function Test-AdAvailable {
@@ -5488,7 +5656,8 @@ function Build-AllOperationSheet {
 
         $RowCount = ($Log | Measure-Object).Count
         $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-        Write-Verbose "${FunctionName}: Row loop starting (${RowCount} rows) $Elapsed"
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: Row loop starting ($RowCount rows) [$Elapsed]")
         $Rows = [System.Collections.Generic.List[PSCustomObject]]::new()
         for ($i = 0; $i -lt $RowCount; $i++) {
 
@@ -5661,7 +5830,7 @@ function Build-AllOperationSheet {
                     Summary = $EventObject.Summary
                 })
 
-            if ($VerbosePreference -ne 'SilentlyContinue' -and ($i % 100 -eq 0)) {
+            if ($i % 100 -eq 0) {
                 $Percent = [int]( ($i / $RowCount ) * 100 )
                 $ProgressParams = @{
                     Id              = 1
@@ -5670,15 +5839,19 @@ function Build-AllOperationSheet {
                     PercentComplete = $Percent
                 }
                 Write-Progress @ProgressParams
+                Write-PSFMessage -Level 9 -Message (
+                    "${FunctionName}: Row loop progress: $i / $RowCount ($Percent%)")
             }
         }
 
-        if ($VerbosePreference -ne 'SilentlyContinue') {
-            Write-Progress -Id 1 -Activity 'Row loop' -Completed
-        }
+        Write-Progress -Id 1 -Activity 'Row loop' -Completed
+        $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: Row loop complete — $RowCount row(s) processed [$Elapsed]")
 
         #region EXPORT
-        Write-Verbose "${FunctionName}: Export-Excel $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: Export-Excel → '$WorksheetName' [$($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))]")
         $ExcelParams = @{
             ExcelPackage  = $ExcelPackage
             WorkSheetname = $WorksheetName
@@ -5823,7 +5996,7 @@ function Build-AllOperationSheet {
         return $Workbook
     }
 }
-#EndRegion '.\Private\UnifiedAuditLog\Build-AllOperationSheet.ps1' 392
+#EndRegion '.\Private\UnifiedAuditLog\Build-AllOperationSheet.ps1' 397
 #Region '.\Private\UnifiedAuditLog\Build-UserLoginOperationsSheet.ps1' -1
 
 function Build-UserLoginOperationsSheet {
@@ -5867,7 +6040,8 @@ function Build-UserLoginOperationsSheet {
         #region ROW LOOP
         $RowCount = ($Logs | Measure-Object).Count
         $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-        Write-Verbose "${FunctionName}: Row loop starting (${RowCount} rows) $Elapsed"
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: Row loop starting ($RowCount rows) [$Elapsed]")
         $Rows = [System.Collections.Generic.List[PSCustomObject]]::new($RowCount)
 
         for ($i = 0; $i -lt $RowCount; $i++) {
@@ -5972,8 +6146,13 @@ function Build-UserLoginOperationsSheet {
                 })
         }
 
+        $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: Row loop complete — $RowCount row(s) processed [$Elapsed]")
+
         #region EXPORT
-        Write-Verbose "${FunctionName}: Export-Excel $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: Export-Excel → '$WorksheetName' [$($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))]")
         $ExcelParams = @{
             ExcelPackage  = $ExcelPackage
             WorkSheetname = $WorksheetName
@@ -5986,7 +6165,8 @@ function Build-UserLoginOperationsSheet {
         $Worksheet = $Workbook.Workbook.Worksheets[$WorksheetName]
 
         #region FORMATTING
-        Write-Verbose "${FunctionName}: Formatting $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: Formatting [$($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))]")
         if ($Worksheet.Tables.Count -gt 0) {
 
             $SheetStartColumn = $Worksheet.Dimension.Start.Column | Convert-DecimalToExcelColumn
@@ -5998,8 +6178,8 @@ function Build-UserLoginOperationsSheet {
             $TableStartRow = $TableAddress.Start.Row
 
             # IP address conditional formatting
-            $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-            Write-Verbose "${FunctionName}: Add-IpInfoToSheet $Elapsed"
+            Write-PSFMessage -Level 8 -Message (
+                "${FunctionName}: Add-IpInfoToSheet [$($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))]")
             Add-IpInfoToSheet -Worksheet $Worksheet -ColumnName 'IpAddress'
 
             # Application conditional formatting - highlight PowerShell/CLI tools
@@ -6086,7 +6266,7 @@ function Build-UserLoginOperationsSheet {
         return $Workbook
     }
 }
-#EndRegion '.\Private\UnifiedAuditLog\Build-UserLoginOperationsSheet.ps1' 261
+#EndRegion '.\Private\UnifiedAuditLog\Build-UserLoginOperationsSheet.ps1' 268
 #Region '.\Private\UnifiedAuditLog\Get-AddRemoveRoleSummary.ps1' -1
 
 function Get-AddRemoveRoleSummary {
@@ -7004,9 +7184,14 @@ function Get-FullUserObject {
         }
 
         if (-not $ResolvedId) {
-            Write-Verbose "skipping item: could not resolve an id."
+            Write-PSFMessage -Level 8 -Message (
+                "Get-FullUserObject: Skipping item — could not resolve an Id " +
+                "(ParameterSetName: $($PSCmdlet.ParameterSetName)).")
             return
         }
+
+        Write-PSFMessage -Level 8 -Message (
+            "Get-FullUserObject: Fetching full object for '$ResolvedId'.")
 
         # get base user with wide $select
         $GetParams = @{
@@ -7028,6 +7213,8 @@ function Get-FullUserObject {
 
         # augment with optional properties (best-effort)
         foreach ($Property in $OptionalProps) {
+            Write-PSFMessage -Level 9 -Message (
+                "Get-FullUserObject: Fetching optional property '$Property' for '$ResolvedId'.")
             try {
                 $OptionalParams = @{
                     UserId      = $ResolvedId
@@ -7040,7 +7227,7 @@ function Get-FullUserObject {
             catch {
                 $ErrMsg = "Unable to retrieve property '$Property' for '$ResolvedId': " +
                 $_.Exception.Message
-                Write-Verbose $ErrMsg
+                Write-PSFMessage -Level 8 -Message "Get-FullUserObject: $ErrMsg"
             }
         }
 
@@ -7055,7 +7242,7 @@ function Get-FullUserObject {
         Write-Output $ScriptUserObject
     }
 }
-#EndRegion '.\Private\User\Get-FullUserObject.ps1' 130
+#EndRegion '.\Private\User\Get-FullUserObject.ps1' 137
 #Region '.\Private\User\Set-UserEnabled.ps1' -1
 
 function Set-UserEnabled {
@@ -7774,7 +7961,7 @@ function Copy-ConditionalFormatting {
                 $WarnMsg = "Copy-ConditionalFormatting: Applying offset ($Offset). " +
                 'Relative references inside Expression rule formulas are copied ' +
                 'as-is and will NOT be re-based.'
-                Write-Warning $WarnMsg
+                Write-PSFMessage -Level Warning -Message $WarnMsg
                 $hasWarnedAboutFormulas = $true
             }
 
@@ -7820,16 +8007,18 @@ function Copy-ConditionalFormatting {
                 }
 
                 $copied++
-                Write-Verbose "Copied '$typeName' rule -> $newAddrString"
+                Write-PSFMessage -Level 9 -Message (
+                    "Copy-ConditionalFormatting: Copied '$typeName' rule → $newAddrString")
             }
             catch {
                 $warnMsg = ("Skipped rule (type '{0}', source '{1}'): {2}" -f
                     $typeName, $rule.Address.Address, $_.Exception.Message)
-                Write-Warning $warnMsg
+                Write-PSFMessage -Level Warning -Message $warnMsg
             }
         }
 
-        Write-Verbose "Copied $copied conditional-formatting rule(s) to $($dstSheet.Name)."
+        Write-PSFMessage -Level 8 -Message (
+            "Copy-ConditionalFormatting: Copied $copied rule(s) to '$($dstSheet.Name)'.")
     }
     finally {
         # Close only packages we opened: source is discarded; a path-based destination is saved.
@@ -7841,7 +8030,7 @@ function Copy-ConditionalFormatting {
         }
     }
 }
-#EndRegion '.\Private\Utility\Copy-ConditionalFormatting.ps1' 332
+#EndRegion '.\Private\Utility\Copy-ConditionalFormatting.ps1' 334
 #Region '.\Private\Utility\Format-PhoneNumber.ps1' -1
 
 function Format-PhoneNumber {
@@ -7970,6 +8159,8 @@ function Get-DefaultDomain {
 
         # serve from cache when available
         if ($Global:IRT_Session -and $Global:IRT_Session.PSObject.Properties['DefaultDomain']) {
+            Write-PSFMessage -Level 8 -Message (
+                "Get-DefaultDomain: Cache hit — '$($Global:IRT_Session.DefaultDomainName)'")
             if ($Domain) { return $Global:IRT_Session.DefaultDomain }
             if ($SecondLevelDomain) { return $Global:IRT_Session.DefaultDomainName }
             return $Global:IRT_Session.DefaultDomainName
@@ -7977,9 +8168,11 @@ function Get-DefaultDomain {
 
         # cache miss -- fetch from Graph
         $FunctionName = $MyInvocation.MyCommand.Name
-        Write-Verbose "${FunctionName}: Get-MgDomain (cache miss)"
+        Write-PSFMessage -Level 8 -Message "${FunctionName}: Get-MgDomain (cache miss)"
         $DefaultDomain = Get-MgDomain | Where-Object { $_.IsDefault -eq $true }
         $DefaultDomainName = $DefaultDomain.Id -split '\.' | Select-Object -First 1
+        Write-PSFMessage -Level 8 -Message (
+            "Get-DefaultDomain: Resolved '$($DefaultDomain.Id)' (SLD: '$DefaultDomainName')")
 
         if ($Global:IRT_Session) {
             $AmParams = @{ Force = $true }
@@ -7996,7 +8189,7 @@ function Get-DefaultDomain {
         return $DefaultDomainName
     }
 }
-#EndRegion '.\Private\Utility\Get-DefaultDomain.ps1' 107
+#EndRegion '.\Private\Utility\Get-DefaultDomain.ps1' 111
 #Region '.\Private\Utility\Get-GlobalUserObject.ps1' -1
 
 function Get-GlobalUserObject {
@@ -8159,9 +8352,13 @@ function Import-ReferenceData {
             WorksheetName = 'Operations'
         }
         $Global:IRT_UalOperationsData = @(Import-Excel @IeParams)
+        Write-PSFMessage -Level 8 -Message (
+            "Import-ReferenceData: Loaded $($Global:IRT_UalOperationsData.Count) " +
+            "UAL operation(s) from '$AllOperationsPath'.")
     } else {
         $Global:IRT_UalOperationsData = @()
-        Write-Warning ('Import-ReferenceData: AllOperations sheet not found at: ' +
+        Write-PSFMessage -Level Warning -Message (
+            'Import-ReferenceData: AllOperations sheet not found at: ' +
             $AllOperationsPath)
     }
 
@@ -8188,8 +8385,14 @@ function Import-ReferenceData {
         }
     }
     $Global:IRT_TenantInfoTable = $TenantTable
+    Write-PSFMessage -Level 8 -Message (
+        "Import-ReferenceData: Complete — " +
+        "EntraErrors=$($Global:IRT_EntraErrorTable.Count), " +
+        "UalOps=$($Global:IRT_UalOperationsData.Count), " +
+        "UserTypes=$($Global:IRT_UalUserTypeTable.Count), " +
+        "TenantCache=$($Global:IRT_TenantInfoTable.Count)")
 }
-#EndRegion '.\Private\Utility\Import-ReferenceData.ps1' 90
+#EndRegion '.\Private\Utility\Import-ReferenceData.ps1' 100
 #Region '.\Private\Utility\Write-IRT.ps1' -1
 
 function Write-IRT {
@@ -8528,7 +8731,7 @@ function Connect-IRT {
         # --- Initialize session global before attempting connections ---
         if ($Global:IRT_Session -and $Global:IRT_Session.TenantId -ne $TenantId) {
             $OldTenant = $Global:IRT_Session.TenantId
-            Write-Warning "TenantId mismatch (current: $OldTenant). Disconnecting existing session."
+            Write-IRT "TenantId mismatch (current: $OldTenant). Disconnecting existing session." -Level Warn
             Disconnect-IRT
         }
 
@@ -8949,13 +9152,13 @@ function Get-IRTTenantOidc {
     foreach ($cloud in $Global:IRT_CloudEnvironments.GetEnumerator()) {
 
         $Url = "$( $cloud.Value.LoginHost )/$TenantId/v2.0/.well-known/openid-configuration"
-        Write-Verbose "Probing $( $cloud.Key ): $Url"
+        Write-PSFMessage -Level 8 -Message "Get-IRTTenantOidc: Probing $( $cloud.Key ): $Url"
 
         try {
             $Oidc = Invoke-RestMethod -Uri $Url -ErrorAction Stop
         }
         catch {
-            Write-Verbose "Not found in $( $cloud.Key )."
+            Write-PSFMessage -Level 8 -Message "Get-IRTTenantOidc: Not found in $( $cloud.Key )."
             continue
         }
 
@@ -9210,7 +9413,7 @@ function Test-IRTConnection {
             $GraphTenantId = $GraphCtx.TenantId
             $ExoTenantId = $ExoConn.TenantID
             if ($GraphTenantId -and $ExoTenantId -and $GraphTenantId -ne $ExoTenantId) {
-                Write-Warning 'Graph and Exchange are connected to different tenants.'
+                Write-IRT 'Graph and Exchange are connected to different tenants.' -Level Warn
             }
         }
     }
@@ -9287,7 +9490,12 @@ function Update-IRTToken {
         [switch] $PassThru
     )
 
+    Write-PSFMessage -Level 8 -Message (
+        "Update-IRTToken: Services=[$($Service -join ', ')], " +
+        "SkipIfNeverConnected=$SkipIfNeverConnected")
+
     if (-not $Global:IRT_Session) {
+        Write-PSFMessage -Level 8 -Message 'Update-IRTToken: No session — not connected.'
         if (-not $SkipIfNeverConnected) {
             foreach ($svc in $Service) {
                 Write-IRT "Not connected to $svc. Run Connect-IRT first." -Level Error
@@ -9300,24 +9508,34 @@ function Update-IRTToken {
     foreach ($svc in $Service) {
         $svcObj = $Global:IRT_Session.$svc
         if (-not $svcObj -or -not $svcObj.Token -or -not $svcObj.TokenExpiry) {
+            Write-PSFMessage -Level 8 -Message "Update-IRTToken: $svc — no token present."
             if (-not $SkipIfNeverConnected) {
                 Write-IRT "Not connected to $svc. Run Connect-IRT first." -Level Error
             }
             continue
         }
-        if (($svcObj.TokenExpiry - [datetime]::UtcNow).TotalMinutes -lt 5) {
+        $MinutesLeft = [int](($svcObj.TokenExpiry - [datetime]::UtcNow).TotalMinutes)
+        Write-PSFMessage -Level 8 -Message (
+            "Update-IRTToken: $svc — expires $($svcObj.TokenExpiry) UTC " +
+            "($MinutesLeft min remaining)")
+        if ($MinutesLeft -lt 5) {
             $needsRefresh = $true
         }
     }
 
     if ($needsRefresh) {
+        Write-PSFMessage -Level 8 -Message 'Update-IRTToken: Token expiring soon — triggering refresh.'
         Write-IRT 'Token expiring soon - refreshing...'
         try {
             $null = Connect-IRT -Refresh -ErrorAction Stop
+            Write-PSFMessage -Level 8 -Message 'Update-IRTToken: Refresh completed successfully.'
         }
         catch {
             Write-IRT "Token refresh failed: $_" -Level Error
         }
+    }
+    else {
+        Write-PSFMessage -Level 8 -Message 'Update-IRTToken: All tokens healthy — no refresh needed.'
     }
 
     if ($PassThru) {
@@ -9332,7 +9550,7 @@ function Update-IRTToken {
         return $status
     }
 }
-#EndRegion '.\Public\Connect\Update-IRTToken.ps1' 115
+#EndRegion '.\Public\Connect\Update-IRTToken.ps1' 130
 #Region '.\Public\Device\Disable-IRTDevice.ps1' -1
 
 function Disable-IRTDevice {
@@ -9918,9 +10136,11 @@ function Get-IRTEntraAuditLog {
             ### get logs
             # user messages
             Write-IRT "Retrieving ${Days} days of Entra audit logs for ${UserEmail}."
-            Write-Verbose "${FunctionName}: Filter string: ${FilterString}"
+            Write-PSFMessage -Level 8 -Message (
+                "${FunctionName}: Filter string: '${FilterString}'")
             $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-            Write-Verbose "${FunctionName}: Get-MgAuditLogDirectoryAudit $Elapsed"
+            Write-PSFMessage -Level 8 -Message (
+                "${FunctionName}: Get-MgAuditLogDirectoryAudit [$Elapsed]")
 
             # query logs
             $GetParams = @{
@@ -9964,7 +10184,7 @@ function Get-IRTEntraAuditLog {
             # export to xml
             if ($Xml) {
                 $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-                Write-Verbose "${FunctionName}: Export-Clixml $Elapsed"
+                Write-PSFMessage -Level 8 -Message "${FunctionName}: Export-Clixml [$Elapsed]"
                 Write-IRT "Saving logs to: ${XmlOutputPath}"
                 $Logs | Export-Clixml -Depth 10 -Path $XmlOutputPath
             }
@@ -9975,12 +10195,12 @@ function Get-IRTEntraAuditLog {
                 Cached = $Cached
             }
             $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-            Write-Verbose "${FunctionName}: Show-IRTEntraAuditLog $Elapsed"
+            Write-PSFMessage -Level 8 -Message "${FunctionName}: Show-IRTEntraAuditLog [$Elapsed]"
             Show-IRTEntraAuditLog @ShowParams
         }
     }
 }
-#EndRegion '.\Public\Entra\Get-IRTEntraAuditLog.ps1' 222
+#EndRegion '.\Public\Entra\Get-IRTEntraAuditLog.ps1' 224
 #Region '.\Public\Entra\Get-IRTEntraSignInLog.ps1' -1
 
 function Get-IRTEntraSignInLog {
@@ -10237,9 +10457,11 @@ function Get-IRTEntraSignInLog {
             else {
                 Write-IRT "Retrieving ${Days} days of sign-in logs for ${Target}."
             }
-            Write-Verbose "${FunctionName}: Filter string: '${FilterString}'"
+            Write-PSFMessage -Level 8 -Message (
+                "${FunctionName}: Filter string: '${FilterString}'")
             $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-            Write-Verbose "${FunctionName}: Get-MgAuditLogSignIn $Elapsed"
+            Write-PSFMessage -Level 8 -Message (
+                "${FunctionName}: Get-MgAuditLogSignIn [$Elapsed]")
 
             # query logs
             if ($Beta) { # default is to use beta, which returns more information
@@ -10313,7 +10535,7 @@ function Get-IRTEntraSignInLog {
                 # export to xml
                 if ($Xml) {
                     $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-                    Write-Verbose "${FunctionName}: Export-Clixml $Elapsed"
+                    Write-PSFMessage -Level 8 -Message "${FunctionName}: Export-Clixml [$Elapsed]"
                     Write-IRT "Saving logs to: ${XmlOutputPath}"
                     $Logs | Export-Clixml -Depth 10 -Path $XmlOutputPath
                 }
@@ -10321,7 +10543,8 @@ function Get-IRTEntraSignInLog {
                 # export excel spreadsheet
                 if ($Excel) {
                     $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-                    Write-Verbose "${FunctionName}: Show-IRTEntraSignInLog $Elapsed"
+                    Write-PSFMessage -Level 8 -Message (
+                        "${FunctionName}: Show-IRTEntraSignInLog [$Elapsed]")
                     $Params = @{
                         Logs   = $Logs
                         IpInfo = $IpInfo
@@ -10336,7 +10559,7 @@ function Get-IRTEntraSignInLog {
         }
     }
 }
-#EndRegion '.\Public\Entra\Get-IRTEntraSignInLog.ps1' 354
+#EndRegion '.\Public\Entra\Get-IRTEntraSignInLog.ps1' 357
 #Region '.\Public\Entra\Get-IRTNonInteractiveSignIn.ps1' -1
 
 function Get-IRTNonInteractiveSignIn {
@@ -10626,9 +10849,11 @@ function Get-IRTServicePrincipalSignInLog {
             #region QUERY LOGS
 
             Write-IRT "Retrieving ${Days} days of service principal sign-in logs for ${Target}."
-            Write-Verbose "${FunctionName}: Filter string: '${FilterString}'"
+            Write-PSFMessage -Level 8 -Message (
+                "${FunctionName}: Filter string: '${FilterString}'")
             $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-            Write-Verbose "${FunctionName}: Get-MgAuditLogSignIn $Elapsed"
+            Write-PSFMessage -Level 8 -Message (
+                "${FunctionName}: Get-MgAuditLogSignIn [$Elapsed]")
 
             if ($Beta) {
                 $GetParams = @{
@@ -10670,7 +10895,7 @@ function Get-IRTServicePrincipalSignInLog {
                 # export to xml
                 if ($Xml) {
                     $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-                    Write-Verbose "${FunctionName}: Export-Clixml $Elapsed"
+                    Write-PSFMessage -Level 8 -Message "${FunctionName}: Export-Clixml [$Elapsed]"
                     Write-IRT "Saving logs to: ${XmlOutputPath}"
                     $Logs | Export-Clixml -Depth 10 -Path $XmlOutputPath
                 }
@@ -10678,7 +10903,8 @@ function Get-IRTServicePrincipalSignInLog {
                 # export excel spreadsheet
                 if ($Excel) {
                     $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-                    Write-Verbose "${FunctionName}: Show-IRTServicePrincipalSignIn $Elapsed"
+                    Write-PSFMessage -Level 8 -Message (
+                        "${FunctionName}: Show-IRTServicePrincipalSignIn [$Elapsed]")
                     $Params = @{
                         Logs   = $Logs
                         IpInfo = $IpInfo
@@ -10693,7 +10919,7 @@ function Get-IRTServicePrincipalSignInLog {
         }
     }
 }
-#EndRegion '.\Public\Entra\Get-IRTServicePrincipalSignInLog.ps1' 269
+#EndRegion '.\Public\Entra\Get-IRTServicePrincipalSignInLog.ps1' 272
 #Region '.\Public\Entra\Show-IRTEntraAuditLog.ps1' -1
 
 function Show-IRTEntraAuditLog {
@@ -11289,7 +11515,7 @@ function Show-IRTEntraSignInLog {
             try {
                 $ResolvedXmlPath = Resolve-ScriptPath -Path $XmlPath -File -FileExtension 'xml'
                 $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-                Write-Verbose "${FunctionName}: Import-CliXml $Elapsed"
+                Write-PSFMessage -Level 8 -Message "${FunctionName}: Import-CliXml [$Elapsed]"
                 [System.Collections.Generic.List[PSObject]]$Log =
                 Import-CliXml -Path $ResolvedXmlPath
             }
@@ -11328,7 +11554,7 @@ function Show-IRTEntraSignInLog {
 
         $RowCount = ($Log | Measure-Object).Count
         $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-        Write-Verbose "${FunctionName}: Row loop starting (${RowCount} rows) $Elapsed"
+        Write-PSFMessage -Level 8 -Message "${FunctionName}: Row loop starting ($RowCount rows) [$Elapsed]"
         $Rows = [System.Collections.Generic.List[PSCustomObject]]::new($RowCount)
         for ($i = 0; $i -lt $RowCount; $i++) {
 
@@ -11393,7 +11619,7 @@ function Show-IRTEntraSignInLog {
         }
 
         #region EXPORT SPREADSHEET
-        Write-Verbose "${FunctionName}: Export-Excel $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
+        Write-PSFMessage -Level 8 -Message "${FunctionName}: Export-Excel [$($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))]"
         $ExcelParams = @{
             Path          = $ExcelOutputPath
             WorkSheetname = $Metadata.FileNamePrefix
@@ -11443,7 +11669,7 @@ function Show-IRTEntraSignInLog {
         # ip address enrichment and conditional formatting
         if ($IpInfo) {
             $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-            Write-Verbose "${FunctionName}: Add-IpInfoToSheet $Elapsed"
+            Write-PSFMessage -Level 8 -Message "${FunctionName}: Add-IpInfoToSheet [$Elapsed]"
             Add-IpInfoToSheet -Worksheet $Worksheet -ColumnName 'IpAddress'
         }
 
@@ -11635,7 +11861,7 @@ function Show-IRTServicePrincipalSignIn {
             try {
                 $ResolvedXmlPath = Resolve-ScriptPath -Path $XmlPath -File -FileExtension 'xml'
                 $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-                Write-Verbose "${FunctionName}: Import-CliXml $Elapsed"
+                Write-PSFMessage -Level 8 -Message "${FunctionName}: Import-CliXml [$Elapsed]"
                 [System.Collections.Generic.List[PSObject]]$Log =
                 Import-CliXml -Path $ResolvedXmlPath
             }
@@ -11672,7 +11898,7 @@ function Show-IRTServicePrincipalSignIn {
 
         $RowCount = ($Log | Measure-Object).Count
         $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-        Write-Verbose "${FunctionName}: Row loop starting (${RowCount} rows) $Elapsed"
+        Write-PSFMessage -Level 8 -Message "${FunctionName}: Row loop starting ($RowCount rows) [$Elapsed]"
         $Rows = [System.Collections.Generic.List[PSCustomObject]]::new($RowCount)
         for ($i = 0; $i -lt $RowCount; $i++) {
 
@@ -11721,7 +11947,7 @@ function Show-IRTServicePrincipalSignIn {
 
         #region EXPORT SPREADSHEET
 
-        Write-Verbose "${FunctionName}: Export-Excel $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
+        Write-PSFMessage -Level 8 -Message "${FunctionName}: Export-Excel [$($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))]"
         $ExcelParams = @{
             Path          = $ExcelOutputPath
             WorkSheetname = $Metadata.FileNamePrefix
@@ -11748,7 +11974,7 @@ function Show-IRTServicePrincipalSignIn {
 
         if ($IpInfo) {
             $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-            Write-Verbose "${FunctionName}: Add-IpInfoToSheet $Elapsed"
+            Write-PSFMessage -Level 8 -Message "${FunctionName}: Add-IpInfoToSheet [$Elapsed]"
             Add-IpInfoToSheet -Worksheet $Worksheet -ColumnName 'IpAddress'
         }
 
@@ -12912,7 +13138,7 @@ function Get-IRTMessageTrace {
                 Message = 'Get-MessageTraceV2 command not available in this tenant or' +
                 ' ExchangeOnlineManagement version. Running Get-MessageTrace instead.'
             }
-            Write-Warning @WarningParams
+            Write-IRT @WarningParams -Level Warn
 
             $V1 = $true
 
@@ -12923,7 +13149,7 @@ function Get-IRTMessageTrace {
                     $WarningParams = @{
                         Message = "-StartDate is more than 10 days ago. Changing to 10 days ago."
                     }
-                    Write-Warning @WarningParams
+                    Write-IRT @WarningParams -Level Warn
                     $StartDateUtc = $NowUtc.AddDays(-10)
                 }
                 if ($EndDateUtc -le $StartDateUtc) {
@@ -12943,7 +13169,7 @@ function Get-IRTMessageTrace {
                         Message = 'Get-MessageTrace can only search back 10 days.' +
                         ' Changing -Days to 10.'
                     }
-                    Write-Warning @WarningParams
+                    Write-IRT @WarningParams -Level Warn
                     $Days = 10
                     $StartDateUtc = (Get-Date).AddDays(-10).ToUniversalTime()
                 }
@@ -12952,7 +13178,7 @@ function Get-IRTMessageTrace {
 
         # get client domain name for file output
         $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-        Write-Verbose "${FunctionName}: Get-AcceptedDomain $Elapsed"
+        Write-PSFMessage -Level 8 -Message "${FunctionName}: Get-AcceptedDomain [$Elapsed]"
         $DefaultDomain = Get-AcceptedDomain | Where-Object { $_.Default -eq $true }
         $DomainName = $DefaultDomain.DomainName -split '\.' | Select-Object -First 1
     }
@@ -13173,13 +13399,13 @@ function Get-IRTMessageTrace {
                     if ($AllUsers) { $Global:IRT_WaitFlags.MessageTraceAllUsersDone = $true }
                     else { $Global:IRT_WaitFlags.MessageTraceUserDone = $true }
                 }
-                Write-Verbose "${FunctionName}: Table key count: $($Table.Count)"
+                Write-PSFMessage -Level 9 -Message "${FunctionName}: Table key count: $($Table.Count)"
             }
 
             # export raw data
             if ($Xml) {
                 $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-                Write-Verbose "${FunctionName}: Export-CliXml $Elapsed"
+                Write-PSFMessage -Level 8 -Message "${FunctionName}: Export-CliXml [$Elapsed]"
                 Write-IRT "Exporting raw data to: ${XmlOutputPath}"
                 $AllMessages | Export-CliXml -Depth 10 -Path $XmlOutputPath
             }
@@ -13192,7 +13418,7 @@ function Get-IRTMessageTrace {
             # create excel sheet
             if ($Excel) {
                 $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-                Write-Verbose "${FunctionName}: Show-IRTMessageTrace $Elapsed"
+                Write-PSFMessage -Level 8 -Message "${FunctionName}: Show-IRTMessageTrace [$Elapsed]"
                 $Params = @{
                     Messages   = $AllMessages
                     TableStyle = $TableStyle
@@ -13241,7 +13467,7 @@ function Show-IRTMessageTrace {
             try {
                 $ResolvedXmlPath = Resolve-ScriptPath -Path $XmlPath -File -FileExtension 'xml'
                 $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-                Write-Verbose "${FunctionName}: Import-CliXml $Elapsed"
+                Write-PSFMessage -Level 8 -Message "${FunctionName}: Import-CliXml [$Elapsed]"
                 $Message = [System.Collections.Generic.List[PSObject]](
                     Import-CliXml -Path $ResolvedXmlPath
                 )
@@ -13305,7 +13531,7 @@ function Show-IRTMessageTrace {
 
         $RowCount = $Message.Count
         $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-        Write-Verbose "${FunctionName}: Row loop starting (${RowCount} rows) $Elapsed"
+        Write-PSFMessage -Level 8 -Message "${FunctionName}: Row loop starting ($RowCount rows) [$Elapsed]"
         $Rows = [System.Collections.Generic.List[PSCustomObject]]::new($RowCount)
         for ($i = 0; $i -lt $RowCount; $i++) {
 
@@ -13350,7 +13576,7 @@ function Show-IRTMessageTrace {
         }
 
         #region EXPORT EXCEL
-        Write-Verbose "${FunctionName}: Export-Excel $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
+        Write-PSFMessage -Level 8 -Message "${FunctionName}: Export-Excel [$($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))]"
         $ExcelParams = @{
             Path          = $ExcelOutputPath
             WorkSheetname = $FileNamePrefix
@@ -13384,7 +13610,7 @@ function Show-IRTMessageTrace {
 
         if ($IpInfo) {
             $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-            Write-Verbose "${FunctionName}: Add-IpInfoToSheet $Elapsed"
+            Write-PSFMessage -Level 8 -Message "${FunctionName}: Add-IpInfoToSheet [$Elapsed]"
             Add-IpInfoToSheet -Worksheet $Worksheet -ColumnName 'FromIP', 'ToIP'
         }
 
@@ -14790,7 +15016,7 @@ function Reset-IRTAdUserPassword {
             $null = & repadmin /syncall $env:ComputerName /APed *>&1
         }
         else {
-            Write-Warning "Not running on a domain controller; skipping replication push."
+            Write-IRT "Not running on a domain controller; skipping replication push." -Level Warn
         }
 
         # push azure sync, if on this server
@@ -16120,25 +16346,26 @@ function Get-IRTTenantOwner {
     Results are cached in $Global:IRT_TenantInfoTable, pre-loaded at module import from:
         $env:APPDATA\<ModuleName>\TenantOwnerInfo.csv
 
-    New results are added to the in-memory table immediately and appended to the CSV on
-    a best-effort basis (silently skipped if the file is busy). Use -ForceRefresh to
-    re-query a tenant and update its cache entry, or -NoCache to bypass the cache
-    entirely for a single call. Call Import-ReferenceData to reload the CSV into the
-    global table without reimporting the module.
+    By default this function always queries live endpoints and updates the cache. Pass
+    -Cached to return the in-memory entry when available, skipping live lookups. New
+    results are appended to the CSV on a best-effort basis (silently skipped if the file
+    is busy). Call Import-ReferenceData to reload the CSV into the global table without
+    reimporting the module.
 
     .PARAMETER TenantId
     One or more Entra ID tenant GUIDs to look up.
 
     .PARAMETER SkipGraph
-    Skip the authenticated Graph lookup and use only public endpoints.
+    Skip the authenticated Graph lookup and use only OIDC endpoints.
     Useful when you don't have a Graph session or lack the required scope.
 
-    .PARAMETER NoCache
-    Bypass the local cache entirely - neither reads from it nor writes to it.
+    .PARAMETER Cached
+    Return from the in-memory cache when available instead of querying live endpoints.
+    Falls through to a live query if the tenant is not yet cached.
 
-    .PARAMETER ForceRefresh
-    Re-query even if the tenant is already cached, and overwrite the cached entry
-    with the fresh result.
+    .PARAMETER Quiet
+    Suppress warnings about cross-cloud mismatches, Graph lookup failures, and
+    tenants not found. Useful when calling in bulk where partial results are expected.
 
     .EXAMPLE
     Get-IRTTenantOwner -TenantId 'f8cdef31-a31e-4b4a-93e4-5f571e91255a' # Microsoft tenant id
@@ -16148,9 +16375,6 @@ function Get-IRTTenantOwner {
 
     .EXAMPLE
     Get-IRTTenantOwner $tid -SkipGraph
-
-    .EXAMPLE
-    Get-IRTTenantOwner $tid -ForceRefresh
 
     .NOTES
     The Graph lookup requires the CrossTenantInformation.ReadBasic.All scope.
@@ -16167,28 +16391,24 @@ function Get-IRTTenantOwner {
 
         [switch] $SkipGraph,
 
-        [switch] $NoCache,
+        [switch] $Cached,
 
-        [switch] $ForceRefresh
+        [switch] $Quiet
     )
 
     begin {
         Update-IRTToken -Service 'Graph'
         $NewCacheEntries = [System.Collections.Generic.List[psobject]]::new()
-        $CachePath = $null
-
-        if (-not $NoCache) {
-            $ModuleName = $MyInvocation.MyCommand.ModuleName
-            $JpParams = @{
-                Path                = $env:APPDATA
-                ChildPath           = $ModuleName
-                AdditionalChildPath = 'TenantOwnerInfo.csv'
-            }
-            $CachePath = Join-Path @JpParams
-            $CacheDir = Split-Path $CachePath -Parent
-            if (-not (Test-Path $CacheDir)) {
-                $null = New-Item -ItemType Directory -Path $CacheDir -Force
-            }
+        $ModuleName = $MyInvocation.MyCommand.ModuleName
+        $JpParams = @{
+            Path                = $env:APPDATA
+            ChildPath           = $ModuleName
+            AdditionalChildPath = 'TenantOwnerInfo.csv'
+        }
+        $CachePath = Join-Path @JpParams
+        $CacheDir = Split-Path $CachePath -Parent
+        if (-not (Test-Path $CacheDir)) {
+            $null = New-Item -ItemType Directory -Path $CacheDir -Force
         }
 
         # --- Pre-check for an active Graph session once, not per pipeline item ---
@@ -16199,13 +16419,20 @@ function Get-IRTTenantOwner {
                 $MgContext = Get-MgContext -ErrorAction Stop
                 if ($MgContext) {
                     $GraphAvailable = $true
-                    Write-Verbose "Graph session active as $($MgContext.Account)"
+                    Write-PSFMessage -Level 8 -Message (
+                        "Graph session active as $($MgContext.Account) " +
+                        "(tenant: $($MgContext.TenantId))")
                 }
             }
             catch {
-                Write-Verbose 'No active Graph session; falling back to public endpoints only.'
+                Write-PSFMessage -Level 8 -Message (
+                    'No active Graph session; falling back to public endpoints only.')
             }
         }
+
+        Write-PSFMessage -Level 8 -Message (
+            "Get-IRTTenantOwner: SkipGraph=$SkipGraph, Cached=$Cached, " +
+            "Quiet=$Quiet, GraphAvailable=$GraphAvailable")
     }
 
     process {
@@ -16221,10 +16448,11 @@ function Get-IRTTenantOwner {
             $Tid = $guidParsed.ToString()
 
             # --- Cache lookup ---
-            if (-not $NoCache -and -not $ForceRefresh -and
-                $Global:IRT_TenantInfoTable.ContainsKey($Tid)) {
+            if ($Cached -and $Global:IRT_TenantInfoTable.ContainsKey($Tid)) {
                 $cached = $Global:IRT_TenantInfoTable[$Tid]
-                Write-Verbose "Cache hit for '$Tid' (cached $( $cached.CachedAt ))"
+                Write-PSFMessage -Level 8 -Message (
+                    "Cache hit for '$Tid' (cached $($cached.CachedAt), " +
+                    "DisplayName='$($cached.DisplayName)')")
                 [pscustomobject]@{
                     TenantId            = $cached.TenantId
                     Exists              = $true
@@ -16239,6 +16467,39 @@ function Get-IRTTenantOwner {
                 continue
             }
 
+            Write-PSFMessage -Level 8 -Message "Processing tenant '$Tid' via live query."
+
+            # --- OIDC Discovery ---
+            # Done first so we know the target cloud before attempting Graph.
+            # Provides cloud, region, Graph host, and confirms the tenant exists.
+            $Oidc = Get-IRTTenantOidc -TenantId $Tid
+            $Cloud = ($Oidc)?.Cloud
+
+            Write-PSFMessage -Level 8 -Message (
+                "OIDC result for '$Tid': " +
+                "Found=$([bool]$Oidc), Cloud=$Cloud, " +
+                "LoginHost=$(($Oidc)?.LoginHost)")
+
+            # --- Cross-cloud guard ---
+            # The Graph cross-tenant endpoint only works within the same cloud. If the
+            # target tenant is in a different cloud than the active session, skip Graph
+            # and rely on public endpoints only.
+            $UseGraph = $GraphAvailable
+            if ($UseGraph -and $Oidc -and ($Global:IRT_Session)?.Cloud -and
+                $Cloud -ne $Global:IRT_Session.Cloud) {
+                if (-not $Quiet) {
+                    $Msg = "Tenant '$Tid' is in the $Cloud cloud but the active " +
+                        "Graph session is $( $Global:IRT_Session.Cloud ). " +
+                        "Skipping Graph query."
+                    Write-IRT $Msg -Level Warn
+                }
+                $UseGraph = $false
+            }
+
+            Write-PSFMessage -Level 8 -Message (
+                "UseGraph=$UseGraph " +
+                "(session cloud: $($Global:IRT_Session.Cloud), tenant cloud: $Cloud)")
+
             $displayName = $null
             $defaultDomain = $null
             $fedBrandName = $null
@@ -16246,11 +16507,11 @@ function Get-IRTTenantOwner {
 
             # --- Graph Cross-Tenant Lookup ---
             # This is the only way to resolve a tenant GUID to its org name and domain.
-            if ($GraphAvailable) {
+            if ($UseGraph) {
 
                 $GraphUri = "v1.0/tenantRelationships/" +
                 "findTenantInformationByTenantId(tenantId='$Tid')"
-                Write-Verbose "Graph lookup: $GraphUri"
+                Write-PSFMessage -Level 8 -Message "Graph lookup: $GraphUri"
 
                 try {
                     $info = Invoke-MgGraphRequest -Method GET -Uri $GraphUri -ErrorAction Stop
@@ -16259,21 +16520,22 @@ function Get-IRTTenantOwner {
                     $defaultDomain = $info.defaultDomainName
                     $fedBrandName = $info.federationBrandName
                     $graphSource = $true
+
+                    Write-PSFMessage -Level 8 -Message (
+                        "Graph lookup succeeded for '$Tid': " +
+                        "DisplayName='$displayName', Domain='$defaultDomain'")
                 }
                 catch {
                     $Msg = "Graph cross-tenant lookup failed for '$Tid': " +
                     "$( $_.Exception.Message )"
-                    Write-Warning $Msg
+                    Write-PSFMessage -Level 8 -Message $Msg
+                    if (-not $Quiet) { Write-IRT $Msg -Level Warn }
                 }
             }
 
-            # --- OIDC Discovery ---
-            # Provides cloud, region, Graph host, and confirms the tenant exists.
-            $Oidc = Get-IRTTenantOidc -TenantId $Tid
-            $cloudName = $Oidc?.Cloud
-
             if (-not $Oidc -and -not $graphSource) {
-                Write-Warning "Tenant '$Tid' was not found."
+                Write-PSFMessage -Level 8 -Message "Tenant '$Tid' was not found in any cloud."
+                if (-not $Quiet) { Write-IRT "Tenant '$Tid' was not found." -Level Warn }
                 [pscustomobject]@{ TenantId = $Tid; Exists = $false }
                 continue
             }
@@ -16285,26 +16547,30 @@ function Get-IRTTenantOwner {
                 DisplayName         = $displayName
                 DefaultDomain       = $defaultDomain
                 FederationBrandName = $fedBrandName
-                Cloud               = $cloudName
-                GraphHost           = $Oidc?.msgraph_host
-                TokenEndpoint       = $Oidc?.token_endpoint
+                Cloud               = $Cloud
+                GraphHost           = ($Oidc)?.msgraph_host
+                TokenEndpoint       = ($Oidc)?.token_endpoint
                 Source              = if ($graphSource) { 'Graph' } else { 'PublicEndpoints' }
             }
 
             # --- Update global table and queue for cache write ---
-            if (-not $NoCache) {
+            # Only cache when Graph returned owner data; partial OIDC-only results are not cached.
+            if ($graphSource) {
                 $cacheEntry = [pscustomobject]@{
                     TenantId            = $tid
                     DisplayName         = $displayName
                     DefaultDomain       = $defaultDomain
                     FederationBrandName = $fedBrandName
-                    Cloud               = $cloudName
-                    GraphHost           = $Oidc?.msgraph_host
-                    TokenEndpoint       = $Oidc?.token_endpoint
+                    Cloud               = $Cloud
+                    GraphHost           = ($Oidc)?.msgraph_host
+                    TokenEndpoint       = ($Oidc)?.token_endpoint
                     CachedAt            = (Get-Date -Format 'o')
                 }
                 $Global:IRT_TenantInfoTable[$tid] = $cacheEntry
                 $newCacheEntries.Add($cacheEntry)
+                Write-PSFMessage -Level 8 -Message (
+                    "Cached result for '$tid' " +
+                    "(DisplayName='$displayName', Cloud=$Cloud)")
             }
         }
     }
@@ -16312,7 +16578,7 @@ function Get-IRTTenantOwner {
     end {
         # Best-effort append; silently skip if the file is busy or inaccessible.
         # The global table is already updated - a failed write only affects persistence.
-        if (-not $NoCache -and $newCacheEntries.Count -gt 0) {
+        if ($newCacheEntries.Count -gt 0) {
             try {
                 $ExportParams = @{
                     Path              = $cachePath
@@ -16321,13 +16587,14 @@ function Get-IRTTenantOwner {
                     Encoding          = 'UTF8'
                 }
                 $newCacheEntries | Export-Csv @ExportParams
-                Write-Verbose "Appended $( $newCacheEntries.Count ) tenant(s) to $cachePath"
+                Write-PSFMessage -Level 8 -Message (
+                    "Appended $($newCacheEntries.Count) tenant(s) to $cachePath")
             }
             catch {}
         }
     }
 }
-#EndRegion '.\Public\ServicePrincipal\Get-IRTTenantOwner.ps1' 230
+#EndRegion '.\Public\ServicePrincipal\Get-IRTTenantOwner.ps1' 271
 #Region '.\Public\ServicePrincipal\Get-IRTUserServicePrincipal.ps1' -1
 
 function Get-IRTUserServicePrincipal {
@@ -16589,11 +16856,11 @@ function Open-IRTTenantOwnerCSV {
     if (-not (Test-Path $cachePath)) {
         $Msg = "Tenant info cache not found at '$cachePath'. " +
         "Run Get-IRTTenantOwner first to populate it."
-        Write-Warning $Msg
+        Write-IRT $Msg -Level Warn
         return
     }
 
-    Write-Verbose "Opening $cachePath"
+    Write-PSFMessage -Level 8 -Message "Opening $cachePath"
     Start-Process $cachePath
 }
 #EndRegion '.\Public\ServicePrincipal\Open-IRTTenantOwnerCSV.ps1' 38
@@ -17172,7 +17439,7 @@ function Get-IRTUnifiedAuditLog {
 
         # get client domain name for file output
         $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-        Write-Verbose "${FunctionName}: Get-AcceptedDomain $Elapsed"
+        Write-PSFMessage -Level 8 -Message "${FunctionName}: Get-AcceptedDomain [$Elapsed]"
         $DefaultDomain = Get-AcceptedDomain | Where-Object { $_.Default -eq $true }
         $DomainName = $DefaultDomain.DomainName -split '\.' | Select-Object -First 1
 
@@ -17405,7 +17672,7 @@ function Get-IRTUnifiedAuditLog {
                 Write-IRT $ConsoleOutput
                 $QueryKey = $QueryDict.Key
                 $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-                Write-Verbose "${FunctionName}: Search-UnifiedAuditLog query $QueryKey $Elapsed"
+                Write-PSFMessage -Level 8 -Message "${FunctionName}: Search-UnifiedAuditLog query $QueryKey [$Elapsed]"
                 $Page = Search-UnifiedAuditLog @FirstPageParams
                 $LogCount = ($Page | Measure-Object).Count
 
@@ -17431,7 +17698,7 @@ function Get-IRTUnifiedAuditLog {
 
                     Write-IRT "Requesting page ${PageCount}."
                     $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-                    Write-Verbose "${FunctionName}: Search-UnifiedAuditLog page $PageCount $Elapsed"
+                    Write-PSFMessage -Level 8 -Message "${FunctionName}: Search-UnifiedAuditLog page $PageCount [$Elapsed]"
                     $Page = Search-UnifiedAuditLog @NextPageParams
                     $LogCount = @($Page).Count
 
@@ -17461,7 +17728,7 @@ function Get-IRTUnifiedAuditLog {
 
             #region UNIQUE, SORT
             $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-            Write-Verbose "${FunctionName}: Dedupliacation, sorting $Elapsed"
+            Write-PSFMessage -Level 8 -Message "${FunctionName}: Dedupliacation, sorting [$Elapsed]"
             # remove duplicates
             $UniqueLogIds = [System.Collections.Generic.HashSet[string]]::new()
             $Logs = [System.Collections.Generic.List[psobject]]::new()
@@ -17511,7 +17778,7 @@ function Get-IRTUnifiedAuditLog {
             # export to xml
             if ($Xml) {
                 $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-                Write-Verbose "${FunctionName}: Starting XML export $Elapsed"
+                Write-PSFMessage -Level 8 -Message "${FunctionName}: Starting XML export [$Elapsed]"
                 Write-IRT "Saving logs to: ${XmlOutputPath}"
                 $Logs | Export-Clixml -Depth 10 -Path $XmlOutputPath
             }
@@ -17519,7 +17786,7 @@ function Get-IRTUnifiedAuditLog {
             # export excel spreadsheet
             if ($Excel) {
                 $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-                Write-Verbose "${FunctionName}: Starting Excel export $Elapsed"
+                Write-PSFMessage -Level 8 -Message "${FunctionName}: Starting Excel export [$Elapsed]"
                 $Params = @{
                     Log = $Logs
                     WaitOnMessageTrace = $WaitOnMessageTrace
@@ -17601,7 +17868,7 @@ function Show-IRTUnifiedAuditLog {
             try {
                 $ResolvedXmlPath = Resolve-ScriptPath -Path $XmlPath -File -FileExtension 'xml'
                 $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-                Write-Verbose "${FunctionName}: Import-CliXml $Elapsed"
+                Write-PSFMessage -Level 8 -Message "${FunctionName}: Import-CliXml [$Elapsed]"
                 $RawLog = Import-CliXml -Path $ResolvedXmlPath
                 [System.Collections.Generic.List[PSObject]] $Log = $RawLog
             }
@@ -17664,7 +17931,7 @@ function Show-IRTUnifiedAuditLog {
 
             # wait for both user and AllUsers message traces to complete via WaitFlags
             $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-            Write-Verbose "${FunctionName}: Waiting on message trace $Elapsed"
+            Write-PSFMessage -Level 8 -Message "${FunctionName}: Waiting on message trace [$Elapsed]"
             if ($Global:IRT_WaitFlags) {
                 while (-not ($Global:IRT_WaitFlags.MessageTraceUserDone -and
                         $Global:IRT_WaitFlags.MessageTraceAllUsersDone)) {
@@ -17680,7 +17947,7 @@ function Show-IRTUnifiedAuditLog {
                     Write-IRT "Waiting on message trace..." -Level Warn
                     $WaitMsg = "${FunctionName}: MessageTrace wait ${WaitElapsed} elapsed. " +
                     "UserDone=${UserDone}, AllUsersDone=${AllDone}"
-                    Write-Verbose $WaitMsg
+                    Write-PSFMessage -Level 8 -Message $WaitMsg
                     Start-Sleep -Seconds $WaitInterval
                 }
             }
@@ -17725,7 +17992,7 @@ function Show-IRTUnifiedAuditLog {
 
         #region build workbook
         $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-        Write-Verbose "${FunctionName}: Request-GraphServicePrincipal $Elapsed"
+        Write-PSFMessage -Level 8 -Message "${FunctionName}: Request-GraphServicePrincipal [$Elapsed]"
         Request-GraphServicePrincipal -Return 'none' -Cached:$Cached
         $Workbook = Open-ExcelPackage -Path $ExcelOutputPath -Create
 
@@ -17765,7 +18032,7 @@ function Show-IRTUnifiedAuditLog {
                 }
                 $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
                 $BuildFn = $SheetEntry.BuildFunction
-                Write-Verbose "${FunctionName}: $BuildFn $Elapsed"
+                Write-PSFMessage -Level 8 -Message "${FunctionName}: $BuildFn [$Elapsed]"
                 $Workbook = & $SheetEntry.BuildFunction @SheetParams
             }
         }
@@ -17775,7 +18042,7 @@ function Show-IRTUnifiedAuditLog {
             foreach ($ws in $Workbook.Workbook.Worksheets) {
                 $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
                 $WsName = $ws.Name
-                Write-Verbose "${FunctionName}: Add-IpInfoToSheet ($WsName) $Elapsed"
+                Write-PSFMessage -Level 8 -Message "${FunctionName}: Add-IpInfoToSheet ($WsName) [$Elapsed]"
                 Add-IpInfoToSheet -Worksheet $ws -ColumnName 'IpAddress'
             }
         }
@@ -18855,7 +19122,7 @@ function Show-IRTUserMfa {
 
             # show raw data if verbose
             if ($VerbosePreference -eq 'Continue') {
-                Write-Verbose "Raw data:"
+                Write-PSFMessage -Level 8 -Message "Raw data:"
                 $Methods.AdditionalProperties
             }
 
@@ -19112,6 +19379,8 @@ function Copy-IRTFunction {
     .NOTES
     Version: 2.0.0
 
+    # FIXME add aliases matching m365 commands? finduser, disableuser, etc.?
+
     #>
     [Alias(
         'Copy-IRTFunctions', 'CopyIRTFunctions', 'CopyIRTFunction', 'IRTFunction', 'IRTFunctions')]
@@ -19220,7 +19489,7 @@ if (-not `$Global:IRT_Config) {
         Write-IRT "Copied $Resolved function(s) to clipboard."
     }
 }
-#EndRegion '.\Public\Utility\Copy-IRTFunction.ps1' 153
+#EndRegion '.\Public\Utility\Copy-IRTFunction.ps1' 155
 #Region '.\Public\Utility\Find-IRTDirectoryObject.ps1' -1
 
 function Find-IRTDirectoryObject {
@@ -20108,7 +20377,7 @@ function Start-IRTPlaybook {
 
             # make directory
             $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-            Write-Verbose "${FunctionName}: New-IRTInvestigationFolder $Elapsed"
+            Write-PSFMessage -Level 8 -Message "${FunctionName}: New-IRTInvestigationFolder [$Elapsed]"
             $DirParams = @{
                 UserObject = $ScriptUserObjects
             }
@@ -20121,7 +20390,7 @@ function Start-IRTPlaybook {
             New-IRTInvestigationFolder @DirParams
         }
 
-        if (-not $NoNewTab) {
+        if (-not $NoNewTab) { # FIXME make this a config option
             Open-IRTTab
         }
 
@@ -20136,22 +20405,22 @@ function Start-IRTPlaybook {
 
         # pre-populate caches in main thread
         $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-        Write-Verbose "${FunctionName}: Request-DirectoryRole $Elapsed"
+        Write-PSFMessage -Level 8 -Message "${FunctionName}: Request-DirectoryRole [$Elapsed]"
         Request-DirectoryRole -Return 'none'
         $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-        Write-Verbose "${FunctionName}: Request-DirectoryRoleTemplate $Elapsed"
+        Write-PSFMessage -Level 8 -Message "${FunctionName}: Request-DirectoryRoleTemplate [$Elapsed]"
         Request-DirectoryRoleTemplate -Return 'none'
         $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-        Write-Verbose "${FunctionName}: Request-GraphGroup $Elapsed"
+        Write-PSFMessage -Level 8 -Message "${FunctionName}: Request-GraphGroup [$Elapsed]"
         Request-GraphGroup -Return 'none'
         $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-        Write-Verbose "${FunctionName}: Request-GraphOauth2Grant $Elapsed"
+        Write-PSFMessage -Level 8 -Message "${FunctionName}: Request-GraphOauth2Grant [$Elapsed]"
         Request-GraphOauth2Grant -Return 'none'
         $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-        Write-Verbose "${FunctionName}: Request-GraphUser $Elapsed"
+        Write-PSFMessage -Level 8 -Message "${FunctionName}: Request-GraphUser [$Elapsed]"
         Request-GraphUser -Return 'none'
         $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-        Write-Verbose "${FunctionName}: Request-GraphServicePrincipal $Elapsed"
+        Write-PSFMessage -Level 8 -Message "${FunctionName}: Request-GraphServicePrincipal [$Elapsed]"
         Request-GraphServicePrincipal -Return 'none'
 
         # pack references for injection into child runspace globals
@@ -20635,7 +20904,7 @@ function Start-IRTPlaybook {
 
         $Stopwatch.Stop()
         $TotalElapsed = $Stopwatch.Elapsed.ToString()
-        Write-Verbose "${FunctionName}: Playbook complete. Total elapsed: $TotalElapsed"
+        Write-PSFMessage -Level 8 -Message "${FunctionName}: Playbook complete. Total elapsed: $TotalElapsed"
     }
 }
 #EndRegion '.\Public\Utility\Start-IRTPlaybook.ps1' 651

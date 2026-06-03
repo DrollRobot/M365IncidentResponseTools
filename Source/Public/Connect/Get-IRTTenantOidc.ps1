@@ -60,13 +60,13 @@ function Get-IRTTenantOidc {
     foreach ($cloud in $Global:IRT_CloudEnvironments.GetEnumerator()) {
 
         $Url = "$( $cloud.Value.LoginHost )/$TenantId/v2.0/.well-known/openid-configuration"
-        Write-Verbose "Probing $( $cloud.Key ): $Url"
+        Write-PSFMessage -Level 8 -Message "Get-IRTTenantOidc: Probing $( $cloud.Key ): $Url"
 
         try {
             $Oidc = Invoke-RestMethod -Uri $Url -ErrorAction Stop
         }
         catch {
-            Write-Verbose "Not found in $( $cloud.Key )."
+            Write-PSFMessage -Level 8 -Message "Get-IRTTenantOidc: Not found in $( $cloud.Key )."
             continue
         }
 

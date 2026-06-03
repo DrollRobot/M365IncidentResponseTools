@@ -185,7 +185,7 @@ function Get-IRTMessageTrace {
                 Message = 'Get-MessageTraceV2 command not available in this tenant or' +
                 ' ExchangeOnlineManagement version. Running Get-MessageTrace instead.'
             }
-            Write-Warning @WarningParams
+            Write-IRT @WarningParams -Level Warn
 
             $V1 = $true
 
@@ -196,7 +196,7 @@ function Get-IRTMessageTrace {
                     $WarningParams = @{
                         Message = "-StartDate is more than 10 days ago. Changing to 10 days ago."
                     }
-                    Write-Warning @WarningParams
+                    Write-IRT @WarningParams -Level Warn
                     $StartDateUtc = $NowUtc.AddDays(-10)
                 }
                 if ($EndDateUtc -le $StartDateUtc) {
@@ -216,7 +216,7 @@ function Get-IRTMessageTrace {
                         Message = 'Get-MessageTrace can only search back 10 days.' +
                         ' Changing -Days to 10.'
                     }
-                    Write-Warning @WarningParams
+                    Write-IRT @WarningParams -Level Warn
                     $Days = 10
                     $StartDateUtc = (Get-Date).AddDays(-10).ToUniversalTime()
                 }
@@ -225,7 +225,7 @@ function Get-IRTMessageTrace {
 
         # get client domain name for file output
         $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-        Write-Verbose "${FunctionName}: Get-AcceptedDomain $Elapsed"
+        Write-PSFMessage -Level 8 -Message "${FunctionName}: Get-AcceptedDomain [$Elapsed]"
         $DefaultDomain = Get-AcceptedDomain | Where-Object { $_.Default -eq $true }
         $DomainName = $DefaultDomain.DomainName -split '\.' | Select-Object -First 1
     }
@@ -446,13 +446,13 @@ function Get-IRTMessageTrace {
                     if ($AllUsers) { $Global:IRT_WaitFlags.MessageTraceAllUsersDone = $true }
                     else { $Global:IRT_WaitFlags.MessageTraceUserDone = $true }
                 }
-                Write-Verbose "${FunctionName}: Table key count: $($Table.Count)"
+                Write-PSFMessage -Level 9 -Message "${FunctionName}: Table key count: $($Table.Count)"
             }
 
             # export raw data
             if ($Xml) {
                 $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-                Write-Verbose "${FunctionName}: Export-CliXml $Elapsed"
+                Write-PSFMessage -Level 8 -Message "${FunctionName}: Export-CliXml [$Elapsed]"
                 Write-IRT "Exporting raw data to: ${XmlOutputPath}"
                 $AllMessages | Export-CliXml -Depth 10 -Path $XmlOutputPath
             }
@@ -465,7 +465,7 @@ function Get-IRTMessageTrace {
             # create excel sheet
             if ($Excel) {
                 $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-                Write-Verbose "${FunctionName}: Show-IRTMessageTrace $Elapsed"
+                Write-PSFMessage -Level 8 -Message "${FunctionName}: Show-IRTMessageTrace [$Elapsed]"
                 $Params = @{
                     Messages   = $AllMessages
                     TableStyle = $TableStyle

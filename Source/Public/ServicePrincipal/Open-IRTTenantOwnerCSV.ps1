@@ -28,10 +28,10 @@ function Open-IRTTenantOwnerCSV {
     if (-not (Test-Path $cachePath)) {
         $Msg = "Tenant info cache not found at '$cachePath'. " +
         "Run Get-IRTTenantOwner first to populate it."
-        Write-Warning $Msg
+        Write-IRT $Msg -Level Warn
         return
     }
 
-    Write-Verbose "Opening $cachePath"
+    Write-PSFMessage -Level 8 -Message "Opening $cachePath"
     Start-Process $cachePath
 }

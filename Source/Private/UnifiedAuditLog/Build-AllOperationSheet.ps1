@@ -54,7 +54,8 @@ function Build-AllOperationSheet {
 
         $RowCount = ($Log | Measure-Object).Count
         $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-        Write-Verbose "${FunctionName}: Row loop starting (${RowCount} rows) $Elapsed"
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: Row loop starting ($RowCount rows) [$Elapsed]")
         $Rows = [System.Collections.Generic.List[PSCustomObject]]::new()
         for ($i = 0; $i -lt $RowCount; $i++) {
 
@@ -227,7 +228,7 @@ function Build-AllOperationSheet {
                     Summary = $EventObject.Summary
                 })
 
-            if ($VerbosePreference -ne 'SilentlyContinue' -and ($i % 100 -eq 0)) {
+            if ($i % 100 -eq 0) {
                 $Percent = [int]( ($i / $RowCount ) * 100 )
                 $ProgressParams = @{
                     Id              = 1
@@ -236,15 +237,19 @@ function Build-AllOperationSheet {
                     PercentComplete = $Percent
                 }
                 Write-Progress @ProgressParams
+                Write-PSFMessage -Level 9 -Message (
+                    "${FunctionName}: Row loop progress: $i / $RowCount ($Percent%)")
             }
         }
 
-        if ($VerbosePreference -ne 'SilentlyContinue') {
-            Write-Progress -Id 1 -Activity 'Row loop' -Completed
-        }
+        Write-Progress -Id 1 -Activity 'Row loop' -Completed
+        $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: Row loop complete — $RowCount row(s) processed [$Elapsed]")
 
         #region EXPORT
-        Write-Verbose "${FunctionName}: Export-Excel $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: Export-Excel → '$WorksheetName' [$($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))]")
         $ExcelParams = @{
             ExcelPackage  = $ExcelPackage
             WorkSheetname = $WorksheetName

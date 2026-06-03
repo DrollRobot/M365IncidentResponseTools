@@ -211,7 +211,7 @@ function Reset-IRTAdUserPassword {
             $null = & repadmin /syncall $env:ComputerName /APed *>&1
         }
         else {
-            Write-Warning "Not running on a domain controller; skipping replication push."
+            Write-IRT "Not running on a domain controller; skipping replication push." -Level Warn
         }
 
         # push azure sync, if on this server

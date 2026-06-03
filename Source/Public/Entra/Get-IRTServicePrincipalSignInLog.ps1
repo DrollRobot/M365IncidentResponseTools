@@ -199,9 +199,11 @@ function Get-IRTServicePrincipalSignInLog {
             #region QUERY LOGS
 
             Write-IRT "Retrieving ${Days} days of service principal sign-in logs for ${Target}."
-            Write-Verbose "${FunctionName}: Filter string: '${FilterString}'"
+            Write-PSFMessage -Level 8 -Message (
+                "${FunctionName}: Filter string: '${FilterString}'")
             $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-            Write-Verbose "${FunctionName}: Get-MgAuditLogSignIn $Elapsed"
+            Write-PSFMessage -Level 8 -Message (
+                "${FunctionName}: Get-MgAuditLogSignIn [$Elapsed]")
 
             if ($Beta) {
                 $GetParams = @{
@@ -243,7 +245,7 @@ function Get-IRTServicePrincipalSignInLog {
                 # export to xml
                 if ($Xml) {
                     $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-                    Write-Verbose "${FunctionName}: Export-Clixml $Elapsed"
+                    Write-PSFMessage -Level 8 -Message "${FunctionName}: Export-Clixml [$Elapsed]"
                     Write-IRT "Saving logs to: ${XmlOutputPath}"
                     $Logs | Export-Clixml -Depth 10 -Path $XmlOutputPath
                 }
@@ -251,7 +253,8 @@ function Get-IRTServicePrincipalSignInLog {
                 # export excel spreadsheet
                 if ($Excel) {
                     $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-                    Write-Verbose "${FunctionName}: Show-IRTServicePrincipalSignIn $Elapsed"
+                    Write-PSFMessage -Level 8 -Message (
+                        "${FunctionName}: Show-IRTServicePrincipalSignIn [$Elapsed]")
                     $Params = @{
                         Logs   = $Logs
                         IpInfo = $IpInfo

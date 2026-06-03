@@ -117,7 +117,7 @@ function Test-IRTConnection {
             $GraphTenantId = $GraphCtx.TenantId
             $ExoTenantId = $ExoConn.TenantID
             if ($GraphTenantId -and $ExoTenantId -and $GraphTenantId -ne $ExoTenantId) {
-                Write-Warning 'Graph and Exchange are connected to different tenants.'
+                Write-IRT 'Graph and Exchange are connected to different tenants.' -Level Warn
             }
         }
     }

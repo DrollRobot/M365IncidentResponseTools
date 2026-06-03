@@ -44,12 +44,17 @@ function Request-GraphOauth2Grant {
             }
             $Variable = Get-Variable @GvParams
             if ( $Variable ) {
+                Write-PSFMessage -Level 8 -Message (
+                    "${FunctionName}: Cache hit — returning $($Global:IRT_Oauth2Grants.Count) " +
+                    "grant(s) (Return=$Return)")
                 switch ( $Return ) {
                     'objects' { return $Global:IRT_Oauth2Grants }
                     'tablebyclientid' { return $Global:IRT_Oauth2GrantsByClientId }
                     'none' { return }
                 }
             }
+            Write-PSFMessage -Level 8 -Message (
+                "${FunctionName}: -Cached requested but cache is empty; querying Graph.")
         }
 
         # get client domain name
@@ -57,8 +62,13 @@ function Request-GraphOauth2Grant {
 
         # query graph
         $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-        Write-Verbose "${FunctionName}: Get-MgOauth2PermissionGrant $Elapsed"
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: Get-MgOauth2PermissionGrant [$Elapsed]")
         $Objects = Get-MgOauth2PermissionGrant -All
+
+        $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: Graph returned $($Objects.Count) grant(s) [$Elapsed]")
 
         # store in global variables
         $Global:IRT_Oauth2Grants = $Objects
@@ -72,13 +82,17 @@ function Request-GraphOauth2Grant {
                 $Global:IRT_Oauth2GrantsByClientId[$ClientId] += $o
             }
         }
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: Index built — $($Global:IRT_Oauth2GrantsByClientId.Count) " +
+            "unique client(s).")
 
         # export to file
         if ($Xml) {
             $FileName = "Oauth2Grants_Raw_${DomainName}_${FileNameDate}.xml"
             $XmlOutputPath = Join-Path -Path $CurrentPath -ChildPath $FileName
             $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-            Write-Verbose "${FunctionName}: Export-Clixml $Elapsed"
+            Write-PSFMessage -Level 8 -Message (
+                "${FunctionName}: Export-Clixml → $XmlOutputPath [$Elapsed]")
             $Objects | Export-Clixml -Depth 5 -Path $XmlOutputPath
         }
 

@@ -36,7 +36,7 @@ function Show-IRTUnifiedAuditLog {
             try {
                 $ResolvedXmlPath = Resolve-ScriptPath -Path $XmlPath -File -FileExtension 'xml'
                 $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-                Write-Verbose "${FunctionName}: Import-CliXml $Elapsed"
+                Write-PSFMessage -Level 8 -Message "${FunctionName}: Import-CliXml [$Elapsed]"
                 $RawLog = Import-CliXml -Path $ResolvedXmlPath
                 [System.Collections.Generic.List[PSObject]] $Log = $RawLog
             }
@@ -99,7 +99,7 @@ function Show-IRTUnifiedAuditLog {
 
             # wait for both user and AllUsers message traces to complete via WaitFlags
             $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-            Write-Verbose "${FunctionName}: Waiting on message trace $Elapsed"
+            Write-PSFMessage -Level 8 -Message "${FunctionName}: Waiting on message trace [$Elapsed]"
             if ($Global:IRT_WaitFlags) {
                 while (-not ($Global:IRT_WaitFlags.MessageTraceUserDone -and
                         $Global:IRT_WaitFlags.MessageTraceAllUsersDone)) {
@@ -115,7 +115,7 @@ function Show-IRTUnifiedAuditLog {
                     Write-IRT "Waiting on message trace..." -Level Warn
                     $WaitMsg = "${FunctionName}: MessageTrace wait ${WaitElapsed} elapsed. " +
                     "UserDone=${UserDone}, AllUsersDone=${AllDone}"
-                    Write-Verbose $WaitMsg
+                    Write-PSFMessage -Level 8 -Message $WaitMsg
                     Start-Sleep -Seconds $WaitInterval
                 }
             }
@@ -160,7 +160,7 @@ function Show-IRTUnifiedAuditLog {
 
         #region build workbook
         $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-        Write-Verbose "${FunctionName}: Request-GraphServicePrincipal $Elapsed"
+        Write-PSFMessage -Level 8 -Message "${FunctionName}: Request-GraphServicePrincipal [$Elapsed]"
         Request-GraphServicePrincipal -Return 'none' -Cached:$Cached
         $Workbook = Open-ExcelPackage -Path $ExcelOutputPath -Create
 
@@ -200,7 +200,7 @@ function Show-IRTUnifiedAuditLog {
                 }
                 $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
                 $BuildFn = $SheetEntry.BuildFunction
-                Write-Verbose "${FunctionName}: $BuildFn $Elapsed"
+                Write-PSFMessage -Level 8 -Message "${FunctionName}: $BuildFn [$Elapsed]"
                 $Workbook = & $SheetEntry.BuildFunction @SheetParams
             }
         }
@@ -210,7 +210,7 @@ function Show-IRTUnifiedAuditLog {
             foreach ($ws in $Workbook.Workbook.Worksheets) {
                 $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
                 $WsName = $ws.Name
-                Write-Verbose "${FunctionName}: Add-IpInfoToSheet ($WsName) $Elapsed"
+                Write-PSFMessage -Level 8 -Message "${FunctionName}: Add-IpInfoToSheet ($WsName) [$Elapsed]"
                 Add-IpInfoToSheet -Worksheet $ws -ColumnName 'IpAddress'
             }
         }

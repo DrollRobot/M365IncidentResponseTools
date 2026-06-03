@@ -153,7 +153,7 @@ function Connect-IRT {
         # --- Initialize session global before attempting connections ---
         if ($Global:IRT_Session -and $Global:IRT_Session.TenantId -ne $TenantId) {
             $OldTenant = $Global:IRT_Session.TenantId
-            Write-Warning "TenantId mismatch (current: $OldTenant). Disconnecting existing session."
+            Write-IRT "TenantId mismatch (current: $OldTenant). Disconnecting existing session." -Level Warn
             Disconnect-IRT
         }
 

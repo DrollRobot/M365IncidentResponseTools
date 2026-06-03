@@ -14,11 +14,15 @@ function Request-IntuneDevice {
     process {
 
         try {
-            return @(Get-MgDeviceManagementManagedDevice -All -ErrorAction Stop)
+            $Devices = @(Get-MgDeviceManagementManagedDevice -All -ErrorAction Stop)
+            Write-PSFMessage -Level 8 -Message (
+                "Request-IntuneDevice: $($Devices.Count) managed device(s) returned.")
+            return $Devices
         }
         catch {
             $Message = $_.Exception.Message
-            Write-Verbose "Intune not available or insufficient permissions: $Message"
+            Write-PSFMessage -Level 8 -Message (
+                "Request-IntuneDevice: Intune unavailable or insufficient permissions: $Message")
             return $null
         }
     }

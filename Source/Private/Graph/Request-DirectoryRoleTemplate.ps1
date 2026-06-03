@@ -45,12 +45,17 @@ function Request-DirectoryRoleTemplate {
             }
             $Variable = Get-Variable @GvParams
             if ( $Variable ) {
+                Write-PSFMessage -Level 8 -Message (
+                    "${FunctionName}: Cache hit — returning " +
+                    "$($Global:IRT_DirectoryRoleTemplates.Count) template(s) (Return=$Return)")
                 switch ( $Return ) {
                     'objects' { return $Global:IRT_DirectoryRoleTemplates }
                     'tablebyid' { return $Global:IRT_DirectoryRoleTemplatesById }
                     'none' { return }
                 }
             }
+            Write-PSFMessage -Level 8 -Message (
+                "${FunctionName}: -Cached requested but cache is empty; querying Graph.")
         }
 
         # get client domain name
@@ -58,12 +63,17 @@ function Request-DirectoryRoleTemplate {
 
         # query graph
         $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-        Write-Verbose "${FunctionName}: Get-MgDirectoryRoleTemplate $Elapsed"
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: Get-MgDirectoryRoleTemplate [$Elapsed]")
         $GdrtParams = @{
             All      = $true
             Property = $GetProperties
         }
         $Objects = Get-MgDirectoryRoleTemplate @GdrtParams | Select-Object $GetProperties
+
+        $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: Graph returned $($Objects.Count) template(s) [$Elapsed]")
 
         # store in global variables
         $Global:IRT_DirectoryRoleTemplates = $Objects
@@ -71,13 +81,17 @@ function Request-DirectoryRoleTemplate {
         foreach ( $o in $Objects ) {
             if ( $o.Id ) { $Global:IRT_DirectoryRoleTemplatesById[$o.Id] = $o }
         }
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: Index built — " +
+            "$($Global:IRT_DirectoryRoleTemplatesById.Count) entry/entries.")
 
         # export to file
         if ($Xml) {
             $FileName = "DirectoryRoleTemplates_Raw_${DomainName}_${FileNameDate}.xml"
             $XmlOutputPath = Join-Path -Path $CurrentPath -ChildPath $FileName
             $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-            Write-Verbose "${FunctionName}: Export-Clixml $Elapsed"
+            Write-PSFMessage -Level 8 -Message (
+                "${FunctionName}: Export-Clixml → $XmlOutputPath [$Elapsed]")
             $Objects | Export-Clixml -Depth 5 -Path $XmlOutputPath
         }
 

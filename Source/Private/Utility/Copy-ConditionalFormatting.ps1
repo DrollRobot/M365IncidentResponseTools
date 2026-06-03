@@ -262,7 +262,7 @@ function Copy-ConditionalFormatting {
                 $WarnMsg = "Copy-ConditionalFormatting: Applying offset ($Offset). " +
                 'Relative references inside Expression rule formulas are copied ' +
                 'as-is and will NOT be re-based.'
-                Write-Warning $WarnMsg
+                Write-PSFMessage -Level Warning -Message $WarnMsg
                 $hasWarnedAboutFormulas = $true
             }
 
@@ -308,16 +308,18 @@ function Copy-ConditionalFormatting {
                 }
 
                 $copied++
-                Write-Verbose "Copied '$typeName' rule -> $newAddrString"
+                Write-PSFMessage -Level 9 -Message (
+                    "Copy-ConditionalFormatting: Copied '$typeName' rule → $newAddrString")
             }
             catch {
                 $warnMsg = ("Skipped rule (type '{0}', source '{1}'): {2}" -f
                     $typeName, $rule.Address.Address, $_.Exception.Message)
-                Write-Warning $warnMsg
+                Write-PSFMessage -Level Warning -Message $warnMsg
             }
         }
 
-        Write-Verbose "Copied $copied conditional-formatting rule(s) to $($dstSheet.Name)."
+        Write-PSFMessage -Level 8 -Message (
+            "Copy-ConditionalFormatting: Copied $copied rule(s) to '$($dstSheet.Name)'.")
     }
     finally {
         # Close only packages we opened: source is discarded; a path-based destination is saved.

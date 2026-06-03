@@ -33,7 +33,7 @@ function Show-IRTMessageTrace {
             try {
                 $ResolvedXmlPath = Resolve-ScriptPath -Path $XmlPath -File -FileExtension 'xml'
                 $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-                Write-Verbose "${FunctionName}: Import-CliXml $Elapsed"
+                Write-PSFMessage -Level 8 -Message "${FunctionName}: Import-CliXml [$Elapsed]"
                 $Message = [System.Collections.Generic.List[PSObject]](
                     Import-CliXml -Path $ResolvedXmlPath
                 )
@@ -97,7 +97,7 @@ function Show-IRTMessageTrace {
 
         $RowCount = $Message.Count
         $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-        Write-Verbose "${FunctionName}: Row loop starting (${RowCount} rows) $Elapsed"
+        Write-PSFMessage -Level 8 -Message "${FunctionName}: Row loop starting ($RowCount rows) [$Elapsed]"
         $Rows = [System.Collections.Generic.List[PSCustomObject]]::new($RowCount)
         for ($i = 0; $i -lt $RowCount; $i++) {
 
@@ -142,7 +142,7 @@ function Show-IRTMessageTrace {
         }
 
         #region EXPORT EXCEL
-        Write-Verbose "${FunctionName}: Export-Excel $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
+        Write-PSFMessage -Level 8 -Message "${FunctionName}: Export-Excel [$($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))]"
         $ExcelParams = @{
             Path          = $ExcelOutputPath
             WorkSheetname = $FileNamePrefix
@@ -176,7 +176,7 @@ function Show-IRTMessageTrace {
 
         if ($IpInfo) {
             $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-            Write-Verbose "${FunctionName}: Add-IpInfoToSheet $Elapsed"
+            Write-PSFMessage -Level 8 -Message "${FunctionName}: Add-IpInfoToSheet [$Elapsed]"
             Add-IpInfoToSheet -Worksheet $Worksheet -ColumnName 'FromIP', 'ToIP'
         }
 

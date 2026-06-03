@@ -355,7 +355,7 @@ function Show-IRTUserMfa {
 
             # show raw data if verbose
             if ($VerbosePreference -eq 'Continue') {
-                Write-Verbose "Raw data:"
+                Write-PSFMessage -Level 8 -Message "Raw data:"
                 $Methods.AdditionalProperties
             }
 

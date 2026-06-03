@@ -48,20 +48,30 @@ function Request-GraphUser {
         if ( $Cached ) {
             $Variable = Get-Variable -Scope Global -Name 'IRT_Users' -ErrorAction SilentlyContinue
             if ( $Variable ) {
+                Write-PSFMessage -Level 8 -Message (
+                    "${FunctionName}: Cache hit — returning $($Global:IRT_Users.Count) " +
+                    "user(s) (Return=$Return)")
                 switch ( $Return ) {
                     'objects' { return $Global:IRT_Users }
                     'tablebyid' { return $Global:IRT_UsersById }
                     'none' { return }
                 }
             }
+            Write-PSFMessage -Level 8 -Message (
+                "${FunctionName}: -Cached requested but cache is empty; querying Graph.")
         }
 
         # get client domain name
         $DomainName = Get-DefaultDomain
 
         # query graph
-        Write-Verbose "${FunctionName}: Get-MgUser $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: Get-MgUser [$($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))]")
         $Objects = Get-MgUser -All -Property $GetProperties | Select-Object $GetProperties
+
+        $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: Graph returned $($Objects.Count) user(s) [$Elapsed]")
 
         # store in global variables
         $Global:IRT_Users = $Objects
@@ -69,13 +79,16 @@ function Request-GraphUser {
         foreach ( $o in $Objects ) {
             if ( $o.Id ) { $Global:IRT_UsersById[$o.Id] = $o }
         }
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: Index built — $($Global:IRT_UsersById.Count) entry/entries.")
 
         # export to file
         if ($Xml) {
             $FileName = "Users_Raw_${DomainName}_${FileNameDate}.xml"
             $XmlOutputPath = Join-Path -Path $CurrentPath -ChildPath $FileName
             $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-            Write-Verbose "${FunctionName}: Export-Clixml $Elapsed"
+            Write-PSFMessage -Level 8 -Message (
+                "${FunctionName}: Export-Clixml → $XmlOutputPath [$Elapsed]")
             $Objects | Export-Clixml -Depth 5 -Path $XmlOutputPath
         }
 

@@ -22,6 +22,9 @@ function Test-GraphAdminConsent {
         [string] $ResourceAppId = '00000003-0000-0000-c000-000000000000' # Microsoft Graph
     )
 
+    Write-PSFMessage -Level 8 -Message (
+        "Test-GraphAdminConsent: Resolving SPs — Client=$ClientAppId, Resource=$ResourceAppId")
+
     # Resolve SPs (these are tenant-scoped object IDs, not the app IDs)
     $ClientSpParams = @{
         Method      = 'GET'
@@ -35,6 +38,8 @@ function Test-GraphAdminConsent {
         ErrorAction = 'Stop'
     }
     $ResourceSp = Invoke-MgGraphRequest @ResourceSpParams
+    Write-PSFMessage -Level 8 -Message (
+        "Test-GraphAdminConsent: ClientSP.id=$($ClientSp.id), ResourceSP.id=$($ResourceSp.id)")
 
     # Pull all AllPrincipals grants for this client/resource pair.
     # In practice there's usually one, but multiple are possible if
@@ -54,6 +59,10 @@ function Test-GraphAdminConsent {
     $Granted = @($Grants.value | ForEach-Object { $_.scope -split '\s+' } |
             Where-Object { $_ } | Select-Object -Unique)
 
-    # Return the missing ones (case-insensitive compare)
-    $RequestedScope | Where-Object { $Granted -notcontains $_ }
+    $MissingScopes = @($RequestedScope | Where-Object { $Granted -notcontains $_ })
+    Write-PSFMessage -Level 8 -Message (
+        "Test-GraphAdminConsent: Grants=$($Grants.value.Count), " +
+        "Granted=$($Granted.Count) scope(s), " +
+        "Requested=$($RequestedScope.Count), Missing=$($MissingScopes.Count)")
+    $MissingScopes
 }

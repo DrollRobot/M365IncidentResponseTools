@@ -157,9 +157,11 @@ function Get-IRTEntraAuditLog {
             ### get logs
             # user messages
             Write-IRT "Retrieving ${Days} days of Entra audit logs for ${UserEmail}."
-            Write-Verbose "${FunctionName}: Filter string: ${FilterString}"
+            Write-PSFMessage -Level 8 -Message (
+                "${FunctionName}: Filter string: '${FilterString}'")
             $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-            Write-Verbose "${FunctionName}: Get-MgAuditLogDirectoryAudit $Elapsed"
+            Write-PSFMessage -Level 8 -Message (
+                "${FunctionName}: Get-MgAuditLogDirectoryAudit [$Elapsed]")
 
             # query logs
             $GetParams = @{
@@ -203,7 +205,7 @@ function Get-IRTEntraAuditLog {
             # export to xml
             if ($Xml) {
                 $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-                Write-Verbose "${FunctionName}: Export-Clixml $Elapsed"
+                Write-PSFMessage -Level 8 -Message "${FunctionName}: Export-Clixml [$Elapsed]"
                 Write-IRT "Saving logs to: ${XmlOutputPath}"
                 $Logs | Export-Clixml -Depth 10 -Path $XmlOutputPath
             }
@@ -214,7 +216,7 @@ function Get-IRTEntraAuditLog {
                 Cached = $Cached
             }
             $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-            Write-Verbose "${FunctionName}: Show-IRTEntraAuditLog $Elapsed"
+            Write-PSFMessage -Level 8 -Message "${FunctionName}: Show-IRTEntraAuditLog [$Elapsed]"
             Show-IRTEntraAuditLog @ShowParams
         }
     }

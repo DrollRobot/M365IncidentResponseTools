@@ -48,12 +48,17 @@ function Request-DirectoryRole {
             }
             $Variable = Get-Variable @GvParams
             if ( $Variable ) {
+                Write-PSFMessage -Level 8 -Message (
+                    "${FunctionName}: Cache hit — returning $($Global:IRT_DirectoryRoles.Count) " +
+                    "role(s) (Return=$Return)")
                 switch ( $Return ) {
                     'objects' { return $Global:IRT_DirectoryRoles }
                     'tablebyid' { return $Global:IRT_DirectoryRolesById }
                     'none' { return }
                 }
             }
+            Write-PSFMessage -Level 8 -Message (
+                "${FunctionName}: -Cached requested but cache is empty; querying Graph.")
         }
 
         # get client domain name
@@ -61,7 +66,7 @@ function Request-DirectoryRole {
 
         # query graph
         $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-        Write-Verbose "${FunctionName}: Get-MgDirectoryRole $Elapsed"
+        Write-PSFMessage -Level 8 -Message "${FunctionName}: Get-MgDirectoryRole [$Elapsed]"
         $GdrParams = @{
             All            = $true
             Property       = $GetProperties
@@ -70,19 +75,26 @@ function Request-DirectoryRole {
         $Objects = Get-MgDirectoryRole @GdrParams |
             Select-Object ( $GetProperties + $ExpandProperties )
 
+        $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: Graph returned $($Objects.Count) role(s) [$Elapsed]")
+
         # store in global variables
         $Global:IRT_DirectoryRoles = $Objects
         $Global:IRT_DirectoryRolesById = [hashtable]::Synchronized(@{})
         foreach ( $o in $Objects ) {
             if ( $o.Id ) { $Global:IRT_DirectoryRolesById[$o.Id] = $o }
         }
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: Index built — $($Global:IRT_DirectoryRolesById.Count) entry/entries.")
 
         # export to file
         if ($Xml) {
             $FileName = "DirectoryRoles_Raw_${DomainName}_${FileNameDate}.xml"
             $XmlOutputPath = Join-Path -Path $CurrentPath -ChildPath $FileName
             $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-            Write-Verbose "${FunctionName}: Export-Clixml $Elapsed"
+            Write-PSFMessage -Level 8 -Message (
+                "${FunctionName}: Export-Clixml → $XmlOutputPath [$Elapsed]")
             $Objects | Export-Clixml -Depth 5 -Path $XmlOutputPath
         }
 

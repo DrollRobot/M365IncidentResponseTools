@@ -78,6 +78,8 @@ function Get-DefaultDomain {
 
         # serve from cache when available
         if ($Global:IRT_Session -and $Global:IRT_Session.PSObject.Properties['DefaultDomain']) {
+            Write-PSFMessage -Level 8 -Message (
+                "Get-DefaultDomain: Cache hit — '$($Global:IRT_Session.DefaultDomainName)'")
             if ($Domain) { return $Global:IRT_Session.DefaultDomain }
             if ($SecondLevelDomain) { return $Global:IRT_Session.DefaultDomainName }
             return $Global:IRT_Session.DefaultDomainName
@@ -85,9 +87,11 @@ function Get-DefaultDomain {
 
         # cache miss -- fetch from Graph
         $FunctionName = $MyInvocation.MyCommand.Name
-        Write-Verbose "${FunctionName}: Get-MgDomain (cache miss)"
+        Write-PSFMessage -Level 8 -Message "${FunctionName}: Get-MgDomain (cache miss)"
         $DefaultDomain = Get-MgDomain | Where-Object { $_.IsDefault -eq $true }
         $DefaultDomainName = $DefaultDomain.Id -split '\.' | Select-Object -First 1
+        Write-PSFMessage -Level 8 -Message (
+            "Get-DefaultDomain: Resolved '$($DefaultDomain.Id)' (SLD: '$DefaultDomainName')")
 
         if ($Global:IRT_Session) {
             $AmParams = @{ Force = $true }

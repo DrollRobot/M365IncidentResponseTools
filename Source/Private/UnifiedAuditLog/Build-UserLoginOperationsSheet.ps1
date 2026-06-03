@@ -39,7 +39,8 @@ function Build-UserLoginOperationsSheet {
         #region ROW LOOP
         $RowCount = ($Logs | Measure-Object).Count
         $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-        Write-Verbose "${FunctionName}: Row loop starting (${RowCount} rows) $Elapsed"
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: Row loop starting ($RowCount rows) [$Elapsed]")
         $Rows = [System.Collections.Generic.List[PSCustomObject]]::new($RowCount)
 
         for ($i = 0; $i -lt $RowCount; $i++) {
@@ -144,8 +145,13 @@ function Build-UserLoginOperationsSheet {
                 })
         }
 
+        $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: Row loop complete — $RowCount row(s) processed [$Elapsed]")
+
         #region EXPORT
-        Write-Verbose "${FunctionName}: Export-Excel $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: Export-Excel → '$WorksheetName' [$($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))]")
         $ExcelParams = @{
             ExcelPackage  = $ExcelPackage
             WorkSheetname = $WorksheetName
@@ -158,7 +164,8 @@ function Build-UserLoginOperationsSheet {
         $Worksheet = $Workbook.Workbook.Worksheets[$WorksheetName]
 
         #region FORMATTING
-        Write-Verbose "${FunctionName}: Formatting $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: Formatting [$($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))]")
         if ($Worksheet.Tables.Count -gt 0) {
 
             $SheetStartColumn = $Worksheet.Dimension.Start.Column | Convert-DecimalToExcelColumn
@@ -170,8 +177,8 @@ function Build-UserLoginOperationsSheet {
             $TableStartRow = $TableAddress.Start.Row
 
             # IP address conditional formatting
-            $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-            Write-Verbose "${FunctionName}: Add-IpInfoToSheet $Elapsed"
+            Write-PSFMessage -Level 8 -Message (
+                "${FunctionName}: Add-IpInfoToSheet [$($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))]")
             Add-IpInfoToSheet -Worksheet $Worksheet -ColumnName 'IpAddress'
 
             # Application conditional formatting - highlight PowerShell/CLI tools

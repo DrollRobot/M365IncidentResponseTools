@@ -76,9 +76,14 @@ function Get-FullUserObject {
         }
 
         if (-not $ResolvedId) {
-            Write-Verbose "skipping item: could not resolve an id."
+            Write-PSFMessage -Level 8 -Message (
+                "Get-FullUserObject: Skipping item — could not resolve an Id " +
+                "(ParameterSetName: $($PSCmdlet.ParameterSetName)).")
             return
         }
+
+        Write-PSFMessage -Level 8 -Message (
+            "Get-FullUserObject: Fetching full object for '$ResolvedId'.")
 
         # get base user with wide $select
         $GetParams = @{
@@ -100,6 +105,8 @@ function Get-FullUserObject {
 
         # augment with optional properties (best-effort)
         foreach ($Property in $OptionalProps) {
+            Write-PSFMessage -Level 9 -Message (
+                "Get-FullUserObject: Fetching optional property '$Property' for '$ResolvedId'.")
             try {
                 $OptionalParams = @{
                     UserId      = $ResolvedId
@@ -112,7 +119,7 @@ function Get-FullUserObject {
             catch {
                 $ErrMsg = "Unable to retrieve property '$Property' for '$ResolvedId': " +
                 $_.Exception.Message
-                Write-Verbose $ErrMsg
+                Write-PSFMessage -Level 8 -Message "Get-FullUserObject: $ErrMsg"
             }
         }
 

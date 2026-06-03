@@ -38,6 +38,8 @@ function Register-MsalCache {
         [string] $CachePath = $Global:IRT_Config.MsalCachePath
     )
 
+    Write-PSFMessage -Level 8 -Message "Register-MsalCache: CachePath=$CachePath"
+
     if (-not $IsWindows -and $PSVersionTable.PSVersion.Major -ge 6) {
         Write-IRT 'Persistent MSAL cache is currently Windows-only.' -Level Warn
         return
@@ -49,6 +51,7 @@ function Register-MsalCache {
     $CacheFile = Split-Path $CachePath -Leaf
 
     if (-not (Test-Path $CacheDir)) {
+        Write-PSFMessage -Level 8 -Message "Register-MsalCache: Creating cache directory: $CacheDir"
         $null = New-Item -ItemType Directory -Path $CacheDir -Force
     }
 
@@ -69,5 +72,6 @@ function Register-MsalCache {
     $Helper =
     [Microsoft.Identity.Client.Extensions.Msal.MsalCacheHelper]::CreateAsync(
         $StorageProps).GetAwaiter().GetResult()
+    Write-PSFMessage -Level 8 -Message "Register-MsalCache: Registering cache at: $CachePath"
     $Helper.RegisterCache($App.UserTokenCache)
 }

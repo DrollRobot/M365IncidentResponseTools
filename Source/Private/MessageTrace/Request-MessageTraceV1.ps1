@@ -38,11 +38,16 @@ function Request-MessageTraceV1 {
 
             # retrieve one page
             if (-not $Quiet) { Write-IRT "Requesting message trace page ${Page}" }
+            Write-PSFMessage -Level 8 -Message (
+                "Request-MessageTraceV1: Fetching page $Page " +
+                "(collected so far: $($AllMessages.Count))")
             $Params['WarningAction'] = 'SilentlyContinue'
             $Params['WarningVariable'] = 'mtWarnings'
             $PageResults = [psobject[]]@(Get-MessageTrace @Params)
             $mtWarnings | Where-Object { $_ -notlike '*Get-MessageTrace will start deprecating*' } |
-                ForEach-Object { Write-Warning $_ }
+                ForEach-Object { Write-PSFMessage -Level Warning -Message $_ }
+            Write-PSFMessage -Level 8 -Message (
+                "Request-MessageTraceV1: Page $Page returned $($PageResults.Count) record(s).")
             foreach ($i in $PageResults) { [void]$AllMessages.Add($i) }
 
             # stop if the page had less than max page size
@@ -54,6 +59,9 @@ function Request-MessageTraceV1 {
             }
         }
 
+        Write-PSFMessage -Level 8 -Message (
+            "Request-MessageTraceV1: Complete — $($AllMessages.Count) total record(s) " +
+            "across $($Page) page(s).")
         return $AllMessages
     }
 }

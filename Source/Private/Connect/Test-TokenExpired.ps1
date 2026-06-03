@@ -20,8 +20,16 @@ function Test-TokenExpired {
     )
 
     $expiry = Get-TokenExpiry -Token $Token
-    if ($null -eq $expiry) { return $true }
+    if ($null -eq $expiry) {
+        Write-PSFMessage -Level 8 -Message 'Test-TokenExpired: Could not decode expiry — treating as expired.'
+        return $true
+    }
 
     $threshold = [System.DateTime]::UtcNow.AddSeconds($BufferSeconds)
-    return $expiry -le $threshold
+    $expired = $expiry -le $threshold
+    $minutesLeft = [int](($expiry - [datetime]::UtcNow).TotalMinutes)
+    Write-PSFMessage -Level 8 -Message (
+        "Test-TokenExpired: Expiry=$expiry UTC, Buffer=${BufferSeconds}s, " +
+        "MinutesLeft=$minutesLeft, Expired=$expired")
+    return $expired
 }

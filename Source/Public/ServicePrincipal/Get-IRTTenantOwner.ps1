@@ -147,11 +147,11 @@ function Get-IRTTenantOwner {
             # Done first so we know the target cloud before attempting Graph.
             # Provides cloud, region, Graph host, and confirms the tenant exists.
             $Oidc = Get-IRTTenantOidc -TenantId $Tid
-            $cloudName = ($Oidc)?.Cloud
+            $Cloud = ($Oidc)?.Cloud
 
             Write-PSFMessage -Level 8 -Message (
                 "OIDC result for '$Tid': " +
-                "Found=$([bool]$Oidc), Cloud=$cloudName, " +
+                "Found=$([bool]$Oidc), Cloud=$Cloud, " +
                 "LoginHost=$(($Oidc)?.LoginHost)")
 
             # --- Cross-cloud guard ---
@@ -160,9 +160,9 @@ function Get-IRTTenantOwner {
             # and rely on public endpoints only.
             $UseGraph = $GraphAvailable
             if ($UseGraph -and $Oidc -and ($Global:IRT_Session)?.Cloud -and
-                $cloudName -ne $Global:IRT_Session.Cloud) {
+                $Cloud -ne $Global:IRT_Session.Cloud) {
                 if (-not $Quiet) {
-                    $Msg = "Tenant '$Tid' is in the $cloudName cloud but the active " +
+                    $Msg = "Tenant '$Tid' is in the $Cloud cloud but the active " +
                         "Graph session is $( $Global:IRT_Session.Cloud ). " +
                         "Skipping Graph query."
                     Write-IRT $Msg -Level Warn
@@ -172,7 +172,7 @@ function Get-IRTTenantOwner {
 
             Write-PSFMessage -Level 8 -Message (
                 "UseGraph=$UseGraph " +
-                "(session cloud: $($Global:IRT_Session.Cloud), tenant cloud: $cloudName)")
+                "(session cloud: $($Global:IRT_Session.Cloud), tenant cloud: $Cloud)")
 
             $displayName = $null
             $defaultDomain = $null
@@ -221,7 +221,7 @@ function Get-IRTTenantOwner {
                 DisplayName         = $displayName
                 DefaultDomain       = $defaultDomain
                 FederationBrandName = $fedBrandName
-                Cloud               = $cloudName
+                Cloud               = $Cloud
                 GraphHost           = ($Oidc)?.msgraph_host
                 TokenEndpoint       = ($Oidc)?.token_endpoint
                 Source              = if ($graphSource) { 'Graph' } else { 'PublicEndpoints' }
@@ -235,7 +235,7 @@ function Get-IRTTenantOwner {
                     DisplayName         = $displayName
                     DefaultDomain       = $defaultDomain
                     FederationBrandName = $fedBrandName
-                    Cloud               = $cloudName
+                    Cloud               = $Cloud
                     GraphHost           = ($Oidc)?.msgraph_host
                     TokenEndpoint       = ($Oidc)?.token_endpoint
                     CachedAt            = (Get-Date -Format 'o')
@@ -244,7 +244,7 @@ function Get-IRTTenantOwner {
                 $newCacheEntries.Add($cacheEntry)
                 Write-PSFMessage -Level 8 -Message (
                     "Cached result for '$tid' " +
-                    "(DisplayName='$displayName', Cloud=$cloudName)")
+                    "(DisplayName='$displayName', Cloud=$Cloud)")
             }
         }
     }

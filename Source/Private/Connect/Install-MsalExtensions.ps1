@@ -31,6 +31,8 @@ function Install-MsalExtensions {
     $Loaded = [System.AppDomain]::CurrentDomain.GetAssemblies() |
         Where-Object { $_.GetName().Name -eq 'Microsoft.Identity.Client.Extensions.Msal' }
     if ($Loaded) {
+        Write-PSFMessage -Level 8 -Message (
+            "Install-MsalExtensions: Already loaded from $($Loaded.Location)")
         return $Loaded.Location
     }
 
@@ -43,6 +45,8 @@ function Install-MsalExtensions {
         'Import a connect function (which loads MSAL) before calling Install-MsalExtensions.'
     }
     $MsalVersion = [version]$Msal.GetName().Version
+    Write-PSFMessage -Level 8 -Message (
+        "Install-MsalExtensions: Loaded MSAL version: $MsalVersion (floor: $MsalFloor)")
     if ($MsalVersion -lt $MsalFloor) {
         throw ("Loaded MSAL version $MsalVersion is older than Extensions.Msal $Version requires " +
             "($MsalFloor). Update Microsoft.Graph.Authentication.")
@@ -58,6 +62,7 @@ function Install-MsalExtensions {
     $DllPath = Join-Path @JpParams
     $DllDir = Split-Path $DllPath -Parent
 
+    Write-PSFMessage -Level 8 -Message "Install-MsalExtensions: DLL target: $DllPath"
     if (-not (Test-Path $DllPath)) {
         if (-not (Test-Path $DllDir)) {
             $null = New-Item -ItemType Directory -Path $DllDir -Force
@@ -67,6 +72,7 @@ function Install-MsalExtensions {
         $LowerId = 'microsoft.identity.client.extensions.msal'
         $NupkgUrl = "https://api.nuget.org/v3-flatcontainer/$LowerId/$Version/" +
         "$LowerId.$Version.nupkg"
+        Write-PSFMessage -Level 8 -Message "Install-MsalExtensions: Downloading from $NupkgUrl"
         $TempDir = [System.IO.Path]::GetTempPath()
         $TempNupkg = Join-Path -Path $TempDir -ChildPath "$LowerId.$Version.nupkg"
         $ExtractDir = Join-Path -Path $TempDir -ChildPath "$LowerId.$Version"
@@ -109,6 +115,7 @@ function Install-MsalExtensions {
         }
     }
 
+    Write-PSFMessage -Level 8 -Message "Install-MsalExtensions: Loading assembly from $DllPath"
     Add-Type -Path $DllPath
     return $DllPath
 }

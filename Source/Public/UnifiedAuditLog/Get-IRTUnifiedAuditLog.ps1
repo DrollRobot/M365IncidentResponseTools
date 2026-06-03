@@ -200,7 +200,7 @@ function Get-IRTUnifiedAuditLog {
 
         # get client domain name for file output
         $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-        Write-Verbose "${FunctionName}: Get-AcceptedDomain $Elapsed"
+        Write-PSFMessage -Level 8 -Message "${FunctionName}: Get-AcceptedDomain [$Elapsed]"
         $DefaultDomain = Get-AcceptedDomain | Where-Object { $_.Default -eq $true }
         $DomainName = $DefaultDomain.DomainName -split '\.' | Select-Object -First 1
 
@@ -433,7 +433,7 @@ function Get-IRTUnifiedAuditLog {
                 Write-IRT $ConsoleOutput
                 $QueryKey = $QueryDict.Key
                 $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-                Write-Verbose "${FunctionName}: Search-UnifiedAuditLog query $QueryKey $Elapsed"
+                Write-PSFMessage -Level 8 -Message "${FunctionName}: Search-UnifiedAuditLog query $QueryKey [$Elapsed]"
                 $Page = Search-UnifiedAuditLog @FirstPageParams
                 $LogCount = ($Page | Measure-Object).Count
 
@@ -459,7 +459,7 @@ function Get-IRTUnifiedAuditLog {
 
                     Write-IRT "Requesting page ${PageCount}."
                     $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-                    Write-Verbose "${FunctionName}: Search-UnifiedAuditLog page $PageCount $Elapsed"
+                    Write-PSFMessage -Level 8 -Message "${FunctionName}: Search-UnifiedAuditLog page $PageCount [$Elapsed]"
                     $Page = Search-UnifiedAuditLog @NextPageParams
                     $LogCount = @($Page).Count
 
@@ -489,7 +489,7 @@ function Get-IRTUnifiedAuditLog {
 
             #region UNIQUE, SORT
             $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-            Write-Verbose "${FunctionName}: Dedupliacation, sorting $Elapsed"
+            Write-PSFMessage -Level 8 -Message "${FunctionName}: Dedupliacation, sorting [$Elapsed]"
             # remove duplicates
             $UniqueLogIds = [System.Collections.Generic.HashSet[string]]::new()
             $Logs = [System.Collections.Generic.List[psobject]]::new()
@@ -539,7 +539,7 @@ function Get-IRTUnifiedAuditLog {
             # export to xml
             if ($Xml) {
                 $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-                Write-Verbose "${FunctionName}: Starting XML export $Elapsed"
+                Write-PSFMessage -Level 8 -Message "${FunctionName}: Starting XML export [$Elapsed]"
                 Write-IRT "Saving logs to: ${XmlOutputPath}"
                 $Logs | Export-Clixml -Depth 10 -Path $XmlOutputPath
             }
@@ -547,7 +547,7 @@ function Get-IRTUnifiedAuditLog {
             # export excel spreadsheet
             if ($Excel) {
                 $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-                Write-Verbose "${FunctionName}: Starting Excel export $Elapsed"
+                Write-PSFMessage -Level 8 -Message "${FunctionName}: Starting Excel export [$Elapsed]"
                 $Params = @{
                     Log = $Logs
                     WaitOnMessageTrace = $WaitOnMessageTrace

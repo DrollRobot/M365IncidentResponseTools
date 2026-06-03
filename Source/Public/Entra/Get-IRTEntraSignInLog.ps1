@@ -252,9 +252,11 @@ function Get-IRTEntraSignInLog {
             else {
                 Write-IRT "Retrieving ${Days} days of sign-in logs for ${Target}."
             }
-            Write-Verbose "${FunctionName}: Filter string: '${FilterString}'"
+            Write-PSFMessage -Level 8 -Message (
+                "${FunctionName}: Filter string: '${FilterString}'")
             $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-            Write-Verbose "${FunctionName}: Get-MgAuditLogSignIn $Elapsed"
+            Write-PSFMessage -Level 8 -Message (
+                "${FunctionName}: Get-MgAuditLogSignIn [$Elapsed]")
 
             # query logs
             if ($Beta) { # default is to use beta, which returns more information
@@ -328,7 +330,7 @@ function Get-IRTEntraSignInLog {
                 # export to xml
                 if ($Xml) {
                     $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-                    Write-Verbose "${FunctionName}: Export-Clixml $Elapsed"
+                    Write-PSFMessage -Level 8 -Message "${FunctionName}: Export-Clixml [$Elapsed]"
                     Write-IRT "Saving logs to: ${XmlOutputPath}"
                     $Logs | Export-Clixml -Depth 10 -Path $XmlOutputPath
                 }
@@ -336,7 +338,8 @@ function Get-IRTEntraSignInLog {
                 # export excel spreadsheet
                 if ($Excel) {
                     $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-                    Write-Verbose "${FunctionName}: Show-IRTEntraSignInLog $Elapsed"
+                    Write-PSFMessage -Level 8 -Message (
+                        "${FunctionName}: Show-IRTEntraSignInLog [$Elapsed]")
                     $Params = @{
                         Logs   = $Logs
                         IpInfo = $IpInfo

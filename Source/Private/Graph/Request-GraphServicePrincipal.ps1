@@ -56,6 +56,9 @@ function Request-GraphServicePrincipal {
             }
             $Variable = Get-Variable @GvParams
             if ($Variable) {
+                Write-PSFMessage -Level 8 -Message (
+                    "${FunctionName}: Cache hit — returning " +
+                    "$($Global:IRT_ServicePrincipals.Count) SP(s) (Return=$Return)")
                 switch ($Return) {
                     'objects' { return $Global:IRT_ServicePrincipals }
                     'tablebyappid' { return $Global:IRT_ServicePrincipalsByAppId }
@@ -63,6 +66,8 @@ function Request-GraphServicePrincipal {
                     'none' { return }
                 }
             }
+            Write-PSFMessage -Level 8 -Message (
+                "${FunctionName}: -Cached requested but cache is empty; querying Graph.")
         }
 
         # get client domain name
@@ -70,8 +75,13 @@ function Request-GraphServicePrincipal {
 
         # query graph
         $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-        Write-Verbose "${FunctionName}: Get-MgServicePrincipal $Elapsed"
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: Get-MgServicePrincipal [$Elapsed]")
         $Objects = Get-MgServicePrincipal -All | Select-Object ($GetProperties)
+
+        $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: Graph returned $($Objects.Count) SP(s) [$Elapsed]")
 
         # extract CreatedDateTime from AdditionalProperties
         foreach ($o in $Objects) {
@@ -94,13 +104,18 @@ function Request-GraphServicePrincipal {
             if ($o.AppId) { $Global:IRT_ServicePrincipalsByAppId[$o.AppId] = $o }
             if ($o.Id) { $Global:IRT_ServicePrincipalsById[$o.Id] = $o }
         }
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: Indexes built — " +
+            "$($Global:IRT_ServicePrincipalsByAppId.Count) by AppId, " +
+            "$($Global:IRT_ServicePrincipalsById.Count) by Id.")
 
         # export to file
         if ($Xml) {
             $FileName = "ServicePrincipals_Raw_${DomainName}_${FileNameDate}.xml"
             $XmlOutputPath = Join-Path -Path $CurrentPath -ChildPath $FileName
             $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-            Write-Verbose "${FunctionName}: Export-Clixml $Elapsed"
+            Write-PSFMessage -Level 8 -Message (
+                "${FunctionName}: Export-Clixml → $XmlOutputPath [$Elapsed]")
             $Objects | Export-Clixml -Depth 10 -Path $XmlOutputPath
         }
 

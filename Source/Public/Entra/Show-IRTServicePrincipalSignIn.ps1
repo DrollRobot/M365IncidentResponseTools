@@ -62,7 +62,7 @@ function Show-IRTServicePrincipalSignIn {
             try {
                 $ResolvedXmlPath = Resolve-ScriptPath -Path $XmlPath -File -FileExtension 'xml'
                 $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-                Write-Verbose "${FunctionName}: Import-CliXml $Elapsed"
+                Write-PSFMessage -Level 8 -Message "${FunctionName}: Import-CliXml [$Elapsed]"
                 [System.Collections.Generic.List[PSObject]]$Log =
                 Import-CliXml -Path $ResolvedXmlPath
             }
@@ -99,7 +99,7 @@ function Show-IRTServicePrincipalSignIn {
 
         $RowCount = ($Log | Measure-Object).Count
         $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-        Write-Verbose "${FunctionName}: Row loop starting (${RowCount} rows) $Elapsed"
+        Write-PSFMessage -Level 8 -Message "${FunctionName}: Row loop starting ($RowCount rows) [$Elapsed]"
         $Rows = [System.Collections.Generic.List[PSCustomObject]]::new($RowCount)
         for ($i = 0; $i -lt $RowCount; $i++) {
 
@@ -148,7 +148,7 @@ function Show-IRTServicePrincipalSignIn {
 
         #region EXPORT SPREADSHEET
 
-        Write-Verbose "${FunctionName}: Export-Excel $($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))"
+        Write-PSFMessage -Level 8 -Message "${FunctionName}: Export-Excel [$($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))]"
         $ExcelParams = @{
             Path          = $ExcelOutputPath
             WorkSheetname = $Metadata.FileNamePrefix
@@ -175,7 +175,7 @@ function Show-IRTServicePrincipalSignIn {
 
         if ($IpInfo) {
             $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-            Write-Verbose "${FunctionName}: Add-IpInfoToSheet $Elapsed"
+            Write-PSFMessage -Level 8 -Message "${FunctionName}: Add-IpInfoToSheet [$Elapsed]"
             Add-IpInfoToSheet -Worksheet $Worksheet -ColumnName 'IpAddress'
         }
 

@@ -21,12 +21,18 @@ function Invoke-AdminConsent {
         $Listener.Start()
         $Port = ([System.Net.IPEndPoint]$Listener.LocalEndpoint).Port
         $RedirectUri = "http://localhost:$Port/"
+        Write-PSFMessage -Level 8 -Message (
+            "Invoke-AdminConsent: Listener started on port $Port, " +
+            "RedirectUri=$RedirectUri")
     }
 
     process {
         try {
             $LoginHost = $Global:IRT_CloudEnvironments[$Cloud].LoginHost
             $State = [guid]::NewGuid().ToString('N')
+            Write-PSFMessage -Level 8 -Message (
+                "Invoke-AdminConsent: TenantId=$TenantId, ClientId=$ClientId, " +
+                "Cloud=$Cloud, Scope count=$($Scope.Count), State=$State")
 
             # Fully-qualify each scope with the resource URI, then space-delimit.
             # This is what makes /v2.0/adminconsent work for dynamic-consent apps
@@ -104,6 +110,7 @@ function Invoke-AdminConsent {
                 throw "Admin consent denied or failed: $ErrCode - $ErrDesc"
             }
             if ($Params['admin_consent'] -eq 'True') {
+                Write-PSFMessage -Level 8 -Message 'Invoke-AdminConsent: admin_consent=True received.'
                 return $true
             }
             throw "Unexpected admin consent response: $Query"
