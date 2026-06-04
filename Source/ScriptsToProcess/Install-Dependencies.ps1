@@ -71,22 +71,11 @@ $Yellow = @{ForegroundColor = 'Yellow' }
 # empty, or the manifest itself can't be found).
 # ---------------------------------------------------------------------------
 $HardCodedRequiredModules = @(
-    @{ModuleName = 'Microsoft.Graph.Applications'; ModuleVersion = '2.27.0' }
-    @{ModuleName = 'Microsoft.Graph.Authentication'; ModuleVersion = '2.27.0' }
-    @{ModuleName = 'Microsoft.Graph.DeviceManagement'; ModuleVersion = '2.27.0' }
-    @{ModuleName = 'Microsoft.Graph.Beta.Identity.Signins'; ModuleVersion = '2.27.0' }
-    @{ModuleName = 'Microsoft.Graph.Beta.Reports'; ModuleVersion = '2.27.0' }
-    @{ModuleName = 'Microsoft.Graph.DirectoryObjects'; ModuleVersion = '2.27.0' }
-    @{ModuleName = 'Microsoft.Graph.Groups'; ModuleVersion = '2.27.0' }
-    @{ModuleName = 'Microsoft.Graph.Identity.DirectoryManagement'; ModuleVersion = '2.27.0' }
-    @{ModuleName = 'Microsoft.Graph.Identity.Signins'; ModuleVersion = '2.27.0' }
-    @{ModuleName = 'Microsoft.Graph.Reports'; ModuleVersion = '2.27.0' }
-    @{ModuleName = 'Microsoft.Graph.Users'; ModuleVersion = '2.27.0' }
-    @{ModuleName = 'Microsoft.Graph.Users.Actions'; ModuleVersion = '2.27.0' }
-    @{ModuleName = 'ExchangeOnlineManagement'; ModuleVersion = '3.4.0' }
-    @{ModuleName = 'ImportExcel'; ModuleVersion = '7.8.0' }
-    @{ModuleName = 'PSToml'; ModuleVersion = '0.3.0' }
-    @{ModuleName = 'PSFramework'; ModuleVersion = '1.13.426' }
+    @{ModuleName = 'Microsoft.Graph.Applications'; ModuleVersion = '2.30.0'}
+    @{ModuleName = 'Microsoft.Graph.Authentication'; ModuleVersion = '2.30.0'}
+    @{ModuleName = 'Microsoft.Graph.Identity.DirectoryManagement'; ModuleVersion = '2.30.0'}
+    @{ModuleName = 'Microsoft.Graph.Groups'; ModuleVersion = '2.30.0'}
+    @{ModuleName = 'Microsoft.Graph.Identity.Governance'; ModuleVersion = '2.30.0'}
 )
 
 # ---------------------------------------------------------------------------
@@ -143,8 +132,10 @@ foreach ($Entry in $RequiredModules) {
     }
 
     $InstallParams = @{
-        Name  = $ModuleName
-        Scope = $Scope
+        Name               = $ModuleName
+        Scope              = $Scope
+        SkipPublisherCheck = $true
+        AllowClobber       = $true
     }
 
     $VersionLabel = '(latest)'
