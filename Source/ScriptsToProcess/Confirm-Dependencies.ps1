@@ -1,45 +1,54 @@
 <#
 .SYNOPSIS
-    Pre-import dependency check. Called automatically via ScriptsToProcess during Import-Module.
+    Pre-import dependency check. Should be added to ScriptsToProcess in the module manifest
+    to run automatically when the module is imported.
+    Designed to be used in conjunction with Install-Dependencies.ps1.
 
 .DESCRIPTION
-    Delegates to Install-Dependencies.ps1 -Check -Quiet, which is silent when all modules
-    are satisfied and lists missing modules with the install command when they are not.
+    Dynamically locates the module root by walking up the directory tree from this script's
+    location until a .psd1 manifest is found. Then recursively searches that root for
+    Install-Dependencies.ps1 and delegates to it with -Check -Quiet.
 
-    If any modules are missing, throws to abort the import cleanly. This prevents
-    PowerShell's default "required module not found" error from appearing in addition
-    to the guidance already printed by Install-Dependencies.ps1.
+    If all required modules are present, no output is produced. If any are missing,
+    Install-Dependencies.ps1 is called again without -Quiet to display remediation guidance,
+    then this script throws to abort the import cleanly. This prevents PowerShell's built-in
+    "required module not found" error from appearing alongside the guidance already printed.
+
+    No hardcoded paths are used — this script can be placed anywhere within the module tree.
+
+.NOTES
+Version 1.1.0
+1.1.0 - Added dynamic module root discovery allowing putting scripts in any folder.
 #>
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '')]
 param()
 
-# Skip the check if dependencies were already verified earlier in this session.
-# Start-IRTPlaybook seeds this global into each child runspace's InitialSessionState
-# (before the module is imported) so the playbook's parallel runspaces don't each
-# repeat the disk-scanning Get-Module -ListAvailable check.
-$GvParams = @{
-    Name        = 'IRT_DependenciesChecked'
-    Scope       = 'Global'
-    ValueOnly   = $true
-    ErrorAction = 'SilentlyContinue'
+# Walk up from this script's directory to find the .psd1 manifest, which is the
+# canonical marker of the module root. This works regardless of where this script
+# sits within the module tree (root, scripts/, etc.).
+$ModuleRoot = $null
+$SearchDir = $PSScriptRoot
+while ($SearchDir) {
+    if (@(Get-ChildItem -Path $SearchDir -Filter '*.psd1' -File).Count -gt 0) {
+        $ModuleRoot = $SearchDir
+        break
+    }
+    $Parent = Split-Path -Path $SearchDir -Parent
+    if ($Parent -eq $SearchDir) { break }   # reached filesystem root
+    $SearchDir = $Parent
 }
-$DependenciesChecked = Get-Variable @GvParams
 
-if (-not $DependenciesChecked) {
-    $ModuleRoot = Split-Path -Path $PSScriptRoot -Parent
-    $InstallScript = Join-Path -Path $ModuleRoot -ChildPath 'Install-Dependencies.ps1'
+if (-not $ModuleRoot) { return }
 
-    if (-not (Test-Path -LiteralPath $InstallScript)) {
-        return
-    }
+# Recursively search the module root for Install-Dependencies.ps1.
+$InstallScript = Get-ChildItem -Path $ModuleRoot -Filter 'Install-Dependencies.ps1' -Recurse -File |
+    Select-Object -First 1 -ExpandProperty FullName
 
-    & $InstallScript -Check -Quiet
+if (-not $InstallScript) { return }
 
-    if ((Test-Path variable:LASTEXITCODE) -and $LASTEXITCODE -eq 1) {
-        & $InstallScript -Check
-        throw 'Module import aborted: required modules are missing.'
-    }
+& $InstallScript -Check -Quiet
 
-    # prevent banner from showing again in this session
-    $Global:IRT_DependenciesChecked = $true 
+if ((Test-Path variable:LASTEXITCODE) -and $LASTEXITCODE -eq 1) {
+    & $InstallScript -Check
+    throw 'Module import aborted: required modules are missing.'
 }

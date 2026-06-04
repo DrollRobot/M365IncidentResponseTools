@@ -37,6 +37,13 @@
 
 .EXAMPLE
     .\Install-Dependencies.ps1 -Check -Quiet
+
+.NOTES
+Version 1.1.0
+1.1.0 - Added -Check and -Quiet parameters and hard coded module list for better integration 
+        with Confirm-Dependencies.ps1.
+
+# FIXME add mixed graph module versions as a failure mode.
 #>
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '')]
 [CmdletBinding(SupportsShouldProcess)]
