@@ -54,24 +54,25 @@
 
     # Modules that must be imported into the global environment prior to importing this module
     RequiredModules   = @(
-        # Microsoft.Graph pinned to 2.33.0 for now due to auth changes in 2.34.0
-        @{ModuleName = 'Microsoft.Graph.Applications'; RequiredVersion = '2.33.0' }
-        @{ModuleName = 'Microsoft.Graph.Authentication'; RequiredVersion = '2.33.0' }
-        @{ModuleName = 'Microsoft.Graph.DeviceManagement'; RequiredVersion = '2.33.0' }
-        @{ModuleName = 'Microsoft.Graph.Beta.Identity.Signins'; RequiredVersion = '2.33.0' }
-        @{ModuleName = 'Microsoft.Graph.Beta.Reports'; RequiredVersion = '2.33.0' }
-        @{ModuleName = 'Microsoft.Graph.DirectoryObjects'; RequiredVersion = '2.33.0' }
-        @{ModuleName = 'Microsoft.Graph.Groups'; RequiredVersion = '2.33.0' }
-        @{ModuleName = 'Microsoft.Graph.Identity.DirectoryManagement'; RequiredVersion = '2.33.0' }
-        @{ModuleName = 'Microsoft.Graph.Identity.Signins'; RequiredVersion = '2.33.0' }
-        @{ModuleName = 'Microsoft.Graph.Reports'; RequiredVersion = '2.33.0' }
-        @{ModuleName = 'Microsoft.Graph.Users'; RequiredVersion = '2.33.0' }
-        @{ModuleName = 'Microsoft.Graph.Users.Actions'; RequiredVersion = '2.33.0' }
+        # FIXME using lazy loading with Confirm-Dependencies.ps1, and Install-Dependencies.ps1
+        # until module is ready for PSGallery
 
-        @{ModuleName = 'ExchangeOnlineManagement'; ModuleVersion = '3.4.0' }
-        @{ModuleName = 'ImportExcel'; ModuleVersion = '7.8.0' }
-        @{ModuleName = 'PSToml'; ModuleVersion = '0.3.0' }
-        @{ModuleName = 'PSFramework'; ModuleVersion = '1.13.426' }
+        # @{ModuleName = 'Microsoft.Graph.Applications'; ModuleVersion = '2.27.0' }
+        # @{ModuleName = 'Microsoft.Graph.Authentication'; ModuleVersion = '2.27.0' }
+        # @{ModuleName = 'Microsoft.Graph.DeviceManagement'; ModuleVersion = '2.27.0' }
+        # @{ModuleName = 'Microsoft.Graph.Beta.Identity.Signins'; ModuleVersion = '2.27.0' }
+        # @{ModuleName = 'Microsoft.Graph.Beta.Reports'; ModuleVersion = '2.27.0' }
+        # @{ModuleName = 'Microsoft.Graph.DirectoryObjects'; ModuleVersion = '2.27.0' }
+        # @{ModuleName = 'Microsoft.Graph.Groups'; ModuleVersion = '2.27.0' }
+        # @{ModuleName = 'Microsoft.Graph.Identity.DirectoryManagement'; ModuleVersion = '2.27.0' }
+        # @{ModuleName = 'Microsoft.Graph.Identity.Signins'; ModuleVersion = '2.27.0' }
+        # @{ModuleName = 'Microsoft.Graph.Reports'; ModuleVersion = '2.27.0' }
+        # @{ModuleName = 'Microsoft.Graph.Users'; ModuleVersion = '2.27.0' }
+        # @{ModuleName = 'Microsoft.Graph.Users.Actions'; ModuleVersion = '2.27.0' }
+        # @{ModuleName = 'ExchangeOnlineManagement'; ModuleVersion = '3.4.0' }
+        # @{ModuleName = 'ImportExcel'; ModuleVersion = '7.8.0' }
+        # @{ModuleName = 'PSToml'; ModuleVersion = '0.3.0' }
+        # @{ModuleName = 'PSFramework'; ModuleVersion = '1.13.426' }
 
         # Dev/test dependencies -- not required for most users
         # @{ModuleName = 'Pester';  ModuleVersion = '5.0.0'}
@@ -86,8 +87,9 @@
     # Runs in caller scope (not module scope), so functions defined here are NOT tracked by
     # the module and survive Import-Module -Force reimports.
     ScriptsToProcess  = @(
-        # 'ScriptsToProcess\Write-Banner.ps1'
+        'ScriptsToProcess\Write-Banner.ps1'
         'ScriptsToProcess\Initialize-IRT.ps1'
+        'ScriptsToProcess\Confirm-Dependencies.ps1'
     )
 
     # Type files (.ps1xml) to be loaded when importing this module

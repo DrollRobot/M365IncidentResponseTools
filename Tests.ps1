@@ -112,6 +112,7 @@ if ($InteractiveAuth -and 'Online' -notin $Test) {
     exit 1
 }
 
+# error when requesting formatting tests on built module
 $FormattingOnlyValues = @(
     'Formatting', 'LineLength', 'BacktickContinuation', 'FormatOperator', 'JoinPath',
     'ModuleSyntax', 'NonASCIICharacters', 'TrailingWhitespace',

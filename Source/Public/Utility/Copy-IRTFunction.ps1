@@ -42,8 +42,6 @@ function Copy-IRTFunction {
     .NOTES
     Version: 2.0.0
 
-    # FIXME add aliases matching m365 commands? finduser, disableuser, etc.?
-
     #>
     [Alias(
         'Copy-IRTFunctions', 'CopyIRTFunctions', 'CopyIRTFunction', 'IRTFunction', 'IRTFunctions')]
@@ -138,6 +136,32 @@ if (-not `$Global:IRT_Config) {
         if ($Resolved -eq 0) {
             Write-IRT 'No functions could be resolved.' -Level Warn
             return
+        }
+
+        $M365ToAdMap = [ordered]@{
+            'Find-IRTUser'          = 'Find-IRTAdUser'
+            'Show-IRTUser'          = 'Show-IRTAdUser'
+            'Enable-IRTUser'        = 'Enable-IRTAdUser'
+            'Disable-IRTUser'       = 'Disable-IRTAdUser'
+            'Reset-IRTUserPassword' = 'Reset-IRTAdUserPassword'
+            'Find-IRTDevice'        = 'Find-IRTAdDevice'
+            'Show-IRTDevice'        = 'Show-IRTAdDevice'
+        }
+
+        $AliasLines = [System.Collections.Generic.List[string]]::new()
+        foreach ($M365Func in $M365ToAdMap.Keys) {
+            $AdFunc = $M365ToAdMap[$M365Func]
+            if ($Queue -notcontains $AdFunc) { continue }
+            $M365Aliases = Get-Alias -Definition $M365Func -ErrorAction SilentlyContinue
+            foreach ($A in $M365Aliases) {
+                $AliasLines.Add(
+                    "Set-Alias -Name '$($A.Name)' -Value '$AdFunc' -Scope Global -Force"
+                )
+            }
+        }
+
+        if ($AliasLines.Count -gt 0) {
+            $null = $Builder.AppendLine($AliasLines -join '; ')
         }
 
         $FmtParams = @{

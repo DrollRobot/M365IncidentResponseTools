@@ -15,5 +15,6 @@
     "IpInfoAvailable": false,
     "EnableTokenCache": false,
     "MsalCachePath": null,
-    "IPConditionalFormattingTemplatePath": null
+    "IPConditionalFormattingTemplatePath": null,
+    "PlaybookOpenNewTab": true
 }

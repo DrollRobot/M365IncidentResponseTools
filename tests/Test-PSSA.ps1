@@ -55,7 +55,7 @@ $AnalyzerSettings = @{
     Rules        = @{
         PSAvoidUsingPositionalParameters = @{
             Enable           = $true
-            CommandAllowList = @('Write-IRT','Write-Trace')
+            CommandAllowList = @('Write-IRT', 'Write-Trace')
         }
     }
 }

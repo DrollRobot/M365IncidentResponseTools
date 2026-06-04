@@ -60,8 +60,6 @@ function Get-IRTUserServicePrincipal {
         [switch] $Cached
     )
 
-    # FIXME - Search UAL for user consent events to show dates?
-
     begin {
         Update-IRTToken -Service 'Graph'
         $FileNameDateFormat = "yy-MM-dd_HH-mm"
@@ -188,7 +186,7 @@ function Get-IRTUserServicePrincipal {
             $Worksheet = $Workbook.Workbook.Worksheets[$ExcelParams.WorksheetName]
             $SheetStartColumn = ($Worksheet.Dimension.Start.Column) | Convert-DecimalToExcelColumn
             $SheetStartRow = $Worksheet.Dimension.Start.Row
-            $EndColumn = ($Worksheet.Dimension.End.Column)   | Convert-DecimalToExcelColumn
+            $EndColumn = ($Worksheet.Dimension.End.Column) | Convert-DecimalToExcelColumn
             $EndRow = $Worksheet.Dimension.End.Row
 
             #region FORMATTING

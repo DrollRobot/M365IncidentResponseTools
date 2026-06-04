@@ -55,6 +55,7 @@ function Connect-IRTGraph {
     )
 
     begin {
+        #region BEGIN
         $DefaultScopes = @(
             'Application.ReadWrite.All'
             'AuditLog.Read.All'
@@ -121,7 +122,18 @@ function Connect-IRTGraph {
         # Ensure Microsoft.Graph.Authentication is loaded
         $GraphModule = Get-Module Microsoft.Graph.Authentication -ErrorAction SilentlyContinue
         if (-not $GraphModule) {
-            throw 'Microsoft.Graph.Authentication must be imported before connecting to Graph.'
+            try {
+                $Params = @{
+                    Name        = 'Microsoft.Graph.Authentication'
+                    Force       = $true
+                    Scope       = 'Global'
+                    ErrorAction = 'Stop'
+                }
+                Import-Module @Params
+                $GraphModule = Get-Module Microsoft.Graph.Authentication
+            } catch {
+                throw "Failed to import Microsoft.Graph.Authentication. Error: $_"
+            }
         }
         Write-PSFMessage -Level 8 -Message (
             "Microsoft.Graph.Authentication version: " +

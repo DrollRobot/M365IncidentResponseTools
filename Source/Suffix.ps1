@@ -1,8 +1,5 @@
 # ModuleBuilder Notes: Code in this file will be appended to the built .psm1 file.
 
-# output info stream to host
-$InformationPreference = 'Continue'
-
 # when removing module from session, restore original prompt function if it was modified
 $ExecutionContext.SessionState.Module.OnRemove = {
     if ($Global:IRT_OriginalPrompt) {
@@ -20,9 +17,6 @@ foreach ($VarName in 'IRT_IpInfo', 'IRT_MessageTraceTable') {
         Set-Variable -Name $VarName -Scope Global -Value ([hashtable]::Synchronized($Existing))
     }
 }
-
-# FIXME: remove once all callers have migrated to Get-TenantOidc
-# Set-Alias -Name Get-IRTTenantOidc -Value Get-TenantOidc -Scope Global
 
 # Load user config on module import
 Import-IRTConfig

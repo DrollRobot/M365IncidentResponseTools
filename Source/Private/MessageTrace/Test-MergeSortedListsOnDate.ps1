@@ -124,7 +124,7 @@ function Test-MergeSortedListsOnDate {
 
     if ($ShowMerged) {
         # when requested, also emit the merged lists (as properties to avoid noisy pipeline output)
-        $Result | Add-Member -NotePropertyName 'MergedAscending'  -NotePropertyValue $MergedAsc
+        $Result | Add-Member -NotePropertyName 'MergedAscending' -NotePropertyValue $MergedAsc
         $Result | Add-Member -NotePropertyName 'MergedDescending' -NotePropertyValue $MergedDesc
     }
 

@@ -6,6 +6,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 
+## [v2.9.1] - 2026-06-04
+
+### Fixed
+
+- `Get-IRTTenantOwner`: failed cross-cloud queries are now correctly identified and
+  reported instead of being silently treated as successful. Made Get-`TenantOIDC` portable.
+
+
 ## [v2.9.0] - 2026-05-30
 
 ### Added

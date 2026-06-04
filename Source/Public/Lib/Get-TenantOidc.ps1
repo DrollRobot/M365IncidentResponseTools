@@ -102,7 +102,7 @@ function Get-TenantOidc {
     )
 
     # debug output
-    if ($Trace) { $InformationPreference  = 'Continue' }
+    if ($Trace) { $InformationPreference = 'Continue' }
     function Write-Trace {
         param([Parameter(Mandatory)][string]$Message)
         Write-Information $Message -Tags 'Trace'
@@ -183,7 +183,7 @@ function Get-TenantOidc {
             default { $cloud.Key }                                         # China, etc.
         }
 
-        $Oidc | Add-Member -NotePropertyName 'Cloud'     -NotePropertyValue $cloudKey
+        $Oidc | Add-Member -NotePropertyName 'Cloud' -NotePropertyValue $cloudKey
         $Oidc | Add-Member -NotePropertyName 'LoginHost' -NotePropertyValue $cloud.Value.LoginHost
         $CloudConfigValue = $CloudEnvironments[$cloudKey]
         $Oidc | Add-Member -NotePropertyName 'CloudConfig' -NotePropertyValue $CloudConfigValue

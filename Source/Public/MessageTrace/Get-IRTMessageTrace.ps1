@@ -88,7 +88,7 @@ function Get-IRTMessageTrace {
         [Parameter(ParameterSetName = 'AllUsers')]
         [switch] $AllUsers,
 
-        [int] $Days, # default set at DEFAULTDAYS
+        [int] $Days, # default set at #DEFAULTDAYS
         [string] $Start,
         [string] $End,
 

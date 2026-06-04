@@ -261,7 +261,7 @@ InModuleScope M365IncidentResponseTools {
 
             It 'retains the row range after offset' {
                 $script:OffsetRule.Address.Start.Row | Should -Be 1
-                $script:OffsetRule.Address.End.Row   | Should -Be 100
+                $script:OffsetRule.Address.End.Row | Should -Be 100
             }
         }
 

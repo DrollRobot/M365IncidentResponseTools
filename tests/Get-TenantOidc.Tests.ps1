@@ -1,5 +1,11 @@
 #Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.0.0' }
 
+# $Table is assigned in BeforeAll and consumed by the It blocks via Pester
+# scoping; PSSA analyses each scriptblock in isolation and cannot see that.
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseDeclaredVarsMoreThanAssignments', 'Table',
+    Justification = 'Assigned in BeforeAll, consumed by It blocks via Pester scoping.')]
+param()
+
 BeforeAll {
     $Dir = Join-Path -Path $PSScriptRoot -ChildPath '..\source\Public\Lib'
     . (Join-Path -Path $Dir -ChildPath 'Get-TenantOidc.ps1')

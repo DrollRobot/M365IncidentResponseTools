@@ -451,7 +451,7 @@ InModuleScope M365IncidentResponseTools {
                 $result = Update-IRTToken -Service 'Graph' -PassThru
                 $result.Keys | Should -Contain 'Graph'
                 $result.Keys | Should -HaveCount 1
-                $result.ContainsKey('Service')   | Should -BeFalse
+                $result.ContainsKey('Service') | Should -BeFalse
                 $result.ContainsKey('Connected') | Should -BeFalse
             }
         }
@@ -474,14 +474,14 @@ InModuleScope M365IncidentResponseTools {
                 $result.Keys | Should -Contain 'Graph'
                 $result.Keys | Should -HaveCount 1
                 $result.ContainsKey('Exchange') | Should -BeFalse
-                $result.ContainsKey('IPPS')     | Should -BeFalse
+                $result.ContainsKey('IPPS') | Should -BeFalse
             }
 
             It '-PassThru contains all three keys when all three services are requested' {
                 $result = Update-IRTToken -Service 'Graph', 'Exchange', 'IPPS' -PassThru
-                $result.ContainsKey('Graph')    | Should -BeTrue
+                $result.ContainsKey('Graph') | Should -BeTrue
                 $result.ContainsKey('Exchange') | Should -BeTrue
-                $result.ContainsKey('IPPS')     | Should -BeTrue
+                $result.ContainsKey('IPPS') | Should -BeTrue
             }
         }
 

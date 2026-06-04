@@ -10,9 +10,6 @@ function Set-IRTConfig {
     .PARAMETER Reset
     Reset config to the template defaults without showing the menu.
 
-    # FIXME paths that have not been explicitly set should show 'default',
-    # not the default path. Maybe?
-    # FIXME why some stuff in appdata/local and some in roaming?
     #>
     [Alias('SetIRTConfig', 'Set-IRTConfigs', 'SetIRTConfigs')]
     [Alias('Set-Config', 'SetConfig', 'Set-Configs', 'SetConfigs')]
@@ -45,8 +42,8 @@ function Set-IRTConfig {
         return
     }
 
-    Import-IRTConfig
-    $Config = $Global:IRT_Config
+    Import-IRTConfig  # ensure file exists and $Global:IRT_Config is resolved
+    $Config = Get-Content -Path $ConfigPath -Raw | ConvertFrom-Json
 
     # define settings metadata
     $Settings = [ordered]@{
@@ -186,6 +183,13 @@ function Set-IRTConfig {
             'Replace with a custom file to change color-coding without editing code.'
             Options     = $null  # free text / file path
         }
+        PlaybookOpenNewTab = @{
+            Summary     = 'New tab when starting Playbook'
+            Description = 'When enabled, Start-IRTPlaybook opens a new terminal tab ' +
+            'at the start of each playbook run. ' +
+            'Use -NoNewTab on Start-IRTPlaybook to override for a single run.'
+            Options     = @('true', 'false')
+        }
     }
 
     # main menu loop
@@ -195,8 +199,9 @@ function Set-IRTConfig {
         $i = 1
         foreach ($Key in $Settings.Keys) {
             $CurrentVal = $Config.$Key
+            $DisplayVal = if ($null -eq $CurrentVal) { '(default)' } else { $CurrentVal }
             $MenuOptions["$i"] = @{
-                String = "$($Settings[$Key].Summary.PadRight(22)) $('='.PadLeft(2)) $CurrentVal"
+                String = "$($Settings[$Key].Summary.PadRight(22)) $('='.PadLeft(2)) $DisplayVal"
                 Color  = 'White'
             }
             $KeyMap["$i"] = $Key
@@ -216,7 +221,8 @@ function Set-IRTConfig {
 
         if ($Choice -eq $MenuOptions[$ResetIndex].String) {
             Set-IRTConfig -Reset
-            $Config = $Global:IRT_Config
+            Import-IRTConfig -Force
+            $Config = Get-Content -Path $ConfigPath -Raw | ConvertFrom-Json
             continue
         }
 
@@ -232,6 +238,7 @@ function Set-IRTConfig {
 
         $Setting = $Settings[$SelectedKey]
         $CurrentVal = $Config.$SelectedKey
+        $DisplayVal = if ($null -eq $CurrentVal) { '(default)' } else { $CurrentVal }
 
         Write-IRT ''
         Write-IRT $Setting.Description
@@ -239,7 +246,7 @@ function Set-IRTConfig {
             Write-IRT ''
             Write-IRT $Setting.SecurityWarning -Level Error
         }
-        Write-IRT "Current value: $CurrentVal"
+        Write-IRT "Current value: $DisplayVal"
         Write-IRT ''
 
         if ($Setting.Options) {
@@ -254,7 +261,7 @@ function Set-IRTConfig {
             else {
                 $NewValue = Read-Host "Enter new value (blank to keep current)"
                 if ([string]::IsNullOrWhiteSpace($NewValue)) {
-                    Write-IRT "Keeping current value: $CurrentVal"
+                    Write-IRT "Keeping current value: $DisplayVal"
                     continue
                 }
             }
@@ -266,7 +273,7 @@ function Set-IRTConfig {
         }
 
         # Convert string to bool for boolean settings
-        if ($SelectedKey -in 'ExportXml', 'EnableTokenCache') {
+        if ($SelectedKey -in 'ExportXml', 'EnableTokenCache', 'PlaybookOpenNewTab') {
             $NewValue = $NewValue -eq 'true'
         }
 
@@ -279,7 +286,7 @@ function Set-IRTConfig {
 
         if ($PSCmdlet.ShouldProcess($ConfigPath, "Set $SelectedKey = $NewValue")) {
             $Config | ConvertTo-Json -Depth 10 | Set-Content -Path $ConfigPath -Encoding utf8
-            $Global:IRT_Config = $Config
+            Import-IRTConfig -Force
             Write-IRT "$SelectedKey updated to: $NewValue"
         }
     }

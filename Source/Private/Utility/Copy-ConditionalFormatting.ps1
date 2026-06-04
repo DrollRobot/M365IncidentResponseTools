@@ -168,7 +168,7 @@ function Copy-ConditionalFormatting {
         if ($s.Fill -and $d.Fill) {
             Copy-DxfProp -srcContainer $s.Fill -dstContainer $d.Fill -prop 'PatternType'
             Copy-DxfColor $s.Fill.BackgroundColor $d.Fill.BackgroundColor
-            Copy-DxfColor $s.Fill.PatternColor    $d.Fill.PatternColor
+            Copy-DxfColor $s.Fill.PatternColor $d.Fill.PatternColor
             # Excel encodes solid-fill CF rules without a patternType attribute, which EPPlus
             # reads back as PatternType=None. Writing a rule with PatternType=None causes EPPlus
             # to omit the fill from XML entirely. Upgrade to Solid when any fill color was copied.
@@ -213,7 +213,7 @@ function Copy-ConditionalFormatting {
 
     $srcInfo = $null; $dstInfo = $null
     try {
-        $srcInfo = Resolve-Package $Source      'Source'
+        $srcInfo = Resolve-Package $Source 'Source'
         $dstInfo = Resolve-Package $Destination 'Destination'
 
         $srcSheet = Resolve-Sheet -pkg $srcInfo.Package -name $SourceSheet -role 'Source'

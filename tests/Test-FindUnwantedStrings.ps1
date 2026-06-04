@@ -32,7 +32,6 @@ param(
 # Internal list of patterns to search for.
 # Each entry has a Tag (label shown in output) and a Pattern (case-insensitive regex).
 $UnwantedPatterns = @(
-    # [PSCustomObject]@{ Tag = 'FIXME';      Pattern = '#.*\bFIXME\b' }
     # [PSCustomObject]@{ Tag = 'TODO';       Pattern = '#.*\bTODO\b' }
     # [PSCustomObject]@{ Tag = 'Write-Host'; Pattern = '\bWrite-Host\b' }
 )

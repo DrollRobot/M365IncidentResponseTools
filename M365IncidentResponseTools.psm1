@@ -411,6 +411,7 @@ function Connect-IRTGraph {
     )
 
     begin {
+        #region BEGIN
         $DefaultScopes = @(
             'Application.ReadWrite.All'
             'AuditLog.Read.All'
@@ -477,7 +478,18 @@ function Connect-IRTGraph {
         # Ensure Microsoft.Graph.Authentication is loaded
         $GraphModule = Get-Module Microsoft.Graph.Authentication -ErrorAction SilentlyContinue
         if (-not $GraphModule) {
-            throw 'Microsoft.Graph.Authentication must be imported before connecting to Graph.'
+            try {
+                $Params = @{
+                    Name        = 'Microsoft.Graph.Authentication'
+                    Force       = $true
+                    Scope       = 'Global'
+                    ErrorAction = 'Stop'
+                }
+                Import-Module @Params
+                $GraphModule = Get-Module Microsoft.Graph.Authentication
+            } catch {
+                throw "Failed to import Microsoft.Graph.Authentication. Error: $_"
+            }
         }
         Write-PSFMessage -Level 8 -Message (
             "Microsoft.Graph.Authentication version: " +
@@ -881,7 +893,7 @@ function Connect-IRTGraph {
         return $Result
     }
 }
-#EndRegion '.\Private\Connect\Connect-IRTGraph.ps1' 528
+#EndRegion '.\Private\Connect\Connect-IRTGraph.ps1' 540
 #Region '.\Private\Connect\Connect-IRTIPPS.ps1' -1
 
 function Connect-IRTIPPS {
@@ -1634,6 +1646,7 @@ function Test-GraphAdminConsent {
     DelegatedPermissionGrant.Read.All or Directory.Read.All.
     #>
     [CmdletBinding()]
+    [OutputType([string[]])]
     param (
         [Parameter(Mandatory)]
         [Alias('RequestedScopes')]
@@ -1685,9 +1698,9 @@ function Test-GraphAdminConsent {
         "Test-GraphAdminConsent: Grants=$($Grants.value.Count), " +
         "Granted=$($Granted.Count) scope(s), " +
         "Requested=$($RequestedScope.Count), Missing=$($MissingScopes.Count)")
-    $MissingScopes
+    [string[]] $MissingScopes
 }
-#EndRegion '.\Private\Connect\Test-GraphAdminConsent.ps1' 69
+#EndRegion '.\Private\Connect\Test-GraphAdminConsent.ps1' 70
 #Region '.\Private\Connect\Test-TokenExpired.ps1' -1
 
 function Test-TokenExpired {
@@ -5190,7 +5203,7 @@ function Test-MergeSortedListsOnDate {
 
     if ($ShowMerged) {
         # when requested, also emit the merged lists (as properties to avoid noisy pipeline output)
-        $Result | Add-Member -NotePropertyName 'MergedAscending'  -NotePropertyValue $MergedAsc
+        $Result | Add-Member -NotePropertyName 'MergedAscending' -NotePropertyValue $MergedAsc
         $Result | Add-Member -NotePropertyName 'MergedDescending' -NotePropertyValue $MergedDesc
     }
 
@@ -6236,17 +6249,6 @@ function Build-UserLoginOperationsSheet {
             }
             Set-ExcelRange @DateFormatParams
 
-            # # Text wrapping on IpAddress and UserAgent
-            # $IpCol = ($Worksheet.Tables[0].Columns |
-            #     Where-Object {$_.Name -eq 'IpAddress'}).Id |
-            #     Convert-DecimalToExcelColumn
-            # $IpWrapParams = @{
-            #     Worksheet = $Worksheet
-            #     Range     = "${IpCol}${TableStartRow}:${IpCol}${EndRow}"
-            #     WrapText  = $true
-            # }
-            # Set-ExcelRange @IpWrapParams # FIXME maybe we don't want text wrapping?
-
             # Font
             try {
                 $FontParams = @{
@@ -6271,7 +6273,7 @@ function Build-UserLoginOperationsSheet {
         return $Workbook
     }
 }
-#EndRegion '.\Private\UnifiedAuditLog\Build-UserLoginOperationsSheet.ps1' 270
+#EndRegion '.\Private\UnifiedAuditLog\Build-UserLoginOperationsSheet.ps1' 259
 #Region '.\Private\UnifiedAuditLog\Get-AddRemoveRoleSummary.ps1' -1
 
 function Get-AddRemoveRoleSummary {
@@ -7872,7 +7874,7 @@ function Copy-ConditionalFormatting {
         if ($s.Fill -and $d.Fill) {
             Copy-DxfProp -srcContainer $s.Fill -dstContainer $d.Fill -prop 'PatternType'
             Copy-DxfColor $s.Fill.BackgroundColor $d.Fill.BackgroundColor
-            Copy-DxfColor $s.Fill.PatternColor    $d.Fill.PatternColor
+            Copy-DxfColor $s.Fill.PatternColor $d.Fill.PatternColor
             # Excel encodes solid-fill CF rules without a patternType attribute, which EPPlus
             # reads back as PatternType=None. Writing a rule with PatternType=None causes EPPlus
             # to omit the fill from XML entirely. Upgrade to Solid when any fill color was copied.
@@ -7917,7 +7919,7 @@ function Copy-ConditionalFormatting {
 
     $srcInfo = $null; $dstInfo = $null
     try {
-        $srcInfo = Resolve-Package $Source      'Source'
+        $srcInfo = Resolve-Package $Source 'Source'
         $dstInfo = Resolve-Package $Destination 'Destination'
 
         $srcSheet = Resolve-Sheet -pkg $srcInfo.Package -name $SourceSheet -role 'Source'
@@ -9106,113 +9108,6 @@ function Disconnect-IRT {
     }
 }
 #EndRegion '.\Public\Connect\Disconnect-IRT.ps1' 106
-#Region '.\Public\Connect\Get-IRTTenantOidc.ps1' -1
-
-function Get-IRTTenantOidc {
-    <#
-    .SYNOPSIS
-    Probes Microsoft cloud OIDC discovery endpoints to identify a tenant's cloud
-    environment and return the full discovery document, including its tenant ID.
-
-    .DESCRIPTION
-    Queries the public OpenID Connect discovery endpoints for the Commercial,
-    US Government, and China clouds to locate the given tenant. Accepts either a
-    tenant GUID or any verified domain (a custom domain such as 'contoso.com' or
-    the '.onmicrosoft.com' default), since the discovery endpoint resolves both
-    forms in the authority path. Returns the complete OIDC discovery document from
-    whichever cloud responds, supplemented with three context properties:
-        TenantId  - The canonical tenant GUID, extracted from the issuer claim.
-                    Populated even when the lookup was performed by domain.
-        Cloud     - The cloud that hosts the tenant, determined from the OIDC region
-                    fields. One of the $Global:IRT_CloudEnvironments keys (Commercial,
-                    USGov, USGovDoD, China). This is the key every Connect-IRT* command
-                    uses to select endpoints.
-        LoginHost - The login authority hostname used for the successful probe.
-    All raw OIDC fields (token_endpoint, authorization_endpoint, msgraph_host, issuer,
-    jwks_uri, etc.) are preserved as returned by the discovery endpoint.
-    Returns $null when the tenant is not found in any supported cloud.
-    This function is unauthenticated and makes no Graph API calls.
-
-    Note that a verified domain belongs to exactly one tenant, so a domain lookup
-    resolves a single tenant. An organization that runs multiple tenants will have
-    distinct domains per tenant; enumerate those separately to cover its full footprint.
-
-    .PARAMETER Tenant
-    The tenant to probe, given as either an Entra ID tenant GUID or a verified
-    domain name. Accepts the aliases 'TenantId' and 'Domain'.
-
-    .EXAMPLE
-    Get-IRTTenantOidc -TenantId 'f8cdef31-a31e-4b4a-93e4-5f571e91255a'
-
-    .EXAMPLE
-    Get-IRTTenantOidc -Domain 'contoso.com'
-
-    .EXAMPLE
-    $oidc = Get-IRTTenantOidc -TenantId $value
-    Write-Host (
-        "TenantId: $( $oidc.TenantId ) | Cloud: $( $oidc.Cloud ) | " +
-        "Graph: $( $oidc.msgraph_host )")
-
-    .OUTPUTS
-    PSCustomObject (augmented OIDC discovery document), or $null if not found.
-
-    .NOTES
-    Version: 1.1.0
-    #>
-    [CmdletBinding()]
-    [OutputType([pscustomobject])]
-    param (
-        [Parameter( Mandatory, Position = 0 )]
-        [Alias( 'Tenant', 'Domain' )]
-        [string] $TenantId
-    )
-
-    foreach ($cloud in $Global:IRT_CloudEnvironments.GetEnumerator()) {
-
-        $Url = "$( $cloud.Value.LoginHost )/$TenantId/v2.0/.well-known/openid-configuration"
-        Write-PSFMessage -Level 8 -Message "Get-IRTTenantOidc: Probing $( $cloud.Key ): $Url"
-
-        try {
-            $Oidc = Invoke-RestMethod -Uri $Url -ErrorAction Stop
-        }
-        catch {
-            Write-PSFMessage -Level 8 -Message "Get-IRTTenantOidc: Not found in $( $cloud.Key )."
-            continue
-        }
-
-        $RegionScope = $Oidc.tenant_region_scope
-        $RegionSubScope = $Oidc.tenant_region_sub_scope
-
-        # Determine the cloud directly from the OIDC region fields. The cloud is a
-        # $Global:IRT_CloudEnvironments key and the only value the Connect-IRT* commands
-        # need. It must not come from which probe answered: the Commercial endpoint also
-        # responds for GCC High/DoD tenants (returning tenant_region_scope=USGov), so
-        # $cloud.Key would wrongly be 'Commercial' and yield the wrong authority
-        # (AADSTS900384). GCC is commercial-hosted, so WW maps to Commercial.
-        $cloudKey = switch ($RegionScope) {
-            'WW' { 'Commercial' }                                       # incl. GCC
-            'USGov' { if ($RegionSubScope -eq 'DOD') { 'USGovDoD' } else { 'USGov' } }
-            'USG' { 'USGov' }                                            # GCC High
-            'DOD' { 'USGovDoD' }
-            default { $cloud.Key }                                         # China, etc.
-        }
-
-        $Oidc | Add-Member -NotePropertyName 'Cloud'     -NotePropertyValue $cloudKey
-        $Oidc | Add-Member -NotePropertyName 'LoginHost' -NotePropertyValue $cloud.Value.LoginHost
-
-        # issuer is https://login.microsoftonline.<tld>/{tenant-guid}/v2.0
-        # Extract the canonical GUID so a domain-based lookup still returns the tenant ID.
-        $guidPattern = '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}'
-        $tenantId = if ($Oidc.issuer -match $guidPattern) { $Matches[0] } else { $null }
-
-        $Oidc | Add-Member -NotePropertyName 'TenantId' -NotePropertyValue $tenantId
-
-        return $Oidc
-    }
-
-    return $null
-}
-#EndRegion '.\Public\Connect\Get-IRTTenantOidc.ps1' 105
 #Region '.\Public\Connect\Open-IRTTab.ps1' -1
 
 function Open-IRTTab {
@@ -12202,7 +12097,7 @@ function Get-TenantOidc {
     )
 
     # debug output
-    if ($Trace) { $InformationPreference  = 'Continue' }
+    if ($Trace) { $InformationPreference = 'Continue' }
     function Write-Trace {
         param([Parameter(Mandatory)][string]$Message)
         Write-Information $Message -Tags 'Trace'
@@ -12283,7 +12178,7 @@ function Get-TenantOidc {
             default { $cloud.Key }                                         # China, etc.
         }
 
-        $Oidc | Add-Member -NotePropertyName 'Cloud'     -NotePropertyValue $cloudKey
+        $Oidc | Add-Member -NotePropertyName 'Cloud' -NotePropertyValue $cloudKey
         $Oidc | Add-Member -NotePropertyName 'LoginHost' -NotePropertyValue $cloud.Value.LoginHost
         $CloudConfigValue = $CloudEnvironments[$cloudKey]
         $Oidc | Add-Member -NotePropertyName 'CloudConfig' -NotePropertyValue $CloudConfigValue
@@ -13270,7 +13165,7 @@ function Get-IRTMessageTrace {
         [Parameter(ParameterSetName = 'AllUsers')]
         [switch] $AllUsers,
 
-        [int] $Days, # default set at DEFAULTDAYS
+        [int] $Days, # default set at #DEFAULTDAYS
         [string] $Start,
         [string] $End,
 
@@ -16612,8 +16507,6 @@ function Get-IRTTenantOwner {
     .NOTES
     The Graph lookup requires the CrossTenantInformation.ReadBasic.All scope.
 
-    # FIXME Should probably separate this from the OIDC lookup. one task per function
-
     Version: 1.2.0
     #>
     [CmdletBinding()]
@@ -16827,7 +16720,7 @@ function Get-IRTTenantOwner {
         }
     }
 }
-#EndRegion '.\Public\ServicePrincipal\Get-IRTTenantOwner.ps1' 271
+#EndRegion '.\Public\ServicePrincipal\Get-IRTTenantOwner.ps1' 269
 #Region '.\Public\ServicePrincipal\Get-IRTUserServicePrincipal.ps1' -1
 
 function Get-IRTUserServicePrincipal {
@@ -16891,8 +16784,6 @@ function Get-IRTUserServicePrincipal {
         [boolean] $Open = $true,
         [switch] $Cached
     )
-
-    # FIXME - Search UAL for user consent events to show dates?
 
     begin {
         Update-IRTToken -Service 'Graph'
@@ -17020,7 +16911,7 @@ function Get-IRTUserServicePrincipal {
             $Worksheet = $Workbook.Workbook.Worksheets[$ExcelParams.WorksheetName]
             $SheetStartColumn = ($Worksheet.Dimension.Start.Column) | Convert-DecimalToExcelColumn
             $SheetStartRow = $Worksheet.Dimension.Start.Row
-            $EndColumn = ($Worksheet.Dimension.End.Column)   | Convert-DecimalToExcelColumn
+            $EndColumn = ($Worksheet.Dimension.End.Column) | Convert-DecimalToExcelColumn
             $EndRow = $Worksheet.Dimension.End.Row
 
             #region FORMATTING
@@ -17056,7 +16947,7 @@ function Get-IRTUserServicePrincipal {
         }
     }
 }
-#EndRegion '.\Public\ServicePrincipal\Get-IRTUserServicePrincipal.ps1' 227
+#EndRegion '.\Public\ServicePrincipal\Get-IRTUserServicePrincipal.ps1' 225
 #Region '.\Public\ServicePrincipal\Open-IRTTenantOwnerCSV.ps1' -1
 
 function Open-IRTTenantOwnerCSV {
@@ -19618,8 +19509,6 @@ function Copy-IRTFunction {
     .NOTES
     Version: 2.0.0
 
-    # FIXME add aliases matching m365 commands? finduser, disableuser, etc.?
-
     #>
     [Alias(
         'Copy-IRTFunctions', 'CopyIRTFunctions', 'CopyIRTFunction', 'IRTFunction', 'IRTFunctions')]
@@ -19716,6 +19605,32 @@ if (-not `$Global:IRT_Config) {
             return
         }
 
+        $M365ToAdMap = [ordered]@{
+            'Find-IRTUser'          = 'Find-IRTAdUser'
+            'Show-IRTUser'          = 'Show-IRTAdUser'
+            'Enable-IRTUser'        = 'Enable-IRTAdUser'
+            'Disable-IRTUser'       = 'Disable-IRTAdUser'
+            'Reset-IRTUserPassword' = 'Reset-IRTAdUserPassword'
+            'Find-IRTDevice'        = 'Find-IRTAdDevice'
+            'Show-IRTDevice'        = 'Show-IRTAdDevice'
+        }
+
+        $AliasLines = [System.Collections.Generic.List[string]]::new()
+        foreach ($M365Func in $M365ToAdMap.Keys) {
+            $AdFunc = $M365ToAdMap[$M365Func]
+            if ($Queue -notcontains $AdFunc) { continue }
+            $M365Aliases = Get-Alias -Definition $M365Func -ErrorAction SilentlyContinue
+            foreach ($A in $M365Aliases) {
+                $AliasLines.Add(
+                    "Set-Alias -Name '$($A.Name)' -Value '$AdFunc' -Scope Global -Force"
+                )
+            }
+        }
+
+        if ($AliasLines.Count -gt 0) {
+            $null = $Builder.AppendLine($AliasLines -join '; ')
+        }
+
         $FmtParams = @{
             Content    = $Builder.ToString()
             Script     = $true
@@ -19728,7 +19643,7 @@ if (-not `$Global:IRT_Config) {
         Write-IRT "Copied $Resolved function(s) to clipboard."
     }
 }
-#EndRegion '.\Public\Utility\Copy-IRTFunction.ps1' 155
+#EndRegion '.\Public\Utility\Copy-IRTFunction.ps1' 179
 #Region '.\Public\Utility\Find-IRTDirectoryObject.ps1' -1
 
 function Find-IRTDirectoryObject {
@@ -20219,9 +20134,6 @@ function Set-IRTConfig {
     .PARAMETER Reset
     Reset config to the template defaults without showing the menu.
 
-    # FIXME paths that have not been explicitly set should show 'default',
-    # not the default path. Maybe?
-    # FIXME why some stuff in appdata/local and some in roaming?
     #>
     [Alias('SetIRTConfig', 'Set-IRTConfigs', 'SetIRTConfigs')]
     [Alias('Set-Config', 'SetConfig', 'Set-Configs', 'SetConfigs')]
@@ -20254,8 +20166,8 @@ function Set-IRTConfig {
         return
     }
 
-    Import-IRTConfig
-    $Config = $Global:IRT_Config
+    Import-IRTConfig  # ensure file exists and $Global:IRT_Config is resolved
+    $Config = Get-Content -Path $ConfigPath -Raw | ConvertFrom-Json
 
     # define settings metadata
     $Settings = [ordered]@{
@@ -20395,6 +20307,13 @@ function Set-IRTConfig {
             'Replace with a custom file to change color-coding without editing code.'
             Options     = $null  # free text / file path
         }
+        PlaybookOpenNewTab = @{
+            Summary     = 'New tab when starting Playbook'
+            Description = 'When enabled, Start-IRTPlaybook opens a new terminal tab ' +
+            'at the start of each playbook run. ' +
+            'Use -NoNewTab on Start-IRTPlaybook to override for a single run.'
+            Options     = @('true', 'false')
+        }
     }
 
     # main menu loop
@@ -20404,8 +20323,9 @@ function Set-IRTConfig {
         $i = 1
         foreach ($Key in $Settings.Keys) {
             $CurrentVal = $Config.$Key
+            $DisplayVal = if ($null -eq $CurrentVal) { '(default)' } else { $CurrentVal }
             $MenuOptions["$i"] = @{
-                String = "$($Settings[$Key].Summary.PadRight(22)) $('='.PadLeft(2)) $CurrentVal"
+                String = "$($Settings[$Key].Summary.PadRight(22)) $('='.PadLeft(2)) $DisplayVal"
                 Color  = 'White'
             }
             $KeyMap["$i"] = $Key
@@ -20425,7 +20345,8 @@ function Set-IRTConfig {
 
         if ($Choice -eq $MenuOptions[$ResetIndex].String) {
             Set-IRTConfig -Reset
-            $Config = $Global:IRT_Config
+            Import-IRTConfig -Force
+            $Config = Get-Content -Path $ConfigPath -Raw | ConvertFrom-Json
             continue
         }
 
@@ -20441,6 +20362,7 @@ function Set-IRTConfig {
 
         $Setting = $Settings[$SelectedKey]
         $CurrentVal = $Config.$SelectedKey
+        $DisplayVal = if ($null -eq $CurrentVal) { '(default)' } else { $CurrentVal }
 
         Write-IRT ''
         Write-IRT $Setting.Description
@@ -20448,7 +20370,7 @@ function Set-IRTConfig {
             Write-IRT ''
             Write-IRT $Setting.SecurityWarning -Level Error
         }
-        Write-IRT "Current value: $CurrentVal"
+        Write-IRT "Current value: $DisplayVal"
         Write-IRT ''
 
         if ($Setting.Options) {
@@ -20463,7 +20385,7 @@ function Set-IRTConfig {
             else {
                 $NewValue = Read-Host "Enter new value (blank to keep current)"
                 if ([string]::IsNullOrWhiteSpace($NewValue)) {
-                    Write-IRT "Keeping current value: $CurrentVal"
+                    Write-IRT "Keeping current value: $DisplayVal"
                     continue
                 }
             }
@@ -20475,7 +20397,7 @@ function Set-IRTConfig {
         }
 
         # Convert string to bool for boolean settings
-        if ($SelectedKey -in 'ExportXml', 'EnableTokenCache') {
+        if ($SelectedKey -in 'ExportXml', 'EnableTokenCache', 'PlaybookOpenNewTab') {
             $NewValue = $NewValue -eq 'true'
         }
 
@@ -20488,12 +20410,12 @@ function Set-IRTConfig {
 
         if ($PSCmdlet.ShouldProcess($ConfigPath, "Set $SelectedKey = $NewValue")) {
             $Config | ConvertTo-Json -Depth 10 | Set-Content -Path $ConfigPath -Encoding utf8
-            $Global:IRT_Config = $Config
+            Import-IRTConfig -Force
             Write-IRT "$SelectedKey updated to: $NewValue"
         }
     }
 }
-#EndRegion '.\Public\Utility\Set-IRTConfig.ps1' 287
+#EndRegion '.\Public\Utility\Set-IRTConfig.ps1' 294
 #Region '.\Public\Utility\Start-IRTPlaybook.ps1' -1
 
 function Start-IRTPlaybook {
@@ -20546,10 +20468,6 @@ function Start-IRTPlaybook {
     None. All output is written to the investigation folder or displayed in the console.
 
     .NOTES
-    Version: 2.2.0
-    2.2.0 - Added license report, added error handling to close runspaces when script exits.
-    2.1.0 - Added ability to run parallel exchange runspaces using exchange access token.
-    2.0.0 - Added ability to run mulitple operations in parallel using runspaces.
     #>
     [Alias('Playbook')]
     [CmdletBinding(SupportsShouldProcess = $true)]
@@ -20560,7 +20478,6 @@ function Start-IRTPlaybook {
 
         [string] $Ticket,
         [switch] $NoFolder,
-        [switch] $NoNewTab,
         [int] $MaxRunspaces = 15
     )
 
@@ -20630,18 +20547,9 @@ function Start-IRTPlaybook {
             New-IRTInvestigationFolder @DirParams
         }
 
-        if (-not $NoNewTab) { # FIXME make this a config option
+        if ($Global:IRT_Config.PlaybookOpenNewTab) {
             Open-IRTTab
         }
-
-        $WorkingPath = Get-Location
-
-        # reset wait flags for this run (IRT_IpInfo and IRT_MessageTraceTable are
-        # initialized as synchronized hashtables by the module and persist across runs)
-        $Global:IRT_WaitFlags = [hashtable]::Synchronized(@{
-                MessageTraceUserDone     = $false
-                MessageTraceAllUsersDone = $false
-            })
 
         # pre-populate caches in main thread
         $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
@@ -20665,127 +20573,43 @@ function Start-IRTPlaybook {
             "${FunctionName}: Request-GraphServicePrincipal [$Elapsed]")
         Request-GraphServicePrincipal -Return 'none'
 
-        # pack references for injection into child runspace globals
-        $SharedRefs = @{
-            IRT_Banner                     = $Global:IRT_Banner
-            IRT_IpInfo                     = $Global:IRT_IpInfo
-            IRT_MessageTraceTable          = $Global:IRT_MessageTraceTable
-            IRT_WaitFlags                  = $Global:IRT_WaitFlags
-            IRT_DirectoryRoles             = $Global:IRT_DirectoryRoles
-            IRT_DirectoryRolesById         = $Global:IRT_DirectoryRolesById
-            IRT_DirectoryRoleTemplates     = $Global:IRT_DirectoryRoleTemplates
-            IRT_DirectoryRoleTemplatesById = $Global:IRT_DirectoryRoleTemplatesById
-            IRT_Groups                     = $Global:IRT_Groups
-            IRT_GroupsById                 = $Global:IRT_GroupsById
-            IRT_Oauth2Grants               = $Global:IRT_Oauth2Grants
-            IRT_Oauth2GrantsByClientId     = $Global:IRT_Oauth2GrantsByClientId
-            IRT_Users                      = $Global:IRT_Users
-            IRT_UsersById                  = $Global:IRT_UsersById
-            IRT_ServicePrincipals          = $Global:IRT_ServicePrincipals
-            IRT_ServicePrincipalsByAppId   = $Global:IRT_ServicePrincipalsByAppId
-            IRT_ServicePrincipalsById      = $Global:IRT_ServicePrincipalsById
-            IRT_EntraErrorTable            = $Global:IRT_EntraErrorTable
-            IRT_UalOperationsData          = $Global:IRT_UalOperationsData
-            IRT_UalUserTypeTable           = $Global:IRT_UalUserTypeTable
-            IRT_TenantInfoTable            = $Global:IRT_TenantInfoTable
-            IRT_Session                    = $Global:IRT_Session
-            IRT_UserObjects                = $ScriptUserObjects
-        }
+        #region PLAYBOOK STEPS
 
-        # build Exchange connection params once for all runspaces
-        $ExoConnectParams = @{
-            AccessToken       = $Global:IRT_Session.Exchange.Token
-            UserPrincipalName = $Global:IRT_Session.Exchange.UserPrincipalName
-            ShowBanner        = $false
-        }
-        $ExoConnectParams['ExchangeEnvironmentName'] =
-        $Global:IRT_Session.CloudConfig.ExchangeEnv
-
-        #region playbook steps
-
+        # Each step relies on the shared references injected into the runspace globals
+        # (see the InitialSessionState setup below): $IRT_PlaybookWorkingPath and
+        # $IRT_PlaybookExoConnectParams plus the IRT_* caches. No per-step arguments.
         $Steps = @(
 
-            @{  Name   = 'Get-IRTLicenseReport' # FIXME not included in module?
+            @{  Name   = 'Get-IRTLicenseReport'
                 Script = {
-                    param(
-                        $WorkingPath,
-                        $SharedRefs
-                    )
-                    foreach ($k in $SharedRefs.Keys) {
-                        Set-Variable -Scope Global -Name $k -Value $SharedRefs[$k]
-                    }
                     Set-Location -Path $WorkingPath
                     Get-IRTLicenseReport
                 }
-                Args  = @(
-                    $WorkingPath,
-                    $SharedRefs
-                )
             }
 
             @{  Name   = 'Show-IRTUser'
                 Script = {
-                    param(
-                        $WorkingPath,
-                        $SharedRefs
-                    )
-                    foreach ($k in $SharedRefs.Keys) {
-                        Set-Variable -Scope Global -Name $k -Value $SharedRefs[$k]
-                    }
                     Set-Location -Path $WorkingPath
                     Show-IRTUser
                 }
-                Args  = @(
-                    $WorkingPath,
-                    $SharedRefs
-                )
             }
 
             @{  Name   = 'Get-IRTUserServicePrincipal'
                 Script = {
-                    param(
-                        $WorkingPath,
-                        $SharedRefs
-                    )
-                    foreach ($k in $SharedRefs.Keys) {
-                        Set-Variable -Scope Global -Name $k -Value $SharedRefs[$k]
-                    }
                     Set-Location -Path $WorkingPath
                     Get-IRTUserServicePrincipal -Cached
                 }
-                Args  = @(
-                    $WorkingPath,
-                    $SharedRefs
-                )
             }
 
             @{  Name   = 'Show-IRTMailbox'
                 Script = {
-                    param(
-                        $WorkingPath,
-                        $SharedRefs
-                    )
-                    foreach ($k in $SharedRefs.Keys) {
-                        Set-Variable -Scope Global -Name $k -Value $SharedRefs[$k]
-                    }
                     Set-Location -Path $WorkingPath
                     Show-IRTMailbox -Cached
                 }
-                Args  = @(
-                    $WorkingPath,
-                    $SharedRefs
-                )
             }
 
             @{  Name   = 'Get-IRTAdminRole'
                 Script = {
-                    param(
-                        $WorkingPath,
-                        $SharedRefs
-                    )
-                    foreach ($k in $SharedRefs.Keys) {
-                        Set-Variable -Scope Global -Name $k -Value $SharedRefs[$k]
-                    }
                     Set-Location -Path $WorkingPath
                     $AdminParams = @{
                         Excel     = $true
@@ -20794,272 +20618,203 @@ function Start-IRTPlaybook {
                     }
                     Get-IRTAdminRole @AdminParams
                 }
-                Args  = @(
-                    $WorkingPath,
-                    $SharedRefs
-                )
             }
 
             @{  Name   = 'Find-IRTRiskyServicePrincipal'
                 Script = {
-                    param(
-                        $WorkingPath,
-                        $SharedRefs
-                    )
-                    foreach ($k in $SharedRefs.Keys) {
-                        Set-Variable -Scope Global -Name $k -Value $SharedRefs[$k]
-                    }
                     Set-Location -Path $WorkingPath
                     Find-IRTRiskyServicePrincipal -Cached
                 }
-                Args  = @(
-                    $WorkingPath,
-                    $SharedRefs
-                )
             }
 
             @{  Name   = 'Show-IRTUserMfa'
                 Script = {
-                    param(
-                        $WorkingPath,
-                        $SharedRefs
-                    )
-                    foreach ($k in $SharedRefs.Keys) {
-                        Set-Variable -Scope Global -Name $k -Value $SharedRefs[$k]
-                    }
                     Set-Location -Path $WorkingPath
                     Show-IRTUserMfa
                 }
-                Args  = @(
-                    $WorkingPath,
-                    $SharedRefs
-                )
             }
 
             @{  Name   = 'Get-IRTMessageTrace'
                 Script = {
-                    param(
-                        $WorkingPath,
-                        $SharedRefs,
-                        $ExoConnectParams
-                    )
-                    foreach ($k in $SharedRefs.Keys) {
-                        Set-Variable -Scope Global -Name $k -Value $SharedRefs[$k]
-                    }
                     Set-Location -Path $WorkingPath
                     Connect-ExchangeOnline @ExoConnectParams
                     $Params = @{
                         UserObject = $Global:IRT_UserObjects
-                        Days = 90
-                        Quiet = $true
+                        Days       = 90
+                        Quiet      = $true
                     }
                     Get-IRTMessageTrace @Params
                 }
-                Args  = @(
-                    $WorkingPath,
-                    $SharedRefs,
-                    $ExoConnectParams
-                )
             }
 
             @{  Name   = 'Get-IRTInboxRule'
                 Script = {
-                    param(
-                        $WorkingPath,
-                        $SharedRefs,
-                        $ExoConnectParams
-                    )
-                    foreach ($k in $SharedRefs.Keys) {
-                        Set-Variable -Scope Global -Name $k -Value $SharedRefs[$k]
-                    }
                     Set-Location -Path $WorkingPath
                     Connect-ExchangeOnline @ExoConnectParams
                     Get-IRTInboxRule
                 }
-                Args  = @(
-                    $WorkingPath,
-                    $SharedRefs,
-                    $ExoConnectParams
-                )
             }
 
             @{  Name   = 'Get-IRTEntraAuditLog'
                 Script = {
-                    param(
-                        $WorkingPath,
-                        $SharedRefs
-                    )
-                    foreach ($k in $SharedRefs.Keys) {
-                        Set-Variable -Scope Global -Name $k -Value $SharedRefs[$k]
-                    }
                     Set-Location -Path $WorkingPath
                     Get-IRTEntraAuditLog -Cached
                 }
-                Args  = @(
-                    $WorkingPath,
-                    $SharedRefs
-                )
             }
 
             @{  Name   = 'Get-IRTEntraSignInLog'
                 Script = {
-                    param(
-                        $WorkingPath,
-                        $SharedRefs
-                    )
-                    foreach ($k in $SharedRefs.Keys) {
-                        Set-Variable -Scope Global -Name $k -Value $SharedRefs[$k]
-                    }
                     Set-Location -Path $WorkingPath
                     Get-IRTEntraSignInLog
                 }
-                Args  = @(
-                    $WorkingPath,
-                    $SharedRefs
-                )
             }
 
             @{  Name   = 'Get-IRTUnifiedAuditLog'
                 Script = {
-                    param(
-                        $WorkingPath,
-                        $SharedRefs,
-                        $ExoConnectParams
-                    )
-                    foreach ($k in $SharedRefs.Keys) {
-                        Set-Variable -Scope Global -Name $k -Value $SharedRefs[$k]
-                    }
                     Set-Location -Path $WorkingPath
                     Connect-ExchangeOnline @ExoConnectParams
                     $UAParams = @{
-                        UserObject = $Global:IRT_UserObjects
+                        UserObject         = $Global:IRT_UserObjects
                         WaitOnMessageTrace = $true
-                        Cached = $true
+                        Cached             = $true
                     }
                     Get-IRTUnifiedAuditLog @UAParams
                 }
-                Args  = @(
-                    $WorkingPath,
-                    $SharedRefs,
-                    $ExoConnectParams
-                )
             }
 
             @{  Name   = 'UALRiskyOperations'
                 Script = {
-                    param(
-                        $WorkingPath,
-                        $SharedRefs,
-                        $ExoConnectParams
-                    )
-                    foreach ($k in $SharedRefs.Keys) {
-                        Set-Variable -Scope Global -Name $k -Value $SharedRefs[$k]
-                    }
                     Set-Location -Path $WorkingPath
                     Connect-ExchangeOnline @ExoConnectParams
                     $UAParams = @{
-                        UserObject = $Global:IRT_UserObjects
+                        UserObject      = $Global:IRT_UserObjects
                         RiskyOperations = $true
-                        Days = 180
-                        Cached = $true
+                        Days            = 180
+                        Cached          = $true
                     }
                     Get-IRTUnifiedAuditLog @UAParams
                 }
-                Args  = @(
-                    $WorkingPath,
-                    $SharedRefs,
-                    $ExoConnectParams
-                )
             }
 
             @{  Name   = 'UALSignInLogs'
                 Script = {
-                    param(
-                        $WorkingPath,
-                        $SharedRefs,
-                        $ExoConnectParams
-                    )
-                    foreach ($k in $SharedRefs.Keys) {
-                        Set-Variable -Scope Global -Name $k -Value $SharedRefs[$k]
-                    }
                     Set-Location -Path $WorkingPath
                     Connect-ExchangeOnline @ExoConnectParams
                     $UAParams = @{
                         UserObject = $Global:IRT_UserObjects
                         SignInLogs = $true
-                        Cached = $true
+                        Cached     = $true
                     }
                     Get-IRTUnifiedAuditLog @UAParams
                 }
-                Args  = @(
-                    $WorkingPath,
-                    $SharedRefs,
-                    $ExoConnectParams
-                )
             }
 
             @{  Name   = 'Get-IRTNonInteractiveSignIn'
                 Script = {
-                    param(
-                        $WorkingPath,
-                        $SharedRefs
-                    )
-                    foreach ($k in $SharedRefs.Keys) {
-                        Set-Variable -Scope Global -Name $k -Value $SharedRefs[$k]
-                    }
                     Set-Location -Path $WorkingPath
                     Get-IRTNonInteractiveSignIn
                 }
-                Args  = @(
-                    $WorkingPath,
-                    $SharedRefs
-                )
             }
 
             @{  Name   = 'Get-IRTMessageTrace -AllUsers'
                 Script = {
-                    param(
-                        $WorkingPath,
-                        $SharedRefs,
-                        $ExoConnectParams
-                    )
-                    foreach ($k in $SharedRefs.Keys) {
-                        Set-Variable -Scope Global -Name $k -Value $SharedRefs[$k]
-                    }
                     Set-Location -Path $WorkingPath
                     Connect-ExchangeOnline @ExoConnectParams
                     $Params = @{
                         AllUsers = $true
-                        Days = 10
-                        Quiet = $true
+                        Days     = 10
+                        Quiet    = $true
                     }
                     Get-IRTMessageTrace @Params
                 }
-                Args  = @(
-                    $WorkingPath,
-                    $SharedRefs,
-                    $ExoConnectParams
-                )
             }
         )
 
-        #region open runspaces
+        #region OPEN RUNSPACES
 
         try {
 
             $Global:IRT_Playbook_JobList = @()
             $Global:IRT_Playbook_RunspacePool = $null
 
+            $WorkingPath = Get-Location
+
+            # reset wait flags for this run (IRT_IpInfo and IRT_MessageTraceTable are
+            # initialized as synchronized hashtables by the module and persist across runs)
+            $Global:IRT_WaitFlags = [hashtable]::Synchronized(@{
+                MessageTraceUserDone     = $false
+                MessageTraceAllUsersDone = $false
+            })
+
+            # build Exchange connection params once for all runspaces
+            $ExoConnectParams = @{
+                AccessToken       = $Global:IRT_Session.Exchange.Token
+                UserPrincipalName = $Global:IRT_Session.Exchange.UserPrincipalName
+                ShowBanner        = $false
+            }
+            $ExoConnectParams['ExchangeEnvironmentName'] =
+            $Global:IRT_Session.CloudConfig.ExchangeEnv
+
+            # pack references for injection into child runspace globals. Keys become global
+            # variable names inside each runspace.
+            $SharedRefs = @{
+                IRT_Banner                     = $Global:IRT_Banner
+                IRT_IpInfo                     = $Global:IRT_IpInfo
+                IRT_MessageTraceTable          = $Global:IRT_MessageTraceTable
+                IRT_WaitFlags                  = $Global:IRT_WaitFlags
+                IRT_DirectoryRoles             = $Global:IRT_DirectoryRoles
+                IRT_DirectoryRolesById         = $Global:IRT_DirectoryRolesById
+                IRT_DirectoryRoleTemplates     = $Global:IRT_DirectoryRoleTemplates
+                IRT_DirectoryRoleTemplatesById = $Global:IRT_DirectoryRoleTemplatesById
+                IRT_Groups                     = $Global:IRT_Groups
+                IRT_GroupsById                 = $Global:IRT_GroupsById
+                IRT_Oauth2Grants               = $Global:IRT_Oauth2Grants
+                IRT_Oauth2GrantsByClientId     = $Global:IRT_Oauth2GrantsByClientId
+                IRT_Users                      = $Global:IRT_Users
+                IRT_UsersById                  = $Global:IRT_UsersById
+                IRT_ServicePrincipals          = $Global:IRT_ServicePrincipals
+                IRT_ServicePrincipalsByAppId   = $Global:IRT_ServicePrincipalsByAppId
+                IRT_ServicePrincipalsById      = $Global:IRT_ServicePrincipalsById
+                IRT_EntraErrorTable            = $Global:IRT_EntraErrorTable
+                IRT_UalOperationsData          = $Global:IRT_UalOperationsData
+                IRT_UalUserTypeTable           = $Global:IRT_UalUserTypeTable
+                IRT_TenantInfoTable            = $Global:IRT_TenantInfoTable
+                IRT_Session                    = $Global:IRT_Session
+                IRT_UserObjects                = $ScriptUserObjects
+                ExoConnectParams               = $ExoConnectParams
+                WorkingPath                    = $WorkingPath
+            }
+
             ### build a runspace pool
             $IssType = [System.Management.Automation.Runspaces.InitialSessionState]
             $InitialSessionState = $IssType::CreateDefault()
+
+            # Inject the shared references into each runspace global scope BEFORE the
+            # modules are imported
+            $SsveType =
+            [System.Management.Automation.Runspaces.SessionStateVariableEntry]
+            foreach ($Key in $SharedRefs.Keys) {
+                $InitialSessionState.Variables.Add($SsveType::new($Key, $SharedRefs[$Key], ''))
+            }
+
+            # Seed the dependency-check flag too. Confirm-Dependencies.ps1
+            # (ScriptsToProcess) reads it and skips its Get-Module -ListAvailable scan, so
+            # the parallel runspaces don't each repeat the check the parent already pasbuised.
+            $GvParams = @{
+                Name        = 'IRT_DependenciesChecked'
+                Scope       = 'Global'
+                ValueOnly   = $true
+                ErrorAction = 'SilentlyContinue'
+            }
+            $ParentDepsChecked = [bool](Get-Variable @GvParams)
+            $InitialSessionState.Variables.Add(
+                $SsveType::new('IRT_DependenciesChecked', $ParentDepsChecked, '')
+            )
+
             $InitialSessionState.ImportPSModule(
                 'ExchangeOnlineManagement',
                 'M365IncidentResponseTools',
-                'Microsoft.Graph.Authentication',
-                'Microsoft.Graph.Applications',
-                'Microsoft.Graph.Beta.Reports',
-                'Microsoft.Graph.Users'
+                'Microsoft.Graph.Authentication'
             )
             $Global:IRT_Playbook_RunspacePool = [RunspaceFactory]::CreateRunspacePool(
                 1, $MaxRunspaces, $InitialSessionState, $Host
@@ -21073,9 +20828,6 @@ function Start-IRTPlaybook {
                 $PowerShell.RunspacePool = $Global:IRT_Playbook_RunspacePool
 
                 $null = $PowerShell.AddScript($Step.Script)
-                foreach ($Arg in $Step.Args) {
-                    $null = $PowerShell.AddArgument($Arg)
-                }
 
                 # loop output
                 [pscustomobject]@{
@@ -21086,7 +20838,7 @@ function Start-IRTPlaybook {
                 }
             }
 
-            #region wait on runspaces
+            #region WAIT FOR RUNSPACES
             while ($Global:IRT_Playbook_JobList.Completed -contains $false) {
                 foreach ($Job in $Global:IRT_Playbook_JobList) {
                     if ( -not $Job.Completed -and $Job.Handle.IsCompleted ) {
@@ -21127,7 +20879,9 @@ function Start-IRTPlaybook {
             }
             Write-Progress -Activity 'Playbook Running' -Completed
         }
-        #region cleanup
+
+        #region CLEANUP
+
         finally {
             # stop all runspaces
             foreach ($Job in $Global:IRT_Playbook_JobList) {
@@ -21150,13 +20904,10 @@ function Start-IRTPlaybook {
             "${FunctionName}: Playbook complete. Total elapsed: $TotalElapsed")
     }
 }
-#EndRegion '.\Public\Utility\Start-IRTPlaybook.ps1' 655
+#EndRegion '.\Public\Utility\Start-IRTPlaybook.ps1' 487
 #Region '.\Suffix.ps1' -1
 
 # ModuleBuilder Notes: Code in this file will be appended to the built .psm1 file.
-
-# output info stream to host
-$InformationPreference = 'Continue'
 
 # when removing module from session, restore original prompt function if it was modified
 $ExecutionContext.SessionState.Module.OnRemove = {
@@ -21175,9 +20926,6 @@ foreach ($VarName in 'IRT_IpInfo', 'IRT_MessageTraceTable') {
         Set-Variable -Name $VarName -Scope Global -Value ([hashtable]::Synchronized($Existing))
     }
 }
-
-# FIXME: remove once all callers have migrated to Get-TenantOidc
-# Set-Alias -Name Get-IRTTenantOidc -Value Get-TenantOidc -Scope Global
 
 # Load user config on module import
 Import-IRTConfig
@@ -21218,5 +20966,5 @@ if ($Global:IRT_LoadStopwatch) {
     Write-Verbose "Module loaded in $($Elapsed.ToString('N2'))s."
     Remove-Variable -Name 'IRT_LoadStopwatch' -Scope Global
 }
-#EndRegion '.\Suffix.ps1' 66
+#EndRegion '.\Suffix.ps1' 60
 

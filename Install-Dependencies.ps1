@@ -58,33 +58,68 @@ $DarkCyan = @{ForegroundColor = 'DarkCyan' }
 $Yellow = @{ForegroundColor = 'Yellow' }
 
 # ---------------------------------------------------------------------------
+# Hard-coded fallback module list
+#
+# Used only when the manifest's RequiredModules cannot be read (missing,
+# empty, or the manifest itself can't be found).
+# ---------------------------------------------------------------------------
+$HardCodedRequiredModules = @(
+    @{ModuleName = 'Microsoft.Graph.Applications'; ModuleVersion = '2.27.0' }
+    @{ModuleName = 'Microsoft.Graph.Authentication'; ModuleVersion = '2.27.0' }
+    @{ModuleName = 'Microsoft.Graph.DeviceManagement'; ModuleVersion = '2.27.0' }
+    @{ModuleName = 'Microsoft.Graph.Beta.Identity.Signins'; ModuleVersion = '2.27.0' }
+    @{ModuleName = 'Microsoft.Graph.Beta.Reports'; ModuleVersion = '2.27.0' }
+    @{ModuleName = 'Microsoft.Graph.DirectoryObjects'; ModuleVersion = '2.27.0' }
+    @{ModuleName = 'Microsoft.Graph.Groups'; ModuleVersion = '2.27.0' }
+    @{ModuleName = 'Microsoft.Graph.Identity.DirectoryManagement'; ModuleVersion = '2.27.0' }
+    @{ModuleName = 'Microsoft.Graph.Identity.Signins'; ModuleVersion = '2.27.0' }
+    @{ModuleName = 'Microsoft.Graph.Reports'; ModuleVersion = '2.27.0' }
+    @{ModuleName = 'Microsoft.Graph.Users'; ModuleVersion = '2.27.0' }
+    @{ModuleName = 'Microsoft.Graph.Users.Actions'; ModuleVersion = '2.27.0' }
+    @{ModuleName = 'ExchangeOnlineManagement'; ModuleVersion = '3.4.0' }
+    @{ModuleName = 'ImportExcel'; ModuleVersion = '7.8.0' }
+    @{ModuleName = 'PSToml'; ModuleVersion = '0.3.0' }
+    @{ModuleName = 'PSFramework'; ModuleVersion = '1.13.426' }
+)
+
+# ---------------------------------------------------------------------------
 # Discover manifest
 # ---------------------------------------------------------------------------
 $ManifestFiles = @(Get-ChildItem -Path $PSScriptRoot -Filter '*.psd1' -File)
 
+$RequiredModules = $null
+$FromManifest = $false
+
 if (($ManifestFiles | Measure-Object).Count -eq 0) {
-    throw "No .psd1 manifest found in: $PSScriptRoot"
+    # No manifest present -- silently fall back to the hard-coded list below.
 }
-if (($ManifestFiles | Measure-Object).Count -gt 1) {
+elseif (($ManifestFiles | Measure-Object).Count -gt 1) {
     $names = $ManifestFiles.Name -join ', '
-    throw "Multiple .psd1 manifests found in $PSScriptRoot ($names). Cannot determine which to use."
+    Write-Warning "Multiple .psd1 manifests found in $PSScriptRoot ($names). Cannot determine which to use."
 }
-
-$ManifestPath = $ManifestFiles[0].FullName
-if (-not $Quiet) {
-    Write-Host @DarkCyan "Using manifest: $ManifestPath"
+else {
+    $ManifestPath = $ManifestFiles[0].FullName
+    $Manifest = Import-PowerShellDataFile -Path $ManifestPath
+    $RequiredModules = $Manifest.RequiredModules
+    if ($RequiredModules) {
+        $FromManifest = $true
+    }
 }
-
-$Manifest = Import-PowerShellDataFile -Path $ManifestPath
-$RequiredModules = $Manifest.RequiredModules
 
 if (-not $RequiredModules) {
-    Write-Warning 'No RequiredModules found in manifest.'
+    $RequiredModules = $HardCodedRequiredModules
+}
+
+if (-not $RequiredModules) {
+    Write-Warning 'No required modules to install.'
     return
 }
 
+$SourcePath = if ($FromManifest) { $ManifestPath } else { $PSCommandPath }
+
 if (-not $Quiet) {
-    Write-Host @DarkCyan "Found $($RequiredModules.Count) required module(s) in manifest."
+    Write-Host @DarkCyan "Using source: $SourcePath"
+    Write-Host @DarkCyan "Found $($RequiredModules.Count) required module(s)."
 }
 
 # ---------------------------------------------------------------------------
@@ -103,7 +138,6 @@ foreach ($Entry in $RequiredModules) {
     $InstallParams = @{
         Name  = $ModuleName
         Scope = $Scope
-        Force = $Force.IsPresent
     }
 
     $VersionLabel = '(latest)'
@@ -111,7 +145,7 @@ foreach ($Entry in $RequiredModules) {
     if ($Entry -is [hashtable]) {
         if ($Entry.ContainsKey('RequiredVersion')) {
             $InstallParams['RequiredVersion'] = $Entry.RequiredVersion
-            $VersionLabel = "v$($Entry.RequiredVersion) [exact]"
+            $VersionLabel = "== v$($Entry.RequiredVersion)"
         }
         else {
             if ($Entry.ContainsKey('ModuleVersion')) {
@@ -120,7 +154,7 @@ foreach ($Entry in $RequiredModules) {
             }
             if ($Entry.ContainsKey('MaximumVersion')) {
                 $InstallParams['MaximumVersion'] = $Entry.MaximumVersion
-                $VersionLabel += " <= $($Entry.MaximumVersion)"
+                $VersionLabel += "<= $($Entry.MaximumVersion)"
             }
             $VersionLabel = $VersionLabel.Trim()
         }
@@ -160,10 +194,10 @@ foreach ($Entry in $RequiredModules) {
     if ($Satisfied) {
         if (-not $Quiet) {
             if ($Check) {
-                Write-Host @DarkCyan "  $ModuleName $VersionLabel -- OK"
+                Write-Host "    $ModuleName $VersionLabel -- OK"
             }
             else {
-                Write-Host @DarkCyan "  $ModuleName $VersionLabel - already satisfied, skipping."
+                Write-Host "    $ModuleName $VersionLabel - already installed, skipping."
             }
         }
         continue
@@ -172,7 +206,7 @@ foreach ($Entry in $RequiredModules) {
     if ($Check) {
         $Missing += $ModuleName
         if (-not $Quiet) {
-            Write-Host @Yellow "  $ModuleName $VersionLabel -- MISSING"
+            Write-Host @Yellow "    $ModuleName $VersionLabel -- MISSING"
         }
         continue
     }
@@ -196,13 +230,9 @@ if ($Check) {
     }
     else {
         if (-not $Quiet) {
-            Write-Host @Yellow "$($Missing.Count) module(s) missing:"
-            foreach ($Name in $Missing) {
-                Write-Host @Yellow "  - $Name"
-            }
-            Write-Host @Yellow "To install, run:"
+            Write-Host @Yellow "$($Missing.Count) module(s) missing. To install, run:"
             $SelfPath = Join-Path -Path $PSScriptRoot -ChildPath 'Install-Dependencies.ps1'
-            Write-Host @Yellow "  $SelfPath"
+            Write-Host @Yellow "& '$SelfPath'"
         }
         exit 1
     }

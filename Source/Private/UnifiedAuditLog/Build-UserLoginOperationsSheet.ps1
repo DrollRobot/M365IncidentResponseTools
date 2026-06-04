@@ -232,17 +232,6 @@ function Build-UserLoginOperationsSheet {
             }
             Set-ExcelRange @DateFormatParams
 
-            # # Text wrapping on IpAddress and UserAgent
-            # $IpCol = ($Worksheet.Tables[0].Columns |
-            #     Where-Object {$_.Name -eq 'IpAddress'}).Id |
-            #     Convert-DecimalToExcelColumn
-            # $IpWrapParams = @{
-            #     Worksheet = $Worksheet
-            #     Range     = "${IpCol}${TableStartRow}:${IpCol}${EndRow}"
-            #     WrapText  = $true
-            # }
-            # Set-ExcelRange @IpWrapParams # FIXME maybe we don't want text wrapping?
-
             # Font
             try {
                 $FontParams = @{

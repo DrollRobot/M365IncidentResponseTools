@@ -13,6 +13,7 @@ function Test-GraphAdminConsent {
     DelegatedPermissionGrant.Read.All or Directory.Read.All.
     #>
     [CmdletBinding()]
+    [OutputType([string[]])]
     param (
         [Parameter(Mandatory)]
         [Alias('RequestedScopes')]
@@ -64,5 +65,5 @@ function Test-GraphAdminConsent {
         "Test-GraphAdminConsent: Grants=$($Grants.value.Count), " +
         "Granted=$($Granted.Count) scope(s), " +
         "Requested=$($RequestedScope.Count), Missing=$($MissingScopes.Count)")
-    $MissingScopes
+    [string[]] $MissingScopes
 }

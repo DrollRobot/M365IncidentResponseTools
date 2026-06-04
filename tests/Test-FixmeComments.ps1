@@ -31,7 +31,9 @@ $ExcludedFolders = @(
 )
 
 # Root-level files to exclude (relative paths from $Path).
-$ExcludedFiles = @()
+$ExcludedFiles = @(
+    '.\Tests\Test-FixmeComments.ps1'  # this file
+)
 
 # Merge exclusions from the test orchestrator when called via Tests.ps1.
 if ($Global:IRT_FormattingExclusions) {

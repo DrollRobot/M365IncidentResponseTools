@@ -38,6 +38,7 @@ The module config lives in `modules/Import-IRTConfig.ps1`. Whenever you add a ne
    (`modules/Import-IRTConfig.ps1`) so users can configure it interactively.
 
 ### Formatting
+- No non-ASCII characters.
 - Indent: 4 spaces (not tabs). See `.editorconfig`.
 - Line endings: CRLF.
 - Charset: UTF-8.
@@ -52,7 +53,7 @@ The module config lives in `modules/Import-IRTConfig.ps1`. Whenever you add a ne
 - Tests that **require** a live Graph/Exchange/IPPS session must be tagged `'Online'`:
 
 ## Testing after changes
-After making changes, run the test suite from the repo root:
+After making changes, ask the user if we're ready to move on to tests.
 
 **First: Pester tests**
 ```powershell
