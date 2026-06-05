@@ -136,7 +136,7 @@ function Get-TenantOidc {
             Exchange       = 'https://outlook-dod.office365.us/.default'
             ExchangeEnv    = 'O365USGovDoD'
             IPPS           = 'https://l5.ps.compliance.protection.office365.us/powershell-liveid/'
-            # maybe this instead? md docs inconsistent:
+            # maybe this instead? microsoft docs inconsistent:
             # https://compliance.dod.microsoft.com/powershell-liveid
             IPPSSearchOnly = 'https://dataservice.o365filtering.com/.default'
         }
