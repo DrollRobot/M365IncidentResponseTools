@@ -69,7 +69,10 @@ function Get-IRTTenantOwner {
     )
 
     begin {
+
+        # update connection
         Update-IRTToken -Service 'Graph'
+
         $NewCacheEntries = [System.Collections.Generic.List[psobject]]::new()
         $ModuleName = $MyInvocation.MyCommand.ModuleName
         $JpParams = @{
