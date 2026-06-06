@@ -30,6 +30,8 @@
       NonASCIICharacters   -- Check for non-ASCII characters.
       FindUnwantedStrings  -- Scan for user-defined unwanted patterns.
       FixmeComments        -- Report FIXME comments.
+      ExplicitModuleImport -- Check that each source file names every external module
+                             it uses, so Import-IRTModule calls are explicit.
       PSSA                 -- PSScriptAnalyzer detection only; reports issues without
                              modifying any files.
 
@@ -93,7 +95,7 @@ param(
         'Offline', 'Online', 'Formatting',
         'LineLength', 'BacktickContinuation', 'FormatOperator', 'JoinPath',
         'ModuleSyntax', 'NonASCIICharacters', 'TrailingWhitespace',
-        'FindUnwantedStrings', 'FixmeComments', 'PSSA', 'AutoFormat'
+        'FindUnwantedStrings', 'FixmeComments', 'ExplicitModuleImport', 'PSSA', 'AutoFormat'
     )]
     [string[]] $Test,
 
@@ -116,7 +118,7 @@ if ($InteractiveAuth -and 'Online' -notin $Test) {
 $FormattingOnlyValues = @(
     'Formatting', 'LineLength', 'BacktickContinuation', 'FormatOperator', 'JoinPath',
     'ModuleSyntax', 'NonASCIICharacters', 'TrailingWhitespace',
-    'FindUnwantedStrings', 'FixmeComments', 'PSSA', 'AutoFormat'
+    'FindUnwantedStrings', 'FixmeComments', 'ExplicitModuleImport', 'PSSA', 'AutoFormat'
 )
 if ($Built -and ($Test | Where-Object { $_ -in $FormattingOnlyValues })) {
     $BadList = ($Test | Where-Object { $_ -in $FormattingOnlyValues }) -join ', '
@@ -163,6 +165,7 @@ else {
 }
 
 $TestsFolder = Join-Path -Path $PSScriptRoot -ChildPath 'tests'
+$PesterTestsFolder = Join-Path -Path $PSScriptRoot -ChildPath 'tests\pester'
 $LocalTestsFolder = Join-Path -Path $PSScriptRoot -ChildPath '.local\tests'
 
 # Compute build-artifact exclusions once; formatting scripts merge these at runtime.
@@ -182,6 +185,7 @@ $Global:IRT_FormattingExclusions = @{
 $FormattingScriptMap = @{
     'TrailingWhitespace'   = 'Format-TrailingWhitespace.ps1'
     'BacktickContinuation' = 'Test-BacktickContinuation.ps1'
+    'ExplicitModuleImport' = 'Test-ExplicitModuleImport.ps1'
     'FindUnwantedStrings'  = 'Test-FindUnwantedStrings.ps1'
     'FixmeComments'        = 'Test-FixmeComments.ps1'
     'FormatOperator'       = 'Test-FormatOperator.ps1'
@@ -198,7 +202,7 @@ $IndividualTests = @($Test | Where-Object { $FormattingScriptMap.ContainsKey($_)
 # --- Offline ---
 if ('Offline' -in $Test) {
     Write-Host "`n=== Invoke-Pester (Offline) ===" -ForegroundColor Cyan
-    Invoke-Pester -Path $TestsFolder -ExcludeTagFilter 'Online'
+    Invoke-Pester -Path $PesterTestsFolder -ExcludeTagFilter 'Online'
 }
 
 # --- Individual formatting tests ---
@@ -309,7 +313,7 @@ if ('Online' -in $Test) {
     # Pass 1: Connect-IRT.Tests.ps1 runs first. Its BeforeAll genuinely tests
     # Connect-IRT by clearing $Global:IRT_Session and calling it from scratch.
     # On success the session is populated and available to all subsequent files.
-    $ConnectTestFile = Join-Path -Path $TestsFolder -ChildPath 'Connect-IRT.Tests.ps1'
+    $ConnectTestFile = Join-Path -Path $PesterTestsFolder -ChildPath 'Connect-IRT.Tests.ps1'
     try {
         Write-Host "`n=== Invoke-Pester (Online: Connect-IRT) ===" -ForegroundColor Cyan
         $ConnectResult = Invoke-Pester -Path $ConnectTestFile -TagFilter 'Online' -PassThru
@@ -324,7 +328,7 @@ if ('Online' -in $Test) {
             Write-Host '  Skipping remaining online tests.' -ForegroundColor Red
         }
         else {
-            $RemainingTests = Get-ChildItem -Path $TestsFolder -Filter '*.Tests.ps1' |
+            $RemainingTests = Get-ChildItem -Path $PesterTestsFolder -Filter '*.Tests.ps1' |
                 Where-Object { $_.Name -ne 'Connect-IRT.Tests.ps1' } |
                 Select-Object -ExpandProperty FullName
 
