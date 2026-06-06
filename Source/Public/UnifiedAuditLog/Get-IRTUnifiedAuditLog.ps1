@@ -33,6 +33,11 @@ function Get-IRTUnifiedAuditLog {
     .PARAMETER End
     End of date range (parseable date string). Used with -Start for an absolute range.
 
+    .PARAMETER ResultLimit
+    Maximum total records to retrieve across all queries and date chunks. Stops at the
+    next 5000-record page boundary after the limit is reached. Since queries run from
+    the most recent chunk backward, the most recent events are retained. Default: 50000.
+
     .PARAMETER Operation
     Filter results to specific UAL operation names.
 
@@ -74,7 +79,10 @@ function Get-IRTUnifiedAuditLog {
     None. Results are exported to an Excel workbook.
 
     .NOTES
-    Version: 1.6.0
+    Version: 1.8.0
+    1.8.0 - Added date chunking for ranges over 182 days; ResultLimit now caps total
+    records across all queries rather than per-query.
+    1.7.0 - Added -ResultLimit to cap records pulled per query before paging stops.
     1.6.0 - Added profile tags to allow generating specific sheets in Show-IRTUnifiedAuditLog.
     1.5.1 - Added function name to all output.
     1.5.0 - Added -AllUsers option, added test timers.
@@ -95,11 +103,11 @@ function Get-IRTUnifiedAuditLog {
         [Alias( 'ServicePrincipals' )]
         [psobject[]] $ServicePrincipal,
 
-        # relative date range
         [int] $Days, # default value set at #DEFAULTDAYS
-        # absolute date range
         [string] $Start,
         [string] $End,
+
+        [int] $ResultLimit = 50000,
 
         [Alias('Operations')]
         [string[]] $Operation,
@@ -107,6 +115,7 @@ function Get-IRTUnifiedAuditLog {
         [switch] $RiskyOperation,
         [Alias('SignInLogs')]
         [switch] $SignInLog,
+
         [string[]] $FreeText,
 
         [boolean] $Excel = $true,
@@ -216,6 +225,28 @@ function Get-IRTUnifiedAuditLog {
         $StartDateUtc = $DateRange.StartUtc
         $EndDateUtc = $DateRange.EndUtc
 
+        # build 182-day chunks, most recent first
+        $ChunkDays = 182
+        $DateChunks = [System.Collections.Generic.List[hashtable]]::new()
+        $ChunkEnd = $EndDateUtc
+        while ($ChunkEnd -gt $StartDateUtc) {
+            $ProposedStart = $ChunkEnd.AddDays(-$ChunkDays)
+            $ChunkStart = $ProposedStart -gt $StartDateUtc ? $ProposedStart : $StartDateUtc
+            $DateChunks.Add(@{ Start = $ChunkStart; End = $ChunkEnd })
+            $ChunkEnd = $ChunkStart
+        }
+        $ChunkCount = $DateChunks.Count
+        $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+        if ($ChunkCount -gt 1) {
+            $ChunkMsg = "Date range is $Days days, split into $ChunkCount 182-day chunks."
+            Write-IRT $ChunkMsg
+            Write-PSFMessage -Level 8 -Message "${FunctionName}: $ChunkMsg [$Elapsed]"
+        }
+        else {
+            Write-PSFMessage -Level 8 -Message (
+                "${FunctionName}: Date range is $Days days (single chunk). [$Elapsed]")
+        }
+
         # set file name date to query end date
         $FileNameDateString = $EndDateUtc.ToLocalTime().ToString('yy-MM-dd_HH-mm')
 
@@ -285,8 +316,6 @@ function Get-IRTUnifiedAuditLog {
                 ResultSize     = 5000
                 SessionCommand = 'ReturnLargeSet'
                 Formatted      = $true
-                StartDate      = $StartDateUtc
-                EndDate        = $EndDateUtc
             }
 
             # add operations, if specified
@@ -418,54 +447,47 @@ function Get-IRTUnifiedAuditLog {
 
 
             #region RUN QUERIES
-            foreach ( $QueryDict in $QueryTable.GetEnumerator() ) {
+            $LimitReached = $false
+            $ChunkIndex = 0
+            foreach ($DateChunk in $DateChunks) {
+                if ($LimitReached) { break }
+                $ChunkIndex++
+                $BaseParams['StartDate'] = $DateChunk.Start
+                $BaseParams['EndDate'] = $DateChunk.End
 
-                # build final params
-                $FirstPageParams = @{}
-                # add params from table
-                $BaseParams.GetEnumerator() | ForEach-Object { $FirstPageParams[$_.Key] = $_.Value }
-                $QueryDict.Value.Params.GetEnumerator() |
-                    ForEach-Object { $FirstPageParams[$_.Key] = $_.Value }
-
-                $ConsoleOutput = $QueryDict.Value.ConsoleOutput
-
-                # run query
-                Write-IRT $ConsoleOutput
-                $QueryKey = $QueryDict.Key
-                $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-                Write-PSFMessage -Level 8 -Message (
-                    "${FunctionName}: Search-UnifiedAuditLog query $QueryKey [$Elapsed]")
-                $Page = Search-UnifiedAuditLog @FirstPageParams
-                $LogCount = ($Page | Measure-Object).Count
-
-                if ($LogCount -gt 0) {
-
-                    Write-IRT "Retrieved ${LogCount} logs."
-
-                    # add to list
-                    foreach ($i in $Page) { $AllLogs.Add($i) }
-
-                    # extract sessionid for paging
-                    $SessionId = $Page[0].SessionId
-                    $PageCount = 2
-                    $NextPageParams = $FirstPageParams
-                    $NextPageParams['SessionId'] = $SessionId
-                }
-                else {
-                    Write-IRT "Retrieved 0 logs." -Level Warn
-                }
-
-                # retrieve pages
-                while ($LogCount -eq 5000) {
-
-                    Write-IRT "Requesting page ${PageCount}."
+                if ($ChunkCount -gt 1) {
+                    $ChunkStartStr = $DateChunk.Start.ToString('yyyy-MM-dd')
+                    $ChunkEndStr = $DateChunk.End.ToString('yyyy-MM-dd')
+                    Write-IRT "Chunk $ChunkIndex of $ChunkCount ($ChunkStartStr to $ChunkEndStr)."
                     $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
                     Write-PSFMessage -Level 8 -Message (
-                        "${FunctionName}: Search-UnifiedAuditLog page $PageCount [$Elapsed]")
-                    $Page = Search-UnifiedAuditLog @NextPageParams
-                    $LogCount = @($Page).Count
+                        "${FunctionName}: Chunk $ChunkIndex of $($ChunkCount): " +
+                        "$ChunkStartStr to $ChunkEndStr [$Elapsed]")
+                }
 
-                    if ( $LogCount -gt 0 ) {
+                foreach ( $QueryDict in $QueryTable.GetEnumerator() ) {
+
+                    if ($AllLogs.Count -ge $ResultLimit) { $LimitReached = $true; break }
+
+                    # build final params
+                    $FirstPageParams = @{}
+                    $BaseParams.GetEnumerator() |
+                        ForEach-Object { $FirstPageParams[$_.Key] = $_.Value }
+                    $QueryDict.Value.Params.GetEnumerator() |
+                        ForEach-Object { $FirstPageParams[$_.Key] = $_.Value }
+
+                    $ConsoleOutput = $QueryDict.Value.ConsoleOutput
+
+                    # run query
+                    Write-IRT $ConsoleOutput
+                    $QueryKey = $QueryDict.Key
+                    $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+                    Write-PSFMessage -Level 8 -Message (
+                        "${FunctionName}: Search-UnifiedAuditLog query $QueryKey [$Elapsed]")
+                    $Page = Search-UnifiedAuditLog @FirstPageParams
+                    $LogCount = ($Page | Measure-Object).Count
+
+                    if ($LogCount -gt 0) {
 
                         Write-IRT "Retrieved ${LogCount} logs."
 
@@ -474,13 +496,61 @@ function Get-IRTUnifiedAuditLog {
 
                         # extract sessionid for paging
                         $SessionId = $Page[0].SessionId
+                        $PageCount = 2
+                        $NextPageParams = $FirstPageParams
+                        $NextPageParams['SessionId'] = $SessionId
                     }
                     else {
                         Write-IRT "Retrieved 0 logs." -Level Warn
                     }
 
-                    $PageCount++
+                    # retrieve pages until exhausted or ResultLimit reached
+                    while ($LogCount -eq 5000 -and $AllLogs.Count -lt $ResultLimit) {
+
+                        Write-IRT "Requesting page ${PageCount}."
+                        $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+                        Write-PSFMessage -Level 9 -Message (
+                            "${FunctionName}: Search-UnifiedAuditLog page $PageCount " +
+                            "(total so far: $($AllLogs.Count)) [$Elapsed]")
+                        $Page = Search-UnifiedAuditLog @NextPageParams
+                        $LogCount = @($Page).Count
+
+                        if ( $LogCount -gt 0 ) {
+
+                            Write-IRT "Retrieved ${LogCount} logs."
+
+                            # add to list
+                            foreach ($i in $Page) { $AllLogs.Add($i) }
+
+                            # extract sessionid for paging
+                            $SessionId = $Page[0].SessionId
+                        }
+                        else {
+                            Write-IRT "Retrieved 0 logs." -Level Warn
+                        }
+
+                        $PageCount++
+                    }
+
+                    if ($AllLogs.Count -ge $ResultLimit) { $LimitReached = $true; break }
                 }
+
+                if ($ChunkCount -gt 1) {
+                    $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+                    Write-PSFMessage -Level 8 -Message (
+                        "${FunctionName}: Chunk $ChunkIndex complete. " +
+                        "Total logs accumulated: $($AllLogs.Count) [$Elapsed]")
+                }
+            }
+
+            # note when queries stopped early due to ResultLimit
+            if ($LimitReached) {
+                Write-IRT ("Reached ResultLimit of ${ResultLimit} records. " +
+                    "Keeping the most recent $($AllLogs.Count) events.") -Level Warn
+                $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+                Write-PSFMessage -Level 8 -Message (
+                    "${FunctionName}: ResultLimit $ResultLimit reached at chunk " +
+                    "$ChunkIndex of $ChunkCount [$Elapsed]")
             }
 
             # exit if no logs returned
