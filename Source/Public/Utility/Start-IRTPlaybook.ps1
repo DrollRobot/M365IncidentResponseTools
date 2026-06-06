@@ -58,6 +58,7 @@ function Start-IRTPlaybook {
 
         [string] $Ticket,
         [switch] $NoFolder,
+        [switch] $NewTab,
         [int] $MaxRunspaces = 15
     )
 
@@ -127,7 +128,9 @@ function Start-IRTPlaybook {
             New-IRTInvestigationFolder @DirParams
         }
 
-        if ($Global:IRT_Config.PlaybookOpenNewTab) {
+        if ($Global:IRT_Config.PlaybookOpenNewTab -or
+            $NewTab
+        ) {
             Open-IRTTab
         }
 
@@ -322,9 +325,9 @@ function Start-IRTPlaybook {
             # reset wait flags for this run (IRT_IpInfo and IRT_MessageTraceTable are
             # initialized as synchronized hashtables by the module and persist across runs)
             $Global:IRT_WaitFlags = [hashtable]::Synchronized(@{
-                MessageTraceUserDone     = $false
-                MessageTraceAllUsersDone = $false
-            })
+                    MessageTraceUserDone     = $false
+                    MessageTraceAllUsersDone = $false
+                })
 
             # build Exchange connection params once for all runspaces
             $ExoConnectParams = @{
