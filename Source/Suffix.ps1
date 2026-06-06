@@ -18,6 +18,11 @@ foreach ($VarName in 'IRT_IpInfo', 'IRT_MessageTraceTable') {
     }
 }
 
+# Initialize the email search collection. Preserve existing entries on module re-import.
+if ($Global:IRT_EmailSearch -isnot [System.Collections.Generic.List[psobject]]) {
+    $Global:IRT_EmailSearch = [System.Collections.Generic.List[psobject]]::new()
+}
+
 # Load user config on module import
 Import-IRTConfig
 
