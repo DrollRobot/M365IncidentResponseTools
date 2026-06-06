@@ -3,7 +3,7 @@ $Path = "$PSScriptRoot\..\..\Source\M365IncidentResponseTools.psd1" # source
 Write-Host "Importing from: $Path" -ForegroundColor Green
 Import-Module $Path -Force
 
-& "..\.env.ps1"
+& "$PSScriptRoot\..\.env.ps1"
 
 Set-PSFConfig -FullName 'PSFramework.Message.Info.Maximum' -Value 8
 $InformationPreference = 'Continue'

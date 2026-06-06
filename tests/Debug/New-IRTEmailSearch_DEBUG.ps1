@@ -3,14 +3,14 @@ $Path = "$PSScriptRoot\..\..\Source\M365IncidentResponseTools.psd1" # source
 Write-Host "Importing from: $Path" -ForegroundColor Green
 Import-Module $Path -Force
 
-& "..\.env.ps1"
+& "$PSScriptRoot\..\.env.ps1"
 
 Set-PSFConfig -FullName 'PSFramework.Message.Info.Maximum' -Value 8
 $InformationPreference = 'Continue'
 
-if (-not (Test-IRTConnection -Quiet)) {
-    Connect-IRTT -TenantId $env:IRT_TEST_TENANT_ID
-}
+# if (-not (Test-IRTConnection -Quiet)) {
+#     Connect-IRTT -TenantId $env:IRT_TEST_TENANT_ID
+# }
 
 Set-Location ([environment]::GetFolderPath('Desktop'))
 

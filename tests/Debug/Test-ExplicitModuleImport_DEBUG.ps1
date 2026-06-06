@@ -3,16 +3,18 @@ $ModulePath = "$PSScriptRoot\..\..\Source\M365IncidentResponseTools.psd1" # sour
 Write-Host "Importing from: $ModulePath" -ForegroundColor Green
 Import-Module $ModulePath -Force
 
+& "$PSScriptRoot\..\.env.ps1"
+
 Set-PSFConfig -FullName 'PSFramework.Message.Info.Maximum' -Value 8
 # $InformationPreference = 'Continue'
 $InformationPreference = 'SilentlyContinue'
 
 # scan source folder 
-# . "$PSScriptRoot\..\Find-ModuleRoot.ps1"
-# $ModuleRoot = (Find-ModuleRoot -Path $PSScriptRoot).Path
-# & "$PSScriptRoot\..\Test-ExplicitModuleImport.ps1" -Path $ModuleRoot
+. "$PSScriptRoot\..\Find-ModuleRoot.ps1"
+$ModuleRoot = (Find-ModuleRoot -Path $PSScriptRoot).Path
+& "$PSScriptRoot\..\Test-ExplicitModuleImport.ps1" -Path $ModuleRoot
 
 # scan specific files
 # & "$PSScriptRoot\..\Test-ExplicitModuleImport.ps1" -Path "$PSScriptRoot\..\..\Source\Public\Email\Get-IRTMessageTrace.ps1"
-& "$PSScriptRoot\..\Test-ExplicitModuleImport.ps1" -Path "$PSScriptRoot\..\..\Source\Suffix.ps1"
+# & "$PSScriptRoot\..\Test-ExplicitModuleImport.ps1" -Path "$PSScriptRoot\..\..\Source\Suffix.ps1"
 
