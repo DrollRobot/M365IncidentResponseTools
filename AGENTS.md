@@ -84,4 +84,14 @@ Do not move on to formatting until all Pester tests are passing.
 # once you're done, run them all again to be sure fixes didn't create any new problems. 
 ```
 
+**Checking a single file**
+`.\Tests.ps1 <Category>` scans all in-scope files. To check just one file , call the standalone
+check directly with `-Path`. Prefer this over hand-rolling grep/regex checks:
+
+    .\Tests\Test-LineLength.ps1 -Path .\Dev\Invoke-RandomEmailTraffic.ps1
+
+All nine accept `-Path` (a file or folder): Test-LineLength, Test-BacktickContinuation,
+Test-FormatOperator, Test-JoinPath, Test-ModuleSyntax, Test-NonASCIICharacters,
+Test-PSSA, Test-FindUnwantedStrings, Test-FixmeComments.
+
 For build, test, and release procedures, see [RELEASING.md](RELEASING.md).
