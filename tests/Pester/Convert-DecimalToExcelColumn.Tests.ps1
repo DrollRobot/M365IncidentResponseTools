@@ -1,7 +1,7 @@
 #Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.0.0' }
 
 BeforeAll {
-    $Dir = Join-Path -Path $PSScriptRoot -ChildPath '..\source\Private\Utility'
+    $Dir = Join-Path -Path $PSScriptRoot -ChildPath '..\..\source\Private\Utility'
     . (Join-Path -Path $Dir -ChildPath 'Convert-DecimalToExcelColumn.ps1')
 }
 
