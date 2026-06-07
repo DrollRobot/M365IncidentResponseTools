@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Removes trailing whitespace from all .ps1, .psm1, and .psd1 files.
 .PARAMETER Path
@@ -22,9 +22,9 @@ $ExcludedFolders = @(
 $ExcludedFiles = @()
 
 # Merge exclusions from the test orchestrator when called via Tests.ps1.
-if ($Global:IRT_FormattingExclusions) {
-    $ExcludedFiles += $Global:IRT_FormattingExclusions.ExcludeFiles
-    $ExcludedFolders += $Global:IRT_FormattingExclusions.ExcludeFolders
+if ($Global:Dev_FormattingExclusions) {
+    $ExcludedFiles += $Global:Dev_FormattingExclusions.ExcludeFiles
+    $ExcludedFolders += $Global:Dev_FormattingExclusions.ExcludeFolders
 }
 
 $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()

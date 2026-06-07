@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Checks .ps1, .psm1, and .psd1 files for lines exceeding a maximum length.
     Pass a file path to check a single file, or a folder path to check all matching files.
@@ -12,13 +12,17 @@
     Search subdirectories recursively (only applies when Path is a directory).
 .PARAMETER MaxLength
     Maximum allowed line length in characters. Defaults to 100.
+.PARAMETER Quiet
+    Suppress the per-finding table and the AI-agent remediation note, printing
+    only the one-line summary. Useful for a quick pass/fail check.
 #>
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '')]
 [CmdletBinding()]
 param(
     [string] $Path = (Get-Location).Path,
     [switch] $Recurse,
-    [int] $MaxLength = 100
+    [int] $MaxLength = 100,
+    [switch] $Quiet
 )
 
 # Folder names to exclude from scanning. Any file under a matching folder is skipped.
@@ -30,9 +34,9 @@ $ExcludedFolders = @(
 $ExcludedFiles = @()
 
 # Merge exclusions from the test orchestrator when called via Tests.ps1.
-if ($Global:IRT_FormattingExclusions) {
-    $ExcludedFiles += $Global:IRT_FormattingExclusions.ExcludeFiles
-    $ExcludedFolders += $Global:IRT_FormattingExclusions.ExcludeFolders
+if ($Global:Dev_FormattingExclusions) {
+    $ExcludedFiles += $Global:Dev_FormattingExclusions.ExcludeFiles
+    $ExcludedFolders += $Global:Dev_FormattingExclusions.ExcludeFolders
 }
 
 $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
@@ -92,7 +96,7 @@ foreach ($file in $files) {
 
 $Count = @($files).Count
 
-if ($hitCount -gt 0) {
+if ($hitCount -gt 0 -and -not $Quiet) {
     $Msg = 'NOTE FOR AI AGENTS: Always fix all line length findings, ' +
     "even if they aren't related to changes you made. Lines should be " +
     "no longer than ${MaxLength} characters. DO NOT USE BACKTICK CONTINUATIONS. " +

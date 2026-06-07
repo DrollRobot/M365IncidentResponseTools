@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Checks all .ps1, .psm1, and .psd1 files for path-building anti-patterns.
 .DESCRIPTION
@@ -27,6 +27,9 @@
     Root directory to search. Defaults to the current directory.
 .PARAMETER Recurse
     Search subdirectories recursively.
+.PARAMETER Quiet
+    Suppress the per-finding table and the AI-agent remediation note, printing
+    only the one-line summary. Useful for a quick pass/fail check.
 .OUTPUTS
     Formatted table to the host. No pipeline output.
 .EXAMPLE
@@ -37,7 +40,8 @@
 [CmdletBinding()]
 param(
     [string] $Path = (Get-Location).Path,
-    [switch] $Recurse
+    [switch] $Recurse,
+    [switch] $Quiet
 )
 
 # Folder names to exclude from scanning. Any file under a matching folder is skipped.
@@ -49,9 +53,9 @@ $ExcludedFolders = @(
 $ExcludedFiles = @()
 
 # Merge exclusions from the test orchestrator when called via Tests.ps1.
-if ($Global:IRT_FormattingExclusions) {
-    $ExcludedFiles += $Global:IRT_FormattingExclusions.ExcludeFiles
-    $ExcludedFolders += $Global:IRT_FormattingExclusions.ExcludeFolders
+if ($Global:Dev_FormattingExclusions) {
+    $ExcludedFiles += $Global:Dev_FormattingExclusions.ExcludeFiles
+    $ExcludedFolders += $Global:Dev_FormattingExclusions.ExcludeFolders
 }
 
 $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
@@ -148,7 +152,7 @@ foreach ($file in $files) {
 
 $Count = @($files).Count
 
-if ($hitCount -gt 0) {
+if ($hitCount -gt 0 -and -not $Quiet) {
     $Msg = 'NOTE FOR AI AGENTS: Always fix all path-building findings, even if they are ' +
     "not related to changes you made. " +
     'PathCombine: replace System.IO.Path Combine() with Join-Path. ' + # noqa: Test-JoinPath

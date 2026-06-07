@@ -1,16 +1,20 @@
-<#
+﻿<#
 .SYNOPSIS
     Parses all .ps1, .psm1, and .psd1 files in a directory for syntax errors.
 .PARAMETER Path
     Root directory to search. Defaults to the current directory.
 .PARAMETER Recurse
     Search subdirectories recursively.
+.PARAMETER Quiet
+    Suppress the per-file error detail and the AI-agent remediation note,
+    printing only the one-line summary. Useful for a quick pass/fail check.
 #>
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '')]
 [CmdletBinding()]
 param(
     [string] $Path = (Get-Location).Path,
-    [switch] $Recurse
+    [switch] $Recurse,
+    [switch] $Quiet
 )
 
 # Folder names to exclude from scanning. Any file under a matching folder is skipped.
@@ -22,9 +26,9 @@ $ExcludedFolders = @(
 $ExcludedFiles = @()
 
 # Merge exclusions from the test orchestrator when called via Tests.ps1.
-if ($Global:IRT_FormattingExclusions) {
-    $ExcludedFiles += $Global:IRT_FormattingExclusions.ExcludeFiles
-    $ExcludedFolders += $Global:IRT_FormattingExclusions.ExcludeFolders
+if ($Global:Dev_FormattingExclusions) {
+    $ExcludedFiles += $Global:Dev_FormattingExclusions.ExcludeFiles
+    $ExcludedFolders += $Global:Dev_FormattingExclusions.ExcludeFolders
 }
 
 $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
@@ -46,6 +50,7 @@ $files = Get-ChildItem @GetChildParams |
     }
 $errorCount = 0
 $totalLines = 0
+$hits = [System.Collections.Generic.List[PSCustomObject]]::new()
 
 $FileTotal = @($files).Count
 $FileIndex = 0
@@ -64,20 +69,21 @@ foreach ($file in $files) {
     )
     if ($parseErrors) {
         $errorCount += @($parseErrors).Count
-        [PSCustomObject]@{
-            File   = $file.Name
-            Errors = $parseErrors
-        }
+        $hits.Add([PSCustomObject]@{
+                File   = $file.Name
+                Errors = $parseErrors
+            })
     }
 }
 
 $Count = @($files).Count
 
-if ($errorCount -gt 0) {
-    $Msg = 'NOTE FOR AI AGENTS: Always fix all syntax errors shown above, ' +
+if ($errorCount -gt 0 -and -not $Quiet) {
+    $Msg = 'NOTE FOR AI AGENTS: Always fix all syntax errors below, ' +
     "even if they aren't related to changes you made. " +
     'Do this only after all Pester tests are passing.'
     Write-Host $Msg -ForegroundColor DarkGray
+    $hits
 }
 
 Write-Progress -Activity $MyInvocation.MyCommand.Name -Completed

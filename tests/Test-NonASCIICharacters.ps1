@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Checks all .ps1, .psm1, and .psd1 files in a directory for non-ASCII characters.
 .DESCRIPTION
@@ -12,13 +12,17 @@
 .PARAMETER ExemptCharacters
     Array of specific non-ASCII characters to ignore. Matches are suppressed when
     the offending character is in this list.
+.PARAMETER Quiet
+    Suppress the per-finding table and the AI-agent remediation note, printing
+    only the one-line summary. Useful for a quick pass/fail check.
 #>
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '')]
 [CmdletBinding()]
 param(
     [string] $Path = (Get-Location).Path,
     [switch] $Recurse,
-    [char[]] $ExemptCharacters = @()
+    [char[]] $ExemptCharacters = @(),
+    [switch] $Quiet
 )
 
 # Folder names to exclude from scanning. Any file under a matching folder is skipped.
@@ -30,9 +34,9 @@ $ExcludedFolders = @(
 $ExcludedFiles = @()
 
 # Merge exclusions from the test orchestrator when called via Tests.ps1.
-if ($Global:IRT_FormattingExclusions) {
-    $ExcludedFiles += $Global:IRT_FormattingExclusions.ExcludeFiles
-    $ExcludedFolders += $Global:IRT_FormattingExclusions.ExcludeFolders
+if ($Global:Dev_FormattingExclusions) {
+    $ExcludedFiles += $Global:Dev_FormattingExclusions.ExcludeFiles
+    $ExcludedFolders += $Global:Dev_FormattingExclusions.ExcludeFolders
 }
 
 $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
@@ -89,7 +93,7 @@ foreach ($file in $files) {
 
     $Count = @($files).Count
 
-    if ($hitCount -gt 0) {
+    if ($hitCount -gt 0 -and -not $Quiet) {
         $Msg = 'NOTE FOR AI AGENTS: Always fix all non-ASCII character findings, ' +
         "even if they aren't related to changes you made. " +
         'Replace non-ASCII characters with plain ASCII equivalents. ' +

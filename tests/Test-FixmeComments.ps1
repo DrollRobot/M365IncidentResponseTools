@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Scans .ps1, .psm1, and .psd1 files for FIXME comments and reports them as a table.
 .DESCRIPTION
@@ -12,6 +12,9 @@
     File or directory to check. Defaults to the current directory.
 .PARAMETER Recurse
     Search subdirectories recursively (only applies when Path is a directory).
+.PARAMETER Quiet
+    Suppress the per-finding table and the AI-agent note, printing only the
+    one-line summary. Useful for a quick pass/fail check.
 .OUTPUTS
     Formatted table to the host. No pipeline output.
 .EXAMPLE
@@ -22,7 +25,8 @@
 [CmdletBinding()]
 param(
     [string] $Path = (Get-Location).Path,
-    [switch] $Recurse
+    [switch] $Recurse,
+    [switch] $Quiet
 )
 
 # Folder names to exclude from scanning. Any file under a matching folder is skipped.
@@ -36,9 +40,9 @@ $ExcludedFiles = @(
 )
 
 # Merge exclusions from the test orchestrator when called via Tests.ps1.
-if ($Global:IRT_FormattingExclusions) {
-    $ExcludedFiles += $Global:IRT_FormattingExclusions.ExcludeFiles
-    $ExcludedFolders += $Global:IRT_FormattingExclusions.ExcludeFolders
+if ($Global:Dev_FormattingExclusions) {
+    $ExcludedFiles += $Global:Dev_FormattingExclusions.ExcludeFiles
+    $ExcludedFolders += $Global:Dev_FormattingExclusions.ExcludeFolders
 }
 
 $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
@@ -94,7 +98,7 @@ foreach ($File in $Files) {
 
 $FileCount = @($Files).Count
 
-if ($Hits.Count -gt 0) {
+if ($Hits.Count -gt 0 -and -not $Quiet) {
     $Msg = 'NOTE FOR AI AGENTS: This output is for human review only. Do not address ' +
     'these items unless the user explicitly asks.'
     Write-Host $Msg -ForegroundColor DarkGray

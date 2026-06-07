@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Scans all files for unwanted patterns and reports them as a table.
 .DESCRIPTION
@@ -16,6 +16,9 @@
     File or directory to check. Defaults to the current directory.
 .PARAMETER Recurse
     Search subdirectories recursively (only applies when Path is a directory).
+.PARAMETER Quiet
+    Suppress the per-finding table and the AI-agent note, printing only the
+    one-line summary. Useful for a quick pass/fail check.
 .OUTPUTS
     Formatted table to the host. No pipeline output.
 .EXAMPLE
@@ -26,7 +29,8 @@
 [CmdletBinding()]
 param(
     [string] $Path = (Get-Location).Path,
-    [switch] $Recurse
+    [switch] $Recurse,
+    [switch] $Quiet
 )
 
 # Internal list of patterns to search for.
@@ -60,9 +64,9 @@ $ExcludedFolders = @(
 $ExcludedFiles = @()
 
 # Merge exclusions from the test orchestrator when called via Tests.ps1.
-if ($Global:IRT_FormattingExclusions) {
-    $ExcludedFiles += $Global:IRT_FormattingExclusions.ExcludeFiles
-    $ExcludedFolders += $Global:IRT_FormattingExclusions.ExcludeFolders
+if ($Global:Dev_FormattingExclusions) {
+    $ExcludedFiles += $Global:Dev_FormattingExclusions.ExcludeFiles
+    $ExcludedFolders += $Global:Dev_FormattingExclusions.ExcludeFolders
 }
 
 if ($UnwantedPatterns.Count -eq 0) {
@@ -138,7 +142,7 @@ foreach ($File in $Files) {
 
 $FileCount = @($Files).Count
 
-if ($Hits.Count -gt 0) {
+if ($Hits.Count -gt 0 -and -not $Quiet) {
     $Msg = 'NOTE FOR AI AGENTS: Findings from this test should be treated as critical errors for ' +
     'human review and repair. Do not attempt to address, fix, or remove these strings. Simply ' +
     'stop and warn the user.'

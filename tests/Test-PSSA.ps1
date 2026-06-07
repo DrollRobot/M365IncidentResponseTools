@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Runs PSScriptAnalyzer against all PowerShell files in a directory.
     Optionally applies auto-fixes and formatting via -AutoFormat.
@@ -22,8 +22,10 @@
     Apply Invoke-ScriptAnalyzer -Fix and Invoke-Formatter to each file, then
     report remaining issues.
 .PARAMETER Quiet
-    Suppress the per-finding table and grouped output. Most useful with
-    -AutoFormat when you only want to format, not review findings.
+    Suppress the per-finding table, grouped output, and the AI-agent remediation
+    note, printing only the summary. Operational notes (e.g. the load-time /
+    do-not-poll warning) are still shown. Most useful with -AutoFormat when you
+    only want to format, not review findings.
 .OUTPUTS
     Formatted table to the host. No pipeline output.
 .EXAMPLE
@@ -130,9 +132,9 @@ $ExcludedFiles = @()
 $ExcludedFolders = @('.local')
 
 # Merge exclusions from the test orchestrator when called via Tests.ps1.
-if ($Global:IRT_FormattingExclusions) {
-    $ExcludedFiles += $Global:IRT_FormattingExclusions.ExcludeFiles
-    $ExcludedFolders += $Global:IRT_FormattingExclusions.ExcludeFolders
+if ($Global:Dev_FormattingExclusions) {
+    $ExcludedFiles += $Global:Dev_FormattingExclusions.ExcludeFiles
+    $ExcludedFolders += $Global:Dev_FormattingExclusions.ExcludeFolders
 }
 
 # --- AutoFormat pass ---
@@ -270,20 +272,18 @@ Write-Host "Completed in ${ElapsedSec}s." -ForegroundColor Cyan
 
 $IssueCount = ($Results | Measure-Object).Count
 
-if ($IssueCount -gt 0) {
+if ($IssueCount -gt 0 -and -not $Quiet) {
     $Msg = 'NOTE FOR AI AGENTS: Always fix all PSScriptAnalyzer findings, ' +
     "even if they aren't related to changes you made. " +
     'Do this only after all Pester tests are passing.'
     Write-Host $Msg -ForegroundColor DarkGray
 
-    if (-not $Quiet) {
-        Write-Host 'Results' -ForegroundColor Cyan
-        $Results | Format-Table -AutoSize
+    Write-Host 'Results' -ForegroundColor Cyan
+    $Results | Format-Table -AutoSize
 
-        if ($IssueCount -gt 5) {
-            Write-Host 'Results grouped by rule:' -ForegroundColor Cyan
-            $Results | Group-Object RuleName | Format-Table Count, Name, Group -AutoSize
-        }
+    if ($IssueCount -gt 5) {
+        Write-Host 'Results grouped by rule:' -ForegroundColor Cyan
+        $Results | Group-Object RuleName | Format-Table Count, Name, Group -AutoSize
     }
 }
 

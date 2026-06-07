@@ -1,33 +1,36 @@
-﻿<#
+<#
 .SYNOPSIS
-    Checks all .ps1, .psm1, and .psd1 files for use of the -f format operator.
+    Checks all .ps1, .psm1, and .psd1 files for Write-Verbose and Write-Debug calls.
 .DESCRIPTION
-    Flags any line that uses the PowerShell string format operator (-f), e.g.
-    "Hello {0}" -f $name. Inline subexpressions should be used instead:
-    "Hello $($name)".
+    Flags any line that calls Write-Verbose or Write-Debug. These are typically
+    leftover debugging statements; IRT functions should use Write-IRT for user
+    output instead.
 
-    Comment lines and lines inside excluded folders are ignored.
+    Comment lines, block comments, and lines inside excluded folders are ignored.
 
     To suppress a finding on a specific line, append an inline exemption marker:
 
-        <code>  # noqa: Test-FormatOperator
+        <code>  # noqa: Test-WriteVerboseDebug
 
-    NOTE FOR AI AGENTS: Always fix all -f format operator findings, even if
-    they aren't related to changes you made. Replace format strings with inline
-    subexpressions ("...$($x)...") instead. Do this only after all Pester tests
-    are passing.
+    NOTE FOR AI AGENTS: Always remove these findings, even if they aren't related
+    to changes you made. Delete the leftover diagnostic statement, or replace
+    user-facing output with Write-IRT. Do this only after all Pester tests are
+    passing.
 .PARAMETER Path
-    Root directory to search. Defaults to the current directory.
+    File or directory to check. Defaults to the current directory.
 .PARAMETER Recurse
     Search subdirectories recursively.
 .PARAMETER Quiet
-    Suppress the per-finding table, printing only the one-line summary. Useful
-    for a quick pass/fail check.
+    Suppress the per-finding table and the AI-agent remediation note, printing
+    only the one-line summary. Useful for a quick pass/fail check.
 .OUTPUTS
     Formatted table to the host. No pipeline output.
 .EXAMPLE
-    .\Test-FormatOperator.ps1 -Path . -Recurse
-    Lists all -f format operator usages found in the repo.
+    .\Test-WriteVerboseDebug.ps1 -Path . -Recurse
+    Lists all Write-Verbose and Write-Debug calls found in the repo.
+.EXAMPLE
+    .\Test-WriteVerboseDebug.ps1 -Path . -Recurse -Quiet
+    Shows only the summary line -- useful for a quick pass/fail check.
 #>
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '')]
 [CmdletBinding()]
@@ -94,14 +97,16 @@ foreach ($file in $files) {
         # Skip single-line comment lines
         if ($line -match '^\s*#') { continue }
         # Skip lines marked with an inline exemption
-        if ($line -match '#\s*noqa:\s*Test-FormatOperator') { continue }
-        # Match lines containing the -f format operator (whitespace on both sides)
-        if ($line -match '\s+-f\s') {
+        if ($line -match '#\s*noqa:\s*Test-WriteVerboseDebug') { continue }
+        # Match Write-Verbose / Write-Debug command calls. The capture group names
+        # which command matched at runtime, so this file never matches itself.
+        if ($line -match '\bWrite-(Verbose|Debug)\b') {
             $hitCount++
             $relativePath = [System.IO.Path]::GetRelativePath($Path, $file.FullName)
             $hits.Add([PSCustomObject]@{
                     File       = $relativePath
                     LineNumber = $i + 1
+                    Tag        = "Write-$($Matches[1])"
                     Line       = $line.TrimStart()
                 })
         }
@@ -111,6 +116,10 @@ foreach ($file in $files) {
 $Count = @($files).Count
 
 if ($hitCount -gt 0 -and -not $Quiet) {
+    $Msg = 'NOTE FOR AI AGENTS: ' +
+    'Write-Verbose and Write-Debug calls should be replaced ' + # noqa: Test-WriteVerboseDebug
+    'based on the Debug Output instructions in AGENTS.md'
+    Write-Host $Msg -ForegroundColor DarkGray
     $hits | Format-Table -AutoSize
 }
 
@@ -118,6 +127,6 @@ Write-Progress -Activity $MyInvocation.MyCommand.Name -Completed
 $Stopwatch.Stop()
 $Elapsed = "$([math]::Round($Stopwatch.Elapsed.TotalSeconds, 2))s"
 $SummaryColor = if ($hitCount -gt 0) { 'Red' } else { 'Green' }
-$Msg = "$hitCount format-operator usage(s) -- $Count file(s), " +
+$Msg = "$hitCount verbose/debug statement(s) -- $Count file(s), " +
 "$totalLines line(s) checked. ($Elapsed)"
 Write-Host $Msg -ForegroundColor $SummaryColor
