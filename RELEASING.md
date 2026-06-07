@@ -1,4 +1,10 @@
-# Releasing M365IncidentResponseTools
+# Releasing
+
+In-domain: All code in Source/, except functions in Lib/ folders and Build.psd1.
+Non-domain: Dev/Test/Build/Debug/Lib code.
+
+Ignore built code, such as *.psm1 and *.psd1, ScriptsToProcess/, Data/, Build/, in
+the module root.
 
 ## Steps
 
@@ -7,7 +13,7 @@
 .\Build.ps1
 ```
 
-**Tests**
+**Test built module**
 Run tests again on the built module:
 ```powershell
 .\Tests.ps1 Offline,Online -Built

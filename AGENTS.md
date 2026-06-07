@@ -1,5 +1,13 @@
 # M365IncidentResponseTools -- Agent Guidelines
 
+In-domain: All code in Source/, except functions in Lib/ folders and Build.psd1.
+Non-domain: Dev/Test/Build/Debug/Lib code.
+
+Ignore built code, such as *.psm1 and *.psd1, ScriptsToProcess/, Data/, Build/, in
+the module root.
+
+Source
+
 ## Architecture
 
 Uses [ModuleBuilder](https://github.com/PoshCode/ModuleBuilder). Only read/edit module files under `source/`. Ignore module files in repo root. 
@@ -12,86 +20,52 @@ Uses [ModuleBuilder](https://github.com/PoshCode/ModuleBuilder). Only read/edit 
 ## Code Style
 
 ### Naming Conventions
-- Public functions (except Lib) use `IRT` infix. `Verb-IRTNoun` (e.g., `Get-IRTInboxRule`, `Get-IRTMessageTrace`).
+- In-domain public functions use `IRT` infix. `Verb-IRTNoun` (e.g., `Get-IRTInboxRule`, `Get-IRTMessageTrace`).
 - Use only [PowerShell-approved verbs](https://learn.microsoft.com/en-us/powershell/scripting/developer/cmdlet/approved-verbs-for-windows-powershell-commands).
 - Only one function per file. File name must match function name.
 - Function aliases are declared on the function definition with `[Alias(...)]`
 
 ### Output
-- Use `Write-IRT` for user output in all IRT (non-lib) functions. Levels: `Info` (default), `Warn`, `Error`
-- Write-Host is only acceptable in non-IRT functions/scripts.
-- Declare `[OutputType(...)]` on functions that return objects.
+- Use `Write-IRT` for user output in all in-domain code. Levels: `Info` (default), `Warn`, `Error`
+- Write-Host is only acceptable in non-domain code.
+- Include debug output in all code. (do not use Write-Verbose or Write-Debug)
+- In-domain debug output should use `Write-PSFMessage -Level 8 -Message <message>`. (or
+   level 9 for very verbose output)
+- Non-domain debug output should use Write-Trace:
+```
+if ($Trace) { $InformationPreference = 'Continue' }
+function Write-Trace {
+   param([Parameter(Mandatory)][string] $Message)
+   Write-Information $Message -Tags 'Trace'
+}
+```
 
 ### Global State
-- All module-level global variables use the `$Global:IRT_*` prefix.
+- All in-domain global variables use the `$Global:IRT_*` prefix.
 
 ### Comment-Based Help
-- Every exported function requires full comment-based help: `.SYNOPSIS`, `.DESCRIPTION`,
+- Every function/script requires full comment-based help: `.SYNOPSIS`, `.DESCRIPTION`,
 `.PARAMETER` (for each parameter), at least one `.EXAMPLE`, `.OUTPUTS`, and `.NOTES`.
 
-### Config System
-The module config lives in `modules/Import-IRTConfig.ps1`. Whenever you add a new config key:
-1. Add it to `module_init/config_TEMPLATE.json` (with its default value or `null`).
-2. Add a default-value fallback in `M365IncidentResponseTools.psm1` (after `Import-IRTConfig`)
-   for any key whose default depends on the runtime environment (e.g. a computed path).
-3. Add a metadata entry to the `$Settings` ordered hashtable inside `Set-IRTConfig`
-   (`modules/Import-IRTConfig.ps1`) so users can configure it interactively.
-
 ### Formatting
-- No non-ASCII characters.
-- Indent: 4 spaces (not tabs). See `.editorconfig`.
-- Line endings: CRLF.
-- Charset: UTF-8.
-- Line length limit: 100 characters. Use splatting and string concatenation fix violations. (No backticks)
+- Only use ASCII characters.
+- Indent: 4 spaces (not tabs).
+- Line length limit: 100 characters. Use splatting and string concatenation to control
+   length, not backticks.
 - Always use hashtable splatting (`@Params`) for cmdlets with more than 2 arguments.
-- String construction: Prefer inline subexpressions ("...$($x.ToString())...") over the format operator (-f).
+- String construction: Use inline subexpressions, ("...$($x.ToString())...") not format operator (-f).
 - Building paths: Prefer Join-Path over [System.IO.Path]::Combine(). Always use named parameters. 
-   (`Join-Path -Path $x -ChildPath $y` over `Join-Path $x $y`) Use splatting for 3+ parameters.
+   (`Join-Path -Path $x -ChildPath $y` over `Join-Path $x $y`)
 
 ### Pester tests
+- All in-domain code should have Pester test writted and placed in Tests/Pester.
 - Tests that do **not** require connectivity need no tag.
 - Tests that **require** a live Graph/Exchange/IPPS session must be tagged `'Online'`:
 
-## Testing after changes
-After making changes, ask the user if we're ready to move on to tests.
+## Testing after code changes
 
-**First: Pester tests**
-```powershell
-# run offline pester tests for rapid feedback
-.\Tests.ps1 Offline
-# then run online tests
-.\Tests.ps1 Online
-# (if changes touched interactive auth code, use -InteractiveAuth to force a fresh sign-in)
-.\Tests.ps1 Online -InteractiveAuth
-```
-Do not move on to formatting until all Pester tests are passing.
+After writing new code, run tests as described in [TESTING.md](TESTING.md).
 
-**Second: Autoformatting and Formatting tests**
-**Always fix every formatting finding immediately. Do not ask the user if they should be fixed.**
-```powershell
-# run AutoFormat first to apply automatic fixes
-.\Tests.ps1 AutoFormat
+## Build and Release
 
-# run the following tests one by one, fixing any findings before moving on to the next
-.\Tests.ps1 ModuleSyntax
-.\Tests.ps1 LineLength
-.\Tests.ps1 BacktickContinuation
-.\Tests.ps1 FormatOperator
-.\Tests.ps1 JoinPath
-.\Tests.ps1 NonASCIICharacters
-.\Tests.ps1 FindUnwantedStrings
-.\Tests.ps1 PSSA
-# once you're done, run them all again to be sure fixes didn't create any new problems. 
-```
-
-**Checking a single file**
-`.\Tests.ps1 <Category>` scans all in-scope files. To check just one file , call the standalone
-check directly with `-Path`. Prefer this over hand-rolling grep/regex checks:
-
-    .\Tests\Test-LineLength.ps1 -Path .\Dev\Invoke-RandomEmailTraffic.ps1
-
-All nine accept `-Path` (a file or folder): Test-LineLength, Test-BacktickContinuation,
-Test-FormatOperator, Test-JoinPath, Test-ModuleSyntax, Test-NonASCIICharacters,
-Test-PSSA, Test-FindUnwantedStrings, Test-FixmeComments.
-
-For build, test, and release procedures, see [RELEASING.md](RELEASING.md).
+For build and release procedures, see [RELEASING.md](RELEASING.md).
