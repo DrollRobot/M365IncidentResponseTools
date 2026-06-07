@@ -543,7 +543,7 @@ Describe 'Connect-IRT session state (live)' -Tag 'Online' {
         # (e.g. $env:IRT_TEST_TENANT_ID = 'your-tenant-guid-here').
         $TenantId = $env:IRT_TEST_TENANT_ID
         if (-not $TenantId) {
-            $EnvFile = Join-Path -Path $PSScriptRoot -ChildPath '.env.ps1'
+            $EnvFile = Join-Path -Path $PSScriptRoot -ChildPath '..\.env.ps1'
             if (Test-Path $EnvFile) { . $EnvFile }
             $TenantId = $env:IRT_TEST_TENANT_ID
         }
@@ -563,8 +563,8 @@ Describe 'Connect-IRT session state (live)' -Tag 'Online' {
             }
             catch {
                 throw (
-                    'No cached test credentials found for silent auth (-CachedAuth). ' +
-                    "Run '.\tests.ps1 -Online' (without -CachedAuth) to sign in " +
+                    'No cached test credentials found for silent auth. ' +
+                    "Run '.\tests.ps1 online -Interactive' to sign in " +
                     "interactively and populate the test token cache first. " +
                     "Original error: $_"
                 )
@@ -683,7 +683,7 @@ Describe 'Connect-IRT admin consent workflow (live)' -Tag 'Online' {
                 "Run '.\tests.ps1 -Online' so the session is established first.")
         }
 
-        . (Join-Path -Path $PSScriptRoot -ChildPath 'Revoke-IRTGraphConsent.ps1')
+        . (Join-Path -Path $PSScriptRoot -ChildPath '..\Dev\Revoke-IRTGraphConsent.ps1')
 
         Write-Output ''
         Write-Output '--- Admin Consent Test Setup ---'
