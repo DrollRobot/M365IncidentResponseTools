@@ -50,6 +50,16 @@ function Connect-IRTExchange {
     )
 
     begin {
+        #region BEGIN
+
+        # import modules
+        $Imports = @(
+            'ExchangeOnlineManagement'
+            'Microsoft.Graph.Authentication'
+            'PSFramework'
+        )
+        Import-IRTModule -Name $Imports
+
         $CloudConfig = $Global:IRT_Session.CloudConfig
         $ExchangeScope = $CloudConfig.Exchange
         $Authority = "$($CloudConfig.LoginHost)/$TenantId"
@@ -70,6 +80,7 @@ function Connect-IRTExchange {
     }
 
     process {
+        #region PROCESS
 
         # ---------- Setup: scope, authority ----------
 
@@ -157,10 +168,10 @@ function Connect-IRTExchange {
         } else {
             # MSAL setup, only needed when we actually have to acquire.
             $GraphModule = Get-Module Microsoft.Graph.Authentication -ErrorAction SilentlyContinue
-            if (-not $GraphModule) {
-                throw 'Microsoft.Graph.Authentication must be imported' +
-                ' before acquiring an Exchange token.'
-            }
+            # if (-not $GraphModule) { # FIXME not needed now that we're explicitly importing?
+            #     throw 'Microsoft.Graph.Authentication must be imported' +
+            #     ' before acquiring an Exchange token.'
+            # }
             $MsalDllParams = @{
                 Path                = $GraphModule.ModuleBase
                 ChildPath           = 'Dependencies'

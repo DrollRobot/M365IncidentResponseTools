@@ -52,6 +52,16 @@ function Connect-IRTIPPS {
     )
 
     begin {
+        #region BEGIN
+
+        # import modules
+        $Imports = @(
+            'ExchangeOnlineManagement'
+            'Microsoft.Graph.Authentication'
+            'PSFramework'
+        )
+        Import-IRTModule -Name $Imports
+
         $CloudConfig = $Global:IRT_Session.CloudConfig
         $IPPSScope = ($SearchOnly ? $CloudConfig.IPPSSearchOnly : $CloudConfig.Exchange)
         $Authority = "$($CloudConfig.LoginHost)/$TenantId"
@@ -171,10 +181,10 @@ function Connect-IRTIPPS {
         else {
             # MSAL setup, only needed when we actually have to acquire.
             $GraphModule = Get-Module Microsoft.Graph.Authentication -ErrorAction SilentlyContinue
-            if (-not $GraphModule) {
-                throw 'Microsoft.Graph.Authentication must be imported' +
-                ' before acquiring an IPPS token.'
-            }
+            # if (-not $GraphModule) { # FIXME not needed now that we're explicitly importing?
+            #     throw 'Microsoft.Graph.Authentication must be imported' +
+            #     ' before acquiring an IPPS token.'
+            # }
             $MsalDllParams = @{
                 Path                = $GraphModule.ModuleBase
                 ChildPath           = 'Dependencies'

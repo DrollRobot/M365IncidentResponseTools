@@ -56,6 +56,10 @@ function Connect-IRTGraph {
 
     begin {
         #region BEGIN
+
+        # import modules
+        Import-IRTModule -Name 'Microsoft.Graph.Authentication','PSFramework'
+
         $DefaultScopes = @(
             'Application.ReadWrite.All'
             'AuditLog.Read.All'
@@ -121,20 +125,20 @@ function Connect-IRTGraph {
 
         # Ensure Microsoft.Graph.Authentication is loaded
         $GraphModule = Get-Module Microsoft.Graph.Authentication -ErrorAction SilentlyContinue
-        if (-not $GraphModule) {
-            try {
-                $Params = @{
-                    Name        = 'Microsoft.Graph.Authentication'
-                    Force       = $true
-                    Scope       = 'Global'
-                    ErrorAction = 'Stop'
-                }
-                Import-Module @Params
-                $GraphModule = Get-Module Microsoft.Graph.Authentication
-            } catch {
-                throw "Failed to import Microsoft.Graph.Authentication. Error: $_"
-            }
-        }
+        # if (-not $GraphModule) { # FIXME not needed now that we're explictly importing?
+        #     try {
+        #         $Params = @{
+        #             Name        = 'Microsoft.Graph.Authentication'
+        #             Force       = $true
+        #             Scope       = 'Global'
+        #             ErrorAction = 'Stop'
+        #         }
+        #         Import-Module @Params
+        #         $GraphModule = Get-Module Microsoft.Graph.Authentication
+        #     } catch {
+        #         throw "Failed to import Microsoft.Graph.Authentication. Error: $_"
+        #     }
+        # }
         Write-PSFMessage -Level 8 -Message (
             "Microsoft.Graph.Authentication version: " +
             "$($GraphModule.Version)")
