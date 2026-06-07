@@ -83,7 +83,7 @@ if ($errorCount -gt 0 -and -not $Quiet) {
     "even if they aren't related to changes you made. " +
     'Do this only after all Pester tests are passing.'
     Write-Host $Msg -ForegroundColor DarkGray
-    $hits
+    $hits | Out-Host
 }
 
 Write-Progress -Activity $MyInvocation.MyCommand.Name -Completed
