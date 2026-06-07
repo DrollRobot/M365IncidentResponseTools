@@ -1,4 +1,4 @@
-#Requires -Version 7.5
+﻿#Requires -Version 7.5
 #Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.0.0' }
 
 <#
@@ -30,6 +30,7 @@
       NonASCIICharacters   -- Check for non-ASCII characters.
       FindUnwantedStrings  -- Scan for user-defined unwanted patterns.
       FixmeComments        -- Report FIXME comments.
+      WriteVerboseDebug    -- Check for Write-Verbose and Write-Debug calls.
       ExplicitModuleImport -- Check that each source file names every external module
                              it uses, so Import-IRTModule calls are explicit.
       PSSA                 -- PSScriptAnalyzer detection only; reports issues without
@@ -58,9 +59,19 @@
     Load the module from the built artifact at the repo root instead of the
     source manifest. Only valid with Offline and Online.
 
+.PARAMETER Quiet
+    Forward -Quiet to the individual formatting checks so each prints only its
+    one-line summary (files scanned + findings), suppressing detail tables and
+    finding notes. Intended for agents that just need a quick pass/fail. Applies
+    to individual checks, not the Formatting aggregate or Pester runs.
+
 .EXAMPLE
     .\Tests.ps1 Offline
     Runs Pester offline tests only.
+
+.EXAMPLE
+    .\Tests.ps1 LineLength -Quiet
+    Runs the line-length check and prints only its one-line summary.
 
 .EXAMPLE
     .\Tests.ps1 Offline Online
@@ -94,7 +105,7 @@ param(
     [ValidateSet(
         'Offline', 'Online', 'Formatting',
         'LineLength', 'BacktickContinuation', 'FormatOperator', 'JoinPath',
-        'ModuleSyntax', 'NonASCIICharacters', 'TrailingWhitespace',
+        'ModuleSyntax', 'NonASCIICharacters', 'WriteVerboseDebug', 'TrailingWhitespace',
         'FindUnwantedStrings', 'FixmeComments', 'ExplicitModuleImport', 'PSSA', 'AutoFormat'
     )]
     [string[]] $Test,
@@ -103,7 +114,10 @@ param(
     [switch] $InteractiveAuth,
 
     [Parameter()]
-    [switch] $Built
+    [switch] $Built,
+
+    [Parameter()]
+    [switch] $Quiet
 )
 
 Set-StrictMode -Version Latest
@@ -117,7 +131,7 @@ if ($InteractiveAuth -and 'Online' -notin $Test) {
 # error when requesting formatting tests on built module
 $FormattingOnlyValues = @(
     'Formatting', 'LineLength', 'BacktickContinuation', 'FormatOperator', 'JoinPath',
-    'ModuleSyntax', 'NonASCIICharacters', 'TrailingWhitespace',
+    'ModuleSyntax', 'NonASCIICharacters', 'WriteVerboseDebug', 'TrailingWhitespace',
     'FindUnwantedStrings', 'FixmeComments', 'ExplicitModuleImport', 'PSSA', 'AutoFormat'
 )
 if ($Built -and ($Test | Where-Object { $_ -in $FormattingOnlyValues })) {
@@ -173,7 +187,7 @@ $LocalTestsFolder = Join-Path -Path $PSScriptRoot -ChildPath '.local\tests'
 $BuildPsd1Path = Join-Path -Path $PSScriptRoot -ChildPath 'source\Build.psd1'
 $BuildConfig = Import-PowerShellDataFile -Path $BuildPsd1Path
 $CopiedFolderNames = @($BuildConfig.CopyPaths | ForEach-Object { Split-Path -Path $_ -Leaf })
-$Global:IRT_FormattingExclusions = @{
+$Global:Dev_FormattingExclusions = @{
     ExcludeFiles   = @(
         "$ModuleName.psd1"
         "$ModuleName.psm1"
@@ -193,6 +207,7 @@ $FormattingScriptMap = @{
     'LineLength'           = 'Test-LineLength.ps1'
     'ModuleSyntax'         = 'Test-ModuleSyntax.ps1'
     'NonASCIICharacters'   = 'Test-NonASCIICharacters.ps1'
+    'WriteVerboseDebug'    = 'Test-WriteVerboseDebug.ps1'
     'PSSA'                 = 'Test-PSSA.ps1'
     'AutoFormat'           = 'Test-PSSA.ps1'
 }
@@ -212,8 +227,11 @@ foreach ($IndividualTest in $IndividualTests) {
         if (-not (Test-Path $ScriptPath)) { continue }
         $RelPath = [System.IO.Path]::GetRelativePath($PSScriptRoot, $ScriptPath)
         Write-Host "`n=== $RelPath ===" -ForegroundColor Cyan
+        # Forward -Quiet only to scripts that declare it (auto-fixers may not).
+        $SupportsQuiet = (Get-Command $ScriptPath).Parameters.ContainsKey('Quiet')
+        $QuietSplat = if ($Quiet -and $SupportsQuiet) { @{ Quiet = $true } } else { @{} }
         switch ($IndividualTest) {
-            'PSSA' { & $ScriptPath -Path $PSScriptRoot -Recurse }
+            'PSSA' { & $ScriptPath -Path $PSScriptRoot -Recurse @QuietSplat }
             'AutoFormat' {
                 $TwsPath = Join-Path -Path $ScriptsDir -ChildPath 'Format-TrailingWhitespace.ps1'
                 if (Test-Path $TwsPath) {
@@ -223,7 +241,7 @@ foreach ($IndividualTest in $IndividualTests) {
                 }
                 & $ScriptPath -Path $PSScriptRoot -Recurse -AutoFormat -Quiet
             }
-            default { & $ScriptPath -Path $PSScriptRoot -Recurse }
+            default { & $ScriptPath -Path $PSScriptRoot -Recurse @QuietSplat }
         }
     }
 }
