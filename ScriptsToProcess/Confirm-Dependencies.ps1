@@ -46,9 +46,9 @@ $InstallScript = Get-ChildItem -Path $ModuleRoot -Filter 'Install-Dependencies.p
 
 if (-not $InstallScript) { return }
 
-& $InstallScript -Check -Quiet
-
-if ((Test-Path variable:LASTEXITCODE) -and $LASTEXITCODE -eq 1) {
+try {
+    & $InstallScript -Check -Quiet
+} catch {
     & $InstallScript -Check
-    throw 'Module import aborted: required modules are missing.'
+    throw 'Import aborted. Required module(s) missing. See above for remediation guidance.'
 }

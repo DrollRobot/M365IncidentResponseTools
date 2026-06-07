@@ -111,10 +111,12 @@ else {
     }
 }
 
+# if modules found in manifest, use hard coded list
 if (-not $RequiredModules) {
     $RequiredModules = $HardCodedRequiredModules
 }
 
+# if modules not found in either, return
 if (-not $RequiredModules) {
     Write-Warning 'No required modules to install.'
     return
@@ -332,4 +334,4 @@ Uninstall-Module Microsoft.Graph.Authentication -AllVersions -Force
 
 # Non-zero exit: a graph mismatch is never auto-fixed and a locked module needs a
 # restart (both gate in any mode); missing modules gate only under -Check.
-if ($GraphMismatch -or $Locked.Count -gt 0 -or ($Check -and $AnyMissing)) { exit 1 }
+if ($GraphMismatch -or $Locked.Count -gt 0 -or ($Check -and $AnyMissing)) { throw }
