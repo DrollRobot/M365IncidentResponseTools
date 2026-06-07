@@ -735,7 +735,7 @@ Describe 'Connect-IRT admin consent workflow (live)' -Tag 'Online' {
         $Sp = Invoke-MgGraphRequest @SpRequest
 
         $Grants = $null
-        $Deadline = [datetime]::UtcNow.AddSeconds(90)
+        $Deadline = [datetime]::UtcNow.AddSeconds(120)
         while (-not $Grants -and [datetime]::UtcNow -lt $Deadline) {
             $GrantRequest = @{
                 Method      = 'GET'
