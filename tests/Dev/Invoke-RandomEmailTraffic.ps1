@@ -62,8 +62,16 @@ function Invoke-RandomEmailTraffic {
         [bool] $GrantSendAs = $true,
 
         [ValidateRange(0, 3600)]
-        [int] $SendAsPropagationSeconds = 60
+        [int] $SendAsPropagationSeconds = 60,
+
+        [switch] $Trace
     )
+
+    if ($Trace) { $InformationPreference = 'Continue' }
+    function Write-Trace {
+        param([Parameter(Mandatory)][string] $Message)
+        Write-Information $Message -Tags 'Trace'
+    }
 
     # --- Helpers -----------------------------------------------------------------
     function Get-FirstValue {
@@ -149,13 +157,13 @@ function Invoke-RandomEmailTraffic {
     $missing = $requiredScopes | Where-Object { $_ -notin $have }
 
     if (-not $context -or $missing) {
-        Write-Verbose "Connecting to Graph with scopes: $($requiredScopes -join ', ')"
+        Write-Trace "Connecting to Graph with scopes: $($requiredScopes -join ', ')"
         Connect-MgGraph -Scopes $requiredScopes -NoWelcome | Out-Null
     }
 
     # --- Build the user pool ------------------------------------------------------
     $pool = if ($AllUsers) {
-        Write-Verbose 'Enumerating enabled, mail-enabled users...'
+        Write-Trace 'Enumerating enabled, mail-enabled users...'
         Get-AllMailUsers
     } else {
         $Users | ForEach-Object { Resolve-TestUser -InputUser $_ }
@@ -164,7 +172,7 @@ function Invoke-RandomEmailTraffic {
     if ($pool.Count -lt 2) {
         throw "Need at least 2 mail-enabled users to send between. Found $($pool.Count)."
     }
-    Write-Verbose "User pool size: $($pool.Count)"
+    Write-Trace "User pool size: $($pool.Count)"
 
     # --- Optional: grant temporary Send-As --------------------------------------
     $trustee = (Get-MgContext).Account
@@ -176,11 +184,11 @@ function Invoke-RandomEmailTraffic {
         }
         Import-Module ExchangeOnlineManagement -ErrorAction Stop
         if (-not (Get-ConnectionInformation -ErrorAction SilentlyContinue)) {
-            Write-Verbose 'Connecting to Exchange Online...'
+            Write-Trace 'Connecting to Exchange Online...'
             Connect-ExchangeOnline -ShowBanner:$false | Out-Null
         }
 
-        Write-Verbose "Granting Send-As on $($pool.Count) mailbox(es) to $trustee..."
+        Write-Trace "Granting Send-As on $($pool.Count) mailbox(es) to $trustee..."
         foreach ($u in $pool) {
             $permParams = @{
                 Identity    = $u.Sender
@@ -266,7 +274,7 @@ function Invoke-RandomEmailTraffic {
     }
     finally {
         if ($grantedTo.Count -gt 0) {
-            Write-Verbose "Removing $($grantedTo.Count) temporary Send-As grant(s)..."
+            Write-Trace "Removing $($grantedTo.Count) temporary Send-As grant(s)..."
             foreach ($id in $grantedTo) {
                 $removeParams = @{
                     Identity     = $id
