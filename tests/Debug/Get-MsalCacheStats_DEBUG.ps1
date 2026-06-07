@@ -5,11 +5,16 @@ Import-Module $Path -Force
 
 & "$PSScriptRoot\..\.env.ps1"
 
-Set-PSFConfig -FullName 'PSFramework.Message.Info.Maximum' -Value 8
-$InformationPreference = 'Continue'
+# debug output on
+# Set-PSFConfig -FullName 'PSFramework.Message.Info.Maximum' -Value 8
+# $InformationPreference = 'Continue'
+
+# debug output off
+$InformationPreference = 'SilentlyContinue'
 
 # Clear-IRTCache
 # Connect-IRT -TenantId $env:IRT_TEST_TENANT_ID
 
 . "$PSScriptRoot\..\Dev\Get-MsalCacheStats.ps1"
-Get-MsalCacheStats
+$ExcludeProps = 'TenantId', 'AccountObjectId', 'CloudEnvironment', 'FailureReason'
+Get-MsalCacheStats | Select-Object * -ExcludeProperty $ExcludeProps | Format-Table -AutoSize

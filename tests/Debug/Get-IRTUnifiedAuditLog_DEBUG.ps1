@@ -6,7 +6,7 @@ Import-Module $Path -Force
 & "$PSScriptRoot\..\.env.ps1"
 
 Set-PSFConfig -FullName 'PSFramework.Message.Info.Maximum' -Value 8
-$InformationPreference  = 'Continue'
+$InformationPreference = 'Continue'
 
 if (-not (Test-IRTConnection -Quiet)) {
     Connect-IRTT -TenantId $env:IRT_TEST_TENANT_ID

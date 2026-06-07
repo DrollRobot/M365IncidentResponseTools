@@ -10,12 +10,14 @@ Import-Module $ModulePath -Force
 # debug output off
 $InformationPreference = 'SilentlyContinue'
 
-# scan source folder 
+# scan source folder
 # . "$PSScriptRoot\..\Dev\Find-ModuleRoot.ps1"
 # $ModuleRoot = (Find-ModuleRoot -Path $PSScriptRoot).Path
 # & "$PSScriptRoot\..\Test-ExplicitModuleImport.ps1" -Path $ModuleRoot -Recurse
 
 # scan specific files
-# & "$PSScriptRoot\..\Test-ExplicitModuleImport.ps1" -Path "$PSScriptRoot\..\..\Source\Public\Email\Get-IRTMessageTrace.ps1"
+# & "$PSScriptRoot\..\Test-ExplicitModuleImport.ps1" `
+#     -Path "$PSScriptRoot\..\..\Source\Public\Email\Get-IRTMessageTrace.ps1"
 # & "$PSScriptRoot\..\Test-ExplicitModuleImport.ps1" -Path "$PSScriptRoot\..\..\Source\Suffix.ps1"
-& "$PSScriptRoot\..\Test-ExplicitModuleImport.ps1" -Path "$PSScriptRoot\..\..\Source\Public\OnPremAd\Find-IRTDomainController.ps1"
+$CheckPath = "$PSScriptRoot\..\..\Source\Public\OnPremAd\Find-IRTDomainController.ps1"
+& "$PSScriptRoot\..\Test-ExplicitModuleImport.ps1" -Path $CheckPath
