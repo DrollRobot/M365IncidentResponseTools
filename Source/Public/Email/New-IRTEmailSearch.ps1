@@ -120,17 +120,26 @@ function New-IRTEmailSearch {
     }
 
     # parse absolute date parameters to UTC
-    foreach ($DateParam in 'Start', 'End') {
-        $Raw = Get-Variable -Name $DateParam -ValueOnly
-        if (-not $Raw) { continue }
+    if ($Start) {
         try {
-            $Parsed = Get-Date -Date $Raw -ErrorAction Stop
-            $Criteria[$DateParam] = [DateTime]::SpecifyKind(
+            $Parsed = Get-Date -Date $Start -ErrorAction Stop
+            $Criteria.Start = [DateTime]::SpecifyKind(
                 $Parsed, [DateTimeKind]::Local).ToUniversalTime()
         }
         catch {
             Write-Error -Category InvalidArgument -ErrorAction Stop -Message (
-                "-$DateParam invalid. Use a date like '5/28/26 17:00'.")
+                "-Start invalid. Use a date like '5/28/26 17:00'.")
+        }
+    }
+    if ($End) {
+        try {
+            $Parsed = Get-Date -Date $End -ErrorAction Stop
+            $Criteria.End = [DateTime]::SpecifyKind(
+                $Parsed, [DateTimeKind]::Local).ToUniversalTime()
+        }
+        catch {
+            Write-Error -Category InvalidArgument -ErrorAction Stop -Message (
+                "-End invalid. Use a date like '5/28/26 17:00'.")
         }
     }
 

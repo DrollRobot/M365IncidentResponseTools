@@ -35,6 +35,9 @@ function Read-EmailSearchCriteria {
     1.1.0 - Split each date bound into absolute and relative input fields.
     #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '')]
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+        'PSUseSingularNouns', '',
+        Justification = 'Builds a set of search criteria; the plural noun is intentional.')]
     [CmdletBinding()]
     [OutputType([System.Collections.Specialized.OrderedDictionary])]
     param(
