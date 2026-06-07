@@ -11,7 +11,7 @@ Import-Module $ModulePath -Force
 $InformationPreference = 'SilentlyContinue'
 
 # scan source folder 
-# . "$PSScriptRoot\..\Find-ModuleRoot.ps1"
+# . "$PSScriptRoot\..\Dev\Find-ModuleRoot.ps1"
 # $ModuleRoot = (Find-ModuleRoot -Path $PSScriptRoot).Path
 # & "$PSScriptRoot\..\Test-ExplicitModuleImport.ps1" -Path $ModuleRoot -Recurse
 

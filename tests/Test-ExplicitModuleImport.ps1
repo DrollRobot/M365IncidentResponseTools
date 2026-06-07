@@ -35,9 +35,9 @@ param(
 )
 
 # import helper functions. they must be in same directory.
-. (Join-Path -Path $PSScriptRoot -ChildPath 'Find-ModuleRoot.ps1')
-. (Join-Path -Path $PSScriptRoot -ChildPath 'Find-ScriptCommand.ps1')
-. (Join-Path -Path $PSScriptRoot -ChildPath 'Resolve-CommandModule.ps1')
+. (Join-Path -Path $PSScriptRoot -ChildPath 'Dev\Find-ModuleRoot.ps1')
+. (Join-Path -Path $PSScriptRoot -ChildPath 'Dev\Find-ScriptCommand.ps1')
+. (Join-Path -Path $PSScriptRoot -ChildPath 'Dev\Resolve-CommandModule.ps1')
 
 $ExcludedFolders = @()
 $ExcludedFiles = @()
