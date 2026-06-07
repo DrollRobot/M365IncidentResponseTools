@@ -1,24 +1,25 @@
 ---
 external help file: M365IncidentResponseTools-help.xml
-Module Name: M365IncidentResponseTools
+Module Name:
 online version:
 schema: 2.0.0
 ---
 
-# Set-IRTUserUsageLocation
+# Set-IRTConfig
 
 ## SYNOPSIS
-Sets user's usage location.
+Interactively updates IRT configuration settings.
 
 ## SYNTAX
 
 ```
-Set-IRTUserUsageLocation [[-UserObject] <MicrosoftGraphUser[]>] [-CountryCode <String>]
- [-ProgressAction <ActionPreference>] [-WhatIf] [-Confirm] [<CommonParameters>]
+Set-IRTConfig [-Reset] [-ProgressAction <ActionPreference>] [-WhatIf] [-Confirm] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
-{{ Fill in the Description }}
+Presents a menu of configuration settings.
+When the user selects a setting,
+shows a description and available options, then saves the new value.
 
 ## EXAMPLES
 
@@ -31,32 +32,17 @@ PS C:\> {{ Add example code here }}
 
 ## PARAMETERS
 
-### -UserObject
-{{ Fill UserObject Description }}
+### -Reset
+Reset config to the template defaults without showing the menu.
 
 ```yaml
-Type: MicrosoftGraphUser[]
-Parameter Sets: (All)
-Aliases: UserObjects
-
-Required: False
-Position: 1
-Default value: None
-Accept pipeline input: False
-Accept wildcard characters: False
-```
-
-### -CountryCode
-{{ Fill CountryCode Description }}
-
-```yaml
-Type: String
+Type: SwitchParameter
 Parameter Sets: (All)
 Aliases:
 
 Required: False
 Position: Named
-Default value: None
+Default value: False
 Accept pipeline input: False
 Accept wildcard characters: False
 ```
@@ -115,9 +101,5 @@ This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable
 ## OUTPUTS
 
 ## NOTES
-Version: 1.0.2
-   1.0.2 - .Contains() method is case sensitive.
-Adjusted so .ToUpper() happens before
-           running .Contains() so lower case input of valid country codes will be accepted.
 
 ## RELATED LINKS

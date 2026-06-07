@@ -13,8 +13,8 @@ Resolves a tenant GUID to its organization name, default domain, and cloud envir
 ## SYNTAX
 
 ```
-Get-IRTTenantOwner [-TenantId] <String[]> [-SkipGraph] [-NoCache] [-ForceRefresh]
- [-ProgressAction <ActionPreference>] [<CommonParameters>]
+Get-IRTTenantOwner [-TenantId] <String[]> [-SkipGraph] [-Cached] [-Quiet] [-ProgressAction <ActionPreference>]
+ [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -99,8 +99,9 @@ Accept pipeline input: False
 Accept wildcard characters: False
 ```
 
-### -NoCache
-Bypass the local cache entirely - neither reads from it nor writes to it.
+### -Cached
+Return from the in-memory cache when available instead of querying live endpoints.
+Falls through to a live query if the tenant is not yet cached.
 
 ```yaml
 Type: SwitchParameter
@@ -114,9 +115,9 @@ Accept pipeline input: False
 Accept wildcard characters: False
 ```
 
-### -ForceRefresh
-Re-query even if the tenant is already cached, and overwrite the cached entry
-with the fresh result.
+### -Quiet
+Suppress warnings about cross-cloud mismatches, Graph lookup failures, and
+tenants not found. Useful when calling in bulk where partial results are expected.
 
 ```yaml
 Type: SwitchParameter

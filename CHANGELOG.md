@@ -6,12 +6,37 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 
-## [v2.9.1] - 2026-06-04
+## [v2.9.1] - 2026-06-07
+
+### Added
+
+- `New-IRTEmailSearch`: new function that builds and launches a compliance content search
+  for email activity using an interactive criteria builder. (partially complete)
+- `Get-TenantOidc`: now a public command; accepts a domain name or tenant GUID and
+  returns the tenant display name, tenant ID, and cloud environment.
+- `Start-IRTPlaybook`: new `-NewTab` parameter opens the investigation folder in a new
+  Windows Terminal tab so you can keep working while the playbook runs.
+- `Get-IRTUnifiedAuditLog`: new `-ResultLimit` parameter stops the query once the
+  specified number of records is reached. Queries spanning more than 6 months are now
+  automatically split into chunks to work around API limits.
+- Module dependencies are now detected and loaded dynamically instead of using
+  `RequiredModules`, reducing module startup time.
+- Added Confirm-Dependencies/Install-Dependencies rather than using RequiredModules
+  to speed up module load time and make it easier to install dependencies.
+- IP address conditional formatting rules are now read from a spreadsheet at a configurable
+  path, allowing users to create their own conditional formatting rules.
+- Added automatic cloud detection using OIDC data. You no longer have to specify `-GCCHigh`
+  with Connect-IRT. (though, you can still specify a cloud with `-Cloud UsGov/Commercial` 
+  to bypass OIDC lookup)
 
 ### Fixed
 
 - `Get-IRTTenantOwner`: failed cross-cloud queries are now correctly identified and
-  reported instead of being silently treated as successful. Made Get-`TenantOIDC` portable.
+  reported instead of being silently treated as successful.
+- `Install-IRTDependencies`: a failure installing one module no longer causes all
+  subsequent install attempts to fail in the same session.
+- `Install-IRTDependencies`: added `-SkipPublisherCheck` and `-AllowClobber` to prevent
+  errors when a module conflicts with an existing publisher or version.
 
 
 ## [v2.9.0] - 2026-05-30
@@ -20,7 +45,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - `-AllMatches` option on `Find-` functions to return all matching objects instead of
   failing when there are multiple matches.
-- MSAL on-disk token cache so re-authentication is not required every session.
+- Added option for MSAL on-disk token cache so re-authentication is not required in every session.
 - `Import-IRT` (alias: irt) to pre-load the module in the background while working in the terminal,
   reducing the wait on first use.
 

@@ -13,8 +13,8 @@ Runs multiple functions to assist in investigating a user's activity.
 ## SYNTAX
 
 ```
-Start-IRTPlaybook [[-UserObject] <PSObject[]>] [-Ticket <String>] [-NoFolder] [-NoNewTab]
- [-MaxRunspaces <Int32>] [-ProgressAction <ActionPreference>] [-WhatIf] [-Confirm] [<CommonParameters>]
+Start-IRTPlaybook [[-UserObject] <PSObject[]>] [-Ticket <String>] [-NoFolder] [-NewTab] [-MaxRunspaces <Int32>]
+ [-ProgressAction <ActionPreference>] [-WhatIf] [-Confirm] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -107,8 +107,8 @@ Accept pipeline input: False
 Accept wildcard characters: False
 ```
 
-### -NoNewTab
-{{ Fill NoNewTab Description }}
+### -NewTab
+{{ Fill NewTab Description }}
 
 ```yaml
 Type: SwitchParameter

@@ -6,23 +6,23 @@ Non-domain: Dev/Test/Build/Debug/Lib code.
 Ignore built code, such as *.psm1 and *.psd1, ScriptsToProcess/, Data/, Build/, in
 the module root.
 
-## Steps
-
-**Build**
+## Build
 ```powershell
 .\Build.ps1
 ```
-
-**Test built module**
-Run tests again on the built module:
+Test built module
+Run pester tests again on the built module:
 ```powershell
 .\Tests.ps1 Offline,Online -Built
 ```
 
-**Update docs**
+## Update docs
 ```powershell
 .\Docs.ps1 -DeleteOrphaned
 ```
+
+Review the documents in the root of the Docs folder for accuracy or any new features 
+that should be added. Don't review or modify files in Docs/Commands. (built by PlatyPS)
 
 ## Update CHANGELOG.md
 

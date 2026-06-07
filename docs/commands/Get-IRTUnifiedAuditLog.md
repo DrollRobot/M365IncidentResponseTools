@@ -15,24 +15,25 @@ Runs multiple queries to pull all Unified Audit Log records related to a specifi
 ### UserObject (Default)
 ```
 Get-IRTUnifiedAuditLog [[-UserObject] <PSObject[]>] [-Days <Int32>] [-Start <String>] [-End <String>]
- [-Operation <String[]>] [-RiskyOperation] [-SignInLog] [-FreeText <String[]>] [-Excel <Boolean>]
- [-WaitOnMessageTrace <Boolean>] [-Xml <Boolean>] [-Cached] [-ProgressAction <ActionPreference>]
- [<CommonParameters>]
+ [-ResultLimit <Int32>] [-Operation <String[]>] [-RiskyOperation] [-SignInLog] [-FreeText <String[]>]
+ [-Excel <Boolean>] [-WaitOnMessageTrace <Boolean>] [-Xml <Boolean>] [-Cached]
+ [-ProgressAction <ActionPreference>] [<CommonParameters>]
 ```
 
 ### AllUsers
 ```
-Get-IRTUnifiedAuditLog [-AllUsers] [-Days <Int32>] [-Start <String>] [-End <String>] [-Operation <String[]>]
- [-RiskyOperation] [-SignInLog] [-FreeText <String[]>] [-Excel <Boolean>] [-WaitOnMessageTrace <Boolean>]
- [-Xml <Boolean>] [-Cached] [-ProgressAction <ActionPreference>] [<CommonParameters>]
+Get-IRTUnifiedAuditLog [-AllUsers] [-Days <Int32>] [-Start <String>] [-End <String>] [-ResultLimit <Int32>]
+ [-Operation <String[]>] [-RiskyOperation] [-SignInLog] [-FreeText <String[]>] [-Excel <Boolean>]
+ [-WaitOnMessageTrace <Boolean>] [-Xml <Boolean>] [-Cached] [-ProgressAction <ActionPreference>]
+ [<CommonParameters>]
 ```
 
 ### ServicePrincipal
 ```
 Get-IRTUnifiedAuditLog [[-ServicePrincipal] <PSObject[]>] [-Days <Int32>] [-Start <String>] [-End <String>]
- [-Operation <String[]>] [-RiskyOperation] [-SignInLog] [-FreeText <String[]>] [-Excel <Boolean>]
- [-WaitOnMessageTrace <Boolean>] [-Xml <Boolean>] [-Cached] [-ProgressAction <ActionPreference>]
- [<CommonParameters>]
+ [-ResultLimit <Int32>] [-Operation <String[]>] [-RiskyOperation] [-SignInLog] [-FreeText <String[]>]
+ [-Excel <Boolean>] [-WaitOnMessageTrace <Boolean>] [-Xml <Boolean>] [-Cached]
+ [-ProgressAction <ActionPreference>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -164,6 +165,23 @@ Aliases:
 Required: False
 Position: Named
 Default value: None
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
+### -ResultLimit
+Maximum total records to retrieve across all queries and date chunks. Stops at the
+next 5000-record page boundary after the limit is reached. Since queries run from
+the most recent chunk backward, the most recent events are retained. Default: 50000.
+
+```yaml
+Type: Int32
+Parameter Sets: (All)
+Aliases:
+
+Required: False
+Position: Named
+Default value: 50000
 Accept pipeline input: False
 Accept wildcard characters: False
 ```

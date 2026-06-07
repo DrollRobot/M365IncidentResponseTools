@@ -6,8 +6,8 @@
 # Connect to both Graph and Exchange (interactive browser)
 Connect-IRT -TenantId "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
 
-# Exchange only in a GCC High environment
-Connect-IRT -TenantId "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" -Exchange -GCCHigh
+# Exchange only
+Connect-IRT -TenantId "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" -Exchange
 
 # Request additional Graph scopes beyond the defaults
 Connect-IRT -TenantId "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" -AdditionalScope "AuditLog.Read.All","Mail.Read"
@@ -16,18 +16,19 @@ A web browser will open. Sign in with your Global Admin account. You will be pro
 
 ### Option 2 -- Tenant alias (recommended for multi-tenant work)
 
-If you regularly connect to the same tenants, you can preconfigure their information in the tenants spreadsheet.
+If you regularly connect to multiple tenants, you can preconfigure their information in the tenants spreadsheet.
 
 To create/open the spreadsheet:
 ```powershell
-Open-IRTTenantWorksheet
+Open-IRTTenantSheet
 ```
-Fill in the full tenant name, aliases, TenantId, and whether the tenant is GCC High (put 'Yes')
+Fill in the full tenant name, aliases, and TenantId.
 Alises use regex matching, so to allow multiple aliases, you could use this syntax 'contoso|contosocorp|contosocorporation'
 
 Then, to connect:
 ```powershell
 Connect-IRTTenant -Tenant contoso
+IRTTenant contoso
 ```
 
 ### Verify connection status
@@ -37,10 +38,11 @@ Test-IRTConnection
 ```
 
 Connection status is also shown in the custom prompt.
+```
+[IRT] Connected:Graph,Exchange,IPPS Domain:contoso.com User:jsmith@contoso.com
+PS > 
+```
 
-!!! warning
-    The access tokens used only have a lifetime of an hour, after which you'll have to run your connect command again to fetch a new token.
 
-
-How to start an investigation:
+**Starting an investigation:**
 [Investigation](investigation.md)

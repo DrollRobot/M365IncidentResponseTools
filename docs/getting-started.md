@@ -12,7 +12,7 @@
 
 ```powershell
 # install the module to a folder in $env:PsModulePath
-# if not sure, use C:\Users\USER\Documents\Powershell\Modules\
+# if not sure, use C:\Users\USER\(OneDrive??)\Documents\Powershell\Modules\
 $Documents = [environment]::getfolderpath('MyDocuments')
 Set-Location "$Documents\Powershell\Modules\"
 
@@ -22,12 +22,11 @@ git clone https://github.com/DrollRobot/M365IncidentResponseTools.git
 
 ### Install Dependencies
 
+On the first import of the module, (`Import-Module M365IncidentResponseTools`) 
+Install-Dependencies.ps1 will verify you have the required modules installed. If not, 
+it will tell you to run a command similar to the one below:
 ```powershell
-# change to module directory
-Set-Location .\M365IncidentResponseTools\
-
-# Install module dependencies
-.\Install-Dependencies.ps1
+& "C:\Users\USER\Documents\Powershell\Modules\M365IncidentResponseTools\Install-Dependencies.ps1"
 ```
 
 **The script will install the following modules:**
@@ -46,6 +45,7 @@ Microsoft.Graph.Users.Actions
 ExchangeOnlineManagement
 ImportExcel
 PSToml
+PSFramework
 
 **Connecting to an M365 tenant:**
 [Connect to M365](connect.md)
