@@ -56,6 +56,16 @@ function Connect-IRTExchange {
     )
 
     begin {
+        #region BEGIN
+
+        # import modules
+        $Imports = @(
+            'ExchangeOnlineManagement'
+            'Microsoft.Graph.Authentication'
+            'PSFramework'
+        )
+        Import-IRTModule -Name $Imports
+
         $CloudConfig = $Global:IRT_Session.CloudConfig
         $ExchangeScope = $CloudConfig.Exchange
         $Authority = "$($CloudConfig.LoginHost)/$TenantId"
@@ -76,6 +86,7 @@ function Connect-IRTExchange {
     }
 
     process {
+        #region PROCESS
 
         # ---------- Setup: scope, authority ----------
 
@@ -161,23 +172,7 @@ function Connect-IRTExchange {
             Write-PSFMessage -Level 8 -Message (
                 "Using cached Exchange token from session (account: $Upn).")
         } else {
-            # MSAL setup, only needed when we actually have to acquire.
-            $GraphModule = Get-Module Microsoft.Graph.Authentication -ErrorAction SilentlyContinue
-            if (-not $GraphModule) {
-                throw 'Microsoft.Graph.Authentication must be imported' +
-                ' before acquiring an Exchange token.'
-            }
-            $MsalDllParams = @{
-                Path                = $GraphModule.ModuleBase
-                ChildPath           = 'Dependencies'
-                AdditionalChildPath = 'Core', 'Microsoft.Identity.Client.dll'
-            }
-            $MsalDll = Join-Path @MsalDllParams
-            if (-not ([System.AppDomain]::CurrentDomain.GetAssemblies() |
-                        Where-Object { $_.FullName -like 'Microsoft.Identity.Client,*' })) {
-                Write-PSFMessage -Level 8 -Message "Loading MSAL assembly from: $MsalDll"
-                Add-Type -Path $MsalDll
-            }
+            $null = Import-MsalAssembly
 
             $AppClientId = $Global:IRT_Session.Exchange.PublicClientApplication?.AppConfig?.ClientId
             $SameClient =
@@ -351,7 +346,7 @@ function Connect-IRTExchange {
         return $Result
     }
 }
-#EndRegion '.\Private\Connect\Connect-IRTExchange.ps1' 348
+#EndRegion '.\Private\Connect\Connect-IRTExchange.ps1' 343
 #Region '.\Private\Connect\Connect-IRTGraph.ps1' -1
 
 function Connect-IRTGraph {
@@ -412,6 +407,10 @@ function Connect-IRTGraph {
 
     begin {
         #region BEGIN
+
+        # import modules
+        Import-IRTModule -Name 'Microsoft.Graph.Authentication', 'PSFramework'
+
         $DefaultScopes = @(
             'Application.ReadWrite.All'
             'AuditLog.Read.All'
@@ -473,47 +472,7 @@ function Connect-IRTGraph {
 
     process {
 
-        # ---------- Setup: MSAL app, token-acquisition helper ----------
-
-        # Ensure Microsoft.Graph.Authentication is loaded
-        $GraphModule = Get-Module Microsoft.Graph.Authentication -ErrorAction SilentlyContinue
-        if (-not $GraphModule) {
-            try {
-                $Params = @{
-                    Name        = 'Microsoft.Graph.Authentication'
-                    Force       = $true
-                    Scope       = 'Global'
-                    ErrorAction = 'Stop'
-                }
-                Import-Module @Params
-                $GraphModule = Get-Module Microsoft.Graph.Authentication
-            } catch {
-                throw "Failed to import Microsoft.Graph.Authentication. Error: $_"
-            }
-        }
-        Write-PSFMessage -Level 8 -Message (
-            "Microsoft.Graph.Authentication version: " +
-            "$($GraphModule.Version)")
-
-        # Ensure MSAL.NET is loaded
-        $MsalAssembly = [System.AppDomain]::CurrentDomain.GetAssemblies() |
-            Where-Object { $_.FullName -like 'Microsoft.Identity.Client,*' }
-
-        # if not, load it
-        if (-not $MsalAssembly) {
-            $MsalDllParams = @{
-                Path                = $GraphModule.ModuleBase
-                ChildPath           = 'Dependencies'
-                AdditionalChildPath = 'Core', 'Microsoft.Identity.Client.dll'
-            }
-            $MsalDll = Join-Path @MsalDllParams
-            Write-PSFMessage -Level 8 -Message "Loading MSAL assembly from: $MsalDll"
-            Add-Type -Path $MsalDll
-        } else {
-            Write-PSFMessage -Level 8 -Message (
-                "MSAL assembly already loaded: " +
-                "$($MsalAssembly.FullName)")
-        }
+        $null = Import-MsalAssembly
 
         # build scopes urls
         $MsalScopes = [string[]]($Scopes | ForEach-Object { "$GraphBaseUrl/$_" })
@@ -850,30 +809,10 @@ function Connect-IRTGraph {
 
             $null = Invoke-AdminConsent @ConsentParams
 
-            # Verify the grant landed. Brief retry window for replication.
-            $StillMissing = $Scopes
-            for ($Attempt = 1; $Attempt -le 5 -and $StillMissing; $Attempt++) {
-                Start-Sleep -Seconds 2
-                try {
-                    $StillMissing = Test-GraphAdminConsent -RequestedScope $Scopes
-                } catch {
-                    $StillMissing = $Scopes
-                }
-                Write-PSFMessage -Level 8 -Message (
-                    "Consent replication check attempt $Attempt/5: " +
-                    "$($StillMissing.Count) scope(s) still missing.")
-            }
-
-            if ($StillMissing) {
-                $AllMissing = $StillMissing -join ', '
-                Write-PSFMessage -Level Warning -Message (
-                    "Tenant-wide grant not yet visible for: $AllMissing")
-                Write-PSFMessage -Level Warning -Message (
-                    'Replication may still be in flight; ' +
-                    're-run Connect-IRT shortly to confirm.')
-            } else {
-                Write-IRT 'Admin consent granted tenant-wide.'
-            }
+            # Entra replication for oauth2PermissionGrants can take 60-120+ seconds.
+            # No point polling here - just inform the operator and continue.
+            Write-IRT ('Admin consent browser flow completed. ' +
+                'Tenant-wide grant may take up to 2 minutes to replicate.') -Level Warn
         }
 
         if (-not $NeedNewToken -and -not $NeedConnect) {
@@ -893,7 +832,7 @@ function Connect-IRTGraph {
         return $Result
     }
 }
-#EndRegion '.\Private\Connect\Connect-IRTGraph.ps1' 540
+#EndRegion '.\Private\Connect\Connect-IRTGraph.ps1' 484
 #Region '.\Private\Connect\Connect-IRTIPPS.ps1' -1
 
 function Connect-IRTIPPS {
@@ -950,6 +889,16 @@ function Connect-IRTIPPS {
     )
 
     begin {
+        #region BEGIN
+
+        # import modules
+        $Imports = @(
+            'ExchangeOnlineManagement'
+            'Microsoft.Graph.Authentication'
+            'PSFramework'
+        )
+        Import-IRTModule -Name $Imports
+
         $CloudConfig = $Global:IRT_Session.CloudConfig
         $IPPSScope = ($SearchOnly ? $CloudConfig.IPPSSearchOnly : $CloudConfig.Exchange)
         $Authority = "$($CloudConfig.LoginHost)/$TenantId"
@@ -1067,23 +1016,7 @@ function Connect-IRTIPPS {
                 "Using cached IPPS token from session (account: $Upn).")
         }
         else {
-            # MSAL setup, only needed when we actually have to acquire.
-            $GraphModule = Get-Module Microsoft.Graph.Authentication -ErrorAction SilentlyContinue
-            if (-not $GraphModule) {
-                throw 'Microsoft.Graph.Authentication must be imported' +
-                ' before acquiring an IPPS token.'
-            }
-            $MsalDllParams = @{
-                Path                = $GraphModule.ModuleBase
-                ChildPath           = 'Dependencies'
-                AdditionalChildPath = 'Core', 'Microsoft.Identity.Client.dll'
-            }
-            $MsalDll = Join-Path @MsalDllParams
-            if (-not ([System.AppDomain]::CurrentDomain.GetAssemblies() |
-                        Where-Object { $_.FullName -like 'Microsoft.Identity.Client,*' })) {
-                Write-PSFMessage -Level 8 -Message "Loading MSAL assembly from: $MsalDll"
-                Add-Type -Path $MsalDll
-            }
+            $null = Import-MsalAssembly
 
             # Prefer EXO's MSAL app if available - same client ID = same token
             # cache = silent audience swap with no prompt. Fall back to IPPS's
@@ -1210,7 +1143,7 @@ function Connect-IRTIPPS {
         return $Result
     }
 }
-#EndRegion '.\Private\Connect\Connect-IRTIPPS.ps1' 315
+#EndRegion '.\Private\Connect\Connect-IRTIPPS.ps1' 309
 #Region '.\Private\Connect\Get-TokenExpiry.ps1' -1
 
 function Get-TokenExpiry {
@@ -1298,6 +1231,63 @@ function Get-TokenPayload {
     }
 }
 #EndRegion '.\Private\Connect\Get-TokenPayload.ps1' 40
+#Region '.\Private\Connect\Import-MsalAssembly.ps1' -1
+
+function Import-MsalAssembly {
+    <#
+    .SYNOPSIS
+    Ensures the Microsoft.Identity.Client MSAL assembly is loaded into the AppDomain.
+
+    .DESCRIPTION
+    Checks whether Microsoft.Identity.Client is already present in the current AppDomain.
+    If not, locates the DLL bundled under the Microsoft.Graph.Authentication module and
+    loads it via Add-Type. Throws if the module is unavailable, the DLL path does not
+    exist, or Add-Type fails.
+
+    .OUTPUTS
+    System.Reflection.Assembly. The loaded Microsoft.Identity.Client assembly.
+
+    .EXAMPLE
+    Import-MsalAssembly
+
+    .NOTES
+    Version: 1.0.0
+    #>
+    [CmdletBinding()]
+    [OutputType([System.Reflection.Assembly])]
+    param()
+
+    $Assembly = [System.AppDomain]::CurrentDomain.GetAssemblies() |
+        Where-Object { $_.FullName -like 'Microsoft.Identity.Client,*' }
+
+    if ($Assembly) {
+        Write-PSFMessage -Level 8 -Message "MSAL assembly already loaded: $($Assembly.FullName)"
+        return $Assembly
+    }
+
+    $GraphModule = Get-Module Microsoft.Graph.Authentication -ErrorAction SilentlyContinue
+    Write-PSFMessage -Level 8 -Message (
+        "Microsoft.Graph.Authentication version: " +
+        "$($GraphModule.Version)")
+    $MsalDllParams = @{
+        Path                = $GraphModule.ModuleBase
+        ChildPath           = 'Dependencies'
+        AdditionalChildPath = 'Core', 'Microsoft.Identity.Client.dll'
+    }
+    $MsalDll = Join-Path @MsalDllParams
+    Write-PSFMessage -Level 8 -Message "Loading MSAL assembly from: $MsalDll"
+    if (-not (Test-Path -LiteralPath $MsalDll)) {
+        throw "MSAL assembly not found at expected path: $MsalDll"
+    }
+    try {
+        Add-Type -Path $MsalDll -ErrorAction Stop
+    } catch {
+        throw "Failed to load MSAL assembly from '$MsalDll': $_"
+    }
+    return [System.AppDomain]::CurrentDomain.GetAssemblies() |
+        Where-Object { $_.FullName -like 'Microsoft.Identity.Client,*' }
+}
+#EndRegion '.\Private\Connect\Import-MsalAssembly.ps1' 55
 #Region '.\Private\Connect\Install-MsalExtensions.ps1' -1
 
 function Install-MsalExtensions {
@@ -1875,6 +1865,412 @@ function Show-GraphDeviceTree {
     }
 }
 #EndRegion '.\Private\Device\Show-GraphDeviceTree.ps1' 41
+#Region '.\Private\Email\Build-EmailSearchName.ps1' -1
+
+function Build-EmailSearchName {
+    <#
+    .SYNOPSIS
+    Builds a human-readable compliance search name from email search criteria.
+
+    .DESCRIPTION
+    Pure helper for New-IRTEmailSearch. Generates a search name from the recipient
+    and keyword criteria only. Date bounds are intentionally excluded so the name
+    describes who/what is being searched, not when.
+
+    Each populated property is rendered as 'Label:value' and the parts are joined
+    with ' - ', e.g. 'From:sus@hacker.com - Subject:Payroll change. Click NOW'. When
+    no name-eligible criteria are set, a timestamped fallback name is returned. The
+    result is truncated to -MaxLength characters.
+
+    .PARAMETER Criteria
+    An ordered dictionary of search criteria. See Build-EmailSearchQuery for the
+    recognized keys. Only From, To, Participants, Recipients, Subject, Body, and
+    AttachmentName contribute to the name.
+
+    .PARAMETER MaxLength
+    Maximum length of the returned name. Default: 200.
+
+    .EXAMPLE
+    $Criteria = [ordered]@{ From = 'sus@hacker.com'; Subject = 'Payroll change' }
+    Build-EmailSearchName -Criteria $Criteria
+    Returns: From:sus@hacker.com - Subject:Payroll change
+
+    .OUTPUTS
+    System.String. The generated search name.
+
+    .NOTES
+    Version: 1.0.0
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory)]
+        [System.Collections.IDictionary] $Criteria,
+
+        [int] $MaxLength = 200
+    )
+
+    $JoinString = ', '
+
+    # recipients and keywords only; dates are intentionally excluded. key = criteria
+    # key, value = label shown in the name
+    $NameProperties = [ordered]@{
+        From           = 'From'
+        To             = 'To'
+        Participants   = 'Participants'
+        Recipients     = 'Recipients'
+        Subject        = 'Subject'
+        Body           = 'Body'
+        AttachmentName = 'Attachment'
+    }
+
+    $Parts = [System.Collections.Generic.List[string]]::new()
+    foreach ($Key in $NameProperties.Keys) {
+
+        $Values = @($Criteria[$Key] | Where-Object { $null -ne $_ -and "$_".Trim() -ne '' })
+        if ($Values.Count -eq 0) {
+            continue
+        }
+
+        $Label = $NameProperties[$Key]
+        $ValueString = ($Values | ForEach-Object { "$_".Trim() }) -join ','
+        $Parts.Add("${Label}:${ValueString}")
+    }
+
+    $Name = $Parts -join $JoinString
+
+    # fallback when nothing name-eligible is set
+    if (-not $Name) {
+        $Name = "EmailSearch $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
+    }
+
+    # keep the name within the allowed length
+    if ($Name.Length -gt $MaxLength) {
+        $Name = $Name.Substring(0, $MaxLength)
+    }
+
+    return $Name
+}
+#EndRegion '.\Private\Email\Build-EmailSearchName.ps1' 85
+#Region '.\Private\Email\Build-EmailSearchQuery.ps1' -1
+
+function Build-EmailSearchQuery {
+    <#
+    .SYNOPSIS
+    Builds an Exchange KQL ContentMatchQuery string from a set of email search criteria.
+
+    .DESCRIPTION
+    Pure helper for New-IRTEmailSearch. Takes a criteria dictionary and returns a
+    Keyword Query Language (KQL) string suitable for the -ContentMatchQuery parameter
+    of New-ComplianceSearch.
+
+    The query is always scoped to mail items, so it begins with (kind:email) and any
+    criteria are appended from there. Date values are expected in UTC and are rendered
+    in the 'yyyy-MM-ddTHH:mm:ss' format used by Exchange Received-date queries. Text
+    criteria accept one or more values; multiple values for a property are combined
+    with OR inside the clause. Every property clause is wrapped in parentheses and the
+    clauses are joined with AND.
+
+    .PARAMETER Criteria
+    An ordered dictionary describing the search. Recognized keys:
+        Start          [datetime] UTC lower bound for Received (optional)
+        End            [datetime] UTC upper bound for Received (optional)
+        From           [string[]] sender addresses
+        To             [string[]] To recipients
+        Participants   [string[]] any From/To/Cc/Bcc party
+        Recipients     [string[]] any To/Cc/Bcc recipient
+        Subject        [string[]] subject keywords (partial match)
+        Body           [string[]] body keywords
+        AttachmentName [string[]] attachment file names
+
+    .EXAMPLE
+    $Criteria = [ordered]@{ From = 'sus@hacker.com'; Subject = 'Payroll' }
+    Build-EmailSearchQuery -Criteria $Criteria
+    Returns: (kind:email) AND (From:"sus@hacker.com") AND (Subject:"Payroll")
+
+    .OUTPUTS
+    System.String. The ContentMatchQuery KQL string. Always begins with (kind:email);
+    returns just '(kind:email)' when no other criteria are set.
+
+    .NOTES
+    Version: 1.0.0
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory)]
+        [System.Collections.IDictionary] $Criteria
+    )
+
+    $Clauses = [System.Collections.Generic.List[string]]::new()
+
+    # every email search is scoped to mail items; this clause always leads the query
+    $Clauses.Add('(kind:email)')
+
+    # date range on the Received property (proven 'yyyy-MM-ddTHH:mm:ss' UTC format)
+    $DateFormat = 'yyyy-MM-ddTHH:mm:ss'
+    $Start = $Criteria['Start']
+    $End = $Criteria['End']
+    if ($Start -and $End) {
+        $StartString = ([datetime]$Start).ToString($DateFormat)
+        $EndString = ([datetime]$End).ToString($DateFormat)
+        $Clauses.Add("(Received:${StartString}..${EndString})")
+    }
+    elseif ($Start) {
+        $StartString = ([datetime]$Start).ToString($DateFormat)
+        $Clauses.Add("(Received>=${StartString})")
+    }
+    elseif ($End) {
+        $EndString = ([datetime]$End).ToString($DateFormat)
+        $Clauses.Add("(Received<=${EndString})")
+    }
+
+    # text properties rendered in a fixed order. key = criteria key, value = KQL property
+    $TextProperties = [ordered]@{
+        From           = 'From'
+        To             = 'To'
+        Participants   = 'Participants'
+        Recipients     = 'Recipients'
+        Subject        = 'Subject'
+        Body           = 'Body'
+        AttachmentName = 'AttachmentNames'
+    }
+
+    foreach ($Key in $TextProperties.Keys) {
+
+        # collect non-empty values for this property
+        $Values = @($Criteria[$Key] | Where-Object { $null -ne $_ -and "$_".Trim() -ne '' })
+        if ($Values.Count -eq 0) {
+            continue
+        }
+
+        $Property = $TextProperties[$Key]
+        $Quoted = @($Values | ForEach-Object { '"' + "$_".Trim() + '"' })
+
+        # single value -> Property:"value", multiple -> Property:("v1" OR "v2")
+        if ($Quoted.Count -eq 1) {
+            $Clauses.Add("(${Property}:$($Quoted[0]))")
+        }
+        else {
+            $Joined = $Quoted -join ' OR '
+            $Clauses.Add("(${Property}:(${Joined}))")
+        }
+    }
+
+    return ($Clauses -join ' AND ')
+}
+#EndRegion '.\Private\Email\Build-EmailSearchQuery.ps1' 106
+#Region '.\Private\Email\Read-EmailSearchCriteria.ps1' -1
+
+function Read-EmailSearchCriteria {
+    <#
+    .SYNOPSIS
+    Interactive console builder for email compliance search criteria.
+
+    .DESCRIPTION
+    Helper for New-IRTEmailSearch. Presents a redrawing panel that always shows the
+    auto-generated search name, the live ContentMatchQuery, and every criterion's
+    current value. The user edits fields by number until they accept or quit.
+
+    Each date bound (Start/End) is stored as a single absolute UTC value but can be set
+    two ways:
+      - Absolute fields accept any Get-Date-parseable value.
+      - Relative fields accept a duration like '3 hours' or '5 days'; the value is
+        immediately resolved to an absolute time (now - duration) and stored on the
+        bound. The relative rows are input shortcuts only and never carry a value.
+
+    Text fields accept comma-separated values (combined with OR in the query).
+    Entering a blank value clears a field. A start date is required before the criteria
+    can be accepted. Returns the completed criteria dictionary on accept, or $null if
+    the user quits. This is a Write-Host console UI, mirroring the module's Build-Menu
+    helper.
+
+    .PARAMETER Criteria
+    An ordered dictionary to seed and edit. When omitted, a fresh empty set is used.
+    Keys: Start, End, From, To, Participants, Recipients, Subject, Body, AttachmentName.
+
+    .OUTPUTS
+    System.Collections.Specialized.OrderedDictionary on accept, or $null on quit.
+
+    .NOTES
+    Version: 1.2.0
+    1.2.0 - Relative dates are interactive shortcuts that set the absolute bound. Start
+        date is now required.
+    1.1.0 - Split each date bound into absolute and relative input fields.
+    #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '')]
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+        'PSUseSingularNouns', '',
+        Justification = 'Builds a set of search criteria; the plural noun is intentional.')]
+    [CmdletBinding()]
+    [OutputType([System.Collections.Specialized.OrderedDictionary])]
+    param(
+        [System.Collections.IDictionary] $Criteria
+    )
+
+    # start from a fresh set, then copy in any seeded values
+    $State = [ordered]@{
+        Start          = $null
+        End            = $null
+        From           = @()
+        To             = @()
+        Participants   = @()
+        Recipients     = @()
+        Subject        = @()
+        Body           = @()
+        AttachmentName = @()
+    }
+    if ($Criteria) {
+        foreach ($Key in @($State.Keys)) {
+            if ($Criteria.Contains($Key)) {
+                $State[$Key] = $Criteria[$Key]
+            }
+        }
+    }
+
+    # menu definition. number -> field metadata. date rows carry a Bound (Start/End);
+    # text rows carry a Key
+    $Menu = [ordered]@{
+        '1'  = @{ Bound = 'Start'; Label = 'Start date (absolute)'; Type = 'Absolute' }
+        '2'  = @{ Bound = 'Start'; Label = 'Start date (relative)'; Type = 'Relative' }
+        '3'  = @{ Bound = 'End'; Label = 'End date (absolute)'; Type = 'Absolute' }
+        '4'  = @{ Bound = 'End'; Label = 'End date (relative)'; Type = 'Relative' }
+        '5'  = @{ Key = 'From'; Label = 'From'; Type = 'Text' }
+        '6'  = @{ Key = 'To'; Label = 'To'; Type = 'Text' }
+        '7'  = @{ Key = 'Participants'; Label = 'Participants (from/to/cc/bcc)'; Type = 'Text' }
+        '8'  = @{ Key = 'Recipients'; Label = 'Recipients (to/cc/bcc)'; Type = 'Text' }
+        '9'  = @{ Key = 'Subject'; Label = 'Subject'; Type = 'Text' }
+        '10' = @{ Key = 'Body'; Label = 'Body'; Type = 'Text' }
+        '11' = @{ Key = 'AttachmentName'; Label = 'Attachment name'; Type = 'Text' }
+    }
+
+    while ($true) {
+
+        # build the live name and query from current state
+        $Query = Build-EmailSearchQuery -Criteria $State
+        $Name = Build-EmailSearchName -Criteria $State
+
+        # draw the panel
+        Write-Host ''
+        Write-Host '  Search name:'
+        Write-Host "    $Name" -ForegroundColor Green
+        Write-Host ''
+        Write-Host '  ContentMatchQuery:'
+        Write-Host "    $Query" -ForegroundColor Green
+        if (-not $State.Start) {
+            Write-Host '    (a start date is required before accepting)' -ForegroundColor DarkGray
+        }
+        Write-Host ''
+
+        foreach ($Number in $Menu.Keys) {
+            $Item = $Menu[$Number]
+
+            # format the current value for display
+            $Display = switch ($Item.Type) {
+                'Absolute' {
+                    $Value = $State[$Item.Bound]
+                    if ($Value) {
+                        $Local = ([datetime]$Value).ToLocalTime().ToString('yyyy-MM-dd HH:mm')
+                        $Utc = ([datetime]$Value).ToString('yyyy-MM-ddTHH:mm:ssZ')
+                        "$Local  (UTC $Utc)"
+                    }
+                    else { '(not set)' }
+                }
+                'Relative' {
+                    # input shortcut only; sets the absolute bound, carries no value
+                    ''
+                }
+                'Text' {
+                    $Items = @($State[$Item.Key] | Where-Object { "$_".Trim() -ne '' })
+                    if ($Items.Count) { $Items -join ', ' } else { '(not set)' }
+                }
+            }
+
+            $NumCol = "[$Number]".PadRight(5)
+            $Label = $Item.Label.PadRight(30)
+            Write-Host "    $NumCol $Label $Display"
+        }
+
+        Write-Host ''
+        Write-Host '    [A] Accept and create search    [C] Clear all    [Q] Quit'
+
+        $Choice = (Read-Host 'Select').Trim()
+
+        if ($Menu.Contains($Choice)) {
+            $Item = $Menu[$Choice]
+
+            switch ($Item.Type) {
+
+                'Absolute' {
+                    $Prompt = "Enter $($Item.Label) (e.g. '5/28/26 17:00'; blank clears)"
+                    $Raw = (Read-Host $Prompt).Trim()
+                    if ($Raw -eq '') {
+                        $State[$Item.Bound] = $null
+                    }
+                    else {
+                        try {
+                            $Parsed = Get-Date -Date $Raw -ErrorAction Stop
+                            $State[$Item.Bound] = [DateTime]::SpecifyKind(
+                                $Parsed, [DateTimeKind]::Local).ToUniversalTime()
+                        }
+                        catch {
+                            Write-Host "  Could not parse date: $Raw" -ForegroundColor Red
+                        }
+                    }
+                }
+
+                'Relative' {
+                    $Prompt = "Enter $($Item.Label) (e.g. '3 hours' or '5 days')"
+                    $Raw = (Read-Host $Prompt).Trim()
+                    if ($Raw -ne '') {
+                        try {
+                            $Span = ConvertTo-TimeSpan -InputString $Raw
+                            $State[$Item.Bound] = (Get-Date).ToUniversalTime() - $Span
+                        }
+                        catch {
+                            Write-Host "  $($_.Exception.Message)" -ForegroundColor Red
+                        }
+                    }
+                }
+
+                'Text' {
+                    $Prompt = "Enter $($Item.Label) (comma-separated, blank to clear)"
+                    $Raw = (Read-Host $Prompt).Trim()
+                    if ($Raw -eq '') {
+                        $State[$Item.Key] = @()
+                    }
+                    else {
+                        $State[$Item.Key] = @(
+                            $Raw -split ',' |
+                                ForEach-Object { $_.Trim() } |
+                                Where-Object { $_ -ne '' }
+                        )
+                    }
+                }
+            }
+        }
+        elseif ($Choice -match '^[Aa]$') {
+            if (-not $State.Start) {
+                Write-Host '  Cannot accept: a start date is required.' -ForegroundColor Yellow
+            }
+            else {
+                return $State
+            }
+        }
+        elseif ($Choice -match '^[Cc]$') {
+            foreach ($Key in @($State.Keys)) {
+                $State[$Key] = if ($Key -in 'Start', 'End') { $null } else { @() }
+            }
+        }
+        elseif ($Choice -match '^[Qq]$') {
+            return $null
+        }
+        else {
+            Write-Host "  Unrecognized choice: $Choice" -ForegroundColor Yellow
+        }
+    }
+}
+#EndRegion '.\Private\Email\Read-EmailSearchCriteria.ps1' 209
 #Region '.\Private\Entra\Convert-TrustType.ps1' -1
 
 function Convert-TrustType {
@@ -2946,234 +3342,6 @@ function Resolve-DateRange {
     }
 }
 #EndRegion '.\Private\Graph\Resolve-DateRange.ps1' 124
-#Region '.\Private\Graph\Test-PythonPackage.ps1' -1
-
-function Test-PythonPackage {
-    <#
-    .SYNOPSIS
-    Tests whether a python package is available via python import or uv tool install.
-
-    .PARAMETER Name
-    The python module name to import (e.g., 'requests' or 'pandas').
-
-    .PARAMETER MinVersion
-    Optional minimum version requirement (nuget-style: 1.2.3).
-
-    .PARAMETER PythonPath
-    Optional explicit path to python interpreter. if omitted, tries python, python3, then py -3.
-
-    .OUTPUTS
-    [pscustomobject] with Present (bool), Source (string), Version (string),
-    Python (string path/command)
-    #>
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory, Position = 0)]
-        [string] $Name,
-
-        [Parameter()]
-        [string] $MinVersion,
-
-        [Parameter()]
-        [string] $PythonPath
-    )
-
-    begin {
-
-        function Find-PythonInterpreter {
-            param(
-                [string]$ExplicitPath
-            )
-
-            # if explicit path provided and exists, use it
-            if ($ExplicitPath -and (Test-Path -LiteralPath $ExplicitPath)) {
-                return @{ Cmd = $ExplicitPath; PrefixArgs = @() }
-            }
-
-            # prefer 'python', then 'python3', then 'py -3' on windows
-            $Candidates = @(
-                @{
-                    Cmd = (Get-Command -Name 'python' -ErrorAction SilentlyContinue)?.Source
-                    PrefixArgs = @()
-                }
-                @{
-                    Cmd = (Get-Command -Name 'python3' -ErrorAction SilentlyContinue)?.Source
-                    PrefixArgs = @()
-                }
-                @{
-                    Cmd = (Get-Command -Name 'py' -ErrorAction SilentlyContinue)?.Source
-                    PrefixArgs = @('-3')
-                }
-            ) | Where-Object { $_.Cmd }
-
-            if (($Candidates | Measure-Object).Count -gt 0) { return $Candidates[0] }
-
-            return $null
-        }
-
-        function Find-UvTool {
-            param([string]$ToolName)
-
-            $uvCmd = Get-Command -Name 'uv' -ErrorAction SilentlyContinue
-            if (-not $uvCmd) { return $null }
-
-            # normalize per PEP 503: lowercase, collapse runs of [-_.] to a single hyphen
-            $normalizedName = ($ToolName -replace '[_.\-]+', '-').ToLower()
-
-            try {
-                $listOutput = & $uvCmd.Source tool list --no-color 2>$null
-                if ($LASTEXITCODE -ne 0) { return $null }
-
-                $version = $null
-                $distName = $null
-                foreach ($line in $listOutput) {
-                    if ($line -match '^(\S+)\s+v(.+)$') {
-                        $candidate = ($Matches[1] -replace '[_.\-]+', '-').ToLower()
-                        if ($candidate -eq $normalizedName) {
-                            $distName = $Matches[1]
-                            $version = $Matches[2].Trim()
-                            break
-                        }
-                    }
-                }
-
-                if (-not $version) { return $null }
-
-                # locate the venv python inside the tool environment
-                $toolDir = (& $uvCmd.Source tool dir 2>$null)
-                if ($LASTEXITCODE -ne 0 -or -not $toolDir) {
-                    return @{ Version = $version; Python = $null }
-                }
-                $toolDir = $toolDir.Trim()
-
-                # try likely directory names for the tool's venv
-                $dirCandidates = @($distName, $ToolName, $normalizedName) | Select-Object -Unique
-
-                $pythonPath = $null
-                foreach ($dir in $dirCandidates) {
-                    $JpParams = @{
-                        Path      = $toolDir
-                        ChildPath = $dir
-                    }
-                    $testPath = if ($IsWindows -or $env:OS -match 'Windows') {
-                        Join-Path @JpParams -AdditionalChildPath 'Scripts', 'python.exe'
-                    } else {
-                        Join-Path @JpParams -AdditionalChildPath 'bin', 'python'
-                    }
-                    if (Test-Path -LiteralPath $testPath) {
-                        $pythonPath = $testPath
-                        break
-                    }
-                }
-
-                return @{ Version = $version; Python = $pythonPath }
-            } catch {
-                return $null
-            }
-        }
-
-        # python snippet: try import, then try to resolve a version
-        # - prefers importlib.metadata (py>=3.8) using the package (distribution)
-        #   name equal to module name
-        # - falls back to module.__version__ if metadata not found
-        $PyCode = @"
-import sys, importlib
-name=sys.argv[1]
-try:
-    m = importlib.import_module(name)
-    ver = ""
-    try:
-        try:
-            from importlib.metadata import version, PackageNotFoundError
-        except Exception:
-            from importlib_metadata import version, PackageNotFoundError  # backport if installed
-        try:
-            ver = version(name)
-        except PackageNotFoundError:
-            ver = getattr(m, "__version__", "") or ""
-    except Exception:
-        ver = getattr(m, "__Version__", "") or ""
-    print(ver)
-    sys.exit(0)
-except Exception:
-    sys.exit(1)
-"@.Trim()
-    }
-
-    process {
-
-        # === python import check ===
-        $Py = Find-PythonInterpreter -ExplicitPath $PythonPath
-        $PyPresent = $false
-        $PyVersion = $null
-        $PyCmd = $null
-
-        if ($Py) {
-            $Arguments = @()
-            if ($Py.PrefixArgs) { $Arguments += $Py.PrefixArgs }
-            $Arguments += @('-c', $PyCode, $Name)
-
-            $Output = & $Py.Cmd @Arguments 2>$null
-            $Exit = $LASTEXITCODE
-
-            $PyPresent = ($Exit -eq 0)
-            if ($PyPresent) {
-                $PyVersion = ($Output | Select-Object -First 1).ToString().Trim()
-            } else {
-                $PyVersion = $null
-            }
-            $PrefixStr = if ($Py.PrefixArgs.Count) { ' ' + ($Py.PrefixArgs -join ' ') } else { '' }
-            $PyCmd = $Py.Cmd + $PrefixStr
-        }
-
-        # === uv tool check ===
-        $UvTool = Find-UvTool -ToolName $Name
-        $UvPresent = $null -ne $UvTool
-        $UvVersion = if ($UvPresent) { $UvTool.Version } else { $null }
-        $UvPython = if ($UvPresent) { $UvTool.Python } else { $null }
-
-        # overall result
-        $Present = $PyPresent -or $UvPresent
-
-        $Source = if ($PyPresent -and $UvPresent) { 'both' }
-        elseif ($PyPresent) { 'python' }
-        elseif ($UvPresent) { 'uv-tool' }
-        else { $null }
-
-        # effective version (prefer python import, fall back to uv tool)
-        $Version = if ($PyVersion) { $PyVersion } elseif ($UvVersion) { $UvVersion } else { $null }
-
-        # effective python interpreter
-        # if found via import, use that interpreter; if only via uv tool, use the venv python
-        $Python = if ($PyPresent) { $PyCmd }
-        elseif ($UvPython) { $UvPython }
-        elseif ($PyCmd) { $PyCmd }
-        else { $null }
-
-        # optional min version check
-        $MeetsMin = $true
-        if ($Present -and $MinVersion -and $Version) {
-            try {
-                # attempt semantic comparison; if parse fails, treat as not comparable
-                $vA = [Version]($Version -replace '[^0-9\.].*$', '')
-                $vB = [Version]($MinVersion -replace '[^0-9\.].*$', '')
-                $MeetsMin = ($vA -ge $vB)
-            } catch {
-                $MeetsMin = $false
-            }
-        }
-
-        Write-Output ([pscustomobject]@{
-                Present         = $Present
-                Source          = $Source
-                Version         = $Version
-                MeetsMinVersion = if ($MinVersion) { $MeetsMin } else { $null }
-                Name            = $Name
-                Python          = $Python
-            })
-    }
-}
-#EndRegion '.\Private\Graph\Test-PythonPackage.ps1' 226
 #Region '.\Private\Lib\Build-Menu.ps1' -1
 
 function Build-Menu {
@@ -3385,6 +3553,79 @@ function Build-Menu {
     return $Return
 }
 #EndRegion '.\Private\Lib\Build-Menu.ps1' 209
+#Region '.\Private\Lib\ConvertTo-TimeSpan.ps1' -1
+
+function ConvertTo-TimeSpan {
+    <#
+    .SYNOPSIS
+    Parses a human duration string such as '3 hours' or '5 days' into a TimeSpan.
+
+    .DESCRIPTION
+    Converts a relative duration expression into a [timespan]. The input is a number
+    followed by a unit, for example '3 hours', '5 days', '90 minutes', or '2 weeks'.
+    A trailing 'ago' is tolerated but not required.
+
+    Supported units (singular, plural, and common abbreviations): seconds, minutes,
+    hours, days, weeks. Months and years are not supported because they do not map to
+    a fixed-length TimeSpan; use days or an absolute date instead.
+
+    This is the relative-duration counterpart to Get-Date, which only understands
+    absolute date/time formats.
+
+    .PARAMETER InputString
+    The duration text to parse, e.g. '3 hours' or '5 days'.
+
+    .EXAMPLE
+    ConvertTo-TimeSpan -InputString '3 hours'
+    Returns a TimeSpan of 3 hours.
+
+    .EXAMPLE
+    ConvertTo-TimeSpan -InputString '5 days'
+    Returns a TimeSpan of 5 days.
+
+    .OUTPUTS
+    System.TimeSpan. Throws on unparseable input.
+
+    .NOTES
+    Version: 1.0.0
+    #>
+    [CmdletBinding()]
+    [OutputType([timespan])]
+    param(
+        [Parameter(Mandatory)]
+        [string] $InputString
+    )
+
+    $Text = $InputString.Trim().ToLower()
+    if (-not $Text) {
+        throw 'ConvertTo-TimeSpan: empty input.'
+    }
+
+    # "<number> <unit>" with an optional, ignored trailing 'ago'
+    $Match = [regex]::Match($Text, '^(\d+)\s*([a-z]+)\s*(ago)?$')
+    if (-not $Match.Success) {
+        throw "Could not parse '$InputString'. Use e.g. '3 hours' or '5 days'."
+    }
+
+    $Amount = [int] $Match.Groups[1].Value
+    $Unit = $Match.Groups[2].Value
+
+    $Span = switch -Regex ($Unit) {
+        '^(second|seconds|sec|secs)$' { [timespan]::FromSeconds($Amount) }
+        '^(minute|minutes|min|mins)$' { [timespan]::FromMinutes($Amount) }
+        '^(hour|hours|hr|hrs|h)$' { [timespan]::FromHours($Amount) }
+        '^(day|days|d)$' { [timespan]::FromDays($Amount) }
+        '^(week|weeks|wk|wks|w)$' { [timespan]::FromDays(7 * $Amount) }
+        default { $null }
+    }
+
+    if ($null -eq $Span) {
+        throw "Unrecognized unit '$Unit'. Use seconds/minutes/hours/days/weeks."
+    }
+
+    return $Span
+}
+#EndRegion '.\Private\Lib\ConvertTo-TimeSpan.ps1' 71
 #Region '.\Private\Lib\Format-Powershell.ps1' -1
 
 function Format-Powershell {
@@ -8446,6 +8687,234 @@ function Import-ReferenceData {
         "TenantCache=$($Global:IRT_TenantInfoTable.Count)")
 }
 #EndRegion '.\Private\Utility\Import-ReferenceData.ps1' 100
+#Region '.\Private\Utility\Test-PythonPackage.ps1' -1
+
+function Test-PythonPackage {
+    <#
+    .SYNOPSIS
+    Tests whether a python package is available via python import or uv tool install.
+
+    .PARAMETER Name
+    The python module name to import (e.g., 'requests' or 'pandas').
+
+    .PARAMETER MinVersion
+    Optional minimum version requirement (nuget-style: 1.2.3).
+
+    .PARAMETER PythonPath
+    Optional explicit path to python interpreter. if omitted, tries python, python3, then py -3.
+
+    .OUTPUTS
+    [pscustomobject] with Present (bool), Source (string), Version (string),
+    Python (string path/command)
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory, Position = 0)]
+        [string] $Name,
+
+        [Parameter()]
+        [string] $MinVersion,
+
+        [Parameter()]
+        [string] $PythonPath
+    )
+
+    begin {
+
+        function Find-PythonInterpreter {
+            param(
+                [string]$ExplicitPath
+            )
+
+            # if explicit path provided and exists, use it
+            if ($ExplicitPath -and (Test-Path -LiteralPath $ExplicitPath)) {
+                return @{ Cmd = $ExplicitPath; PrefixArgs = @() }
+            }
+
+            # prefer 'python', then 'python3', then 'py -3' on windows
+            $Candidates = @(
+                @{
+                    Cmd = (Get-Command -Name 'python' -ErrorAction SilentlyContinue)?.Source
+                    PrefixArgs = @()
+                }
+                @{
+                    Cmd = (Get-Command -Name 'python3' -ErrorAction SilentlyContinue)?.Source
+                    PrefixArgs = @()
+                }
+                @{
+                    Cmd = (Get-Command -Name 'py' -ErrorAction SilentlyContinue)?.Source
+                    PrefixArgs = @('-3')
+                }
+            ) | Where-Object { $_.Cmd }
+
+            if (($Candidates | Measure-Object).Count -gt 0) { return $Candidates[0] }
+
+            return $null
+        }
+
+        function Find-UvTool {
+            param([string]$ToolName)
+
+            $uvCmd = Get-Command -Name 'uv' -ErrorAction SilentlyContinue
+            if (-not $uvCmd) { return $null }
+
+            # normalize per PEP 503: lowercase, collapse runs of [-_.] to a single hyphen
+            $normalizedName = ($ToolName -replace '[_.\-]+', '-').ToLower()
+
+            try {
+                $listOutput = & $uvCmd.Source tool list --no-color 2>$null
+                if ($LASTEXITCODE -ne 0) { return $null }
+
+                $version = $null
+                $distName = $null
+                foreach ($line in $listOutput) {
+                    if ($line -match '^(\S+)\s+v(.+)$') {
+                        $candidate = ($Matches[1] -replace '[_.\-]+', '-').ToLower()
+                        if ($candidate -eq $normalizedName) {
+                            $distName = $Matches[1]
+                            $version = $Matches[2].Trim()
+                            break
+                        }
+                    }
+                }
+
+                if (-not $version) { return $null }
+
+                # locate the venv python inside the tool environment
+                $toolDir = (& $uvCmd.Source tool dir 2>$null)
+                if ($LASTEXITCODE -ne 0 -or -not $toolDir) {
+                    return @{ Version = $version; Python = $null }
+                }
+                $toolDir = $toolDir.Trim()
+
+                # try likely directory names for the tool's venv
+                $dirCandidates = @($distName, $ToolName, $normalizedName) | Select-Object -Unique
+
+                $pythonPath = $null
+                foreach ($dir in $dirCandidates) {
+                    $JpParams = @{
+                        Path      = $toolDir
+                        ChildPath = $dir
+                    }
+                    $testPath = if ($IsWindows -or $env:OS -match 'Windows') {
+                        Join-Path @JpParams -AdditionalChildPath 'Scripts', 'python.exe'
+                    } else {
+                        Join-Path @JpParams -AdditionalChildPath 'bin', 'python'
+                    }
+                    if (Test-Path -LiteralPath $testPath) {
+                        $pythonPath = $testPath
+                        break
+                    }
+                }
+
+                return @{ Version = $version; Python = $pythonPath }
+            } catch {
+                return $null
+            }
+        }
+
+        # python snippet: try import, then try to resolve a version
+        # - prefers importlib.metadata (py>=3.8) using the package (distribution)
+        #   name equal to module name
+        # - falls back to module.__version__ if metadata not found
+        $PyCode = @"
+import sys, importlib
+name=sys.argv[1]
+try:
+    m = importlib.import_module(name)
+    ver = ""
+    try:
+        try:
+            from importlib.metadata import version, PackageNotFoundError
+        except Exception:
+            from importlib_metadata import version, PackageNotFoundError  # backport if installed
+        try:
+            ver = version(name)
+        except PackageNotFoundError:
+            ver = getattr(m, "__version__", "") or ""
+    except Exception:
+        ver = getattr(m, "__Version__", "") or ""
+    print(ver)
+    sys.exit(0)
+except Exception:
+    sys.exit(1)
+"@.Trim()
+    }
+
+    process {
+
+        # === python import check ===
+        $Py = Find-PythonInterpreter -ExplicitPath $PythonPath
+        $PyPresent = $false
+        $PyVersion = $null
+        $PyCmd = $null
+
+        if ($Py) {
+            $Arguments = @()
+            if ($Py.PrefixArgs) { $Arguments += $Py.PrefixArgs }
+            $Arguments += @('-c', $PyCode, $Name)
+
+            $Output = & $Py.Cmd @Arguments 2>$null
+            $Exit = $LASTEXITCODE
+
+            $PyPresent = ($Exit -eq 0)
+            if ($PyPresent) {
+                $PyVersion = ($Output | Select-Object -First 1).ToString().Trim()
+            } else {
+                $PyVersion = $null
+            }
+            $PrefixStr = if ($Py.PrefixArgs.Count) { ' ' + ($Py.PrefixArgs -join ' ') } else { '' }
+            $PyCmd = $Py.Cmd + $PrefixStr
+        }
+
+        # === uv tool check ===
+        $UvTool = Find-UvTool -ToolName $Name
+        $UvPresent = $null -ne $UvTool
+        $UvVersion = if ($UvPresent) { $UvTool.Version } else { $null }
+        $UvPython = if ($UvPresent) { $UvTool.Python } else { $null }
+
+        # overall result
+        $Present = $PyPresent -or $UvPresent
+
+        $Source = if ($PyPresent -and $UvPresent) { 'both' }
+        elseif ($PyPresent) { 'python' }
+        elseif ($UvPresent) { 'uv-tool' }
+        else { $null }
+
+        # effective version (prefer python import, fall back to uv tool)
+        $Version = if ($PyVersion) { $PyVersion } elseif ($UvVersion) { $UvVersion } else { $null }
+
+        # effective python interpreter
+        # if found via import, use that interpreter; if only via uv tool, use the venv python
+        $Python = if ($PyPresent) { $PyCmd }
+        elseif ($UvPython) { $UvPython }
+        elseif ($PyCmd) { $PyCmd }
+        else { $null }
+
+        # optional min version check
+        $MeetsMin = $true
+        if ($Present -and $MinVersion -and $Version) {
+            try {
+                # attempt semantic comparison; if parse fails, treat as not comparable
+                $vA = [Version]($Version -replace '[^0-9\.].*$', '')
+                $vB = [Version]($MinVersion -replace '[^0-9\.].*$', '')
+                $MeetsMin = ($vA -ge $vB)
+            } catch {
+                $MeetsMin = $false
+            }
+        }
+
+        Write-Output ([pscustomobject]@{
+                Present         = $Present
+                Source          = $Source
+                Version         = $Version
+                MeetsMinVersion = if ($MinVersion) { $MeetsMin } else { $null }
+                Name            = $Name
+                Python          = $Python
+            })
+    }
+}
+#EndRegion '.\Private\Utility\Test-PythonPackage.ps1' 226
 #Region '.\Private\Utility\Write-IRT.ps1' -1
 
 function Write-IRT {
@@ -9764,6 +10233,11 @@ function Remove-IRTDevice {
 
     begin {
         Update-IRTToken -Service 'Graph'
+        $Import = @(
+            'Microsoft.Graph.DeviceManagement',
+            'Microsoft.Graph.Identity.DirectoryManagement'
+        )
+        Import-IRTModule -Name $Import
         # if not passed directly, find global
         if ( -not $DeviceObject -or $DeviceObject.Count -eq 0 ) {
 
@@ -9832,7 +10306,7 @@ function Remove-IRTDevice {
         Write-IRT ''
     }
 }
-#EndRegion '.\Public\Device\Remove-IRTDevice.ps1' 121
+#EndRegion '.\Public\Device\Remove-IRTDevice.ps1' 126
 #Region '.\Public\Device\Show-IRTDevice.ps1' -1
 
 function Show-IRTDevice {
@@ -9859,6 +10333,11 @@ function Show-IRTDevice {
 
     begin {
         Update-IRTToken -Service 'Graph'
+        $Import = @(
+            'Microsoft.Graph.Identity.DirectoryManagement',
+            'Microsoft.Graph.DeviceManagement'
+        )
+        Import-IRTModule -Name $Import
 
         # if not passed directly, fall back to global variable
         if ( -not $DeviceObject -or $DeviceObject.Count -eq 0 ) {
@@ -9935,7 +10414,1054 @@ function Show-IRTDevice {
         }
     }
 }
-#EndRegion '.\Public\Device\Show-IRTDevice.ps1' 101
+#EndRegion '.\Public\Device\Show-IRTDevice.ps1' 106
+#Region '.\Public\Email\Get-IRTMessageTrace.ps1' -1
+
+function Get-IRTMessageTrace {
+    <#
+    .SYNOPSIS
+    Downloads incoming and outgoing message trace for specified user, or all users.
+
+    .DESCRIPTION
+    Retrieves Exchange Online message trace records for one or more users over a configurable
+    date range and exports results to Excel. Accepts user objects, email addresses, or an
+    -AllUsers switch for tenant-wide queries.
+
+    Supports both the modern V2 API (large result sets via background jobs) and the legacy
+    V1 endpoint. Date range defaults to the last 10 days when no -Days, -Start, or -End
+    is specified.
+
+    .PARAMETER UserObject
+    One or more user objects to trace. Mutually exclusive with -UserEmail and -AllUsers.
+    Falls back to global session objects if omitted.
+
+    .PARAMETER UserEmail
+    One or more email addresses to trace. Mutually exclusive with -UserObject and -AllUsers.
+
+    .PARAMETER AllUsers
+    Query message trace for all users in the tenant. Mutually exclusive with -UserObject
+    and -UserEmail.
+
+    .PARAMETER Days
+    Number of days back to search. Cannot be used with -Start / -End.
+
+    .PARAMETER Start
+    Start of date range (parseable date string). Used with -End for an absolute range.
+
+    .PARAMETER End
+    End of date range (parseable date string). Used with -Start for an absolute range.
+
+    .PARAMETER ResultLimit
+    Maximum number of records to return. Default: 50000.
+
+    .PARAMETER Variable
+    Save results to a session variable for downstream use. Default: $true.
+
+    .PARAMETER Excel
+    Export results to an Excel workbook. Default: $true.
+
+    .PARAMETER Quiet
+    Suppress progress output.
+
+    .PARAMETER Xml
+    Export raw XML alongside the Excel file. Defaults to IRT_Config.ExportXml.
+
+    .PARAMETER TableStyle
+    Excel table style. Defaults to IRT_Config.ExcelTableStyle.
+
+    .PARAMETER Font
+    Excel font name. Defaults to IRT_Config.ExcelFont.
+
+    .EXAMPLE
+    Get-IRTMessageTrace
+    Downloads message trace for the user in the global session (last 10 days).
+
+    .EXAMPLE
+    Get-IRTMessageTrace -UserObject $User -Days 30
+    Downloads 30 days of message trace for a specific user.
+
+    .EXAMPLE
+    Get-IRTMessageTrace -AllUsers -Start '2026-04-01' -End '2026-04-30'
+    Downloads all tenant message trace for April 2026.
+
+    .OUTPUTS
+    None. Results are exported to Excel and stored in a session variable.
+
+    .NOTES
+    Version: 1.5.0
+    1.5.0 - Integrated V1 and V2 into same function.
+    1.4.0 - Switched to separate get/show functions. Updated to passing objects, not files.
+        Added global variables.
+    #>
+    [Alias('MessageTrace')]
+    [CmdletBinding( DefaultParameterSetName = 'UserObject' )]
+    param (
+        [Parameter(ParameterSetName = 'UserObject', Position = 0)]
+        [Alias('UserObjects')]
+        [psobject[]] $UserObject,
+
+        [Parameter(ParameterSetName = 'UserEmail')]
+        [Alias('UserEmails')]
+        [string[]] $UserEmail,
+
+        [Parameter(ParameterSetName = 'AllUsers')]
+        [switch] $AllUsers,
+
+        [int] $Days, # default set at #DEFAULTDAYS
+        [string] $Start,
+        [string] $End,
+
+        [int] $ResultLimit = 50000,
+
+        [boolean] $Variable = $true,
+        [boolean] $Excel = $true,
+        [switch] $Quiet,
+        [boolean] $Xml = $Global:IRT_Config.ExportXml,
+        [string] $TableStyle = $Global:IRT_Config.ExcelTableStyle,
+        [string] $Font = $Global:IRT_Config.ExcelFont
+    )
+
+    begin {
+
+        # check if token update is needed
+        Update-IRTToken -Service 'Exchange'
+
+        # import modules
+        Import-IRTModule -Name 'ExchangeOnlineManagement', 'PSFramework'
+
+        $FunctionName = $MyInvocation.MyCommand.Name
+        $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+        $ParameterSet = $PSCmdlet.ParameterSetName
+        $RawDateProperty = 'Received'
+        $FileNamePrefix = 'MessageTrace'
+
+        # create user objects depending on parameters used
+        switch ( $ParameterSet ) {
+            'UserObject' {
+                # if users passed via script argument:
+                if (($UserObject | Measure-Object).Count -gt 0) {
+                    $ScriptUserObjects = $UserObject
+                }
+                # if not, look for global objects
+                else {
+
+                    # get from global variables
+                    $ScriptUserObjects = Get-GlobalUserObject
+
+                    # if none found, exit
+                    if (($ScriptUserObjects | Measure-Object).Count -eq 0) {
+                        $ErrorParams = @{
+                            Category    = 'InvalidArgument'
+                            Message     = 'No -UserObject argument used, ' +
+                            'no $Global:IRT_UserObjects present.'
+                            ErrorAction = 'Stop'
+                        }
+                        Write-Error @ErrorParams
+                    }
+                }
+            }
+            'UserEmail' {
+                # variables
+                $ScriptUserObjects = [System.Collections.Generic.list[psobject]]::new()
+
+                foreach ( $Email in $UserEmail ) {
+
+                    # create object with userprincipalname property
+                    $ScriptUserObjects.Add(
+                        [pscustomobject]@{
+                            UserPrincipalName = $Email
+                        }
+                    )
+                }
+            }
+            'AllUsers' {
+                # build user object with null principal name
+                $ScriptUserObjects = @(
+                    [pscustomobject]@{
+                        UserPrincipalName = $null
+                    }
+                )
+                $AllUsers = $true
+            }
+        }
+
+
+        # parse date ranges
+        $DateRangeParams = @{
+            Days        = $Days
+            Start       = $Start
+            End         = $End
+            DefaultDays = 10 #DEFAULTDAYS
+        }
+        $DateRange = Resolve-DateRange @DateRangeParams
+        $DateRangeType = $DateRange.RangeType
+        $Days = $DateRange.Days
+        $StartDateUtc = $DateRange.StartUtc
+        $EndDateUtc = $DateRange.EndUtc
+
+        #region VERIFY COMMAND
+        # verify Get-MessageTraceV2 is available
+        try {
+            [void](Get-Command Get-MessageTraceV2 -ErrorAction 'Stop')
+        }
+        catch {
+            # if there was an error, revert to V1
+            $WarningParams = @{
+                Message = 'Get-MessageTraceV2 command not available in this tenant or' +
+                ' ExchangeOnlineManagement version. Running Get-MessageTrace instead.'
+            }
+            Write-IRT @WarningParams -Level Warn
+
+            $V1 = $true
+
+            # change date ranges to 10 days max
+            if ($DateRangeType -eq 'Absolute') {
+                $NowUtc = (Get-Date).ToUniversalTime()
+                if ($StartDateUtc -lt $NowUtc.AddDays(-10)) {
+                    $WarningParams = @{
+                        Message = "-StartDate is more than 10 days ago. Changing to 10 days ago."
+                    }
+                    Write-IRT @WarningParams -Level Warn
+                    $StartDateUtc = $NowUtc.AddDays(-10)
+                }
+                if ($EndDateUtc -le $StartDateUtc) {
+                    $ErrorParams = @{
+                        Category    = 'LimitsExceeded'
+                        Message     = "-EndDate must be greater than -StartDate."
+                        ErrorAction = 'Stop'
+                    }
+                    Write-Error @ErrorParams
+                }
+                # recalculate $Days to match the adjusted date range
+                $Days = [Int]([Math]::Ceiling(($EndDateUtc - $StartDateUtc).TotalDays))
+            }
+            else {
+                if ($Days -gt 10) {
+                    $WarningParams = @{
+                        Message = 'Get-MessageTrace can only search back 10 days.' +
+                        ' Changing -Days to 10.'
+                    }
+                    Write-IRT @WarningParams -Level Warn
+                    $Days = 10
+                    $StartDateUtc = (Get-Date).AddDays(-10).ToUniversalTime()
+                }
+            }
+        }
+
+        # get client domain name for file output
+        $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+        Write-PSFMessage -Level 8 -Message "${FunctionName}: Get-AcceptedDomain [$Elapsed]"
+        $DefaultDomain = Get-AcceptedDomain | Where-Object { $_.Default -eq $true }
+        $DomainName = $DefaultDomain.DomainName -split '\.' | Select-Object -First 1
+    }
+
+    process {
+
+        #region USER LOOP
+
+        foreach ( $ScriptUserObject in $ScriptUserObjects ) {
+
+            $AllMessages = [System.Collections.Generic.List[psobject]]::new()
+
+            if ( $AllUsers ) {
+                $UserName = 'AllUsers'
+            }
+            else {
+
+                # verify user has mailbox. if not, exit.
+                $Mailbox = $null
+                try {
+                    $Params = @{
+                        UserPrincipalName = $ScriptUserObject.UserPrincipalName
+                        ErrorAction       = 'Stop'
+                    }
+                    $Mailbox = Get-EXOMailbox @Params
+                }
+                catch {}
+                if (-not $Mailbox) {
+                    Write-IRT "No mailbox for $($ScriptUserObject.UserPrincipalName)" -Level Warn
+                    if ($Global:IRT_WaitFlags) {
+                        $Global:IRT_WaitFlags.MessageTraceUserDone = $true
+                    }
+                    continue
+                }
+
+                $UserName = $ScriptUserObject.UserPrincipalName -split '@' | Select-Object -First 1
+
+                $LoopUserEmails = [System.Collections.Generic.HashSet[string]]::new()
+                [void]$LoopUserEmails.Add($ScriptUserObject.UserPrincipalName)
+
+                # get all user email addresses
+                if (-not $ScriptUserObject.ProxyAddresses) {
+                    $ScriptUserObject = $ScriptUserObject | Get-FullUserObject
+                }
+
+                $EmailPattern = "\b[a-zA-Z0-9\._%+-]+@([a-zA-Z0-9.-]+\.)[a-zA-Z]{2,6}\b"
+                foreach ($p in $ScriptUserObject.ProxyAddresses) {
+                    $e = $p | Select-String -Pattern $EmailPattern -AllMatches |
+                        ForEach-Object { $_.Matches.Value }
+                    if ($e) {
+                        [void]$LoopUserEmails.Add($e)
+                    }
+                }
+            }
+
+            # build file name
+            $FileNameDateFormat = "yy-MM-dd_HH-mm"
+            $FileNameDateString = Get-Date -Format $FileNameDateFormat
+            $XmlOutputPath = "${FileNamePrefix}_${Days}Days_${UserName}_${FileNameDateString}.xml"
+
+            ### request message trace records
+            if ( $AllUsers ) {
+
+                Write-IRT "Getting message trace records for all users."
+                [System.Collections.Generic.List[psobject]]$AllMessages = if ($V1) {
+                    $Params = @{
+                        StartDate   = $StartDateUtc
+                        EndDate     = $EndDateUtc
+                        ResultLimit = $ResultLimit
+                        Quiet       = $Quiet
+                    }
+                    Request-MessageTraceV1 @Params
+                }
+                else {
+                    $Params = @{
+                        Days        = $Days #FIXME update to use start/end dates instead of days
+                        ResultLimit = $ResultLimit
+                        Quiet       = $Quiet
+                    }
+                    Request-MessageTrace @Params
+                }
+            }
+            else {
+
+                $InnerType = 'System.Collections.Generic.List[psobject]'
+                $ListOfLists = New-Object "System.Collections.Generic.List[$InnerType]"
+
+                foreach ($UserEmail in $LoopUserEmails) {
+                    # get sender records
+                    if (-not $Quiet) {
+                        Write-IRT "Requesting message trace records with sender: ${UserEmail}"
+                    }
+                    $Messages = if ($V1) {
+                        $Params = @{
+                            SenderAddress = $UserEmail
+                            StartDate     = $StartDateUtc
+                            EndDate       = $EndDateUtc
+                            ResultLimit   = $ResultLimit
+                            Quiet         = $Quiet
+                        }
+                        Request-MessageTraceV1 @Params
+                    }
+                    else {
+                        $Params = @{
+                            SenderAddress = $UserEmail
+                            # FIXME: update to use start/end dates instead of days
+                            Days          = $Days
+                            ResultLimit   = $ResultLimit
+                            Quiet         = $Quiet
+                        }
+                        Request-MessageTrace @Params
+                    }
+                    if (($Messages | Measure-Object).Count -gt 0) {
+                        $ListOfLists.Add([System.Collections.Generic.List[psobject]]@($Messages))
+                    }
+                    # get recipient records
+                    if (-not $Quiet) {
+                        Write-IRT "Requesting message trace records with recipient: ${UserEmail}"
+                    }
+                    $Messages = if ($V1) {
+                        $Params = @{
+                            RecipientAddress = $UserEmail
+                            StartDate        = $StartDateUtc
+                            EndDate          = $EndDateUtc
+                            ResultLimit      = $ResultLimit
+                            Quiet            = $Quiet
+                        }
+                        Request-MessageTraceV1 @Params
+                    }
+                    else {
+                        $Params = @{
+                            RecipientAddress = $UserEmail
+                            # FIXME: update to use start/end dates instead of days
+                            Days             = $Days
+                            ResultLimit      = $ResultLimit
+                            Quiet            = $Quiet
+                        }
+                        Request-MessageTrace @Params
+                    }
+                    if (($Messages | Measure-Object).Count -gt 0) {
+                        $ListOfLists.Add([System.Collections.Generic.List[psobject]]@($Messages))
+                    }
+                }
+
+                if ($ListOfLists.Count -eq 0) {
+                    # exit if no messages returned
+                    Write-IRT "0 total messages retrieved. Exiting." -Level Warn
+                    if ($Global:IRT_WaitFlags) {
+                        $Global:IRT_WaitFlags.MessageTraceUserDone = $true
+                    }
+                    continue
+                }
+                elseif ($ListOfLists.Count -eq 1) {
+                    $AllMessages = $ListOfLists[0]
+                }
+                else {
+                    # merge lists together
+                    $MergeParams = @{
+                        PropertyName = $RawDateProperty
+                        Lists        = $ListOfLists
+                        Descending   = $true
+                    }
+                    $AllMessages = [System.Collections.Generic.List[psobject]](
+                        Merge-ListOnDate @MergeParams
+                    )
+                }
+            }
+
+            # exit if no messages found
+            if (($AllMessages | Measure-Object).Count -eq 0) {
+                Write-IRT "No messages found. Exiting." -Level Warn
+                if ($Global:IRT_WaitFlags) {
+                    if ($AllUsers) { $Global:IRT_WaitFlags.MessageTraceAllUsersDone = $true }
+                    else { $Global:IRT_WaitFlags.MessageTraceUserDone = $true }
+                }
+                continue
+            }
+
+            #region METADATA
+
+            # add metadata to results
+            $StartDate = (Get-Date).AddDays($Days * -1)
+            $EndDate = Get-Date
+            $AllMessages.Insert(0,
+                [pscustomobject]@{
+                    Metadata       = $true
+                    UserObject     = $ScriptUserObject
+                    UserEmails     = $LoopUserEmails
+                    UserName       = $UserName
+                    StartDate      = $StartDate
+                    EndDate        = $EndDate
+                    Days           = $Days
+                    DomainName     = $DomainName
+                    FileNamePrefix = $FileNamePrefix
+                }
+            )
+
+            #region OUTPUT
+
+            # export to variables
+            if ($Variable) {
+                # build table by normalized InternetMessageId
+                $Table = @{}
+                foreach ($Message in $AllMessages) {
+                    if (-not $Message.Metadata) {
+                        $NormalizedId = ($Message.MessageId -replace '[<>]', '').Trim()
+                        if ($NormalizedId) {
+                            $Table[$NormalizedId] = $Message
+                        }
+                    }
+                }
+
+                # merge into global synchronized hashtable
+                foreach ($Key in $Table.Keys) {
+                    $Global:IRT_MessageTraceTable[$Key] = $Table[$Key]
+                }
+                if ($Global:IRT_WaitFlags) {
+                    if ($AllUsers) { $Global:IRT_WaitFlags.MessageTraceAllUsersDone = $true }
+                    else { $Global:IRT_WaitFlags.MessageTraceUserDone = $true }
+                }
+                Write-PSFMessage -Level 9 -Message (
+                    "${FunctionName}: Table key count: $($Table.Count)")
+            }
+
+            # export raw data
+            if ($Xml) {
+                $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+                Write-PSFMessage -Level 8 -Message "${FunctionName}: Export-CliXml [$Elapsed]"
+                Write-IRT "Exporting raw data to: ${XmlOutputPath}"
+                $AllMessages | Export-CliXml -Depth 10 -Path $XmlOutputPath
+            }
+
+            if ($Script) {
+                Write-Output $AllMessages
+                return
+            }
+
+            # create excel sheet
+            if ($Excel) {
+                $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+                Write-PSFMessage -Level 8 -Message (
+                    "${FunctionName}: Show-IRTMessageTrace [$Elapsed]")
+                $Params = @{
+                    Messages   = $AllMessages
+                    TableStyle = $TableStyle
+                    Font       = $Font
+                }
+                Show-IRTMessageTrace @Params
+            }
+        }
+    }
+}
+#EndRegion '.\Public\Email\Get-IRTMessageTrace.ps1' 487
+#Region '.\Public\Email\New-IRTEmailSearch.ps1' -1
+
+function New-IRTEmailSearch {
+    <#
+    .SYNOPSIS
+    Builds, creates, and starts an Exchange compliance search for email.
+
+    .DESCRIPTION
+    Assembles a Keyword Query Language (KeyQL) ContentMatchQuery from recipient, keyword,
+    and date criteria.
+
+    Two modes:
+      - Parameter mode: supply any of the criteria parameters and the query is built
+        non-interactively.
+      - Interactive mode: call with no criteria parameters to launch a console builder
+        that shows the live query and lets you edit each field before accepting.
+
+    On creation, a result object is appended to $Global:IRT_EmailSearch containing the
+    criteria, the generated name, the built query, and the New-ComplianceSearch return
+    object.
+
+    .PARAMETER Start
+    Absolute start of the Received date range (any Get-Date-parseable value). Required.
+    Stored as UTC. In interactive mode a relative duration shortcut is also offered.
+
+    .PARAMETER End
+    Absolute end of the Received date range (any Get-Date-parseable value). Optional.
+    Stored as UTC.
+
+    .PARAMETER From
+    One or more sender addresses (KeyQL From). Multiple values are combined with OR.
+
+    .PARAMETER To
+    One or more To recipients (KeyQL To). Multiple values are combined with OR.
+
+    .PARAMETER Participants
+    One or more parties in any of From/To/Cc/Bcc (KeyQL Participants).
+
+    .PARAMETER Recipients
+    One or more recipients in any of To/Cc/Bcc (KeyQL Recipients).
+
+    .PARAMETER Subject
+    One or more subject keywords (KeyQL Subject, partial match).
+
+    .PARAMETER Body
+    One or more body keywords (KeyQL Body).
+
+    .PARAMETER AttachmentName
+    One or more attachment file names (KeyQL AttachmentNames).
+
+    .PARAMETER Name
+    Override the auto-generated search name. By default the name is built from the
+    recipient and keyword criteria (dates excluded).
+
+    .PARAMETER ExchangeLocation
+    Mailboxes to search. Default: All.
+
+    .PARAMETER Force
+    Overwrite an existing search of the same name without prompting.
+
+    .EXAMPLE
+    New-IRTEmailSearch
+    Launches the interactive query builder.
+
+    .EXAMPLE
+    New-IRTEmailSearch -From 'sus@hacker.com' -Subject 'Payroll' -Start '5/28/26'
+    Builds a search for mail from a sender on or after the start date.
+
+    .EXAMPLE
+    New-IRTEmailSearch -Subject 'invoice' -Start '5/28/26' -End '5/29/26'
+    Builds a search over an absolute date range.
+
+    .OUTPUTS
+    [pscustomobject] describing the search (including a Started flag). Also appended to
+    $Global:IRT_EmailSearch.
+
+    .NOTES
+    Version: 1.1.0
+    1.1.0 - Create and start when connected to IPPS; when offline, save criteria and warn.
+    #>
+    [CmdletBinding(SupportsShouldProcess)]
+    [OutputType([pscustomobject])]
+    param(
+        [string] $Start,
+        [string] $End,
+        [string[]] $From,
+        [string[]] $To,
+        [string[]] $Participants,
+        [string[]] $Recipients,
+        [string[]] $Subject,
+        [string[]] $Body,
+        [string[]] $AttachmentName,
+        [string] $Name,
+        [string[]] $ExchangeLocation = 'All',
+        [switch] $Force
+    )
+
+    # refresh the IPPS token if a session exists, without erroring when there is none.
+    # PassThru reports per-service validity; a missing session returns $null.
+    $TokenStatus = Update-IRTToken -Service 'IPPS' -PassThru -SkipIfNeverConnected
+    $IppsConnected = [bool]($TokenStatus -and $TokenStatus.IPPS)
+
+    # compliance cmdlets live in the Exchange Online module
+    Import-IRTModule -Name 'ExchangeOnlineManagement'
+
+    # criteria parameters that, when present, trigger non-interactive mode
+    $CriteriaParams = @(
+        'Start', 'End', 'From', 'To', 'Participants',
+        'Recipients', 'Subject', 'Body', 'AttachmentName'
+    )
+    $Interactive = -not ($CriteriaParams | Where-Object { $PSBoundParameters.ContainsKey($_) })
+
+    # seed criteria from parameters
+    $Criteria = [ordered]@{
+        Start          = $null
+        End            = $null
+        From           = $From
+        To             = $To
+        Participants   = $Participants
+        Recipients     = $Recipients
+        Subject        = $Subject
+        Body           = $Body
+        AttachmentName = $AttachmentName
+    }
+
+    # parse absolute date parameters to UTC
+    if ($Start) {
+        try {
+            $Parsed = Get-Date -Date $Start -ErrorAction Stop
+            $Criteria.Start = [DateTime]::SpecifyKind(
+                $Parsed, [DateTimeKind]::Local).ToUniversalTime()
+        }
+        catch {
+            Write-Error -Category InvalidArgument -ErrorAction Stop -Message (
+                "-Start invalid. Use a date like '5/28/26 17:00'.")
+        }
+    }
+    if ($End) {
+        try {
+            $Parsed = Get-Date -Date $End -ErrorAction Stop
+            $Criteria.End = [DateTime]::SpecifyKind(
+                $Parsed, [DateTimeKind]::Local).ToUniversalTime()
+        }
+        catch {
+            Write-Error -Category InvalidArgument -ErrorAction Stop -Message (
+                "-End invalid. Use a date like '5/28/26 17:00'.")
+        }
+    }
+
+    # interactive builder
+    if ($Interactive) {
+        $Criteria = Read-EmailSearchCriteria -Criteria $Criteria
+        if (-not $Criteria) {
+            Write-IRT 'Cancelled. No search created.' -Level Warn
+            return
+        }
+    }
+
+    # a start date is required (interactive mode enforces this on accept; this also
+    # covers parameter mode)
+    if (-not $Criteria.Start) {
+        Write-Error -Category InvalidArgument -ErrorAction Stop -Message (
+            'A start date is required. Use -Start.')
+    }
+
+    # build the query and name
+    $Query = Build-EmailSearchQuery -Criteria $Criteria
+    if (-not $Name) {
+        $Name = Build-EmailSearchName -Criteria $Criteria
+    }
+
+    $Search = $null
+    $Started = $false
+
+    if ($IppsConnected) {
+
+        # handle an existing search of the same name
+        $Existing = Get-ComplianceSearch -Identity $Name -ErrorAction SilentlyContinue
+        if ($Existing) {
+            $Prompt = "A search named '$Name' already exists. Overwrite?"
+            $Overwrite = $Force -or (Get-YesNo $Prompt)
+            if (-not $Overwrite) {
+                Write-IRT 'Aborted. Existing search left unchanged.' -Level Warn
+                return
+            }
+            Remove-ComplianceSearch -Identity $Name -Confirm:$false
+        }
+
+        if (-not $PSCmdlet.ShouldProcess($Name, 'Create and start compliance search')) {
+            return
+        }
+
+        # always create and start together when the connection is good
+        Write-IRT "Creating compliance search: $Name"
+        $NewParams = @{
+            Name              = $Name
+            ExchangeLocation  = $ExchangeLocation
+            ContentMatchQuery = $Query
+        }
+        $Search = New-ComplianceSearch @NewParams
+
+        Write-IRT "Starting compliance search: $Name"
+        Start-ComplianceSearch -Identity $Search.Identity
+        $Started = $true
+    }
+    else {
+        Write-IRT 'Not connected to IPPS. Search not created or started.' -Level Warn
+        Write-IRT 'Criteria saved to $Global:IRT_EmailSearch. Reconnect and re-run.' -Level Warn
+    }
+
+    # build the result object and store it in the global collection
+    $Result = [pscustomobject]@{
+        Name           = $Name
+        Query          = $Query
+        Start          = $Criteria.Start
+        End            = $Criteria.End
+        From           = $Criteria.From
+        To             = $Criteria.To
+        Participants   = $Criteria.Participants
+        Recipients     = $Criteria.Recipients
+        Subject        = $Criteria.Subject
+        Body           = $Criteria.Body
+        AttachmentName = $Criteria.AttachmentName
+        Search         = $Search
+        Started        = $Started
+        Created        = Get-Date
+    }
+
+    if ($Global:IRT_EmailSearch -isnot [System.Collections.Generic.List[psobject]]) {
+        $Global:IRT_EmailSearch = [System.Collections.Generic.List[psobject]]::new()
+    }
+    $Global:IRT_EmailSearch.Add($Result)
+
+    if ($Started) {
+        Write-IRT "Search created and started. Saved to `$Global:IRT_EmailSearch."
+        Write-IRT "  Query: $Query"
+    }
+
+    return $Result
+}
+#EndRegion '.\Public\Email\New-IRTEmailSearch.ps1' 239
+#Region '.\Public\Email\Show-IRTMessageTrace.ps1' -1
+
+function Show-IRTMessageTrace {
+    <#
+	.SYNOPSIS
+	Processes message trace data and creates spreadsheet.
+
+	.NOTES
+	Version: 1.0.0
+	#>
+    [CmdletBinding( DefaultParameterSetName = 'Objects' )]
+    param (
+        [Parameter(Position = 0, Mandatory, ValueFromPipeline, ParameterSetName = 'Objects')]
+        [Alias('Messages')]
+        [System.Collections.Generic.List[PSObject]] $Message,
+
+        [Parameter(Position = 0, Mandatory, ParameterSetName = 'Xml')]
+        [string] $XmlPath,
+
+        [string] $TableStyle = $Global:IRT_Config.ExcelTableStyle,
+        [string] $Font = $Global:IRT_Config.ExcelFont,
+        [boolean] $IpInfo = [bool]$Global:IRT_Config.IpInfoAvailable
+    )
+
+    begin {
+        $FunctionName = $MyInvocation.MyCommand.Name
+        $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+        $ParameterSet = $PSCmdlet.ParameterSetName
+        $TitleDateFormat = "M/d/yy h:mmtt"
+        $RawDateProperty = 'Received'
+        $DateColumnHeader = 'DateTime'
+
+        # import from xml
+        if ($ParameterSet -eq 'Xml') {
+            try {
+                $ResolvedXmlPath = Resolve-ScriptPath -Path $XmlPath -File -FileExtension 'xml'
+                $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+                Write-PSFMessage -Level 8 -Message "${FunctionName}: Import-CliXml [$Elapsed]"
+                $Message = [System.Collections.Generic.List[PSObject]](
+                    Import-CliXml -Path $ResolvedXmlPath
+                )
+            }
+            catch {
+                $_
+                Write-IRT "Error importing from ${XmlPath}." -Level Error
+                return
+            }
+        }
+
+        # import metadata
+        if ($Message[0].Metadata) {
+
+            # remove metadata from beginning of list
+            $Metadata = $Message[0]
+            $Message.RemoveAt(0)
+
+            $UserName = $Metadata.UserName
+            $StartDate = $Metadata.StartDate
+            $EndDate = $Metadata.EndDate
+            $Days = $Metadata.Days
+            $DomainName = $Metadata.DomainName
+            $FileNamePrefix = $Metadata.FileNamePrefix
+        }
+        else {
+            Write-IRT "No Metadata found." -Level Error
+        }
+
+        # exit if no messages found
+        if (($Message | Measure-Object).Count -eq 0) {
+            Write-IRT "No messages found. Exiting" -Level Error
+            return
+        }
+
+        # build file name
+        $FileNameDateFormat = "yy-MM-dd_HH-mm"
+        $FileDateString = $EndDate.ToLocalTime().ToString($FileNameDateFormat)
+        $ExcelOutputPath = "${FileNamePrefix}_${Days}Days_${UserName}_${FileDateString}.xlsx"
+
+        # build worksheet title
+        $StartString = $StartDate.ToString($TitleDateFormat).ToLower()
+        $EndString = $EndDate.ToString($TitleDateFormat).ToLower()
+        if ($null -eq $Username) {
+            $WorksheetTitle = "Message Trace for ${DomainName}. Covers ${Days} days," +
+            " from ${StartString} to ${EndString}."
+        }
+        else {
+            $WorksheetTitle = "Message Trace for ${Username}. Covers ${Days} days," +
+            " from ${StartString} to ${EndString}."
+        }
+    }
+
+    process {
+        # exit if no messages
+        if (($Message | Measure-Object).Count -eq 0) {
+            Write-IRT "No messages. Exiting." -Level Error
+        }
+
+        #region ROW LOOP
+
+        $RowCount = $Message.Count
+        $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: Row loop starting ($RowCount rows) [$Elapsed]")
+        $Rows = [System.Collections.Generic.List[PSCustomObject]]::new($RowCount)
+        for ($i = 0; $i -lt $RowCount; $i++) {
+
+            $m = $Message[$i]
+
+            # Raw
+            $Raw = $m | ConvertTo-Json -Depth 10
+
+            # Date/Time
+            $DateTime = $null
+            if ($m.$RawDateProperty) {
+                $DateTime = $m.$RawDateProperty.ToLocalTime()
+            }
+
+            $Rows.Add([pscustomobject]@{
+                    Raw               = $Raw
+                    $DateColumnHeader = $DateTime
+                    Status            = $m.Status
+                    SenderAddress     = $m.SenderAddress
+                    RecipientAddress  = $m.RecipientAddress
+                    Subject           = $m.Subject
+                    FromIP            = $m.FromIP
+                    ToIP              = $m.ToIP
+                    MessageTraceId    = $m.MessageTraceId
+                    MessageId         = $m.MessageId
+                })
+
+            if ($VerbosePreference -ne 'SilentlyContinue' -and ($i % 1000 -eq 0)) {
+                $Percent = [int]( ($i / $RowCount ) * 100 )
+                $ProgressParams = @{
+                    Id              = 1
+                    Activity        = 'Row loop'
+                    Status          = "Completed ${i} of ${RowCount}"
+                    PercentComplete = $Percent
+                }
+                Write-Progress @ProgressParams
+            }
+        }
+
+        if ($VerbosePreference -ne 'SilentlyContinue') {
+            Write-Progress -Id 1 -Activity 'Row loop' -Completed
+        }
+
+        #region EXPORT EXCEL
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: Export-Excel [$($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))]")
+        $ExcelParams = @{
+            Path          = $ExcelOutputPath
+            WorkSheetname = $FileNamePrefix
+            Title         = $WorksheetTitle
+            TableStyle    = $TableStyle
+            # AutoSize      = $true # apparently very slow?
+            FreezeTopRow  = $true
+            Passthru      = $true
+        }
+        try {
+            $Workbook = $Rows | Export-Excel @ExcelParams
+        }
+        catch {
+            $_
+            Write-IRT "Error while opening Excel document." -Level Error
+            if ( Get-YesNo "Try again?" ) {
+                try {
+                    $Workbook = $Rows | Export-Excel @ExcelParams
+                }
+                catch {
+                    $_
+                    Write-IRT "Error while opening Excel document. Exiting." -Level Error
+                    return
+                }
+            }
+            else {
+                return
+            }
+        }
+        $Worksheet = $Workbook.Workbook.Worksheets[$ExcelParams.WorksheetName]
+
+        if ($IpInfo) {
+            $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+            Write-PSFMessage -Level 8 -Message "${FunctionName}: Add-IpInfoToSheet [$Elapsed]"
+            Add-IpInfoToSheet -Worksheet $Worksheet -ColumnName 'FromIP', 'ToIP'
+        }
+
+        # get table ranges
+        $SheetStartColumn = $WorkSheet.Dimension.Start.Column | Convert-DecimalToExcelColumn
+        $SheetStartRow = $WorkSheet.Dimension.Start.Row
+        $TableStartColumn = (
+            $Worksheet.Tables.Address | Select-Object -First 1
+        ).Start.Column | Convert-DecimalToExcelColumn
+        $TableStartRow = ($Worksheet.Tables | Select-Object -First 1).Address.Start.Row + 1
+        $EndColumn = $WorkSheet.Dimension.End.Column | Convert-DecimalToExcelColumn
+        $EndRow = $WorkSheet.Dimension.End.Row
+
+        $SenderColumn = (
+            $Worksheet.Tables[0].Columns | Where-Object { $_.Name -eq 'SenderAddress' }
+        ).Id | Convert-DecimalToExcelColumn
+        $RecipientColumn = (
+            $Worksheet.Tables[0].Columns | Where-Object { $_.Name -eq 'RecipientAddress' }
+        ).Id | Convert-DecimalToExcelColumn
+
+        #region BOLD OTHER EMAIL
+
+        # FIXME idea here was to make it clearer at a glance whether the email was sent or
+        # received by the user. Not sure if this is the best way though.
+
+        # if ($UserEmails) {
+        #     # helper: make "=AND(LEN($A2)>0, $A2<>\"me1\", $A2<>\"me2\", ...)" for
+        #     #     a column's anchor cell
+        #     function New-CfNotMeFormula {
+        #         param([Parameter(Mandatory)][string]$ColumnLetter,
+        #             [Parameter(Mandatory)][int]$StartRow)
+
+        #         # anchor column absolute, row relative: $A2
+        #         $anchor = "`$${ColumnLetter}$StartRow"
+
+        #         # comparisons: $A2<> "alias"
+        #         $comparisons = $UserEmails.ForEach({
+        #             '{0}<>""{1}""' -f $anchor, ($_ -replace '"','""')
+        #         })
+
+        #         # skip blanks, and only bold when value is not any of my addresses
+        #         return '=AND(LEN({0})>0,{1})' -f $anchor, ($comparisons -join ',')
+        #     }
+
+        #     # sender column rule
+        #     $FormulaSender = New-CfNotMeFormula -ColumnLetter $SenderColumn
+        #         -StartRow $TableStartRow
+        #     $CfParamsSender = @{
+        #         WorkSheet      = $Worksheet
+        #         Address        = "${SenderColumn}${TableStartRow}:${SenderColumn}${EndRow}"
+        #         RuleType       = 'Expression'
+        #         ConditionValue = $FormulaSender
+        #         Bold           = $true
+        #     }
+        #     Add-ConditionalFormatting @CfParamsSender
+
+        #     # recipient column rule
+        #     $FormulaRecipient = New-CfNotMeFormula -ColumnLetter $RecipientColumn
+        #         -StartRow $TableStartRow
+        #     $CfParamsRecipient = @{
+        #         WorkSheet      = $Worksheet
+        #         Address        = "${RecipientColumn}${TableStartRow}:${RecipientColumn}${EndRow}"
+        #         RuleType       = 'Expression'
+        #         ConditionValue = $FormulaRecipient
+        #         Bold           = $true
+        #     }
+        #     Add-ConditionalFormatting @CfParamsRecipient
+        # }
+
+        #region SAME TO/FROM
+
+        $CfParams = @{
+            WorkSheet        = $Worksheet
+            Address          = "${SenderColumn}${TableStartRow}:${RecipientColumn}${EndRow}"
+            RuleType         = 'Expression'
+            ConditionValue   = "=`$${SenderColumn}${TableStartRow}" +
+            "=`$${RecipientColumn}${TableStartRow}"
+            BackgroundColor  = 'LightYellow'
+        }
+        Add-ConditionalFormatting @CfParams
+
+        #region COLUMN WIDTH
+
+        $ColumnWidths = @{
+            'Raw'              = 8
+            $DateColumnHeader  = 26
+            'Status'           = 15
+            'SenderAddress'    = 30
+            'RecipientAddress' = 30
+            'Subject'          = 100
+            'FromIp'           = 20
+            'ToIp'             = 20
+            'MessageTraceId'   = 200
+        }
+        foreach ($ColName in $ColumnWidths.Keys) {
+            $Col = ($Worksheet.Tables[0].Columns | Where-Object { $_.Name -eq $ColName }).Id
+            if ($Col) { $Worksheet.Column($Col).Width = $ColumnWidths[$ColName] }
+        }
+
+        #region FORMATTING
+
+        # set date format
+        $FmtParams = @{
+            Worksheet = $Worksheet
+            Range = "B:B"
+            NumberFormat  = 'm/d/yyyy h:mm:ss AM/PM'
+        }
+        Set-ExcelRange @FmtParams
+
+        # set font and size
+        $SetParams = @{
+            Worksheet = $Worksheet
+            Range     = "${SheetStartColumn}${SheetStartRow}:${EndColumn}${EndRow}"
+            FontName  = $Font
+        }
+        Set-ExcelRange @SetParams
+
+        # add left side border
+        $BorderParams = @{
+            Worksheet = $Worksheet
+            Range = "${TableStartColumn}${TableStartRow}:${EndColumn}${EndRow}"
+            BorderLeft = 'Thin'
+            BorderColor = 'Black'
+        }
+        Set-ExcelRange @BorderParams
+
+        #region OUTPUT
+
+        # save and close
+        Write-IRT "Exporting to: ${ExcelOutputPath}"
+        $Workbook | Close-ExcelPackage -Show
+    }
+}
+#EndRegion '.\Public\Email\Show-IRTMessageTrace.ps1' 315
 #Region '.\Public\Entra\Get-IRTEntraAuditLog.ps1' -1
 
 function Get-IRTEntraAuditLog {
@@ -10015,6 +11541,7 @@ function Get-IRTEntraAuditLog {
 
     begin {
         Update-IRTToken -Service 'Graph'
+        Import-IRTModule -Name 'ImportExcel', 'PSFramework'
         $FunctionName = $MyInvocation.MyCommand.Name
         $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
         $FilterStrings = [System.Collections.Generic.List[string]]::new()
@@ -10161,7 +11688,7 @@ function Get-IRTEntraAuditLog {
         }
     }
 }
-#EndRegion '.\Public\Entra\Get-IRTEntraAuditLog.ps1' 224
+#EndRegion '.\Public\Entra\Get-IRTEntraAuditLog.ps1' 225
 #Region '.\Public\Entra\Get-IRTEntraSignInLog.ps1' -1
 
 function Get-IRTEntraSignInLog {
@@ -10266,6 +11793,7 @@ function Get-IRTEntraSignInLog {
 
     begin {
         Update-IRTToken -Service 'Graph'
+        Import-IRTModule -Name 'ImportExcel', 'PSFramework'
 
         #region BEGIN
 
@@ -10520,7 +12048,7 @@ function Get-IRTEntraSignInLog {
         }
     }
 }
-#EndRegion '.\Public\Entra\Get-IRTEntraSignInLog.ps1' 357
+#EndRegion '.\Public\Entra\Get-IRTEntraSignInLog.ps1' 358
 #Region '.\Public\Entra\Get-IRTNonInteractiveSignIn.ps1' -1
 
 function Get-IRTNonInteractiveSignIn {
@@ -10585,6 +12113,7 @@ function Get-IRTNonInteractiveSignIn {
 
     begin {
         Update-IRTToken -Service 'Graph'
+        Import-IRTModule -Name 'PSFramework'
 
         # variables
         $Params = @{
@@ -10606,7 +12135,7 @@ function Get-IRTNonInteractiveSignIn {
         Get-IRTEntraSignInLog @Params
     }
 }
-#EndRegion '.\Public\Entra\Get-IRTNonInteractiveSignIn.ps1' 84
+#EndRegion '.\Public\Entra\Get-IRTNonInteractiveSignIn.ps1' 85
 #Region '.\Public\Entra\Get-IRTServicePrincipalSignInLog.ps1' -1
 
 function Get-IRTServicePrincipalSignInLog {
@@ -10704,6 +12233,7 @@ function Get-IRTServicePrincipalSignInLog {
 
     begin {
         Update-IRTToken -Service 'Graph'
+        Import-IRTModule -Name 'ImportExcel', 'PSFramework'
 
         #region BEGIN
 
@@ -10880,7 +12410,7 @@ function Get-IRTServicePrincipalSignInLog {
         }
     }
 }
-#EndRegion '.\Public\Entra\Get-IRTServicePrincipalSignInLog.ps1' 272
+#EndRegion '.\Public\Entra\Get-IRTServicePrincipalSignInLog.ps1' 273
 #Region '.\Public\Entra\Show-IRTEntraAuditLog.ps1' -1
 
 function Show-IRTEntraAuditLog {
@@ -10910,6 +12440,7 @@ function Show-IRTEntraAuditLog {
     )
 
     begin {
+        Import-IRTModule -Name 'ImportExcel', 'PSFramework'
         # get logs from file if xml path used
         if ( $XmlPath ) {
 
@@ -11436,7 +12967,7 @@ function Show-IRTEntraAuditLog {
         }
     }
 }
-#EndRegion '.\Public\Entra\Show-IRTEntraAuditLog.ps1' 554
+#EndRegion '.\Public\Entra\Show-IRTEntraAuditLog.ps1' 555
 #Region '.\Public\Entra\Show-IRTEntraSignInLog.ps1' -1
 
 function Show-IRTEntraSignInLog {
@@ -11465,6 +12996,7 @@ function Show-IRTEntraSignInLog {
     )
 
     begin {
+        Import-IRTModule -Name 'ImportExcel', 'PSFramework'
         $FunctionName = $MyInvocation.MyCommand.Name
         $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
         $ParameterSet = $PSCmdlet.ParameterSetName
@@ -11757,7 +13289,7 @@ function Show-IRTEntraSignInLog {
         }
     }
 }
-#EndRegion '.\Public\Entra\Show-IRTEntraSignInLog.ps1' 319
+#EndRegion '.\Public\Entra\Show-IRTEntraSignInLog.ps1' 320
 #Region '.\Public\Entra\Show-IRTServicePrincipalSignIn.ps1' -1
 
 function Show-IRTServicePrincipalSignIn {
@@ -11813,6 +13345,7 @@ function Show-IRTServicePrincipalSignIn {
     )
 
     begin {
+        Import-IRTModule -Name 'ImportExcel', 'PSFramework'
         $FunctionName = $MyInvocation.MyCommand.Name
         $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
         $ParameterSet = $PSCmdlet.ParameterSetName
@@ -12036,7 +13569,7 @@ function Show-IRTServicePrincipalSignIn {
         }
     }
 }
-#EndRegion '.\Public\Entra\Show-IRTServicePrincipalSignIn.ps1' 277
+#EndRegion '.\Public\Entra\Show-IRTServicePrincipalSignIn.ps1' 278
 #Region '.\Public\Lib\Get-TenantOidc.ps1' -1
 
 function Get-TenantOidc {
@@ -12266,6 +13799,7 @@ function Add-IRTMailboxFullAccess {
 
     begin {
         Update-IRTToken -Service 'Exchange'
+        Import-IRTModule -Name 'ExchangeOnlineManagement'
         $GrantAccessToList = [System.Collections.Generic.List[string]]::new()
 
         # if users passed via script argument:
@@ -12423,7 +13957,7 @@ function Add-IRTMailboxFullAccess {
         }
     }
 }
-#EndRegion '.\Public\Mailbox\Add-IRTMailboxFullAccess.ps1' 180
+#EndRegion '.\Public\Mailbox\Add-IRTMailboxFullAccess.ps1' 181
 #Region '.\Public\Mailbox\Get-IRTInboxRule.ps1' -1
 
 function Get-IRTInboxRule {
@@ -12486,6 +14020,7 @@ function Get-IRTInboxRule {
 
     begin {
         Update-IRTToken -Service 'Exchange'
+        Import-IRTModule -Name 'ExchangeOnlineManagement', 'ImportExcel'
         $WorksheetName = 'InboxRules'
         $FileNameDateFormat = "yy-MM-dd_HH-mm"
         $FileDateString = Get-Date -Format $FileNameDateFormat
@@ -12737,7 +14272,7 @@ function Get-IRTInboxRule {
         }
     }
 }
-#EndRegion '.\Public\Mailbox\Get-IRTInboxRule.ps1' 312
+#EndRegion '.\Public\Mailbox\Get-IRTInboxRule.ps1' 313
 #Region '.\Public\Mailbox\Open-IRTMailboxInOwa.ps1' -1
 
 function Open-IRTMailboxInOwa {
@@ -12765,6 +14300,7 @@ function Open-IRTMailboxInOwa {
 
     begin {
         Update-IRTToken -Service 'Exchange'
+        Import-IRTModule -Name 'ExchangeOnlineManagement'
         # if users passed via script argument:
         if (($UserObject | Measure-Object).Count -gt 0) {
             $ScriptUserObjects = $UserObject
@@ -12847,7 +14383,7 @@ function Open-IRTMailboxInOwa {
         }
     }
 }
-#EndRegion '.\Public\Mailbox\Open-IRTMailboxInOwa.ps1' 108
+#EndRegion '.\Public\Mailbox\Open-IRTMailboxInOwa.ps1' 109
 #Region '.\Public\Mailbox\Remove-IRTMailboxFullAccess.ps1' -1
 
 function Remove-IRTMailboxFullAccess {
@@ -12941,6 +14477,7 @@ function Show-IRTMailbox {
 
     begin {
         Update-IRTToken -Service 'Exchange'
+        Import-IRTModule -Name 'ExchangeOnlineManagement'
         $GuidPattern = '\b[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}\b'
 
         # if users passed via script argument:
@@ -13043,7 +14580,7 @@ function Show-IRTMailbox {
         }
     }
 }
-#EndRegion '.\Public\Mailbox\Show-IRTMailbox.ps1' 148
+#EndRegion '.\Public\Mailbox\Show-IRTMailbox.ps1' 149
 #Region '.\Public\Mailbox\Show-IRTMailboxAccess.ps1' -1
 
 function Show-IRTMailboxAccess {
@@ -13064,6 +14601,7 @@ function Show-IRTMailboxAccess {
 
     begin {
         Update-IRTToken -Service 'Exchange'
+        Import-IRTModule -Name 'ExchangeOnlineManagement'
         # if users passed via script argument:
         if (($UserObject | Measure-Object).Count -gt 0) {
             $ScriptUserObjects = $UserObject
@@ -13118,807 +14656,7 @@ function Show-IRTMailboxAccess {
         }
     }
 }
-#EndRegion '.\Public\Mailbox\Show-IRTMailboxAccess.ps1' 73
-#Region '.\Public\MessageTrace\Get-IRTMessageTrace.ps1' -1
-
-function Get-IRTMessageTrace {
-    <#
-    .SYNOPSIS
-    Downloads incoming and outgoing message trace for specified user, or all users.
-
-    .DESCRIPTION
-    Retrieves Exchange Online message trace records for one or more users over a configurable
-    date range and exports results to Excel. Accepts user objects, email addresses, or an
-    -AllUsers switch for tenant-wide queries.
-
-    Supports both the modern V2 API (large result sets via background jobs) and the legacy
-    V1 endpoint. Date range defaults to the last 10 days when no -Days, -Start, or -End
-    is specified.
-
-    .PARAMETER UserObject
-    One or more user objects to trace. Mutually exclusive with -UserEmail and -AllUsers.
-    Falls back to global session objects if omitted.
-
-    .PARAMETER UserEmail
-    One or more email addresses to trace. Mutually exclusive with -UserObject and -AllUsers.
-
-    .PARAMETER AllUsers
-    Query message trace for all users in the tenant. Mutually exclusive with -UserObject
-    and -UserEmail.
-
-    .PARAMETER Days
-    Number of days back to search. Cannot be used with -Start / -End.
-
-    .PARAMETER Start
-    Start of date range (parseable date string). Used with -End for an absolute range.
-
-    .PARAMETER End
-    End of date range (parseable date string). Used with -Start for an absolute range.
-
-    .PARAMETER ResultLimit
-    Maximum number of records to return. Default: 50000.
-
-    .PARAMETER Variable
-    Save results to a session variable for downstream use. Default: $true.
-
-    .PARAMETER Excel
-    Export results to an Excel workbook. Default: $true.
-
-    .PARAMETER Quiet
-    Suppress progress output.
-
-    .PARAMETER Xml
-    Export raw XML alongside the Excel file. Defaults to IRT_Config.ExportXml.
-
-    .PARAMETER TableStyle
-    Excel table style. Defaults to IRT_Config.ExcelTableStyle.
-
-    .PARAMETER Font
-    Excel font name. Defaults to IRT_Config.ExcelFont.
-
-    .EXAMPLE
-    Get-IRTMessageTrace
-    Downloads message trace for the user in the global session (last 10 days).
-
-    .EXAMPLE
-    Get-IRTMessageTrace -UserObject $User -Days 30
-    Downloads 30 days of message trace for a specific user.
-
-    .EXAMPLE
-    Get-IRTMessageTrace -AllUsers -Start '2026-04-01' -End '2026-04-30'
-    Downloads all tenant message trace for April 2026.
-
-    .OUTPUTS
-    None. Results are exported to Excel and stored in a session variable.
-
-    .NOTES
-    Version: 1.5.0
-    1.5.0 - Integrated V1 and V2 into same function.
-    1.4.0 - Switched to separate get/show functions. Updated to passing objects, not files.
-        Added global variables.
-    #>
-    [Alias('MessageTrace')]
-    [CmdletBinding( DefaultParameterSetName = 'UserObject' )]
-    param (
-        [Parameter(ParameterSetName = 'UserObject', Position = 0)]
-        [Alias('UserObjects')]
-        [psobject[]] $UserObject,
-
-        [Parameter(ParameterSetName = 'UserEmail')]
-        [Alias('UserEmails')]
-        [string[]] $UserEmail,
-
-        [Parameter(ParameterSetName = 'AllUsers')]
-        [switch] $AllUsers,
-
-        [int] $Days, # default set at #DEFAULTDAYS
-        [string] $Start,
-        [string] $End,
-
-        [int] $ResultLimit = 50000,
-
-        [boolean] $Variable = $true,
-        [boolean] $Excel = $true,
-        [switch] $Quiet,
-        [boolean] $Xml = $Global:IRT_Config.ExportXml,
-        [string] $TableStyle = $Global:IRT_Config.ExcelTableStyle,
-        [string] $Font = $Global:IRT_Config.ExcelFont
-    )
-
-    begin {
-        Update-IRTToken -Service 'Exchange'
-        $FunctionName = $MyInvocation.MyCommand.Name
-        $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
-        $ParameterSet = $PSCmdlet.ParameterSetName
-        $RawDateProperty = 'Received'
-        $FileNamePrefix = 'MessageTrace'
-
-        # create user objects depending on parameters used
-        switch ( $ParameterSet ) {
-            'UserObject' {
-                # if users passed via script argument:
-                if (($UserObject | Measure-Object).Count -gt 0) {
-                    $ScriptUserObjects = $UserObject
-                }
-                # if not, look for global objects
-                else {
-
-                    # get from global variables
-                    $ScriptUserObjects = Get-GlobalUserObject
-
-                    # if none found, exit
-                    if (($ScriptUserObjects | Measure-Object).Count -eq 0) {
-                        $ErrorParams = @{
-                            Category    = 'InvalidArgument'
-                            Message     = 'No -UserObject argument used, ' +
-                            'no $Global:IRT_UserObjects present.'
-                            ErrorAction = 'Stop'
-                        }
-                        Write-Error @ErrorParams
-                    }
-                }
-            }
-            'UserEmail' {
-                # variables
-                $ScriptUserObjects = [System.Collections.Generic.list[psobject]]::new()
-
-                foreach ( $Email in $UserEmail ) {
-
-                    # create object with userprincipalname property
-                    $ScriptUserObjects.Add(
-                        [pscustomobject]@{
-                            UserPrincipalName = $Email
-                        }
-                    )
-                }
-            }
-            'AllUsers' {
-                # build user object with null principal name
-                $ScriptUserObjects = @(
-                    [pscustomobject]@{
-                        UserPrincipalName = $null
-                    }
-                )
-                $AllUsers = $true
-            }
-        }
-
-
-        # parse date ranges
-        $DateRangeParams = @{
-            Days        = $Days
-            Start       = $Start
-            End         = $End
-            DefaultDays = 10 #DEFAULTDAYS
-        }
-        $DateRange = Resolve-DateRange @DateRangeParams
-        $DateRangeType = $DateRange.RangeType
-        $Days = $DateRange.Days
-        $StartDateUtc = $DateRange.StartUtc
-        $EndDateUtc = $DateRange.EndUtc
-
-        #region VERIFY COMMAND
-        # verify Get-MessageTraceV2 is available
-        try {
-            [void](Get-Command Get-MessageTraceV2 -ErrorAction 'Stop')
-        }
-        catch {
-            # if there was an error, revert to V1
-            $WarningParams = @{
-                Message = 'Get-MessageTraceV2 command not available in this tenant or' +
-                ' ExchangeOnlineManagement version. Running Get-MessageTrace instead.'
-            }
-            Write-IRT @WarningParams -Level Warn
-
-            $V1 = $true
-
-            # change date ranges to 10 days max
-            if ($DateRangeType -eq 'Absolute') {
-                $NowUtc = (Get-Date).ToUniversalTime()
-                if ($StartDateUtc -lt $NowUtc.AddDays(-10)) {
-                    $WarningParams = @{
-                        Message = "-StartDate is more than 10 days ago. Changing to 10 days ago."
-                    }
-                    Write-IRT @WarningParams -Level Warn
-                    $StartDateUtc = $NowUtc.AddDays(-10)
-                }
-                if ($EndDateUtc -le $StartDateUtc) {
-                    $ErrorParams = @{
-                        Category    = 'LimitsExceeded'
-                        Message     = "-EndDate must be greater than -StartDate."
-                        ErrorAction = 'Stop'
-                    }
-                    Write-Error @ErrorParams
-                }
-                # recalculate $Days to match the adjusted date range
-                $Days = [Int]([Math]::Ceiling(($EndDateUtc - $StartDateUtc).TotalDays))
-            }
-            else {
-                if ($Days -gt 10) {
-                    $WarningParams = @{
-                        Message = 'Get-MessageTrace can only search back 10 days.' +
-                        ' Changing -Days to 10.'
-                    }
-                    Write-IRT @WarningParams -Level Warn
-                    $Days = 10
-                    $StartDateUtc = (Get-Date).AddDays(-10).ToUniversalTime()
-                }
-            }
-        }
-
-        # get client domain name for file output
-        $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-        Write-PSFMessage -Level 8 -Message "${FunctionName}: Get-AcceptedDomain [$Elapsed]"
-        $DefaultDomain = Get-AcceptedDomain | Where-Object { $_.Default -eq $true }
-        $DomainName = $DefaultDomain.DomainName -split '\.' | Select-Object -First 1
-    }
-
-    process {
-
-        #region USER LOOP
-
-        foreach ( $ScriptUserObject in $ScriptUserObjects ) {
-
-            $AllMessages = [System.Collections.Generic.List[psobject]]::new()
-
-            if ( $AllUsers ) {
-                $UserName = 'AllUsers'
-            }
-            else {
-
-                # verify user has mailbox. if not, exit.
-                $Mailbox = $null
-                try {
-                    $Params = @{
-                        UserPrincipalName = $ScriptUserObject.UserPrincipalName
-                        ErrorAction       = 'Stop'
-                    }
-                    $Mailbox = Get-EXOMailbox @Params
-                }
-                catch {}
-                if (-not $Mailbox) {
-                    Write-IRT "No mailbox for $($ScriptUserObject.UserPrincipalName)" -Level Warn
-                    if ($Global:IRT_WaitFlags) {
-                        $Global:IRT_WaitFlags.MessageTraceUserDone = $true
-                    }
-                    continue
-                }
-
-                $UserName = $ScriptUserObject.UserPrincipalName -split '@' | Select-Object -First 1
-
-                $LoopUserEmails = [System.Collections.Generic.HashSet[string]]::new()
-                [void]$LoopUserEmails.Add($ScriptUserObject.UserPrincipalName)
-
-                # get all user email addresses
-                if (-not $ScriptUserObject.ProxyAddresses) {
-                    $ScriptUserObject = $ScriptUserObject | Get-FullUserObject
-                }
-
-                $EmailPattern = "\b[a-zA-Z0-9\._%+-]+@([a-zA-Z0-9.-]+\.)[a-zA-Z]{2,6}\b"
-                foreach ($p in $ScriptUserObject.ProxyAddresses) {
-                    $e = $p | Select-String -Pattern $EmailPattern -AllMatches |
-                        ForEach-Object { $_.Matches.Value }
-                    if ($e) {
-                        [void]$LoopUserEmails.Add($e)
-                    }
-                }
-            }
-
-            # build file name
-            $FileNameDateFormat = "yy-MM-dd_HH-mm"
-            $FileNameDateString = Get-Date -Format $FileNameDateFormat
-            $XmlOutputPath = "${FileNamePrefix}_${Days}Days_${UserName}_${FileNameDateString}.xml"
-
-            ### request message trace records
-            if ( $AllUsers ) {
-
-                Write-IRT "Getting message trace records for all users."
-                [System.Collections.Generic.List[psobject]]$AllMessages = if ($V1) {
-                    $Params = @{
-                        StartDate   = $StartDateUtc
-                        EndDate     = $EndDateUtc
-                        ResultLimit = $ResultLimit
-                        Quiet       = $Quiet
-                    }
-                    Request-MessageTraceV1 @Params
-                }
-                else {
-                    $Params = @{
-                        Days        = $Days #FIXME update to use start/end dates instead of days
-                        ResultLimit = $ResultLimit
-                        Quiet       = $Quiet
-                    }
-                    Request-MessageTrace @Params
-                }
-            }
-            else {
-
-                $InnerType = 'System.Collections.Generic.List[psobject]'
-                $ListOfLists = New-Object "System.Collections.Generic.List[$InnerType]"
-
-                foreach ($UserEmail in $LoopUserEmails) {
-                    # get sender records
-                    if (-not $Quiet) {
-                        Write-IRT "Requesting message trace records with sender: ${UserEmail}"
-                    }
-                    $Messages = if ($V1) {
-                        $Params = @{
-                            SenderAddress = $UserEmail
-                            StartDate     = $StartDateUtc
-                            EndDate       = $EndDateUtc
-                            ResultLimit   = $ResultLimit
-                            Quiet         = $Quiet
-                        }
-                        Request-MessageTraceV1 @Params
-                    }
-                    else {
-                        $Params = @{
-                            SenderAddress = $UserEmail
-                            # FIXME: update to use start/end dates instead of days
-                            Days          = $Days
-                            ResultLimit   = $ResultLimit
-                            Quiet         = $Quiet
-                        }
-                        Request-MessageTrace @Params
-                    }
-                    if (($Messages | Measure-Object).Count -gt 0) {
-                        $ListOfLists.Add([System.Collections.Generic.List[psobject]]@($Messages))
-                    }
-                    # get recipient records
-                    if (-not $Quiet) {
-                        Write-IRT "Requesting message trace records with recipient: ${UserEmail}"
-                    }
-                    $Messages = if ($V1) {
-                        $Params = @{
-                            RecipientAddress = $UserEmail
-                            StartDate        = $StartDateUtc
-                            EndDate          = $EndDateUtc
-                            ResultLimit      = $ResultLimit
-                            Quiet            = $Quiet
-                        }
-                        Request-MessageTraceV1 @Params
-                    }
-                    else {
-                        $Params = @{
-                            RecipientAddress = $UserEmail
-                            # FIXME: update to use start/end dates instead of days
-                            Days             = $Days
-                            ResultLimit      = $ResultLimit
-                            Quiet            = $Quiet
-                        }
-                        Request-MessageTrace @Params
-                    }
-                    if (($Messages | Measure-Object).Count -gt 0) {
-                        $ListOfLists.Add([System.Collections.Generic.List[psobject]]@($Messages))
-                    }
-                }
-
-                if ($ListOfLists.Count -eq 0) {
-                    # exit if no messages returned
-                    Write-IRT "0 total messages retrieved. Exiting." -Level Warn
-                    if ($Global:IRT_WaitFlags) {
-                        $Global:IRT_WaitFlags.MessageTraceUserDone = $true
-                    }
-                    continue
-                }
-                elseif ($ListOfLists.Count -eq 1) {
-                    $AllMessages = $ListOfLists[0]
-                }
-                else {
-                    # merge lists together
-                    $MergeParams = @{
-                        PropertyName = $RawDateProperty
-                        Lists        = $ListOfLists
-                        Descending   = $true
-                    }
-                    $AllMessages = [System.Collections.Generic.List[psobject]](
-                        Merge-ListOnDate @MergeParams
-                    )
-                }
-            }
-
-            # exit if no messages found
-            if (($AllMessages | Measure-Object).Count -eq 0) {
-                Write-IRT "No messages found. Exiting." -Level Warn
-                if ($Global:IRT_WaitFlags) {
-                    if ($AllUsers) { $Global:IRT_WaitFlags.MessageTraceAllUsersDone = $true }
-                    else { $Global:IRT_WaitFlags.MessageTraceUserDone = $true }
-                }
-                continue
-            }
-
-            #region METADATA
-
-            # add metadata to results
-            $StartDate = (Get-Date).AddDays($Days * -1)
-            $EndDate = Get-Date
-            $AllMessages.Insert(0,
-                [pscustomobject]@{
-                    Metadata       = $true
-                    UserObject     = $ScriptUserObject
-                    UserEmails     = $LoopUserEmails
-                    UserName       = $UserName
-                    StartDate      = $StartDate
-                    EndDate        = $EndDate
-                    Days           = $Days
-                    DomainName     = $DomainName
-                    FileNamePrefix = $FileNamePrefix
-                }
-            )
-
-            #region OUTPUT
-
-            # export to variables
-            if ($Variable) {
-                # build table by normalized InternetMessageId
-                $Table = @{}
-                foreach ($Message in $AllMessages) {
-                    if (-not $Message.Metadata) {
-                        $NormalizedId = ($Message.MessageId -replace '[<>]', '').Trim()
-                        if ($NormalizedId) {
-                            $Table[$NormalizedId] = $Message
-                        }
-                    }
-                }
-
-                # merge into global synchronized hashtable
-                foreach ($Key in $Table.Keys) {
-                    $Global:IRT_MessageTraceTable[$Key] = $Table[$Key]
-                }
-                if ($Global:IRT_WaitFlags) {
-                    if ($AllUsers) { $Global:IRT_WaitFlags.MessageTraceAllUsersDone = $true }
-                    else { $Global:IRT_WaitFlags.MessageTraceUserDone = $true }
-                }
-                Write-PSFMessage -Level 9 -Message (
-                    "${FunctionName}: Table key count: $($Table.Count)")
-            }
-
-            # export raw data
-            if ($Xml) {
-                $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-                Write-PSFMessage -Level 8 -Message "${FunctionName}: Export-CliXml [$Elapsed]"
-                Write-IRT "Exporting raw data to: ${XmlOutputPath}"
-                $AllMessages | Export-CliXml -Depth 10 -Path $XmlOutputPath
-            }
-
-            if ($Script) {
-                Write-Output $AllMessages
-                return
-            }
-
-            # create excel sheet
-            if ($Excel) {
-                $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-                Write-PSFMessage -Level 8 -Message (
-                    "${FunctionName}: Show-IRTMessageTrace [$Elapsed]")
-                $Params = @{
-                    Messages   = $AllMessages
-                    TableStyle = $TableStyle
-                    Font       = $Font
-                }
-                Show-IRTMessageTrace @Params
-            }
-        }
-    }
-}
-#EndRegion '.\Public\MessageTrace\Get-IRTMessageTrace.ps1' 481
-#Region '.\Public\MessageTrace\Show-IRTMessageTrace.ps1' -1
-
-function Show-IRTMessageTrace {
-    <#
-	.SYNOPSIS
-	Processes message trace data and creates spreadsheet.
-
-	.NOTES
-	Version: 1.0.0
-	#>
-    [CmdletBinding( DefaultParameterSetName = 'Objects' )]
-    param (
-        [Parameter(Position = 0, Mandatory, ValueFromPipeline, ParameterSetName = 'Objects')]
-        [Alias('Messages')]
-        [System.Collections.Generic.List[PSObject]] $Message,
-
-        [Parameter(Position = 0, Mandatory, ParameterSetName = 'Xml')]
-        [string] $XmlPath,
-
-        [string] $TableStyle = $Global:IRT_Config.ExcelTableStyle,
-        [string] $Font = $Global:IRT_Config.ExcelFont,
-        [boolean] $IpInfo = [bool]$Global:IRT_Config.IpInfoAvailable
-    )
-
-    begin {
-        $FunctionName = $MyInvocation.MyCommand.Name
-        $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
-        $ParameterSet = $PSCmdlet.ParameterSetName
-        $TitleDateFormat = "M/d/yy h:mmtt"
-        $RawDateProperty = 'Received'
-        $DateColumnHeader = 'DateTime'
-
-        # import from xml
-        if ($ParameterSet -eq 'Xml') {
-            try {
-                $ResolvedXmlPath = Resolve-ScriptPath -Path $XmlPath -File -FileExtension 'xml'
-                $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-                Write-PSFMessage -Level 8 -Message "${FunctionName}: Import-CliXml [$Elapsed]"
-                $Message = [System.Collections.Generic.List[PSObject]](
-                    Import-CliXml -Path $ResolvedXmlPath
-                )
-            }
-            catch {
-                $_
-                Write-IRT "Error importing from ${XmlPath}." -Level Error
-                return
-            }
-        }
-
-        # import metadata
-        if ($Message[0].Metadata) {
-
-            # remove metadata from beginning of list
-            $Metadata = $Message[0]
-            $Message.RemoveAt(0)
-
-            $UserName = $Metadata.UserName
-            $StartDate = $Metadata.StartDate
-            $EndDate = $Metadata.EndDate
-            $Days = $Metadata.Days
-            $DomainName = $Metadata.DomainName
-            $FileNamePrefix = $Metadata.FileNamePrefix
-        }
-        else {
-            Write-IRT "No Metadata found." -Level Error
-        }
-
-        # exit if no messages found
-        if (($Message | Measure-Object).Count -eq 0) {
-            Write-IRT "No messages found. Exiting" -Level Error
-            return
-        }
-
-        # build file name
-        $FileNameDateFormat = "yy-MM-dd_HH-mm"
-        $FileDateString = $EndDate.ToLocalTime().ToString($FileNameDateFormat)
-        $ExcelOutputPath = "${FileNamePrefix}_${Days}Days_${UserName}_${FileDateString}.xlsx"
-
-        # build worksheet title
-        $StartString = $StartDate.ToString($TitleDateFormat).ToLower()
-        $EndString = $EndDate.ToString($TitleDateFormat).ToLower()
-        if ($null -eq $Username) {
-            $WorksheetTitle = "Message Trace for ${DomainName}. Covers ${Days} days," +
-            " from ${StartString} to ${EndString}."
-        }
-        else {
-            $WorksheetTitle = "Message Trace for ${Username}. Covers ${Days} days," +
-            " from ${StartString} to ${EndString}."
-        }
-    }
-
-    process {
-        # exit if no messages
-        if (($Message | Measure-Object).Count -eq 0) {
-            Write-IRT "No messages. Exiting." -Level Error
-        }
-
-        #region ROW LOOP
-
-        $RowCount = $Message.Count
-        $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-        Write-PSFMessage -Level 8 -Message (
-            "${FunctionName}: Row loop starting ($RowCount rows) [$Elapsed]")
-        $Rows = [System.Collections.Generic.List[PSCustomObject]]::new($RowCount)
-        for ($i = 0; $i -lt $RowCount; $i++) {
-
-            $m = $Message[$i]
-
-            # Raw
-            $Raw = $m | ConvertTo-Json -Depth 10
-
-            # Date/Time
-            $DateTime = $null
-            if ($m.$RawDateProperty) {
-                $DateTime = $m.$RawDateProperty.ToLocalTime()
-            }
-
-            $Rows.Add([pscustomobject]@{
-                    Raw               = $Raw
-                    $DateColumnHeader = $DateTime
-                    Status            = $m.Status
-                    SenderAddress     = $m.SenderAddress
-                    RecipientAddress  = $m.RecipientAddress
-                    Subject           = $m.Subject
-                    FromIP            = $m.FromIP
-                    ToIP              = $m.ToIP
-                    MessageTraceId    = $m.MessageTraceId
-                    MessageId         = $m.MessageId
-                })
-
-            if ($VerbosePreference -ne 'SilentlyContinue' -and ($i % 1000 -eq 0)) {
-                $Percent = [int]( ($i / $RowCount ) * 100 )
-                $ProgressParams = @{
-                    Id              = 1
-                    Activity        = 'Row loop'
-                    Status          = "Completed ${i} of ${RowCount}"
-                    PercentComplete = $Percent
-                }
-                Write-Progress @ProgressParams
-            }
-        }
-
-        if ($VerbosePreference -ne 'SilentlyContinue') {
-            Write-Progress -Id 1 -Activity 'Row loop' -Completed
-        }
-
-        #region EXPORT EXCEL
-        Write-PSFMessage -Level 8 -Message (
-            "${FunctionName}: Export-Excel [$($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))]")
-        $ExcelParams = @{
-            Path          = $ExcelOutputPath
-            WorkSheetname = $FileNamePrefix
-            Title         = $WorksheetTitle
-            TableStyle    = $TableStyle
-            # AutoSize      = $true # apparently very slow?
-            FreezeTopRow  = $true
-            Passthru      = $true
-        }
-        try {
-            $Workbook = $Rows | Export-Excel @ExcelParams
-        }
-        catch {
-            $_
-            Write-IRT "Error while opening Excel document." -Level Error
-            if ( Get-YesNo "Try again?" ) {
-                try {
-                    $Workbook = $Rows | Export-Excel @ExcelParams
-                }
-                catch {
-                    $_
-                    Write-IRT "Error while opening Excel document. Exiting." -Level Error
-                    return
-                }
-            }
-            else {
-                return
-            }
-        }
-        $Worksheet = $Workbook.Workbook.Worksheets[$ExcelParams.WorksheetName]
-
-        if ($IpInfo) {
-            $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-            Write-PSFMessage -Level 8 -Message "${FunctionName}: Add-IpInfoToSheet [$Elapsed]"
-            Add-IpInfoToSheet -Worksheet $Worksheet -ColumnName 'FromIP', 'ToIP'
-        }
-
-        # get table ranges
-        $SheetStartColumn = $WorkSheet.Dimension.Start.Column | Convert-DecimalToExcelColumn
-        $SheetStartRow = $WorkSheet.Dimension.Start.Row
-        $TableStartColumn = (
-            $Worksheet.Tables.Address | Select-Object -First 1
-        ).Start.Column | Convert-DecimalToExcelColumn
-        $TableStartRow = ($Worksheet.Tables | Select-Object -First 1).Address.Start.Row + 1
-        $EndColumn = $WorkSheet.Dimension.End.Column | Convert-DecimalToExcelColumn
-        $EndRow = $WorkSheet.Dimension.End.Row
-
-        $SenderColumn = (
-            $Worksheet.Tables[0].Columns | Where-Object { $_.Name -eq 'SenderAddress' }
-        ).Id | Convert-DecimalToExcelColumn
-        $RecipientColumn = (
-            $Worksheet.Tables[0].Columns | Where-Object { $_.Name -eq 'RecipientAddress' }
-        ).Id | Convert-DecimalToExcelColumn
-
-        #region BOLD OTHER EMAIL
-
-        # FIXME idea here was to make it clearer at a glance whether the email was sent or
-        # received by the user. Not sure if this is the best way though.
-
-        # if ($UserEmails) {
-        #     # helper: make "=AND(LEN($A2)>0, $A2<>\"me1\", $A2<>\"me2\", ...)" for
-        #     #     a column's anchor cell
-        #     function New-CfNotMeFormula {
-        #         param([Parameter(Mandatory)][string]$ColumnLetter,
-        #             [Parameter(Mandatory)][int]$StartRow)
-
-        #         # anchor column absolute, row relative: $A2
-        #         $anchor = "`$${ColumnLetter}$StartRow"
-
-        #         # comparisons: $A2<> "alias"
-        #         $comparisons = $UserEmails.ForEach({
-        #             '{0}<>""{1}""' -f $anchor, ($_ -replace '"','""')
-        #         })
-
-        #         # skip blanks, and only bold when value is not any of my addresses
-        #         return '=AND(LEN({0})>0,{1})' -f $anchor, ($comparisons -join ',')
-        #     }
-
-        #     # sender column rule
-        #     $FormulaSender = New-CfNotMeFormula -ColumnLetter $SenderColumn
-        #         -StartRow $TableStartRow
-        #     $CfParamsSender = @{
-        #         WorkSheet      = $Worksheet
-        #         Address        = "${SenderColumn}${TableStartRow}:${SenderColumn}${EndRow}"
-        #         RuleType       = 'Expression'
-        #         ConditionValue = $FormulaSender
-        #         Bold           = $true
-        #     }
-        #     Add-ConditionalFormatting @CfParamsSender
-
-        #     # recipient column rule
-        #     $FormulaRecipient = New-CfNotMeFormula -ColumnLetter $RecipientColumn
-        #         -StartRow $TableStartRow
-        #     $CfParamsRecipient = @{
-        #         WorkSheet      = $Worksheet
-        #         Address        = "${RecipientColumn}${TableStartRow}:${RecipientColumn}${EndRow}"
-        #         RuleType       = 'Expression'
-        #         ConditionValue = $FormulaRecipient
-        #         Bold           = $true
-        #     }
-        #     Add-ConditionalFormatting @CfParamsRecipient
-        # }
-
-        #region SAME TO/FROM
-
-        $CfParams = @{
-            WorkSheet        = $Worksheet
-            Address          = "${SenderColumn}${TableStartRow}:${RecipientColumn}${EndRow}"
-            RuleType         = 'Expression'
-            ConditionValue   = "=`$${SenderColumn}${TableStartRow}" +
-            "=`$${RecipientColumn}${TableStartRow}"
-            BackgroundColor  = 'LightYellow'
-        }
-        Add-ConditionalFormatting @CfParams
-
-        #region COLUMN WIDTH
-
-        $ColumnWidths = @{
-            'Raw'              = 8
-            $DateColumnHeader  = 26
-            'Status'           = 15
-            'SenderAddress'    = 30
-            'RecipientAddress' = 30
-            'Subject'          = 100
-            'FromIp'           = 20
-            'ToIp'             = 20
-            'MessageTraceId'   = 200
-        }
-        foreach ($ColName in $ColumnWidths.Keys) {
-            $Col = ($Worksheet.Tables[0].Columns | Where-Object { $_.Name -eq $ColName }).Id
-            if ($Col) { $Worksheet.Column($Col).Width = $ColumnWidths[$ColName] }
-        }
-
-        #region FORMATTING
-
-        # set date format
-        $FmtParams = @{
-            Worksheet = $Worksheet
-            Range = "B:B"
-            NumberFormat  = 'm/d/yyyy h:mm:ss AM/PM'
-        }
-        Set-ExcelRange @FmtParams
-
-        # set font and size
-        $SetParams = @{
-            Worksheet = $Worksheet
-            Range     = "${SheetStartColumn}${SheetStartRow}:${EndColumn}${EndRow}"
-            FontName  = $Font
-        }
-        Set-ExcelRange @SetParams
-
-        # add left side border
-        $BorderParams = @{
-            Worksheet = $Worksheet
-            Range = "${TableStartColumn}${TableStartRow}:${EndColumn}${EndRow}"
-            BorderLeft = 'Thin'
-            BorderColor = 'Black'
-        }
-        Set-ExcelRange @BorderParams
-
-        #region OUTPUT
-
-        # save and close
-        Write-IRT "Exporting to: ${ExcelOutputPath}"
-        $Workbook | Close-ExcelPackage -Show
-    }
-}
-#EndRegion '.\Public\MessageTrace\Show-IRTMessageTrace.ps1' 315
+#EndRegion '.\Public\Mailbox\Show-IRTMailboxAccess.ps1' 74
 #Region '.\Public\OnPremAd\Disable-IRTAdUser.ps1' -1
 
 function Disable-IRTAdUser {
@@ -15670,6 +16408,7 @@ function Get-IRTAdminRole {
 
     begin {
         Update-IRTToken -Service 'Graph'
+        Import-IRTModule -Name 'ImportExcel', 'Microsoft.Graph.Groups'
 
         $CustomObjects = [System.Collections.Generic.List[pscustomobject]]::new()
         $WorksheetName = 'AdminRoles'
@@ -15953,7 +16692,7 @@ function Get-IRTAdminRole {
         }
     }
 }
-#EndRegion '.\Public\Role\Get-IRTAdminRole.ps1' 351
+#EndRegion '.\Public\Role\Get-IRTAdminRole.ps1' 352
 #Region '.\Public\ServicePrincipal\Find-IRTRiskyServicePrincipal.ps1' -1
 
 function Find-IRTRiskyServicePrincipal {
@@ -16005,6 +16744,7 @@ function Find-IRTRiskyServicePrincipal {
 
     begin {
         Update-IRTToken -Service 'Graph'
+        Import-IRTModule -Name 'Microsoft.Graph.Applications'
         # variables
         $UserDisplayProperties = @(
             'AccountEnabled'
@@ -16105,7 +16845,7 @@ function Find-IRTRiskyServicePrincipal {
         }
     }
 }
-#EndRegion '.\Public\ServicePrincipal\Find-IRTRiskyServicePrincipal.ps1' 150
+#EndRegion '.\Public\ServicePrincipal\Find-IRTRiskyServicePrincipal.ps1' 151
 #Region '.\Public\ServicePrincipal\Find-IRTServicePrincipal.ps1' -1
 
 function Find-IRTServicePrincipal {
@@ -16341,6 +17081,7 @@ function Get-IRTServicePrincipal {
 
     begin {
         Update-IRTToken -Service 'Graph'
+        Import-IRTModule -Name 'ImportExcel'
 
         # variables
         $TenantId = (Get-MgContext).TenantId
@@ -16495,7 +17236,7 @@ function Get-IRTServicePrincipal {
         }
     }
 }
-#EndRegion '.\Public\ServicePrincipal\Get-IRTServicePrincipal.ps1' 185
+#EndRegion '.\Public\ServicePrincipal\Get-IRTServicePrincipal.ps1' 186
 #Region '.\Public\ServicePrincipal\Get-IRTTenantOwner.ps1' -1
 
 function Get-IRTTenantOwner {
@@ -16572,6 +17313,7 @@ function Get-IRTTenantOwner {
 
         # update connection
         Update-IRTToken -Service 'Graph'
+        Import-IRTModule -Name 'PSFramework'
 
         $NewCacheEntries = [System.Collections.Generic.List[psobject]]::new()
         $ModuleName = $MyInvocation.MyCommand.ModuleName
@@ -16769,7 +17511,7 @@ function Get-IRTTenantOwner {
         }
     }
 }
-#EndRegion '.\Public\ServicePrincipal\Get-IRTTenantOwner.ps1' 272
+#EndRegion '.\Public\ServicePrincipal\Get-IRTTenantOwner.ps1' 273
 #Region '.\Public\ServicePrincipal\Get-IRTUserServicePrincipal.ps1' -1
 
 function Get-IRTUserServicePrincipal {
@@ -16836,6 +17578,7 @@ function Get-IRTUserServicePrincipal {
 
     begin {
         Update-IRTToken -Service 'Graph'
+        Import-IRTModule -Name 'ImportExcel'
         $FileNameDateFormat = "yy-MM-dd_HH-mm"
         $WorksheetName = 'UserAppConsents'
 
@@ -16996,7 +17739,7 @@ function Get-IRTUserServicePrincipal {
         }
     }
 }
-#EndRegion '.\Public\ServicePrincipal\Get-IRTUserServicePrincipal.ps1' 225
+#EndRegion '.\Public\ServicePrincipal\Get-IRTUserServicePrincipal.ps1' 226
 #Region '.\Public\ServicePrincipal\Open-IRTTenantOwnerCSV.ps1' -1
 
 function Open-IRTTenantOwnerCSV {
@@ -17538,6 +18281,7 @@ function Get-IRTUnifiedAuditLog {
 
     begin {
         Update-IRTToken -Service 'Exchange'
+        Import-IRTModule -Name 'ImportExcel', 'PSFramework'
         $FunctionName = $MyInvocation.MyCommand.Name
         $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
         $ParameterSet = $PSCmdlet.ParameterSetName
@@ -18043,7 +18787,7 @@ function Get-IRTUnifiedAuditLog {
         }
     }
 }
-#EndRegion '.\Public\UnifiedAuditLog\Get-IRTUnifiedAuditLog.ps1' 634
+#EndRegion '.\Public\UnifiedAuditLog\Get-IRTUnifiedAuditLog.ps1' 635
 #Region '.\Public\UnifiedAuditLog\Open-IRTAllOperationsSheet.ps1' -1
 
 function Open-IRTAllOperationsSheet {
@@ -18105,6 +18849,7 @@ function Show-IRTUnifiedAuditLog {
     )
 
     begin {
+        Import-IRTModule -Name 'ImportExcel', 'PSFramework'
         $FunctionName = $MyInvocation.MyCommand.Name
         $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
         $ParameterSet = $PSCmdlet.ParameterSetName
@@ -18307,7 +19052,7 @@ function Show-IRTUnifiedAuditLog {
         }
     }
 }
-#EndRegion '.\Public\UnifiedAuditLog\Show-IRTUnifiedAuditLog.ps1' 232
+#EndRegion '.\Public\UnifiedAuditLog\Show-IRTUnifiedAuditLog.ps1' 233
 #Region '.\Public\User\Disable-IRTUser.ps1' -1
 
 function Disable-IRTUser {
@@ -18638,6 +19383,7 @@ function Reset-IRTUserPassword {
 
     begin {
         Update-IRTToken -Service 'Graph'
+        Import-IRTModule -Name 'Microsoft.Graph.Users'
         # if not passed directly, find global
         if ( -not $UserObject -or $UserObject.Count -eq 0 ) {
 
@@ -18739,7 +19485,7 @@ function Reset-IRTUserPassword {
         }
     }
 }
-#EndRegion '.\Public\User\Reset-IRTUserPassword.ps1' 242
+#EndRegion '.\Public\User\Reset-IRTUserPassword.ps1' 243
 #Region '.\Public\User\Revoke-IRTUserSession.ps1' -1
 
 function Revoke-IRTUserSession {
@@ -18761,6 +19507,7 @@ function Revoke-IRTUserSession {
 
     begin {
         Update-IRTToken -Service 'Graph'
+        Import-IRTModule -Name 'Microsoft.Graph.Users.Actions'
         # if not passed directly, find global
         if ( -not $UserObject -or $UserObject.Count -eq 0 ) {
 
@@ -18795,7 +19542,7 @@ function Revoke-IRTUserSession {
         }
     }
 }
-#EndRegion '.\Public\User\Revoke-IRTUserSession.ps1' 54
+#EndRegion '.\Public\User\Revoke-IRTUserSession.ps1' 55
 #Region '.\Public\User\Set-IRTUserUsageLocation.ps1' -1
 
 function Set-IRTUserUsageLocation {
@@ -18820,6 +19567,7 @@ function Set-IRTUserUsageLocation {
 
     begin {
         Update-IRTToken -Service 'Graph'
+        Import-IRTModule -Name 'Microsoft.Graph.Users'
         # if not passed directly, find global
         if ( -not $UserObject -or $UserObject.Count -eq 0 ) {
 
@@ -18912,7 +19660,7 @@ function Set-IRTUserUsageLocation {
         }
     }
 }
-#EndRegion '.\Public\User\Set-IRTUserUsageLocation.ps1' 115
+#EndRegion '.\Public\User\Set-IRTUserUsageLocation.ps1' 116
 #Region '.\Public\User\Show-IRTUser.ps1' -1
 
 function Show-IRTUser {
@@ -18961,6 +19709,7 @@ function Show-IRTUser {
 
     begin {
         Update-IRTToken -Service 'Graph'
+        Import-IRTModule -Name 'Microsoft.Graph.Users'
         # if not passed directly, find global user object
         if ( -not $UserObject -or $UserObject.Count -eq 0 ) {
 
@@ -19011,7 +19760,7 @@ function Show-IRTUser {
         }
     }
 }
-#EndRegion '.\Public\User\Show-IRTUser.ps1' 97
+#EndRegion '.\Public\User\Show-IRTUser.ps1' 98
 #Region '.\Public\User\Show-IRTUserMfa.ps1' -1
 
 function Show-IRTUserMfa {
@@ -19073,6 +19822,7 @@ function Show-IRTUserMfa {
 
     begin {
         Update-IRTToken -Service 'Graph'
+        Import-IRTModule -Name 'ImportExcel', 'Microsoft.Graph.Users'
         $OutputTable = [System.Collections.Generic.List[PSCustomObject]]::new()
         $Properties = [System.Collections.Generic.Hashset[string]]::new()
         $PropertySortOrder = @(
@@ -19497,7 +20247,7 @@ function Show-IRTUserMfa {
         }
     }
 }
-#EndRegion '.\Public\User\Show-IRTUserMfa.ps1' 484
+#EndRegion '.\Public\User\Show-IRTUserMfa.ps1' 485
 #Region '.\Public\Utility\Compress-IRTInvestigationFolder.ps1' -1
 
 function Compress-IRTInvestigationFolder {
@@ -20597,6 +21347,7 @@ function Start-IRTPlaybook {
 
         [string] $Ticket,
         [switch] $NoFolder,
+        [switch] $NewTab,
         [int] $MaxRunspaces = 15
     )
 
@@ -20666,7 +21417,9 @@ function Start-IRTPlaybook {
             New-IRTInvestigationFolder @DirParams
         }
 
-        if ($Global:IRT_Config.PlaybookOpenNewTab) {
+        if ($Global:IRT_Config.PlaybookOpenNewTab -or
+            $NewTab
+        ) {
             Open-IRTTab
         }
 
@@ -21023,7 +21776,7 @@ function Start-IRTPlaybook {
             "${FunctionName}: Playbook complete. Total elapsed: $TotalElapsed")
     }
 }
-#EndRegion '.\Public\Utility\Start-IRTPlaybook.ps1' 487
+#EndRegion '.\Public\Utility\Start-IRTPlaybook.ps1' 490
 #Region '.\Suffix.ps1' -1
 
 # ModuleBuilder Notes: Code in this file will be appended to the built .psm1 file.
@@ -21044,6 +21797,11 @@ foreach ($VarName in 'IRT_IpInfo', 'IRT_MessageTraceTable') {
         $Existing = if ($Current -is [hashtable]) { $Current } else { @{} }
         Set-Variable -Name $VarName -Scope Global -Value ([hashtable]::Synchronized($Existing))
     }
+}
+
+# Initialize the email search collection. Preserve existing entries on module re-import.
+if ($Global:IRT_EmailSearch -isnot [System.Collections.Generic.List[psobject]]) {
+    $Global:IRT_EmailSearch = [System.Collections.Generic.List[psobject]]::new()
 }
 
 # Load user config on module import
@@ -21078,12 +21836,12 @@ Import-ReferenceData
 # Set terminal title on module load.
 Set-TerminalTitle '[IRT]'
 
-# verbose: output module load time
+# debug: output module load time
 if ($Global:IRT_LoadStopwatch) {
     $Global:IRT_LoadStopwatch.Stop()
     $Elapsed = $Global:IRT_LoadStopwatch.Elapsed.TotalSeconds
-    Write-Verbose "Module loaded in $($Elapsed.ToString('N2'))s."
+    Write-PSFMessage -Level 8 -Message "Module loaded in $($Elapsed.ToString('N2'))s."
     Remove-Variable -Name 'IRT_LoadStopwatch' -Scope Global
 }
-#EndRegion '.\Suffix.ps1' 60
+#EndRegion '.\Suffix.ps1' 65
 
