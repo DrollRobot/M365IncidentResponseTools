@@ -58,6 +58,7 @@ function Get-IRTInboxRule {
 
     begin {
         Update-IRTToken -Service 'Exchange'
+        Import-IRTModule -Name 'ExchangeOnlineManagement', 'ImportExcel'
         $WorksheetName = 'InboxRules'
         $FileNameDateFormat = "yy-MM-dd_HH-mm"
         $FileDateString = Get-Date -Format $FileNameDateFormat

@@ -25,6 +25,7 @@ function Show-IRTEntraAuditLog {
     )
 
     begin {
+        Import-IRTModule -Name 'ImportExcel', 'PSFramework'
         # get logs from file if xml path used
         if ( $XmlPath ) {
 

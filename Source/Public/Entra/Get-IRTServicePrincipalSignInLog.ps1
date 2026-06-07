@@ -93,6 +93,7 @@ function Get-IRTServicePrincipalSignInLog {
 
     begin {
         Update-IRTToken -Service 'Graph'
+        Import-IRTModule -Name 'ImportExcel', 'PSFramework'
 
         #region BEGIN
 

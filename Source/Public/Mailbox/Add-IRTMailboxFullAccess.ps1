@@ -20,6 +20,7 @@ function Add-IRTMailboxFullAccess {
 
     begin {
         Update-IRTToken -Service 'Exchange'
+        Import-IRTModule -Name 'ExchangeOnlineManagement'
         $GrantAccessToList = [System.Collections.Generic.List[string]]::new()
 
         # if users passed via script argument:

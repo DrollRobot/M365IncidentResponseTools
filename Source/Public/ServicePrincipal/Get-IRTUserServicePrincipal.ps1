@@ -62,6 +62,7 @@ function Get-IRTUserServicePrincipal {
 
     begin {
         Update-IRTToken -Service 'Graph'
+        Import-IRTModule -Name 'ImportExcel'
         $FileNameDateFormat = "yy-MM-dd_HH-mm"
         $WorksheetName = 'UserAppConsents'
 

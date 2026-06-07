@@ -20,6 +20,7 @@ function Set-IRTUserUsageLocation {
 
     begin {
         Update-IRTToken -Service 'Graph'
+        Import-IRTModule -Name 'Microsoft.Graph.Users'
         # if not passed directly, find global
         if ( -not $UserObject -or $UserObject.Count -eq 0 ) {
 

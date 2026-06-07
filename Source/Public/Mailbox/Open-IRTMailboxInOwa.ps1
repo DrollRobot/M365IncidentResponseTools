@@ -23,6 +23,7 @@ function Open-IRTMailboxInOwa {
 
     begin {
         Update-IRTToken -Service 'Exchange'
+        Import-IRTModule -Name 'ExchangeOnlineManagement'
         # if users passed via script argument:
         if (($UserObject | Measure-Object).Count -gt 0) {
             $ScriptUserObjects = $UserObject

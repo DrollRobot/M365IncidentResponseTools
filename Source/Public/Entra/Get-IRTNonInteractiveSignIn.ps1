@@ -60,6 +60,7 @@ function Get-IRTNonInteractiveSignIn {
 
     begin {
         Update-IRTToken -Service 'Graph'
+        Import-IRTModule -Name 'PSFramework'
 
         # variables
         $Params = @{

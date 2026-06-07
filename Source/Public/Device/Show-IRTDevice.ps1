@@ -22,6 +22,11 @@ function Show-IRTDevice {
 
     begin {
         Update-IRTToken -Service 'Graph'
+        $Import = @(
+            'Microsoft.Graph.Identity.DirectoryManagement',
+            'Microsoft.Graph.DeviceManagement'
+        )
+        Import-IRTModule -Name $Import
 
         # if not passed directly, fall back to global variable
         if ( -not $DeviceObject -or $DeviceObject.Count -eq 0 ) {

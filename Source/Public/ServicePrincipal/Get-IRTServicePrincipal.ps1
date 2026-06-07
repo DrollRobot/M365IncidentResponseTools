@@ -28,6 +28,7 @@ function Get-IRTServicePrincipal {
 
     begin {
         Update-IRTToken -Service 'Graph'
+        Import-IRTModule -Name 'ImportExcel'
 
         # variables
         $TenantId = (Get-MgContext).TenantId

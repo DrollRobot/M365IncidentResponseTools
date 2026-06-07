@@ -44,6 +44,7 @@ function Show-IRTUser {
 
     begin {
         Update-IRTToken -Service 'Graph'
+        Import-IRTModule -Name 'Microsoft.Graph.Users'
         # if not passed directly, find global user object
         if ( -not $UserObject -or $UserObject.Count -eq 0 ) {
 

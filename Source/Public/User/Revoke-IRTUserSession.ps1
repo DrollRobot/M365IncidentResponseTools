@@ -17,6 +17,7 @@ function Revoke-IRTUserSession {
 
     begin {
         Update-IRTToken -Service 'Graph'
+        Import-IRTModule -Name 'Microsoft.Graph.Users.Actions'
         # if not passed directly, find global
         if ( -not $UserObject -or $UserObject.Count -eq 0 ) {
 

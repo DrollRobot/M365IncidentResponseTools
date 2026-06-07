@@ -65,6 +65,7 @@ function Get-IRTAdminRole {
 
     begin {
         Update-IRTToken -Service 'Graph'
+        Import-IRTModule -Name 'ImportExcel', 'Microsoft.Graph.Groups'
 
         $CustomObjects = [System.Collections.Generic.List[pscustomobject]]::new()
         $WorksheetName = 'AdminRoles'

@@ -51,6 +51,7 @@ function Show-IRTServicePrincipalSignIn {
     )
 
     begin {
+        Import-IRTModule -Name 'ImportExcel', 'PSFramework'
         $FunctionName = $MyInvocation.MyCommand.Name
         $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
         $ParameterSet = $PSCmdlet.ParameterSetName

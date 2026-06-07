@@ -47,6 +47,7 @@ function Find-IRTRiskyServicePrincipal {
 
     begin {
         Update-IRTToken -Service 'Graph'
+        Import-IRTModule -Name 'Microsoft.Graph.Applications'
         # variables
         $UserDisplayProperties = @(
             'AccountEnabled'
