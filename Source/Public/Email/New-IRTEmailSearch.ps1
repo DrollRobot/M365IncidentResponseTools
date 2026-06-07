@@ -1,13 +1,11 @@
 function New-IRTEmailSearch {
     <#
     .SYNOPSIS
-    Builds and creates (but does not start) an Exchange compliance search for email.
+    Builds, creates, and starts an Exchange compliance search for email.
 
     .DESCRIPTION
     Assembles a Keyword Query Language (KeyQL) ContentMatchQuery from recipient, keyword,
-    and date criteria, then creates a compliance search with New-ComplianceSearch. The
-    search is created in a ready state but is NOT started; run it later with the start
-    stage of the workflow.
+    and date criteria.
 
     Two modes:
       - Parameter mode: supply any of the criteria parameters and the query is built
@@ -71,10 +69,12 @@ function New-IRTEmailSearch {
     Builds a search over an absolute date range.
 
     .OUTPUTS
-    [pscustomobject] describing the created search. Also appended to $Global:IRT_EmailSearch.
+    [pscustomobject] describing the search (including a Started flag). Also appended to
+    $Global:IRT_EmailSearch.
 
     .NOTES
-    Version: 1.0.0
+    Version: 1.1.0
+    1.1.0 - Create and start when connected to IPPS; when offline, save criteria and warn.
     #>
     [CmdletBinding(SupportsShouldProcess)]
     [OutputType([pscustomobject])]
@@ -93,10 +93,12 @@ function New-IRTEmailSearch {
         [switch] $Force
     )
 
-    # check if token update is needed
-    Update-IRTToken -Service 'IPPS'
+    # refresh the IPPS token if a session exists, without erroring when there is none.
+    # PassThru reports per-service validity; a missing session returns $null.
+    $TokenStatus = Update-IRTToken -Service 'IPPS' -PassThru -SkipIfNeverConnected
+    $IppsConnected = [bool]($TokenStatus -and $TokenStatus.IPPS)
 
-    # import modules
+    # compliance cmdlets live in the Exchange Online module
     Import-IRTModule -Name 'ExchangeOnlineManagement'
 
     # criteria parameters that, when present, trigger non-interactive mode
@@ -165,29 +167,44 @@ function New-IRTEmailSearch {
         $Name = Build-EmailSearchName -Criteria $Criteria
     }
 
-    # handle an existing search of the same name
-    $Existing = Get-ComplianceSearch -Identity $Name -ErrorAction SilentlyContinue
-    if ($Existing) {
-        $Overwrite = $Force -or (Get-YesNo "A search named '$Name' already exists. Overwrite?")
-        if (-not $Overwrite) {
-            Write-IRT 'Aborted. Existing search left unchanged.' -Level Warn
+    $Search = $null
+    $Started = $false
+
+    if ($IppsConnected) {
+
+        # handle an existing search of the same name
+        $Existing = Get-ComplianceSearch -Identity $Name -ErrorAction SilentlyContinue
+        if ($Existing) {
+            $Prompt = "A search named '$Name' already exists. Overwrite?"
+            $Overwrite = $Force -or (Get-YesNo $Prompt)
+            if (-not $Overwrite) {
+                Write-IRT 'Aborted. Existing search left unchanged.' -Level Warn
+                return
+            }
+            Remove-ComplianceSearch -Identity $Name -Confirm:$false
+        }
+
+        if (-not $PSCmdlet.ShouldProcess($Name, 'Create and start compliance search')) {
             return
         }
-        Remove-ComplianceSearch -Identity $Name -Confirm:$false
-    }
 
-    # create the search (not started)
-    if (-not $PSCmdlet.ShouldProcess($Name, 'Create compliance search')) {
-        return
-    }
+        # always create and start together when the connection is good
+        Write-IRT "Creating compliance search: $Name"
+        $NewParams = @{
+            Name              = $Name
+            ExchangeLocation  = $ExchangeLocation
+            ContentMatchQuery = $Query
+        }
+        $Search = New-ComplianceSearch @NewParams
 
-    Write-IRT "Creating compliance search: $Name"
-    $NewParams = @{
-        Name              = $Name
-        ExchangeLocation  = $ExchangeLocation
-        ContentMatchQuery = $Query
+        Write-IRT "Starting compliance search: $Name"
+        Start-ComplianceSearch -Identity $Search.Identity
+        $Started = $true
     }
-    $Search = New-ComplianceSearch @NewParams
+    else {
+        Write-IRT 'Not connected to IPPS. Search not created or started.' -Level Warn
+        Write-IRT 'Criteria saved to $Global:IRT_EmailSearch. Reconnect and re-run.' -Level Warn
+    }
 
     # build the result object and store it in the global collection
     $Result = [pscustomobject]@{
@@ -203,6 +220,7 @@ function New-IRTEmailSearch {
         Body           = $Criteria.Body
         AttachmentName = $Criteria.AttachmentName
         Search         = $Search
+        Started        = $Started
         Created        = Get-Date
     }
 
@@ -211,8 +229,10 @@ function New-IRTEmailSearch {
     }
     $Global:IRT_EmailSearch.Add($Result)
 
-    Write-IRT "Search created (not started) and saved to `$Global:IRT_EmailSearch."
-    Write-IRT "  Query: $Query"
+    if ($Started) {
+        Write-IRT "Search created and started. Saved to `$Global:IRT_EmailSearch."
+        Write-IRT "  Query: $Query"
+    }
 
     return $Result
 }
