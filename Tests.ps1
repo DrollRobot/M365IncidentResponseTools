@@ -1,4 +1,4 @@
-﻿#Requires -Version 7.5
+#Requires -Version 7.5
 #Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.0.0' }
 
 <#

@@ -1,6 +1,6 @@
-﻿<#
+<#
 .SYNOPSIS
-    A developer helper script. Checks that each source file explicitly names 
+    A developer helper script. Checks that each source file explicitly names
     every external module it uses.
 .DESCRIPTION
     For each .ps1 file under Source\, parses the file with Find-ScriptCommand,
@@ -55,7 +55,7 @@ $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
 $CurrentModuleName = (Find-ModuleRoot -Path $PSScriptRoot).Name
 if (-not (Get-Module -Name $CurrentModuleName)) {
     $ErrMsg = "Module '$CurrentModuleName' is not imported. " +
-        "Import it before running this test."
+    "Import it before running this test."
     Write-Error $ErrMsg
     exit 1
 }
@@ -141,20 +141,20 @@ foreach ($file in $files) {
         if ($content -notlike "*$($group.Name)*") {
             $hitCount++
             $hits.Add([PSCustomObject]@{
-                File     = [System.IO.Path]::GetRelativePath($Path, $file.FullName)
-                Module   = $group.Name
-                Commands = ($group.Group.Name | Sort-Object -Unique) -join ', '
-            })
+                    File     = [System.IO.Path]::GetRelativePath($Path, $file.FullName)
+                    Module   = $group.Name
+                    Commands = ($group.Group.Name | Sort-Object -Unique) -join ', '
+                })
         }
     }
 
     if ($UnknownCommands.Count -gt 0) {
         $hitCount++
         $hits.Add([PSCustomObject]@{
-            File     = [System.IO.Path]::GetRelativePath($Path, $file.FullName)
-            Module   = '(unknown - add to $CommandModuleMap)'
-            Commands = ($UnknownCommands.Name | Sort-Object -Unique) -join ', '
-        })
+                File     = [System.IO.Path]::GetRelativePath($Path, $file.FullName)
+                Module   = '(unknown - add to $CommandModuleMap)'
+                Commands = ($UnknownCommands.Name | Sort-Object -Unique) -join ', '
+            })
     }
 }
 

@@ -108,7 +108,7 @@ function Get-IRTMessageTrace {
         Update-IRTToken -Service 'Exchange'
 
         # import modules
-        Import-IRTModule -Name 'ExchangeOnlineManagement','PSFramework'
+        Import-IRTModule -Name 'ExchangeOnlineManagement', 'PSFramework'
 
         $FunctionName = $MyInvocation.MyCommand.Name
         $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()

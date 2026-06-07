@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     Parses all .ps1, .psm1, and .psd1 files in a directory for syntax errors.
 .PARAMETER Path

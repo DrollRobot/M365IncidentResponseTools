@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     Scans .ps1, .psm1, and .psd1 files for FIXME comments and reports them as a table.
 .DESCRIPTION

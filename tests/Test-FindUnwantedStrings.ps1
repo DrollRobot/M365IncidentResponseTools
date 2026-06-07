@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     Scans all files for unwanted patterns and reports them as a table.
 .DESCRIPTION

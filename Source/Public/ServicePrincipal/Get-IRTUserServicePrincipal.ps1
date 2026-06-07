@@ -1,4 +1,4 @@
-function Get-IRTUserServicePrincipal {
+function Get-IRTUserServicePrincipal { # FIXME rename to Get-IRTUserAppConsent
     <#
     .SYNOPSIS
     Displays user's Oauth2 permission grants. (Applications they have granted consent to)

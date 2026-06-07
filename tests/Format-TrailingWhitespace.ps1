@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     Removes trailing whitespace from all .ps1, .psm1, and .psd1 files.
 .PARAMETER Path

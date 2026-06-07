@@ -58,7 +58,7 @@ function Connect-IRTGraph {
         #region BEGIN
 
         # import modules
-        Import-IRTModule -Name 'Microsoft.Graph.Authentication','PSFramework'
+        Import-IRTModule -Name 'Microsoft.Graph.Authentication', 'PSFramework'
 
         $DefaultScopes = @(
             'Application.ReadWrite.All'

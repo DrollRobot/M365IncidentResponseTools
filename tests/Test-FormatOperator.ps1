@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     Checks all .ps1, .psm1, and .psd1 files for use of the -f format operator.
 .DESCRIPTION

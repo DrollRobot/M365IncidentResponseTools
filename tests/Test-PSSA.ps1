@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     Runs PSScriptAnalyzer against all PowerShell files in a directory.
     Optionally applies auto-fixes and formatting via -AutoFormat.

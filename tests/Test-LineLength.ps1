@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     Checks .ps1, .psm1, and .psd1 files for lines exceeding a maximum length.
     Pass a file path to check a single file, or a folder path to check all matching files.
