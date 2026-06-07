@@ -55,10 +55,10 @@ Import-ReferenceData
 # Set terminal title on module load.
 Set-TerminalTitle '[IRT]'
 
-# verbose: output module load time
+# debug: output module load time
 if ($Global:IRT_LoadStopwatch) {
     $Global:IRT_LoadStopwatch.Stop()
     $Elapsed = $Global:IRT_LoadStopwatch.Elapsed.TotalSeconds
-    Write-Verbose "Module loaded in $($Elapsed.ToString('N2'))s."
+    Write-PSFMessage -Level 8 -Message "Module loaded in $($Elapsed.ToString('N2'))s."
     Remove-Variable -Name 'IRT_LoadStopwatch' -Scope Global
 }

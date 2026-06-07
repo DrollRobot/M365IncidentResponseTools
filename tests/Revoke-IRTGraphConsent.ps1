@@ -23,8 +23,15 @@ function Revoke-IRTGraphConsent {
     [CmdletBinding()]
     [OutputType([int])]
     param (
-        [string] $AppId = '14d82eec-204b-4c2f-b7e8-296a70dab67e'  # Graph CLI Tools
+        [string] $AppId = '14d82eec-204b-4c2f-b7e8-296a70dab67e',  # Graph CLI Tools
+        [switch] $Trace
     )
+
+    if ($Trace) { $InformationPreference = 'Continue' }
+    function Write-Trace {
+        param([Parameter(Mandatory)][string] $Message)
+        Write-Information $Message -Tags 'Trace'
+    }
 
     # Resolve the service principal object ID for this app in the tenant.
     $SpRequest = @{
@@ -45,7 +52,7 @@ function Revoke-IRTGraphConsent {
     $Grants = $GrantsResult.value
 
     if (-not $Grants) {
-        Write-Verbose "No consent grants found for '$($SpResult.displayName)' ($AppId)."
+        Write-Trace "No consent grants found for '$($SpResult.displayName)' ($AppId)."
         return 0
     }
 
@@ -60,6 +67,6 @@ function Revoke-IRTGraphConsent {
         $Removed++
     }
 
-    Write-Verbose "Removed $Removed consent grant(s) for '$($SpResult.displayName)'."
+    Write-Trace "Removed $Removed consent grant(s) for '$($SpResult.displayName)'."
     return $Removed
 }
