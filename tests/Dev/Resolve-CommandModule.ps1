@@ -130,7 +130,7 @@ function Resolve-CommandModule {
 
             # Check the host-module private set independently of Get-Command.
             # A private function shadows any external command with the same name at
-            # runtime, but Get-Command from outside cannot see it -- checking separately
+            # runtime, but Get-Command from outside cannot see it - checking separately
             # lets us emit both rows when a name collision exists.
             if ($PrivateHostFunctions -and $PrivateHostFunctions.Contains($commandName)) {
                 Write-Trace "${FunctionName}: '$commandName' -> $HostModuleName [HostPrivate]"
