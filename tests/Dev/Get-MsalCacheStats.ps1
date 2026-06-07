@@ -2,7 +2,7 @@
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '')]
 param()
 
-function Get-MsalCacheStats {
+function Get-MsalCacheStat {
     <#
     .SYNOPSIS
     Shows diagnostic statistics for the IRT persistent MSAL token cache.
@@ -62,6 +62,7 @@ function Get-MsalCacheStats {
     identical but the test scopes differ, so each is tested separately.
     #>
     [CmdletBinding()]
+    [OutputType([PSCustomObject[]])]
     param(
         [string] $CachePath,
         [switch] $SkipTokenTest,
@@ -88,13 +89,15 @@ function Get-MsalCacheStats {
     }
 
     # find host module name
-    . (Join-Path $PSScriptRoot 'Find-ModuleRoot.ps1')
-    $HostModuleName = (Find-ModuleRoot -Path $PSScriptRoot).Name
+    . (Join-Path -Path $PSScriptRoot -ChildPath 'Find-ModuleRoot.ps1')
+    $HostModuleInfo = Find-ModuleRoot -Path $PSScriptRoot
 
     # import modules
-    Import-Module $HostModuleName
+    $PsdName = "$($HostModuleInfo.Name).psd1"
+    $SourcePath = Join-Path -Path $HostModuleInfo.Path -ChildPath "Source\$PsdName"
+    Import-Module $SourcePath
     Import-Module Microsoft.Graph.Authentication
-    $HostModule = Get-Module $HostModuleName
+    $HostModule = Get-Module $HostModuleInfo.Name | Where-Object { $_.ModuleBase -match 'Source' }
 
     # ---- Resolve cache path ----
     if (-not $CachePath) {
@@ -111,25 +114,24 @@ function Get-MsalCacheStats {
     }
 
     # ---- Cache file summary ----
-    $Now       = [System.DateTime]::UtcNow
+    $Now = [System.DateTime]::UtcNow
     $CacheFile = Get-Item -Path $CachePath -ErrorAction SilentlyContinue
-    Write-Host ''
     Write-Host '=== IRT MSAL Token Cache ===' -ForegroundColor Cyan
     Write-Host "  Now (UTC)  : $($Now.ToString('yyyy-MM-dd HH:mm:ss'))"
     Write-Host "  Cache path : $CachePath"
     if ($CacheFile) {
-        $SizeKB  = [Math]::Round($CacheFile.Length / 1KB, 2)
+        $SizeKB = [Math]::Round($CacheFile.Length / 1KB, 2)
         $ModTime = $CacheFile.LastWriteTimeUtc.ToString('yyyy-MM-dd HH:mm:ss')
         $AgeDays = [Math]::Round(($Now - $CacheFile.LastWriteTimeUtc).TotalDays, 1)
         Write-Host "  Size       : $SizeKB KB"
         Write-Host "  Modified   : $ModTime UTC ($AgeDays days ago)"
     } else {
         Write-Host '  EXISTS     : NO - run Connect-IRT first' -ForegroundColor Yellow
-        return @()
+        return [PSCustomObject[]]@()
     }
 
     # ---- Prerequisite checks ----
-    $MsalAssembly = & $HostModule.NewBoundScriptBlock({ Import-MsalAssembly })
+    $MsalAssembly = & $HostModule { Import-MsalAssembly }
     Write-Trace "MSAL assembly: $($MsalAssembly.FullName)"
 
     Write-Host "  MSAL ver   : $($MsalAssembly.GetName().Version)"
@@ -141,32 +143,65 @@ function Get-MsalCacheStats {
 
     # ---- Service definitions ----
     # Exchange and IPPS share client ID fb78d390 but use different resource scopes.
+    #
+    # Candidates maps each login host to one or more cloud candidates. login.microsoftonline.us
+    # serves BOTH GCC High (USGov) and DoD (USGovDoD): they share the token endpoint but use
+    # different resource hosts (e.g. graph.microsoft.us vs dod-graph.microsoft.us). A cached
+    # account's Environment can't tell the two apart, so list both and let the token test pick
+    # whichever the tenant actually issues a token for - that reveals the real cloud.
+    #
+    # All scopes use /.default (not a specific scope like User.Read). Graph CLI Tools is a
+    # dynamic-consent app: the cached refresh token is bound to the scopes Connect-IRT
+    # consented. A silent force-refresh for a literal scope outside that set returns
+    # AADSTS65001 (consent required) even when a superset like User.ReadWrite.All is granted,
+    # because consent is evaluated per scope string. /.default reuses existing consent and
+    # never prompts, keeping this a pure refresh-token validity check.
     $Services = [ordered]@{
         Graph    = @{
-            ClientId = '14d82eec-204b-4c2f-b7e8-296a70dab67e'  # Graph CLI Tools
-            Scopes   = @{
-                'login.microsoftonline.com'        = 'https://graph.microsoft.com/User.Read'
-                'login.microsoftonline.us'         = 'https://graph.microsoft.us/User.Read'
-                'login.partner.microsoftonline.cn' = (
-                    'https://microsoftgraph.chinacloudapi.cn/User.Read')
+            ClientId   = '14d82eec-204b-4c2f-b7e8-296a70dab67e'  # Graph CLI Tools
+            Candidates = @{
+                'login.microsoftonline.com'        = @(
+                    @{ Cloud = 'Commercial'; Scope = 'https://graph.microsoft.com/.default' }
+                )
+                'login.microsoftonline.us'         = @(
+                    @{ Cloud = 'USGov'; Scope = 'https://graph.microsoft.us/.default' }
+                    @{ Cloud = 'USGovDoD'; Scope = 'https://dod-graph.microsoft.us/.default' }
+                )
+                'login.partner.microsoftonline.cn' = @(
+                    @{ Cloud = 'China'
+                        Scope = 'https://microsoftgraph.chinacloudapi.cn/.default' }
+                )
             }
         }
         Exchange = @{
-            ClientId = 'fb78d390-0c51-40cd-8e17-fdbfab77341b'  # EXO first-party app
-            Scopes   = @{
-                'login.microsoftonline.com'        = 'https://outlook.office365.com/.default'
-                'login.microsoftonline.us'         = 'https://outlook.office365.us/.default'
-                'login.partner.microsoftonline.cn' = 'https://partner.outlook.cn/.default'
+            ClientId   = 'fb78d390-0c51-40cd-8e17-fdbfab77341b'  # EXO first-party app
+            Candidates = @{
+                'login.microsoftonline.com'        = @(
+                    @{ Cloud = 'Commercial'; Scope = 'https://outlook.office365.com/.default' }
+                )
+                'login.microsoftonline.us'         = @(
+                    @{ Cloud = 'USGov'; Scope = 'https://outlook.office365.us/.default' }
+                    @{ Cloud = 'USGovDoD'; Scope = 'https://outlook-dod.office365.us/.default' }
+                )
+                'login.partner.microsoftonline.cn' = @(
+                    @{ Cloud = 'China'; Scope = 'https://partner.outlook.cn/.default' }
+                )
             }
         }
         IPPS     = @{
-            ClientId = 'fb78d390-0c51-40cd-8e17-fdbfab77341b'  # same app as Exchange
-            Scopes   = @{
-                'login.microsoftonline.com'        = (
-                    'https://dataservice.o365filtering.com/.default')
-                'login.microsoftonline.us'         = (
-                    'https://dataservice.o365filtering.com/.default')
-                'login.partner.microsoftonline.cn' = $null  # IPPS unavailable in China
+            ClientId   = 'fb78d390-0c51-40cd-8e17-fdbfab77341b'  # same app as Exchange
+            Candidates = @{
+                'login.microsoftonline.com'        = @(
+                    @{ Cloud = 'Commercial'
+                        Scope = 'https://dataservice.o365filtering.com/.default' }
+                )
+                # GCC High and DoD share the same IPPS resource, so one candidate covers
+                # both; the token alone can't say which, hence the 'USGov/DoD' label.
+                'login.microsoftonline.us'         = @(
+                    @{ Cloud = 'USGov/DoD'
+                        Scope = 'https://dataservice.o365filtering.com/.default' }
+                )
+                'login.partner.microsoftonline.cn' = @()  # IPPS unavailable in China
             }
         }
     }
@@ -177,151 +212,171 @@ function Get-MsalCacheStats {
         'login.partner.microsoftonline.cn' = 'China'
     }
 
-    # ---- Build one MSAL PublicClientApp per unique ClientId ----
-    # Uses 'common' authority so GetAccountsAsync returns accounts for all tenants.
-    # Persistent cache is registered via Register-MsalCache, reached
-    # with NewBoundScriptBlock so private module functions are in scope.
-    $AppByClientId = @{}
-    $PcaBuilder    = [Microsoft.Identity.Client.PublicClientApplicationBuilder]
+    # ---- Build one MSAL PublicClientApp per (ClientId, cloud authority) ----
+    # MSAL's GetAccountsAsync only returns accounts whose Environment matches the app's
+    # configured authority host (plus known aliases). A single commercial 'common' app
+    # therefore hides GCC High/DoD (login.microsoftonline.us) and China
+    # (login.partner.microsoftonline.cn) accounts entirely. Build one app per cloud so
+    # accounts from every cloud are enumerated. Persistent cache is registered via
+    # Register-MsalCache, reached with NewBoundScriptBlock so private module functions
+    # are in scope. Key format: "<ClientId>|<LoginHost>".
+    $LoginHosts = @(
+        'login.microsoftonline.com'
+        'login.microsoftonline.us'
+        'login.partner.microsoftonline.cn'
+    )
+    $AppByClientIdCloud = @{}
+    $PcaBuilder = [Microsoft.Identity.Client.PublicClientApplicationBuilder]
     $UniqueClientIds = $Services.Values | Select-Object -ExpandProperty ClientId -Unique
 
     foreach ($Cid in $UniqueClientIds) {
-        Write-Trace "Building MSAL app: ClientId=$Cid"
-        try {
-            $NewApp = $PcaBuilder::Create($Cid).
-                WithAuthority('https://login.microsoftonline.com/common').
+        foreach ($LoginHost in $LoginHosts) {
+            Write-Trace "Building MSAL app: ClientId=$Cid Cloud=$LoginHost"
+            try {
+                $NewApp = $PcaBuilder::Create($Cid).
+                WithAuthority("https://$LoginHost/common").
                 WithRedirectUri('http://localhost').
                 Build()
 
-            if ($HostModule) {
-                $RegSb = $HostModule.NewBoundScriptBlock({
-                    param($App, $Path)
-                    Register-MsalCache -App $App -CachePath $Path
-                })
-                & $RegSb $NewApp $CachePath
-                Write-Trace "Persistent cache registered for $Cid"
-            } else {
-                Write-Trace "Skipping cache registration (IRT module not loaded)"
-            }
+                if ($HostModule) {
+                    $RegSb = $HostModule.NewBoundScriptBlock({
+                            param($App, $Path)
+                            Register-MsalCache -App $App -CachePath $Path
+                        })
+                    & $RegSb $NewApp $CachePath
+                    Write-Trace "Persistent cache registered for $Cid ($LoginHost)"
+                } else {
+                    Write-Trace "Skipping cache registration (IRT module not loaded)"
+                }
 
-            $AppByClientId[$Cid] = $NewApp
-        } catch {
-            Write-Warning "Failed to initialize MSAL app (ClientId $Cid): $_"
+                $AppByClientIdCloud["$Cid|$LoginHost"] = $NewApp
+            } catch {
+                Write-Warning "Failed to initialize MSAL app (ClientId $Cid, $LoginHost): $_"
+            }
         }
     }
 
     # ---- Enumerate accounts and test tokens per service ----
     $Results = [System.Collections.Generic.List[PSCustomObject]]::new()
-    $SvcNum  = 0
+    $SvcNum = 0
 
     foreach ($SvcName in $Services.Keys) {
         $SvcNum++
         $Svc = $Services[$SvcName]
-        $App = $AppByClientId[$Svc.ClientId]
-        if (-not $App) { continue }
-
-        Write-Host ''
         $ShortId = $Svc.ClientId.Substring(0, 8)
-        Write-Host "[$SvcNum/3] $SvcName  (clientId: $ShortId...)" -ForegroundColor White
+        Write-Trace "[$SvcNum/$($Services.Count)] $SvcName  (clientId: $ShortId...)"
 
-        try {
-            $Accounts = $App.GetAccountsAsync().GetAwaiter().GetResult()
-        } catch {
-            Write-Warning "GetAccountsAsync failed for ${SvcName}: $_"
-            continue
-        }
-        Write-Trace "${SvcName}: $($Accounts.Count) account(s) in cache"
+        # One cloud-scoped app per login host; each returns only its own cloud's
+        # accounts, so iterate all clouds to cover commercial + sovereign tenants.
+        foreach ($LoginHost in $LoginHosts) {
+            $App = $AppByClientIdCloud["$($Svc.ClientId)|$LoginHost"]
+            if (-not $App) { continue }
 
-        if ($Accounts.Count -eq 0) {
-            Write-Host '    (no accounts cached for this client ID)' -ForegroundColor DarkGray
-            continue
-        }
-
-        foreach ($Acct in $Accounts) {
-            $Tid       = $Acct.HomeAccountId.TenantId
-            $Oid       = $Acct.HomeAccountId.ObjectId
-            $Env       = $Acct.Environment
-            $Cloud     = if ($CloudNames[$Env]) { $CloudNames[$Env] } else { $Env }
-            $TestScope = $Svc.Scopes[$Env]
-
-            Write-Host "    $($Acct.Username)  [$Cloud]  tid=$Tid" -ForegroundColor Gray
-
-            $Row = [PSCustomObject]@{
-                Service           = $SvcName
-                Username          = $Acct.Username
-                TenantId          = $Tid
-                AccountObjectId   = $Oid
-                CloudEnvironment  = $Env
-                Cloud             = $Cloud
-                RefreshTokenValid = $null
-                FailureReason     = $null
-                TokenExpiry       = $null
-                ExtendedExpiry    = $null
-                TokenScopes       = $null
-                TokenAudience     = $null
-                TokenIssuer       = $null
-                TokenIssuedAt     = $null
+            try {
+                $Accounts = $App.GetAccountsAsync().GetAwaiter().GetResult()
+            } catch {
+                Write-Warning "GetAccountsAsync failed for $SvcName ($LoginHost): $_"
+                continue
             }
 
-            if (-not $SkipTokenTest) {
-                if (-not $TestScope) {
-                    $Row.RefreshTokenValid = $false
-                    $Row.FailureReason = "No test scope defined for cloud: $Cloud"
-                } else {
-                    Write-Trace "AcquireTokenSilent: svc=$SvcName env=$Env tid=$Tid"
-                    try {
-                        $SilentResult = $App.AcquireTokenSilent(
-                            [string[]]@($TestScope), $Acct).
-                            WithAuthority("https://$Env/$Tid").
-                            WithForceRefresh($true).
-                            ExecuteAsync().GetAwaiter().GetResult()
+            if ($Accounts.Count -eq 0) {
+                Write-Trace "${SvcName} [$LoginHost]: no accounts cached"
+                continue
+            }
+            Write-Trace "${SvcName} [$LoginHost]: $($Accounts.Count) account(s) in cache"
 
-                        $Row.RefreshTokenValid = $true
-                        $Row.TokenExpiry       = $SilentResult.ExpiresOn.UtcDateTime
-                        $Row.ExtendedExpiry    = $SilentResult.ExtendedExpiresOn.UtcDateTime
-                        $Row.TokenScopes       = ($SilentResult.Scopes -join ' ')
+            foreach ($Acct in $Accounts) {
+                $Tid = $Acct.HomeAccountId.TenantId
+                $Oid = $Acct.HomeAccountId.ObjectId
+                $Env = $Acct.Environment
+                $Cloud = if ($CloudNames[$Env]) { $CloudNames[$Env] } else { $Env }
+                $Candidates = $Svc.Candidates[$Env]
 
-                        $Claims = Expand-Jwt -Token $SilentResult.AccessToken
-                        $Row.TokenAudience = $Claims?.aud
-                        $Row.TokenIssuer   = $Claims?.iss
-                        if ($Claims?.iat) {
-                            $Iat = [System.DateTimeOffset]::FromUnixTimeSeconds([long]$Claims.iat)
-                            $Row.TokenIssuedAt = $Iat.UtcDateTime
+                Write-Trace "    $($Acct.Username)  [$Cloud]  tid=$Tid"
+
+                $Row = [PSCustomObject]@{
+                    Service           = $SvcName
+                    Username          = $Acct.Username
+                    TenantId          = $Tid
+                    AccountObjectId   = $Oid
+                    CloudEnvironment  = $Env
+                    Cloud             = $Cloud
+                    RefreshTokenValid = $null
+                    FailureReason     = $null
+                    TokenExpiry       = $null
+                    ExtendedExpiry    = $null
+                    TokenScopes       = $null
+                    TokenAudience     = $null
+                    TokenIssuer       = $null
+                    TokenIssuedAt     = $null
+                }
+
+                if (-not $SkipTokenTest) {
+                    if (-not $Candidates -or $Candidates.Count -eq 0) {
+                        $Row.RefreshTokenValid = $false
+                        $Row.FailureReason = "No test scope defined for cloud: $Cloud"
+                    } else {
+                        # login.microsoftonline.us serves GCC High AND DoD with different
+                        # resource hosts; the account Environment can't tell them apart. Try
+                        # each candidate and accept the first that returns a token - that
+                        # reveals the real cloud. Only one ever succeeds for a given tenant.
+                        $Failures = [System.Collections.Generic.List[string]]::new()
+                        foreach ($Cand in $Candidates) {
+                            Write-Trace ("AcquireTokenSilent: svc=$SvcName env=$Env " +
+                                "cloud=$($Cand.Cloud) tid=$Tid")
+                            try {
+                                $SilentResult = $App.AcquireTokenSilent(
+                                    [string[]]@($Cand.Scope), $Acct).
+                                WithAuthority("https://$Env/$Tid").
+                                WithForceRefresh($true).
+                                ExecuteAsync().GetAwaiter().GetResult()
+
+                                $ExpiresOn = $SilentResult.ExpiresOn.UtcDateTime
+                                $Row.Cloud = $Cand.Cloud
+                                $Row.RefreshTokenValid = $true
+                                $Row.FailureReason = $null
+                                $Row.TokenExpiry = $ExpiresOn.ToString('yyyy-MM-dd HH:mm')
+                                $ExtDateTime = $SilentResult.ExtendedExpiresOn.UtcDateTime
+                                $Row.ExtendedExpiry = $ExtDateTime.ToString('yyyy-MM-dd HH:mm')
+                                $Row.TokenScopes = ($SilentResult.Scopes -join ' ')
+
+                                $Claims = Expand-Jwt -Token $SilentResult.AccessToken
+                                if ($Claims) {
+                                    $Row.TokenAudience = $Claims.aud
+                                    $Row.TokenIssuer = $Claims.iss
+                                    if ($Claims.iat) {
+                                        $IatEpoch = [long]$Claims.iat
+                                        $Iat = [DateTimeOffset]::FromUnixTimeSeconds($IatEpoch)
+                                        $IatUtc = $Iat.UtcDateTime
+                                        $Row.TokenIssuedAt = $IatUtc.ToString('yyyy-MM-dd HH:mm')
+                                    }
+                                }
+
+                                $Ttl = [Math]::Round(($ExpiresOn - $Now).TotalMinutes, 1)
+                                Write-Trace ("      VALID [$($Cand.Cloud)] - expires " +
+                                    "$($ExpiresOn.ToString('HH:mm')) UTC (in $Ttl min)")
+                                break
+                            } catch {
+                                $Inner = if ($_.Exception.InnerException) {
+                                    $_.Exception.InnerException.Message
+                                } else { $_.Exception.Message }
+                                $Failures.Add("$($Cand.Cloud): $Inner")
+                                Write-Trace "      FAILED [$($Cand.Cloud)] - $Inner"
+                            }
                         }
 
-                        $Ttl    = [Math]::Round(($Row.TokenExpiry - $Now).TotalMinutes, 1)
-                        $ExpStr = $Row.TokenExpiry.ToString('HH:mm')
-                        $OkMsg  = "      VALID - expires $ExpStr UTC (in $Ttl min)"
-                        Write-Host $OkMsg -ForegroundColor Green
-                    } catch {
-                        $Inner = $_.Exception.InnerException?.Message
-                        $Row.RefreshTokenValid = $false
-                        $Row.FailureReason = $Inner ?? $_.Exception.Message
-                        Write-Host "      FAILED - $($Row.FailureReason)" -ForegroundColor Red
-                        Write-Trace "AcquireTokenSilent exception: $_"
+                        if (-not $Row.RefreshTokenValid) {
+                            $Row.RefreshTokenValid = $false
+                            $Row.FailureReason = $Failures -join ' | '
+                            Write-Trace '      FAILED all candidates (see FailureReason)'
+                        }
                     }
                 }
-            }
 
-            $Results.Add($Row)
+                $Results.Add($Row)
+            }
         }
     }
 
-    # ---- Summary table ----
-    if ($Results.Count -gt 0) {
-        Write-Host ''
-        Write-Host '=== Summary ===' -ForegroundColor Cyan
-        $ExpiryCol = @{
-            N = 'TokenExpiry'
-            E = {
-                if ($_.TokenExpiry) { $_.TokenExpiry.ToString('yyyy-MM-dd HH:mm') }
-                else { '-' }
-            }
-        }
-        $Results | Format-Table -Property 'Service', 'Username', 'Cloud', 'TenantId',
-            'RefreshTokenValid', $ExpiryCol -AutoSize
-    }
-
-    Write-Host ''
-    return $Results
+    return $Results.ToArray()
 }
