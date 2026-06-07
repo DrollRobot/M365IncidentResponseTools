@@ -94,6 +94,7 @@ function Get-MsalCacheStats {
     # import modules
     Import-Module $HostModuleName
     Import-Module Microsoft.Graph.Authentication
+    $HostModule = Get-Module $HostModuleName
 
     # ---- Resolve cache path ----
     if (-not $CachePath) {
@@ -128,35 +129,12 @@ function Get-MsalCacheStats {
     }
 
     # ---- Prerequisite checks ----
-    $MsalAssembly = [System.AppDomain]::CurrentDomain.GetAssemblies() |
-        Where-Object { $_.GetName().Name -eq 'Microsoft.Identity.Client' }
-    # if already loaded, load it
-    if (-not $MsalAssembly) {
-        $MsalDllParams = @{
-            Path                = $GraphModule.ModuleBase
-            ChildPath           = 'Dependencies'
-            AdditionalChildPath = 'Core', 'Microsoft.Identity.Client.dll'
-        }
-        $MsalDll = Join-Path @MsalDllParams
-        Write-PSFMessage -Level 8 -Message "Loading MSAL assembly from: $MsalDll"
-        if (-not (Test-Path -LiteralPath $MsalDll)) {
-            throw "MSAL assembly not found at expected path: $MsalDll"
-        }
-        try {
-            Add-Type -Path $MsalDll -ErrorAction Stop
-        } catch {
-            throw "Failed to load MSAL assembly from '$MsalDll': $_"
-        }
-    } else {
-        Write-Trace -Message (
-            "MSAL assembly already loaded: " +
-            "$($MsalAssembly.FullName)")
-    }
+    $MsalAssembly = & $HostModule.NewBoundScriptBlock({ Import-MsalAssembly })
+    Write-Trace "MSAL assembly: $($MsalAssembly.FullName)"
 
     Write-Host "  MSAL ver   : $($MsalAssembly.GetName().Version)"
 
-    $IrtModule = Get-Module M365IncidentResponseTools -ErrorAction SilentlyContinue
-    $ModVerStr = if ($IrtModule) { $IrtModule.Version.ToString() } else {
+    $ModVerStr = if ($HostModule) { $HostModule.Version.ToString() } else {
         'not loaded (persistent cache registration disabled)'
     }
     Write-Host "  IRT module : $ModVerStr"
@@ -201,7 +179,7 @@ function Get-MsalCacheStats {
 
     # ---- Build one MSAL PublicClientApp per unique ClientId ----
     # Uses 'common' authority so GetAccountsAsync returns accounts for all tenants.
-    # Persistent cache is registered via IRT's private Register-MsalCache, reached
+    # Persistent cache is registered via Register-MsalCache, reached
     # with NewBoundScriptBlock so private module functions are in scope.
     $AppByClientId = @{}
     $PcaBuilder    = [Microsoft.Identity.Client.PublicClientApplicationBuilder]
@@ -215,8 +193,8 @@ function Get-MsalCacheStats {
                 WithRedirectUri('http://localhost').
                 Build()
 
-            if ($IrtModule) {
-                $RegSb = $IrtModule.NewBoundScriptBlock({
+            if ($HostModule) {
+                $RegSb = $HostModule.NewBoundScriptBlock({
                     param($App, $Path)
                     Register-MsalCache -App $App -CachePath $Path
                 })

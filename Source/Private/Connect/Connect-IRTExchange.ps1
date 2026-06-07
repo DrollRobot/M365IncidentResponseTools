@@ -166,23 +166,7 @@ function Connect-IRTExchange {
             Write-PSFMessage -Level 8 -Message (
                 "Using cached Exchange token from session (account: $Upn).")
         } else {
-            # MSAL setup, only needed when we actually have to acquire.
-            $GraphModule = Get-Module Microsoft.Graph.Authentication -ErrorAction SilentlyContinue
-            # if (-not $GraphModule) { # FIXME not needed now that we're explicitly importing?
-            #     throw 'Microsoft.Graph.Authentication must be imported' +
-            #     ' before acquiring an Exchange token.'
-            # }
-            $MsalDllParams = @{
-                Path                = $GraphModule.ModuleBase
-                ChildPath           = 'Dependencies'
-                AdditionalChildPath = 'Core', 'Microsoft.Identity.Client.dll'
-            }
-            $MsalDll = Join-Path @MsalDllParams
-            if (-not ([System.AppDomain]::CurrentDomain.GetAssemblies() |
-                        Where-Object { $_.FullName -like 'Microsoft.Identity.Client,*' })) {
-                Write-PSFMessage -Level 8 -Message "Loading MSAL assembly from: $MsalDll"
-                Add-Type -Path $MsalDll
-            }
+            $null = Import-MsalAssembly
 
             $AppClientId = $Global:IRT_Session.Exchange.PublicClientApplication?.AppConfig?.ClientId
             $SameClient =

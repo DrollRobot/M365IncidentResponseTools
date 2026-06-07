@@ -121,47 +121,7 @@ function Connect-IRTGraph {
 
     process {
 
-        # ---------- Setup: MSAL app, token-acquisition helper ----------
-
-        # Ensure Microsoft.Graph.Authentication is loaded
-        $GraphModule = Get-Module Microsoft.Graph.Authentication -ErrorAction SilentlyContinue
-        # if (-not $GraphModule) { # FIXME not needed now that we're explictly importing?
-        #     try {
-        #         $Params = @{
-        #             Name        = 'Microsoft.Graph.Authentication'
-        #             Force       = $true
-        #             Scope       = 'Global'
-        #             ErrorAction = 'Stop'
-        #         }
-        #         Import-Module @Params
-        #         $GraphModule = Get-Module Microsoft.Graph.Authentication
-        #     } catch {
-        #         throw "Failed to import Microsoft.Graph.Authentication. Error: $_"
-        #     }
-        # }
-        Write-PSFMessage -Level 8 -Message (
-            "Microsoft.Graph.Authentication version: " +
-            "$($GraphModule.Version)")
-
-        # Ensure MSAL.NET is loaded
-        $MsalAssembly = [System.AppDomain]::CurrentDomain.GetAssemblies() |
-            Where-Object { $_.FullName -like 'Microsoft.Identity.Client,*' }
-
-        # if not, load it
-        if (-not $MsalAssembly) {
-            $MsalDllParams = @{
-                Path                = $GraphModule.ModuleBase
-                ChildPath           = 'Dependencies'
-                AdditionalChildPath = 'Core', 'Microsoft.Identity.Client.dll'
-            }
-            $MsalDll = Join-Path @MsalDllParams
-            Write-PSFMessage -Level 8 -Message "Loading MSAL assembly from: $MsalDll"
-            Add-Type -Path $MsalDll
-        } else {
-            Write-PSFMessage -Level 8 -Message (
-                "MSAL assembly already loaded: " +
-                "$($MsalAssembly.FullName)")
-        }
+        $null = Import-MsalAssembly
 
         # build scopes urls
         $MsalScopes = [string[]]($Scopes | ForEach-Object { "$GraphBaseUrl/$_" })
@@ -498,30 +458,10 @@ function Connect-IRTGraph {
 
             $null = Invoke-AdminConsent @ConsentParams
 
-            # Verify the grant landed. Brief retry window for replication.
-            $StillMissing = $Scopes
-            for ($Attempt = 1; $Attempt -le 5 -and $StillMissing; $Attempt++) {
-                Start-Sleep -Seconds 2
-                try {
-                    $StillMissing = Test-GraphAdminConsent -RequestedScope $Scopes
-                } catch {
-                    $StillMissing = $Scopes
-                }
-                Write-PSFMessage -Level 8 -Message (
-                    "Consent replication check attempt $Attempt/5: " +
-                    "$($StillMissing.Count) scope(s) still missing.")
-            }
-
-            if ($StillMissing) {
-                $AllMissing = $StillMissing -join ', '
-                Write-PSFMessage -Level Warning -Message (
-                    "Tenant-wide grant not yet visible for: $AllMissing")
-                Write-PSFMessage -Level Warning -Message (
-                    'Replication may still be in flight; ' +
-                    're-run Connect-IRT shortly to confirm.')
-            } else {
-                Write-IRT 'Admin consent granted tenant-wide.'
-            }
+            # Entra replication for oauth2PermissionGrants can take 60-120+ seconds.
+            # No point polling here - just inform the operator and continue.
+            Write-IRT ('Admin consent browser flow completed. ' +
+                'Tenant-wide grant may take up to 2 minutes to replicate.') -Level Warn
         }
 
         if (-not $NeedNewToken -and -not $NeedConnect) {
