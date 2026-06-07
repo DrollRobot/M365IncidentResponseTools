@@ -89,7 +89,7 @@ function Build-EmailSearchQuery {
         }
 
         $Property = $TextProperties[$Key]
-        $Quoted = $Values | ForEach-Object { '"' + "$_".Trim() + '"' }
+        $Quoted = @($Values | ForEach-Object { '"' + "$_".Trim() + '"' })
 
         # single value -> Property:"value", multiple -> Property:("v1" OR "v2")
         if ($Quoted.Count -eq 1) {

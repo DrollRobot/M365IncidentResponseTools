@@ -41,6 +41,8 @@ function Build-EmailSearchName {
         [int] $MaxLength = 200
     )
 
+    $JoinString = ', '
+
     # recipients and keywords only; dates are intentionally excluded. key = criteria
     # key, value = label shown in the name
     $NameProperties = [ordered]@{
@@ -66,7 +68,7 @@ function Build-EmailSearchName {
         $Parts.Add("${Label}:${ValueString}")
     }
 
-    $Name = $Parts -join ' - '
+    $Name = $Parts -join $JoinString
 
     # fallback when nothing name-eligible is set
     if (-not $Name) {

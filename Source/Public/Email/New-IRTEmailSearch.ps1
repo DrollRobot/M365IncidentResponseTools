@@ -20,12 +20,12 @@ function New-IRTEmailSearch {
     object.
 
     .PARAMETER Start
-    Start of the Received date range. Accepts an absolute date/time or a relative
-    expression like '3 days ago'. Stored as UTC.
+    Absolute start of the Received date range (any Get-Date-parseable value). Required.
+    Stored as UTC. In interactive mode a relative duration shortcut is also offered.
 
     .PARAMETER End
-    End of the Received date range. Accepts an absolute date/time or a relative
-    expression like '3 days ago'. Stored as UTC.
+    Absolute end of the Received date range (any Get-Date-parseable value). Optional.
+    Stored as UTC.
 
     .PARAMETER From
     One or more sender addresses (KeyQL From). Multiple values are combined with OR.
@@ -63,8 +63,12 @@ function New-IRTEmailSearch {
     Launches the interactive query builder.
 
     .EXAMPLE
-    New-IRTEmailSearch -From 'sus@hacker.com' -Subject 'Payroll change' -Start '5/28/26' -End '5/29/26'
-    Builds and creates a search non-interactively.
+    New-IRTEmailSearch -From 'sus@hacker.com' -Subject 'Payroll' -Start '5/28/26'
+    Builds a search for mail from a sender on or after the start date.
+
+    .EXAMPLE
+    New-IRTEmailSearch -Subject 'invoice' -Start '5/28/26' -End '5/29/26'
+    Builds a search over an absolute date range.
 
     .OUTPUTS
     [pscustomobject] describing the created search. Also appended to $Global:IRT_EmailSearch.
@@ -115,17 +119,18 @@ function New-IRTEmailSearch {
         AttachmentName = $AttachmentName
     }
 
-    # parse date parameters to UTC (absolute or relative input)
+    # parse absolute date parameters to UTC
     foreach ($DateParam in 'Start', 'End') {
         $Raw = Get-Variable -Name $DateParam -ValueOnly
-        if ($Raw) {
-            try {
-                $Criteria[$DateParam] = Resolve-DateInput -InputString $Raw
-            }
-            catch {
-                Write-Error -Category InvalidArgument -ErrorAction Stop -Message (
-                    "-$DateParam invalid. Use a date like '5/28/26 17:00' or '3 days ago'.")
-            }
+        if (-not $Raw) { continue }
+        try {
+            $Parsed = Get-Date -Date $Raw -ErrorAction Stop
+            $Criteria[$DateParam] = [DateTime]::SpecifyKind(
+                $Parsed, [DateTimeKind]::Local).ToUniversalTime()
+        }
+        catch {
+            Write-Error -Category InvalidArgument -ErrorAction Stop -Message (
+                "-$DateParam invalid. Use a date like '5/28/26 17:00'.")
         }
     }
 
@@ -138,13 +143,15 @@ function New-IRTEmailSearch {
         }
     }
 
-    # build the query and name. the query is always scoped to (kind:email); require at
-    # least one additional criterion so we never create a match-everything search
-    $Query = Build-EmailSearchQuery -Criteria $Criteria
-    if ($Query -eq '(kind:email)') {
-        Write-IRT 'No criteria provided beyond kind:email. Nothing to search.' -Level Error
-        return
+    # a start date is required (interactive mode enforces this on accept; this also
+    # covers parameter mode)
+    if (-not $Criteria.Start) {
+        Write-Error -Category InvalidArgument -ErrorAction Stop -Message (
+            'A start date is required. Use -Start.')
     }
+
+    # build the query and name
+    $Query = Build-EmailSearchQuery -Criteria $Criteria
     if (-not $Name) {
         $Name = Build-EmailSearchName -Criteria $Criteria
     }

@@ -8,12 +8,18 @@ function Read-EmailSearchCriteria {
     auto-generated search name, the live ContentMatchQuery, and every criterion's
     current value. The user edits fields by number until they accept or quit.
 
-    Text fields accept comma-separated values (combined with OR in the query). Date
-    fields accept any parseable local date/time or a relative expression such as
-    '3 days ago', and are stored in UTC. Entering a blank value clears a field.
+    Each date bound (Start/End) is stored as a single absolute UTC value but can be set
+    two ways:
+      - Absolute fields accept any Get-Date-parseable value.
+      - Relative fields accept a duration like '3 hours' or '5 days'; the value is
+        immediately resolved to an absolute time (now - duration) and stored on the
+        bound. The relative rows are input shortcuts only and never carry a value.
 
-    Returns the completed criteria dictionary on accept, or $null if the user quits.
-    This is a Write-Host console UI, mirroring the module's Build-Menu helper.
+    Text fields accept comma-separated values (combined with OR in the query).
+    Entering a blank value clears a field. A start date is required before the criteria
+    can be accepted. Returns the completed criteria dictionary on accept, or $null if
+    the user quits. This is a Write-Host console UI, mirroring the module's Build-Menu
+    helper.
 
     .PARAMETER Criteria
     An ordered dictionary to seed and edit. When omitted, a fresh empty set is used.
@@ -23,7 +29,10 @@ function Read-EmailSearchCriteria {
     System.Collections.Specialized.OrderedDictionary on accept, or $null on quit.
 
     .NOTES
-    Version: 1.0.0
+    Version: 1.2.0
+    1.2.0 - Relative dates are interactive shortcuts that set the absolute bound. Start
+        date is now required.
+    1.1.0 - Split each date bound into absolute and relative input fields.
     #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '')]
     [CmdletBinding()]
@@ -52,22 +61,21 @@ function Read-EmailSearchCriteria {
         }
     }
 
-    # menu definition. number -> criteria key, display label, and field type
+    # menu definition. number -> field metadata. date rows carry a Bound (Start/End);
+    # text rows carry a Key
     $Menu = [ordered]@{
-        '1' = @{ Key = 'Start';          Label = 'Start date';                    Type = 'Date' }
-        '2' = @{ Key = 'End';            Label = 'End date';                      Type = 'Date' }
-        '3' = @{ Key = 'From';           Label = 'From';                          Type = 'Text' }
-        '4' = @{ Key = 'To';             Label = 'To';                            Type = 'Text' }
-        '5' = @{ Key = 'Participants';   Label = 'Participants (from/to/cc/bcc)';  Type = 'Text' }
-        '6' = @{ Key = 'Recipients';     Label = 'Recipients (to/cc/bcc)';        Type = 'Text' }
-        '7' = @{ Key = 'Subject';        Label = 'Subject';                       Type = 'Text' }
-        '8' = @{ Key = 'Body';           Label = 'Body';                          Type = 'Text' }
-        '9' = @{ Key = 'AttachmentName'; Label = 'Attachment name';               Type = 'Text' }
+        '1'  = @{ Bound = 'Start'; Label = 'Start date (absolute)'; Type = 'Absolute' }
+        '2'  = @{ Bound = 'Start'; Label = 'Start date (relative)'; Type = 'Relative' }
+        '3'  = @{ Bound = 'End'; Label = 'End date (absolute)'; Type = 'Absolute' }
+        '4'  = @{ Bound = 'End'; Label = 'End date (relative)'; Type = 'Relative' }
+        '5'  = @{ Key = 'From'; Label = 'From'; Type = 'Text' }
+        '6'  = @{ Key = 'To'; Label = 'To'; Type = 'Text' }
+        '7'  = @{ Key = 'Participants'; Label = 'Participants (from/to/cc/bcc)'; Type = 'Text' }
+        '8'  = @{ Key = 'Recipients'; Label = 'Recipients (to/cc/bcc)'; Type = 'Text' }
+        '9'  = @{ Key = 'Subject'; Label = 'Subject'; Type = 'Text' }
+        '10' = @{ Key = 'Body'; Label = 'Body'; Type = 'Text' }
+        '11' = @{ Key = 'AttachmentName'; Label = 'Attachment name'; Type = 'Text' }
     }
-
-    # the query is always scoped to (kind:email); a query equal to this base means the
-    # user has not added any real criteria yet
-    $BaseQuery = '(kind:email)'
 
     while ($true) {
 
@@ -82,33 +90,38 @@ function Read-EmailSearchCriteria {
         Write-Host ''
         Write-Host '  ContentMatchQuery:'
         Write-Host "    $Query" -ForegroundColor Green
-        if ($Query -eq $BaseQuery) {
-            Write-Host '    (add at least one criterion before accepting)' -ForegroundColor DarkGray
+        if (-not $State.Start) {
+            Write-Host '    (a start date is required before accepting)' -ForegroundColor DarkGray
         }
         Write-Host ''
 
         foreach ($Number in $Menu.Keys) {
             $Item = $Menu[$Number]
-            $Value = $State[$Item.Key]
 
             # format the current value for display
-            if ($Item.Type -eq 'Date') {
-                if ($Value) {
-                    $Local = ([datetime]$Value).ToLocalTime().ToString('yyyy-MM-dd HH:mm')
-                    $Utc = ([datetime]$Value).ToString('yyyy-MM-ddTHH:mm:ssZ')
-                    $Display = "$Local  (UTC $Utc)"
+            $Display = switch ($Item.Type) {
+                'Absolute' {
+                    $Value = $State[$Item.Bound]
+                    if ($Value) {
+                        $Local = ([datetime]$Value).ToLocalTime().ToString('yyyy-MM-dd HH:mm')
+                        $Utc = ([datetime]$Value).ToString('yyyy-MM-ddTHH:mm:ssZ')
+                        "$Local  (UTC $Utc)"
+                    }
+                    else { '(not set)' }
                 }
-                else {
-                    $Display = '(not set)'
+                'Relative' {
+                    # input shortcut only; sets the absolute bound, carries no value
+                    ''
                 }
-            }
-            else {
-                $Items = @($Value | Where-Object { "$_".Trim() -ne '' })
-                $Display = if ($Items.Count) { $Items -join ', ' } else { '(not set)' }
+                'Text' {
+                    $Items = @($State[$Item.Key] | Where-Object { "$_".Trim() -ne '' })
+                    if ($Items.Count) { $Items -join ', ' } else { '(not set)' }
+                }
             }
 
+            $NumCol = "[$Number]".PadRight(5)
             $Label = $Item.Label.PadRight(30)
-            Write-Host "    [$Number] $Label $Display"
+            Write-Host "    $NumCol $Label $Display"
         }
 
         Write-Host ''
@@ -116,26 +129,44 @@ function Read-EmailSearchCriteria {
 
         $Choice = (Read-Host 'Select').Trim()
 
-        switch -Regex ($Choice) {
+        if ($Menu.Contains($Choice)) {
+            $Item = $Menu[$Choice]
 
-            '^[1-9]$' {
-                $Item = $Menu[$Choice]
-                if ($Item.Type -eq 'Date') {
-                    $Prompt = "Enter $($Item.Label) (date or '3 days ago'; blank clears)"
+            switch ($Item.Type) {
+
+                'Absolute' {
+                    $Prompt = "Enter $($Item.Label) (e.g. '5/28/26 17:00'; blank clears)"
                     $Raw = (Read-Host $Prompt).Trim()
                     if ($Raw -eq '') {
-                        $State[$Item.Key] = $null
+                        $State[$Item.Bound] = $null
                     }
                     else {
                         try {
-                            $State[$Item.Key] = Resolve-DateInput -InputString $Raw
+                            $Parsed = Get-Date -Date $Raw -ErrorAction Stop
+                            $State[$Item.Bound] = [DateTime]::SpecifyKind(
+                                $Parsed, [DateTimeKind]::Local).ToUniversalTime()
                         }
                         catch {
                             Write-Host "  Could not parse date: $Raw" -ForegroundColor Red
                         }
                     }
                 }
-                else {
+
+                'Relative' {
+                    $Prompt = "Enter $($Item.Label) (e.g. '3 hours' or '5 days')"
+                    $Raw = (Read-Host $Prompt).Trim()
+                    if ($Raw -ne '') {
+                        try {
+                            $Span = ConvertTo-TimeSpan -InputString $Raw
+                            $State[$Item.Bound] = (Get-Date).ToUniversalTime() - $Span
+                        }
+                        catch {
+                            Write-Host "  $($_.Exception.Message)" -ForegroundColor Red
+                        }
+                    }
+                }
+
+                'Text' {
                     $Prompt = "Enter $($Item.Label) (comma-separated, blank to clear)"
                     $Raw = (Read-Host $Prompt).Trim()
                     if ($Raw -eq '') {
@@ -150,31 +181,25 @@ function Read-EmailSearchCriteria {
                     }
                 }
             }
-
-            '^[Aa]$' {
-                if ((Build-EmailSearchQuery -Criteria $State) -eq $BaseQuery) {
-                    Write-Host (
-                        '  Cannot accept: add at least one criterion beyond kind:email.'
-                    ) -ForegroundColor Yellow
-                }
-                else {
-                    return $State
-                }
+        }
+        elseif ($Choice -match '^[Aa]$') {
+            if (-not $State.Start) {
+                Write-Host '  Cannot accept: a start date is required.' -ForegroundColor Yellow
             }
-
-            '^[Cc]$' {
-                foreach ($Key in @($State.Keys)) {
-                    $State[$Key] = if ($Key -in 'Start', 'End') { $null } else { @() }
-                }
+            else {
+                return $State
             }
-
-            '^[Qq]$' {
-                return $null
+        }
+        elseif ($Choice -match '^[Cc]$') {
+            foreach ($Key in @($State.Keys)) {
+                $State[$Key] = if ($Key -in 'Start', 'End') { $null } else { @() }
             }
-
-            default {
-                Write-Host "  Unrecognized choice: $Choice" -ForegroundColor Yellow
-            }
+        }
+        elseif ($Choice -match '^[Qq]$') {
+            return $null
+        }
+        else {
+            Write-Host "  Unrecognized choice: $Choice" -ForegroundColor Yellow
         }
     }
 }
