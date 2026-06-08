@@ -163,7 +163,7 @@ function Show-IRTServicePrincipal {
                 $UsersById = Request-GraphUser -Cached:$Cached -Return 'tablebyid'
 
                 Write-IRT "OAuth2 Permission Grants (delegated) for: ${SpName}"
-                if ($OAuth2Grants.Count -gt 0) {
+                if (($OAuth2Grants | Measure-Object).Count -gt 0) {
                     $OAuth2Grants | ForEach-Object {
                         $User = if ($_.ConsentType -eq 'Principal') {
                             $UsersById[$_.PrincipalId]

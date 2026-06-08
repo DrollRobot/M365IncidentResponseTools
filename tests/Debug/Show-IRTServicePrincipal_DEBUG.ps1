@@ -11,10 +11,8 @@ $InformationPreference = 'Continue'
 if (-not (Test-IRTConnection -Quiet)) {
     Connect-IRTT -TenantId $env:IRT_TEST_TENANT_ID
 }
-if (($Global:IRT_UserObjects | Measure-Object).Count -eq 0) {
-    Find-IRTUser $env:IRT_TEST_USER_ID
+if (($Global:IRT_ServicePrincipalObjects | Measure-Object).Count -eq 0) {
+    Find-IRTServicePrincipal 'Microsoft Graph'
 }
-
-Find-IRTServicePrincipal 'Microsoft Graph'
 
 Show-IRTServicePrincipal
