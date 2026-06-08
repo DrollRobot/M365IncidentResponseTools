@@ -64,8 +64,8 @@ function Write-Trace {
 
 ## Testing after code changes
 
-After writing new code, run tests as described in [TESTING.md](TESTING.md).
+After writing new code, run tests as described in [AGENTS.TESTING.md](AGENTS.TESTING.md).
 
 ## Build and Release
 
-For build and release procedures, see [RELEASING.md](RELEASING.md).
+For build and release procedures, see [AGENTS.RELEASING.md](AGENTS.RELEASING.md).

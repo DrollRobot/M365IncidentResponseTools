@@ -57,13 +57,3 @@ current format rules. Do not rely on training data -- request a fresh copy every
    `# Changelog` heading. Use today's date and the version about to be tagged.
    Do not rewrite or delete any existing sections.
 
-4. If `CHANGELOG.md` does not exist yet, create it with this skeleton first:
-
-   ```markdown
-   # Changelog
-
-   All notable changes to this project will be documented in this file.
-   Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
-
-   <!-- newest release goes here -->
-   ```
