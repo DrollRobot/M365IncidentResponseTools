@@ -10,7 +10,7 @@ function Show-IRTEntraAuditLog {
 	#>
     [CmdletBinding(DefaultParameterSetName = 'Objects')]
     param (
-        [Parameter(Position = 0, Mandatory, ParameterSetName = 'Objects')]
+        [Parameter(Position = 0, ParameterSetName = 'Objects')]
         [Alias('Logs')]
         [System.Collections.Generic.List[PSObject]] $Log,
 
@@ -26,23 +26,34 @@ function Show-IRTEntraAuditLog {
 
     begin {
         Import-IRTModule -Name 'ImportExcel', 'PSFramework'
-        # get logs from file if xml path used
-        if ( $XmlPath ) {
+        $ParameterSet = $PSCmdlet.ParameterSetName
 
-            $ResolvedXmlPath = Resolve-ScriptPath -Path $XmlPath -File -FileExtension 'xml'
-            [System.Collections.Generic.List[PSObject]]$Log = Import-Clixml -Path $ResolvedXmlPath
-        }
-        elseif ( -not $Log ) {
-
-            # run import-logs to get file name
-            $ImportParams = @{
-                Pattern    = "^EntraAuditLogs_Raw_.*\.xml$"
-                ReturnPath = $true
+        # import from xml
+        if ($ParameterSet -eq 'Xml') {
+            try {
+                $ResolvedXmlPath = Resolve-ScriptPath -Path $XmlPath -File -FileExtension 'xml'
+                [System.Collections.Generic.List[PSObject]]$Log =
+                Import-CliXml -Path $ResolvedXmlPath
             }
-            $ResolvedXmlPath = Import-LogFile @ImportParams
+            catch {
+                $_
+                $ErrorParams = @{
+                    Category    = 'ReadError'
+                    Message     = "Error importing from ${XmlPath}."
+                    ErrorAction = 'Stop'
+                }
+                Write-Error @ErrorParams
+            }
+        }
 
-            # use path to import logs
-            [System.Collections.Generic.List[PSObject]]$Log = Import-Clixml -Path $ResolvedXmlPath
+        # logs must come from either -Log or -XmlPath
+        if (-not $Log) {
+            $ErrorParams = @{
+                Category    = 'InvalidArgument'
+                Message     = 'No logs provided. Use -Log or -XmlPath.'
+                ErrorAction = 'Stop'
+            }
+            Write-Error @ErrorParams
         }
 
         #region METADATA

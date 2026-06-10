@@ -8,7 +8,7 @@ function Show-IRTMessageTrace {
 	#>
     [CmdletBinding( DefaultParameterSetName = 'Objects' )]
     param (
-        [Parameter(Position = 0, Mandatory, ValueFromPipeline, ParameterSetName = 'Objects')]
+        [Parameter(Position = 0, ValueFromPipeline, ParameterSetName = 'Objects')]
         [Alias('Messages')]
         [System.Collections.Generic.List[PSObject]] $Message,
 
@@ -43,6 +43,16 @@ function Show-IRTMessageTrace {
                 Write-IRT "Error importing from ${XmlPath}." -Level Error
                 return
             }
+        }
+
+        # messages must come from either -Message or -XmlPath
+        if (-not $Message) {
+            $ErrorParams = @{
+                Category    = 'InvalidArgument'
+                Message     = 'No messages provided. Use -Message or -XmlPath.'
+                ErrorAction = 'Stop'
+            }
+            Write-Error @ErrorParams
         }
 
         # import metadata

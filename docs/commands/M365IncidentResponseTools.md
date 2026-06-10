@@ -107,9 +107,6 @@ Locale: en-US
 ### [Import-IRTConfig](Import-IRTConfig.md)
 {{ Fill in the Description }}
 
-### [Import-LogFile](Import-LogFile.md)
-{{ Fill in the Description }}
-
 ### [New-InvestigationFolder](New-InvestigationFolder.md)
 {{ Fill in the Description }}
 

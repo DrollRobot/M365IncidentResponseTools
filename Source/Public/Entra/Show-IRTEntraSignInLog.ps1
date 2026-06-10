@@ -9,7 +9,7 @@ function Show-IRTEntraSignInLog {
 	#>
     [CmdletBinding(DefaultParameterSetName = 'Objects')]
     param (
-        [Parameter(Position = 0, Mandatory, ParameterSetName = 'Objects')]
+        [Parameter(Position = 0, ParameterSetName = 'Objects')]
         [Alias('Logs')]
         [System.Collections.Generic.List[PSObject]] $Log,
 
@@ -49,6 +49,16 @@ function Show-IRTEntraSignInLog {
                 }
                 Write-Error @ErrorParams
             }
+        }
+
+        # logs must come from either -Log or -XmlPath
+        if (-not $Log) {
+            $ErrorParams = @{
+                Category    = 'InvalidArgument'
+                Message     = 'No logs provided. Use -Log or -XmlPath.'
+                ErrorAction = 'Stop'
+            }
+            Write-Error @ErrorParams
         }
 
         #region Metadata

@@ -94,7 +94,6 @@ nav:
       - Get-IRTUserObject: commands/Get-IRTUserObject.md
       - Get-LicenseReport: commands/Get-LicenseReport.md
       - Import-IRTConfig: commands/Import-IRTConfig.md
-      - Import-LogFile: commands/Import-LogFile.md
       - New-InvestigationFolder: commands/New-InvestigationFolder.md
       - Open-IRTConfig: commands/Open-IRTConfig.md
       - Request-DirectoryRole: commands/Request-DirectoryRole.md
