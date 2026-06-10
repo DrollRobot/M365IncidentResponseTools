@@ -39,8 +39,11 @@ param(
 . (Join-Path -Path $PSScriptRoot -ChildPath '..\Scripts\Find-ScriptCommand.ps1')
 . (Join-Path -Path $PSScriptRoot -ChildPath '..\Scripts\Resolve-CommandModule.ps1')
 
-$ExcludedFolders = @()
-$ExcludedFiles = @()
+# This check enforces the Import-IRTModule convention from AGENTS.md, which
+# applies only to in-domain code under Source\. Dev tooling, build scripts,
+# and tests are non-domain and exempt.
+$ExcludedFolders = @('Scripts', 'Tests', 'Build', 'Docs', '.local')
+$ExcludedFiles = @('Build.ps1', 'Tests.ps1', 'Docs.ps1')
 
 if ($Global:Dev_FormattingExclusions) {
     $ExcludedFiles += $Global:Dev_FormattingExclusions.ExcludeFiles
@@ -64,12 +67,36 @@ if (-not (Get-Module -Name $CurrentModuleName)) {
 # (e.g. modules not installed here, like ActiveDirectory RSAT tools).
 # Add entries as new undiscoverable dependencies are introduced.
 $CommandModuleMap = @{
+    'Disable-ADAccount'        = 'ActiveDirectory'
+    'Enable-ADAccount'         = 'ActiveDirectory'
+    'Get-ADComputer'           = 'ActiveDirectory'
     'Get-ADDomain'             = 'ActiveDirectory'
     'Get-ADDomainController'   = 'ActiveDirectory'
+    'Get-ADGroup'              = 'ActiveDirectory'
+    'Get-ADGroupMember'        = 'ActiveDirectory'
     'Get-ADOrganizationalUnit' = 'ActiveDirectory'
     'Get-ADUser'               = 'ActiveDirectory'
+    'Set-ADAccountPassword'    = 'ActiveDirectory'
     'Set-ADUser'               = 'ActiveDirectory'
     'Start-ADSyncSyncCycle'    = 'ADSync'
+    # ExchangeOnlineManagement REST cmdlets only exist in the session after
+    # Connect-ExchangeOnline / Connect-IPPSSession, so offline they never
+    # resolve via Get-Command.
+    'Add-MailboxPermission'    = 'ExchangeOnlineManagement'
+    'Add-RecipientPermission'  = 'ExchangeOnlineManagement'
+    'Get-AcceptedDomain'       = 'ExchangeOnlineManagement'
+    'Get-ComplianceSearch'     = 'ExchangeOnlineManagement'
+    'Get-InboxRule'            = 'ExchangeOnlineManagement'
+    'Get-Mailbox'              = 'ExchangeOnlineManagement'
+    'Get-MailboxPermission'    = 'ExchangeOnlineManagement'
+    'Get-MessageTrace'         = 'ExchangeOnlineManagement'
+    'Get-MessageTraceV2'       = 'ExchangeOnlineManagement'
+    'Get-OrganizationConfig'   = 'ExchangeOnlineManagement'
+    'New-ComplianceSearch'     = 'ExchangeOnlineManagement'
+    'Remove-ComplianceSearch'  = 'ExchangeOnlineManagement'
+    'Remove-MailboxPermission' = 'ExchangeOnlineManagement'
+    'Search-UnifiedAuditLog'   = 'ExchangeOnlineManagement'
+    'Start-ComplianceSearch'   = 'ExchangeOnlineManagement'
 }
 
 $GetChildParams = @{
@@ -109,7 +136,9 @@ foreach ($file in $files) {
 
     if ($content -match '#\s*noqa:\s*Test-ExplicitModuleImport') { continue }
 
-    $commands = @(Find-ScriptCommand -Path $file.FullName)
+    # Functions defined in the file itself (including nested helpers) are not
+    # external dependencies; without this they all surface as NotFound noise.
+    $commands = @(Find-ScriptCommand -Path $file.FullName -ExcludeLocalFunctions)
     if ($commands.Count -eq 0) { continue }
 
     $ResolvedCommands = $commands | Resolve-CommandModule -HostModuleName $CurrentModuleName
@@ -128,10 +157,14 @@ foreach ($file in $files) {
         Where-Object { $_.Source -eq 'NotFound' -and $CommandModuleMap.ContainsKey($_.Name) } |
         ForEach-Object { [PSCustomObject]@{ Name = $_.Name; Module = $CommandModuleMap[$_.Name] } }
 
+    # Names without a hyphen are not module commands: native tools (repadmin)
+    # or bare words the parser reads as commands inside AD -Filter
+    # scriptblocks (AdminCount).
     $UnknownCommands = @(
         $ResolvedCommands |
             Where-Object {
                 $_.Source -eq 'NotFound' -and
+                $_.Name -match '-' -and
                 -not $PrivateShadowed.Contains($_.Name) -and
                 -not $CommandModuleMap.ContainsKey($_.Name)
             }

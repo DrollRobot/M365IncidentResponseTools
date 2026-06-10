@@ -19,6 +19,11 @@ function Find-ScriptCommand {
     .PARAMETER Text
         A string of PowerShell code to parse. Cannot be combined with -Path.
 
+    .PARAMETER ExcludeLocalFunctions
+        Omit commands whose name matches a function defined anywhere in the parsed code
+        itself, including functions nested inside other functions. Useful when the goal
+        is to find a script's external dependencies rather than every invocation.
+
     .PARAMETER Trace
         Emits diagnostic trace output describing what is being parsed and which command
         names are found or skipped.
@@ -40,10 +45,10 @@ function Find-ScriptCommand {
         One string per unique command name, sorted alphabetically.
 
     .NOTES
-        Command names returned include functions defined within the parsed code itself.
-        To map commands to their owning modules, pipe the results through Get-Command and
-        inspect the ModuleName property; locally defined functions will resolve to no
-        module.
+        By default, command names returned include functions defined within the parsed
+        code itself; pass -ExcludeLocalFunctions to omit them. To map commands to their
+        owning modules, pipe the results through Get-Command and inspect the ModuleName
+        property; locally defined functions will resolve to no module.
     #>
     [CmdletBinding(DefaultParameterSetName = 'Path')]
     param(
@@ -52,6 +57,8 @@ function Find-ScriptCommand {
 
         [Parameter(Mandatory, ParameterSetName = 'Text')]
         [string] $Text,
+
+        [switch] $ExcludeLocalFunctions,
 
         [switch] $Trace
     )
@@ -87,14 +94,32 @@ function Find-ScriptCommand {
     }
     $commandAsts = $ast.FindAll($isCommand, $true)
 
+    # Collect every function defined in the parsed code, including functions
+    # nested inside other functions. Nested helpers never reach module scope,
+    # so callers cannot discover them any other way.
+    $localFunctions = [System.Collections.Generic.HashSet[string]]::new(
+        [System.StringComparer]::OrdinalIgnoreCase)
+    if ($ExcludeLocalFunctions) {
+        $isFunction = {
+            param($node)
+            $node -is [System.Management.Automation.Language.FunctionDefinitionAst]
+        }
+        foreach ($definition in $ast.FindAll($isFunction, $true)) {
+            [void] $localFunctions.Add($definition.Name)
+        }
+    }
+
     $names = foreach ($command in $commandAsts) {
         $name = $command.GetCommandName()
-        if ($name) {
-            Write-Trace "${FunctionName}: found '$name'"
-            $name
+        if (-not $name) {
+            Write-Trace "${FunctionName}: skipped dynamic call (no static name)"
+        }
+        elseif ($localFunctions.Contains($name)) {
+            Write-Trace "${FunctionName}: skipped locally defined function '$name'"
         }
         else {
-            Write-Trace "${FunctionName}: skipped dynamic call (no static name)"
+            Write-Trace "${FunctionName}: found '$name'"
+            $name
         }
     }
 
