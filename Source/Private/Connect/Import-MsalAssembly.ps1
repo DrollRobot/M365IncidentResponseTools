@@ -22,6 +22,8 @@ function Import-MsalAssembly {
     [OutputType([System.Reflection.Assembly])]
     param()
 
+    Import-IRTModule -Name 'PSFramework'
+
     $Assembly = [System.AppDomain]::CurrentDomain.GetAssemblies() |
         Where-Object { $_.FullName -like 'Microsoft.Identity.Client,*' }
 

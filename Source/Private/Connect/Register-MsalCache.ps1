@@ -38,6 +38,8 @@ function Register-MsalCache {
         [string] $CachePath = $Global:IRT_Config.MsalCachePath
     )
 
+    Import-IRTModule -Name 'PSFramework'
+
     Write-PSFMessage -Level 8 -Message "Register-MsalCache: CachePath=$CachePath"
 
     if (-not $IsWindows -and $PSVersionTable.PSVersion.Major -ge 6) {

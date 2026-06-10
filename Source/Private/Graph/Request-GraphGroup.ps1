@@ -22,6 +22,7 @@ function Request-GraphGroup {
     )
 
     begin {
+        Import-IRTModule -Name 'Microsoft.Graph.Groups', 'PSFramework'
         $FunctionName = $MyInvocation.MyCommand.Name
         $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
 

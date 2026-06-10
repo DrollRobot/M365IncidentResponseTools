@@ -31,6 +31,8 @@ function Import-IRTModule {
         [string[]] $Name
     )
 
+    Import-Module -Name 'PSFramework'
+
     foreach ($module in $Name) {
         if (Get-Module -Name $module) {
             Write-PSFMessage -Level 8 -Message "Module already loaded, skipping: $module"

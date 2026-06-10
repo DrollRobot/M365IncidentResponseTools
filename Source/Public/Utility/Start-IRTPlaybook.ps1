@@ -63,6 +63,7 @@ function Start-IRTPlaybook {
     )
 
     begin {
+        Import-IRTModule -Name 'PSFramework'
 
         #region BEGIN
 

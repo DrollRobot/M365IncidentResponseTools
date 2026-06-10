@@ -18,6 +18,7 @@ function Set-IRTDeviceEnabled {
 
     begin {
         Update-IRTToken -Service 'Graph'
+        Import-IRTModule -Name 'Microsoft.Graph.Identity.DirectoryManagement'
         # if not passed directly, find global
         if ( -not $DeviceObject -or $DeviceObject.Count -eq 0 ) {
 

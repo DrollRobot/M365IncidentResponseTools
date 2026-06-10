@@ -41,6 +41,13 @@ function Get-IRTLicenseReport {
     )
 
     begin {
+        $ImportParams = @{
+            Name = @(
+                'Microsoft.Graph.Authentication'
+                'Microsoft.Graph.Identity.DirectoryManagement'
+            )
+        }
+        Import-IRTModule @ImportParams
         $Context = Get-MgContext
         if ( -not $Context ) {
             throw "Not connected to Graph. Exiting"

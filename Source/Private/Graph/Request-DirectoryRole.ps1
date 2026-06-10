@@ -22,6 +22,7 @@ function Request-DirectoryRole {
     )
 
     begin {
+        Import-IRTModule -Name 'Microsoft.Graph.Identity.DirectoryManagement', 'PSFramework'
         $FunctionName = $MyInvocation.MyCommand.Name
         $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
 

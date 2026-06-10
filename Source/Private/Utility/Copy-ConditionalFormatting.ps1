@@ -86,6 +86,8 @@ function Copy-ConditionalFormatting {
         [string] $DestinationSheet
     )
 
+    Import-IRTModule -Name 'PSFramework'
+
     # ---------------------------------------------------------------- helpers ----
     function Resolve-Package($in, [string]$role) {
         if ($in -is [string]) {

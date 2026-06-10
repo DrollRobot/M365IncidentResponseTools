@@ -29,6 +29,10 @@ function Test-IRTConnection {
         [switch] $Quiet
     )
 
+    begin {
+        Import-IRTModule -Name 'ExchangeOnlineManagement', 'Microsoft.Graph.Authentication'
+    }
+
     process {
 
         $GraphCtx = Get-MgContext -ErrorAction SilentlyContinue

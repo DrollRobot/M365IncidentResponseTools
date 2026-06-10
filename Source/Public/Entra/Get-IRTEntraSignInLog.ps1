@@ -100,7 +100,15 @@ function Get-IRTEntraSignInLog {
 
     begin {
         Update-IRTToken -Service 'Graph'
-        Import-IRTModule -Name 'ImportExcel', 'PSFramework'
+        $ImportParams = @{
+            Name = @(
+                'ImportExcel'
+                'Microsoft.Graph.Beta.Reports'
+                'Microsoft.Graph.Reports'
+                'PSFramework'
+            )
+        }
+        Import-IRTModule @ImportParams
 
         #region BEGIN
 

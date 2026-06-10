@@ -22,6 +22,7 @@ function Request-GraphUser {
     )
 
     begin {
+        Import-IRTModule -Name 'Microsoft.Graph.Users', 'PSFramework'
         $FunctionName = $MyInvocation.MyCommand.Name
         $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
 

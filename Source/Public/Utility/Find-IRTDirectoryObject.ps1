@@ -6,6 +6,15 @@ function Find-IRTDirectoryObject {
     )
 
     begin {
+        $ImportParams = @{
+            Name = @(
+                'Microsoft.Graph.Applications'
+                'Microsoft.Graph.DirectoryObjects'
+                'Microsoft.Graph.Groups'
+                'Microsoft.Graph.Users'
+            )
+        }
+        Import-IRTModule @ImportParams
         $GuidPattern = "\b[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}\b"
 
         # get content from clipboard

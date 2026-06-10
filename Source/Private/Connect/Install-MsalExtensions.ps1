@@ -23,6 +23,8 @@ function Install-MsalExtensions {
         Justification = 'Internal helper; plural name reflects MSAL extensions assembly.')]
     param()
 
+    Import-IRTModule -Name 'PSFramework'
+
     # Pinned version. Bump when Graph SDK's bundled MSAL outpaces this.
     $Version = '4.66.2'
     $MsalFloor = [version]'4.61.3'  # Extensions.Msal 4.66.x minimum MSAL

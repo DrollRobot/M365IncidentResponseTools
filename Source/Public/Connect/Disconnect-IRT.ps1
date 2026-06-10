@@ -27,6 +27,10 @@ function Disconnect-IRT {
         [switch] $IPPS
     )
 
+    begin {
+        Import-IRTModule -Name 'ExchangeOnlineManagement', 'Microsoft.Graph.Authentication'
+    }
+
     process {
 
         # if no service switches specified, disconnect from all

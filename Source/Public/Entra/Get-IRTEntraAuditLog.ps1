@@ -75,7 +75,15 @@ function Get-IRTEntraAuditLog {
 
     begin {
         Update-IRTToken -Service 'Graph'
-        Import-IRTModule -Name 'ImportExcel', 'PSFramework'
+        $ImportParams = @{
+            Name = @(
+                'ImportExcel'
+                'Microsoft.Graph.Beta.Reports'
+                'Microsoft.Graph.Reports'
+                'PSFramework'
+            )
+        }
+        Import-IRTModule @ImportParams
         $FunctionName = $MyInvocation.MyCommand.Name
         $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
         $FilterStrings = [System.Collections.Generic.List[string]]::new()

@@ -15,6 +15,7 @@ function Request-MessageTraceV1 {
     )
     begin {
         Update-IRTToken -Service 'Exchange'
+        Import-IRTModule -Name 'ExchangeOnlineManagement', 'PSFramework'
         $PageSize = 5000
         $Page = 1
         $MoreToGet = $true

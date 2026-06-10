@@ -17,6 +17,8 @@ function Open-IRTTenantOwnerCSV {
     [CmdletBinding()]
     param ()
 
+    Import-IRTModule -Name 'PSFramework'
+
     $moduleName = $MyInvocation.MyCommand.ModuleName
     $JpParams = @{
         Path                = $env:APPDATA

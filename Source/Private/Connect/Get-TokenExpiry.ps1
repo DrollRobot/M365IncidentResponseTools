@@ -13,6 +13,8 @@ function Get-TokenExpiry {
         [string] $Token
     )
 
+    Import-IRTModule -Name 'PSFramework'
+
     try {
         $parts = $Token.Split('.')
         if ($parts.Count -lt 2) { return $null }

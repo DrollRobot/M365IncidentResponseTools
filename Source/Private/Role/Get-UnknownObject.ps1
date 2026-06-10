@@ -13,6 +13,10 @@ function Get-UnknownObject {
         [string] $Id
     )
 
+    begin {
+        Import-IRTModule -Name 'Microsoft.Graph.DirectoryObjects'
+    }
+
     process {
 
         # try cached lookups first

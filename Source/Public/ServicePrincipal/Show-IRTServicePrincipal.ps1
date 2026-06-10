@@ -74,6 +74,7 @@ function Show-IRTServicePrincipal {
 
     begin {
         Update-IRTToken -Service 'Graph'
+        Import-IRTModule -Name 'Microsoft.Graph.Applications', 'Microsoft.Graph.Identity.Governance'
         if ( -not $ServicePrincipalObject -or $ServicePrincipalObject.Count -eq 0 ) {
             $ScriptServicePrincipalObjects = @( $Global:IRT_ServicePrincipalObjects )
             if ( -not $ScriptServicePrincipalObjects -or

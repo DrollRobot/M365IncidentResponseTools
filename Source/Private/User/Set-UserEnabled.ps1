@@ -18,6 +18,14 @@ function Set-UserEnabled {
 
     begin {
         Update-IRTToken -Service 'Graph'
+        $ImportParams = @{
+            Name = @(
+                'Microsoft.Graph.Identity.DirectoryManagement'
+                'Microsoft.Graph.Users'
+                'Microsoft.Graph.Users.Actions'
+            )
+        }
+        Import-IRTModule @ImportParams
         # if not passed directly, find global
         if ( -not $UserObject -or $UserObject.Count -eq 0 ) {
 

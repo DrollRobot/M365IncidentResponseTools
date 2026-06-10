@@ -11,6 +11,10 @@ function Request-IntuneDevice {
     [CmdletBinding()]
     param ()
 
+    begin {
+        Import-IRTModule -Name 'Microsoft.Graph.DeviceManagement', 'PSFramework'
+    }
+
     process {
 
         try {

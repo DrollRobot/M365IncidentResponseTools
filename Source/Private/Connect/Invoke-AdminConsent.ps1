@@ -17,6 +17,7 @@ function Invoke-AdminConsent {
     )
 
     begin {
+        Import-IRTModule -Name 'PSFramework'
         $Listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, 0)
         $Listener.Start()
         $Port = ([System.Net.IPEndPoint]$Listener.LocalEndpoint).Port

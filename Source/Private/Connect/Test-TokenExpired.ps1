@@ -19,6 +19,8 @@ function Test-TokenExpired {
         [int] $BufferSeconds = 300
     )
 
+    Import-IRTModule -Name 'PSFramework'
+
     $expiry = Get-TokenExpiry -Token $Token
     if ($null -eq $expiry) {
         Write-PSFMessage -Level 8 -Message (

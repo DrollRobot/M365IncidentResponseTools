@@ -22,6 +22,7 @@ function Request-GraphOauth2Grant {
     )
 
     begin {
+        Import-IRTModule -Name 'Microsoft.Graph.Identity.SignIns', 'PSFramework'
         $FunctionName = $MyInvocation.MyCommand.Name
         $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
 

@@ -47,7 +47,7 @@ function Find-IRTRiskyServicePrincipal {
 
     begin {
         Update-IRTToken -Service 'Graph'
-        Import-IRTModule -Name 'Microsoft.Graph.Applications'
+        Import-IRTModule -Name 'Microsoft.Graph.Applications', 'Microsoft.Graph.Identity.SignIns'
         # variables
         $UserDisplayProperties = @(
             'AccountEnabled'

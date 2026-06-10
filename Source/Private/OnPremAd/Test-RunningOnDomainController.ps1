@@ -15,6 +15,8 @@ function Test-RunningOnDomainController {
     [CmdletBinding()]
     param ()
 
+    Import-IRTModule -Name 'ActiveDirectory'
+
     try {
         $DomainControllerNames = (Get-ADDomainController -Filter *).Name
         return $env:ComputerName -in $DomainControllerNames

@@ -67,6 +67,8 @@ function Update-IRTToken {
         [switch] $PassThru
     )
 
+    Import-IRTModule -Name 'PSFramework'
+
     Write-PSFMessage -Level 8 -Message (
         "Update-IRTToken: Services=[$($Service -join ', ')], " +
         "SkipIfNeverConnected=$SkipIfNeverConnected")

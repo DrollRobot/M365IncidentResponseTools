@@ -72,7 +72,7 @@ function Get-IRTTenantOwner {
 
         # update connection
         Update-IRTToken -Service 'Graph'
-        Import-IRTModule -Name 'PSFramework'
+        Import-IRTModule -Name 'Microsoft.Graph.Authentication', 'PSFramework'
 
         $NewCacheEntries = [System.Collections.Generic.List[psobject]]::new()
         $ModuleName = $MyInvocation.MyCommand.ModuleName

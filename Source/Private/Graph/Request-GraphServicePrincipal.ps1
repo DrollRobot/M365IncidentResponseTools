@@ -22,6 +22,7 @@ function Request-GraphServicePrincipal {
     )
 
     begin {
+        Import-IRTModule -Name 'Microsoft.Graph.Applications', 'PSFramework'
         $FunctionName = $MyInvocation.MyCommand.Name
         $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
 

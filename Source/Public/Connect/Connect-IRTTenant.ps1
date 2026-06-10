@@ -78,6 +78,7 @@ function Connect-IRTTenant {
     )
 
     begin {
+        Import-IRTModule -Name 'ImportExcel'
         if (-not $TenantFile) {
             $TenantFile = $Global:IRT_Config.TenantsSheetPath
         }

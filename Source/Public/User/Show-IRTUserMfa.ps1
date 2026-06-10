@@ -57,7 +57,15 @@ function Show-IRTUserMfa {
 
     begin {
         Update-IRTToken -Service 'Graph'
-        Import-IRTModule -Name 'ImportExcel', 'Microsoft.Graph.Users'
+        $ImportParams = @{
+            Name = @(
+                'ImportExcel'
+                'Microsoft.Graph.Identity.SignIns'
+                'Microsoft.Graph.Users'
+                'PSFramework'
+            )
+        }
+        Import-IRTModule @ImportParams
         $OutputTable = [System.Collections.Generic.List[PSCustomObject]]::new()
         $Properties = [System.Collections.Generic.Hashset[string]]::new()
         $PropertySortOrder = @(

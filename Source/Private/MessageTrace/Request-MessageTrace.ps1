@@ -18,6 +18,7 @@ function Request-MessageTrace {
 
     begin {
         Update-IRTToken -Service 'Exchange'
+        Import-IRTModule -Name 'ExchangeOnlineManagement'
         $MaxPageSize = 5000
         $AbsoluteEnd = Get-Date
         $AbsoluteStart = $AbsoluteEnd.AddDays(-1 * $Days)

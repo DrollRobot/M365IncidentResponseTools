@@ -28,6 +28,7 @@ function Get-FullUserObject {
 
     begin {
         Update-IRTToken -Service 'Graph'
+        Import-IRTModule -Name 'Microsoft.Graph.Users', 'PSFramework'
         $ScriptUserObject = $UserObject
 
         # properties you can safely query on all users

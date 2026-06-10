@@ -66,6 +66,10 @@ function Push-IRTAdSync {
         [int] $ThrottleLimit = 20
     )
 
+    begin {
+        Import-IRTModule -Name 'ActiveDirectory'
+    }
+
     process {
 
         if (Test-RunningOnDomainController) {

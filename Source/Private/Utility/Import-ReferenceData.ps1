@@ -31,6 +31,8 @@ function Import-ReferenceData {
     [CmdletBinding()]
     param()
 
+    Import-IRTModule -Name 'ImportExcel', 'PSFramework'
+
     $ModuleRoot = $MyInvocation.MyCommand.Module.ModuleBase
 
     # Entra ID sign-in error codes (int-keyed synchronized hashtable for runspace safety)

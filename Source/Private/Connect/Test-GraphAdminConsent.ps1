@@ -23,6 +23,8 @@ function Test-GraphAdminConsent {
         [string] $ResourceAppId = '00000003-0000-0000-c000-000000000000' # Microsoft Graph
     )
 
+    Import-IRTModule -Name 'Microsoft.Graph.Authentication', 'PSFramework'
+
     Write-PSFMessage -Level 8 -Message (
         "Test-GraphAdminConsent: Resolving SPs - Client=$ClientAppId, Resource=$ResourceAppId")
 

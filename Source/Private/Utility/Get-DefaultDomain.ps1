@@ -74,6 +74,10 @@ function Get-DefaultDomain {
         [switch] $SecondLevelDomain
     )
 
+    begin {
+        Import-IRTModule -Name 'Microsoft.Graph.Identity.DirectoryManagement', 'PSFramework'
+    }
+
     process {
 
         # serve from cache when available

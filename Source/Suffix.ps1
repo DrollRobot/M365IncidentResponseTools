@@ -1,5 +1,7 @@
 # ModuleBuilder Notes: Code in this file will be appended to the built .psm1 file.
 
+Import-IRTModule -Name 'PSFramework'
+
 # when removing module from session, restore original prompt function if it was modified
 $ExecutionContext.SessionState.Module.OnRemove = {
     if ($Global:IRT_OriginalPrompt) {
