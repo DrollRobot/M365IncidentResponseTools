@@ -34,10 +34,10 @@ param(
     [switch] $Quiet
 )
 
-# import helper functions. they must be in same directory.
-. (Join-Path -Path $PSScriptRoot -ChildPath 'Dev\Find-ModuleRoot.ps1')
-. (Join-Path -Path $PSScriptRoot -ChildPath 'Dev\Find-ScriptCommand.ps1')
-. (Join-Path -Path $PSScriptRoot -ChildPath 'Dev\Resolve-CommandModule.ps1')
+# import helper functions from the Scripts folder.
+. (Join-Path -Path $PSScriptRoot -ChildPath '..\Scripts\Find-ModuleRoot.ps1')
+. (Join-Path -Path $PSScriptRoot -ChildPath '..\Scripts\Find-ScriptCommand.ps1')
+. (Join-Path -Path $PSScriptRoot -ChildPath '..\Scripts\Resolve-CommandModule.ps1')
 
 $ExcludedFolders = @()
 $ExcludedFiles = @()

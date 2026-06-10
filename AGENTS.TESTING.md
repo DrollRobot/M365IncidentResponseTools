@@ -44,7 +44,7 @@ Do not move on to formatting until all Pester tests are passing.
 `.\Tests.ps1 <Category>` scans all in-scope files. To check just one file , call the standalone
 check directly with `-Path`. Prefer this over hand-rolling grep/regex checks:
 
-    .\Tests\Test-LineLength.ps1 -Path .\Dev\Invoke-RandomEmailTraffic.ps1
+    .\Tests\Test-LineLength.ps1 -Path .\Scripts\Invoke-RandomEmailTraffic.ps1
 
 These standalone checks accept `-Path` (a file or folder): Test-LineLength,
 Test-BacktickContinuation, Test-FormatOperator, Test-JoinPath, Test-ModuleSyntax,

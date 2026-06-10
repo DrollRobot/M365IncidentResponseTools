@@ -25,13 +25,13 @@ function Invoke-RandomEmailTraffic {
         dev only scripts?
 
     .EXAMPLE
-        . .\Dev\Invoke-RandomEmailTraffic.ps1
+        . .\Scripts\Invoke-RandomEmailTraffic.ps1
         Invoke-RandomEmailTraffic -Users user1@contoso.com, user2@contoso.com -Count 20
 
         Dot-source the file, then call the function with an explicit user list.
 
     .EXAMPLE
-        . .\Dev\Invoke-RandomEmailTraffic.ps1
+        . .\Scripts\Invoke-RandomEmailTraffic.ps1
         Invoke-RandomEmailTraffic -AllUsers -Count 50 -GrantSendAs:$false
 
         Dot-source the file, then send between all enabled mail users without

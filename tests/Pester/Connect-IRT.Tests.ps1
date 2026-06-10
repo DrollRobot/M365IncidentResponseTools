@@ -683,7 +683,7 @@ Describe 'Connect-IRT admin consent workflow (live)' -Tag 'Online' {
                 "Run '.\tests.ps1 -Online' so the session is established first.")
         }
 
-        . (Join-Path -Path $PSScriptRoot -ChildPath '..\Dev\Revoke-IRTGraphConsent.ps1')
+        . (Join-Path -Path $PSScriptRoot -ChildPath '..\..\Scripts\Revoke-IRTGraphConsent.ps1')
 
         Write-Output ''
         Write-Output '--- Admin Consent Test Setup ---'

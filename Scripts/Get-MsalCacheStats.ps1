@@ -34,19 +34,19 @@ function Get-MsalCacheStat {
     Write trace-level output for each MSAL step to aid debugging.
 
     .EXAMPLE
-    . .\Tests\Dev\Get-MsalCacheStats.ps1
+    . .\Scripts\Get-MsalCacheStats.ps1
     Get-MsalCacheStats
 
     Enumerate cached accounts and test each service's refresh token validity.
 
     .EXAMPLE
-    . .\Tests\Dev\Get-MsalCacheStats.ps1
+    . .\Scripts\Get-MsalCacheStats.ps1
     Get-MsalCacheStats -SkipTokenTest | Format-List
 
     List cached accounts only without making any network token requests.
 
     .EXAMPLE
-    . .\Tests\Dev\Get-MsalCacheStats.ps1
+    . .\Scripts\Get-MsalCacheStats.ps1
     Get-MsalCacheStats | Export-Csv -Path .\token-report.csv -NoTypeInformation
 
     Export full token diagnostics to CSV.

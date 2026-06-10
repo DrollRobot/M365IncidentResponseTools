@@ -1,9 +1,12 @@
-$Path = "$PSScriptRoot\..\..\Source\M365IncidentResponseTools.psd1" # source
-# $Path = "$PSScriptRoot\..\..\M365IncidentResponseTools.psd1" # built
+# resolve the module root so paths keep working if this folder moves
+. "$PSScriptRoot\Find-ModuleRoot.ps1"
+$ModuleRoot = (Find-ModuleRoot -Path $PSScriptRoot).Path
+$Path = "$ModuleRoot\Source\M365IncidentResponseTools.psd1" # source
+# $Path = "$ModuleRoot\M365IncidentResponseTools.psd1" # built
 Write-Host "Importing from: $Path" -ForegroundColor Green
 Import-Module $Path -Force
 
-& "$PSScriptRoot\..\.env.ps1"
+& "$ModuleRoot\Tests\.env.ps1"
 
 Set-PSFConfig -FullName 'PSFramework.Message.Info.Maximum' -Value 8
 $InformationPreference = 'Continue'
@@ -17,5 +20,4 @@ if (($Global:IRT_UserObjects | Measure-Object).Count -eq 0) {
 
 Set-Location ([environment]::GetFolderPath('Desktop'))
 
-Get-IRTAdminRole -Highlight $UserObject.UserPrincipalName
-
+Start-IRTPlaybook -NoFolder -test
