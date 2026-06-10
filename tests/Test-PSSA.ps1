@@ -80,6 +80,7 @@ $PerFileSuppressions = @{
 # Any finding under that prefix is suppressed when its RuleName is listed.
 $PerPathSuppressions = @{
     'Tests\'               = @('PSAvoidUsingWriteHost')
+    'Scripts\'               = @('PSAvoidUsingWriteHost')
     'Source\Private\Lib\' = @('PSAvoidUsingWriteHost')
 }
 
