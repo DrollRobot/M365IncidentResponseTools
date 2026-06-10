@@ -1,4 +1,4 @@
-function Test-MergeSortedListsOnDate {
+function Test-MergeListOnDate {
     [CmdletBinding()]
     param(
         # show merged outputs (off by default to keep output minimal)
@@ -67,7 +67,7 @@ function Test-MergeSortedListsOnDate {
         PropertyName = 'When'
         Ascending    = $true
     }
-    $MergedAsc = Merge-SortedListsOnDate @AscParams
+    $MergedAsc = Merge-ListOnDate @AscParams
 
     # run descending merge
     $DescParams = @{
@@ -75,7 +75,7 @@ function Test-MergeSortedListsOnDate {
         PropertyName = 'When'
         Descending   = $true
     }
-    $MergedDesc = Merge-SortedListsOnDate @DescParams
+    $MergedDesc = Merge-ListOnDate @DescParams
 
     # perform simple assertions
     $Failures = [System.Collections.Generic.List[string]]::new()
