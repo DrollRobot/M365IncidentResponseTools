@@ -152,7 +152,11 @@ function Resolve-CommandModule {
                     $command = $command.ResolvedCommand
                 }
 
+                # Applications (git, gh, ...) and local functions have no module;
+                # guard the property reads so strict mode does not choke on $null.
                 $module = $command.Module
+                $moduleName = if ($module) { $module.Name } else { $null }
+                $modulePath = if ($module) { $module.ModuleBase } else { $null }
 
                 if (-not $module) {
                     $source = 'None'
@@ -167,11 +171,11 @@ function Resolve-CommandModule {
                     $source = 'Installed'
                 }
 
-                Write-Trace "${FunctionName}: '$commandName' -> $($module.Name) [$source]"
+                Write-Trace "${FunctionName}: '$commandName' -> $moduleName [$source]"
                 [PSCustomObject]@{
                     Name       = $commandName
-                    Module     = $module.Name
-                    ModulePath = $module.ModuleBase
+                    Module     = $moduleName
+                    ModulePath = $modulePath
                     Source     = $source
                 }
                 $emittedAny = $true

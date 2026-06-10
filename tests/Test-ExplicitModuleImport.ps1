@@ -113,7 +113,9 @@ foreach ($file in $files) {
     if ($commands.Count -eq 0) { continue }
 
     $ResolvedCommands = $commands | Resolve-CommandModule -HostModuleName $CurrentModuleName
-    $PrivateShadowed = [System.Collections.Generic.HashSet[string]](
+    # @() guard: with no HostPrivate commands the pipeline yields $null, and
+    # casting $null to HashSet produces $null rather than an empty set.
+    $PrivateShadowed = [System.Collections.Generic.HashSet[string]]@(
         $ResolvedCommands |
             Where-Object { $_.Source -eq 'HostPrivate' } |
             Select-Object -ExpandProperty Name
