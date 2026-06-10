@@ -1,17 +1,20 @@
 # M365IncidentResponseTools -- Agent Guidelines
 
 In-domain: All code in Source/, except functions in Lib/ folders and Build.psd1.
-Non-domain: Dev/Test/Build/Debug/Lib code.
+Non-domain: Build/ Test/, Scripts/, Source/Build.psd1, Source/Public/Lib, 
+   Source/Private/Lib.
 
-Ignore built code, such as *.psm1 and *.psd1, ScriptsToProcess/, Data/, Build/, in
-the module root.
+Ignore built code in the module root, such as *.psm1 and *.psd1, ScriptsToProcess/,
+   Data/. Also, the built documents in Docs/Commands/.
 
 Source
 
 ## Architecture
 
-Uses [ModuleBuilder](https://github.com/PoshCode/ModuleBuilder). Only read/edit module files under `source/`. Ignore module files in repo root. 
-- `source/Public/` — exported functions, one per file. `Lib/` = general-purpose helpers (no IRT infix); `Utility/` = IRT-specific helpers.
+Uses [ModuleBuilder](https://github.com/PoshCode/ModuleBuilder). Only read/edit module
+   files under `source/`. Ignore module files in repo root. 
+- `source/Public/` — exported functions, one per file. `Lib/` = general-purpose helpers
+   (no IRT infix); `Utility/` = IRT-specific helpers.
 - `source/Private/` — internal helpers, not exported.
 - `source/ScriptsToProcess/` — module initialization scripts.
 - `source/Files/` — data files bundled with the module.
@@ -20,7 +23,8 @@ Uses [ModuleBuilder](https://github.com/PoshCode/ModuleBuilder). Only read/edit 
 ## Code Style
 
 ### Naming Conventions
-- In-domain public functions use `IRT` infix. `Verb-IRTNoun` (e.g., `Get-IRTInboxRule`, `Get-IRTMessageTrace`).
+- In-domain public functions use `IRT` infix. `Verb-IRTNoun` (e.g., `Get-IRTInboxRule`,
+   `Get-IRTMessageTrace`).
 - Use only [PowerShell-approved verbs](https://learn.microsoft.com/en-us/powershell/scripting/developer/cmdlet/approved-verbs-for-windows-powershell-commands).
 - Only one function per file. File name must match function name.
 - Function aliases are declared on the function definition with `[Alias(...)]`
@@ -53,7 +57,8 @@ function Write-Trace {
 - Line length limit: 100 characters. Use splatting and string concatenation to control
    length, not backticks.
 - Always use hashtable splatting (`@Params`) for cmdlets with more than 2 arguments.
-- String construction: Use inline subexpressions, ("...$($x.ToString())...") not format operator (-f).
+- String construction: Use inline subexpressions, ("...$($x.ToString())...") not format
+   operator (-f).
 - Building paths: Prefer Join-Path over [System.IO.Path]::Combine(). Always use named parameters. 
    (`Join-Path -Path $x -ChildPath $y` over `Join-Path $x $y`)
 
