@@ -14,8 +14,8 @@ function Get-IRTLicenseReport {
     displaying the formatted table. Useful for piping to further processing.
 
     .PARAMETER Runspace
-    Switch to Format-Table -AutoSize output instead of Write-PSObject color formatting.
-    Set automatically when called from a runspace (e.g., the incident response playbook).
+    Deprecated. Output is always a plain Format-Table now; the switch is retained
+    so existing callers do not break.
 
     .EXAMPLE
     Get-IRTLicenseReport
@@ -30,11 +30,16 @@ function Get-IRTLicenseReport {
     Microsoft.Graph.PowerShell.Models.MicrosoftGraphSubscribedSku[] when -Objects is used.
 
     .NOTES
-    Version: 1.1.3
+    Version: 1.2.0
+    1.2.0 - Removed the Write-PSObject dependency; output is always plain
+            Format-Table. -Runspace is now a no-op kept for compatibility.
     1.1.3 - Added optional output formatting for runspaces.
     #>
     [Alias('LicenseReport')]
     [CmdletBinding()]
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+        'PSReviewUnusedParameter', 'Runspace',
+        Justification = 'Deprecated no-op retained for backward compatibility.')]
     param (
         [switch] $Objects,
         [switch] $Runspace
@@ -102,22 +107,7 @@ function Get-IRTLicenseReport {
             )
             $OutputTable = $OutputTable | Sort-Object $SortOrder
 
-            if ( $RunSpace ) {
-                # output formatting if being run in a runspace
-                return $OutputTable | Format-Table -AutoSize
-            }
-            else {
-
-                # output formatting if being run directly in terminal
-                $WriteParams = @{
-                    HeadersForeColor = 'Green'
-                    MatchMethod      = 'Match', 'Match'
-                    Column           = 'LicenseName', 'LicenseName'
-                    Value            = 'E3', 'E5'
-                    ValueForeColor   = 'Magenta', 'Magenta'
-                }
-                Write-PSObject $OutputTable @WriteParams
-            }
+            return $OutputTable | Format-Table -AutoSize | Out-Host
         }
     }
 }
