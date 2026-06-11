@@ -45,6 +45,32 @@ function Find-ModuleRoot {
                 Path = $current.FullName
             }
         }
+
+        # Git-worktree layout: the checkout folder name (e.g. ...-wt\<slug>) does
+        # not match the module name. Recognize the root by a manifest with a
+        # same-named root module file beside it instead.
+        $GciParams = @{
+            Path        = $current.FullName
+            Filter      = '*.psd1'
+            File        = $true
+            ErrorAction = 'SilentlyContinue'
+        }
+        $Candidates = @(Get-ChildItem @GciParams |
+                Where-Object {
+                    $Psm1Name = "$($_.BaseName).psm1"
+                    $Psm1Params = @{
+                        Path     = Join-Path -Path $current.FullName -ChildPath $Psm1Name
+                        PathType = 'Leaf'
+                    }
+                    Test-Path @Psm1Params
+                })
+        if ($Candidates.Count -eq 1) {
+            return [PSCustomObject]@{
+                Name = $Candidates[0].BaseName
+                Path = $current.FullName
+            }
+        }
+
         $current = $current.Parent
     }
 

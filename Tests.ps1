@@ -142,7 +142,16 @@ if ($Built -and ($Test | Where-Object { $_ -in $FormattingOnlyValues })) {
 
 # Import the module under test so Pester tests and PSScriptAnalyzer both have
 # access to full parameter metadata for all IRT functions and cmdlets.
-$ModuleName = Split-Path -Path $PSScriptRoot -Leaf
+# Resolve the module name from the manifest in source\ rather than the repo
+# folder name, which differs inside git worktrees (e.g. ...-wt\<slug>).
+$SourcePsd1Params = @{
+    Path   = Join-Path -Path $PSScriptRoot -ChildPath 'source'
+    Filter = '*.psd1'
+}
+$SourceManifest = Get-ChildItem @SourcePsd1Params |
+    Where-Object { $_.BaseName -ne 'Build' } |
+    Select-Object -First 1
+$ModuleName = $SourceManifest.BaseName
 $ManifestPath = if ($Built) {
     Join-Path -Path $PSScriptRoot -ChildPath "$ModuleName.psd1"
 } else {
