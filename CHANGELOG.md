@@ -5,6 +5,65 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- `Get-IRTAccessToken`: new public command that returns a fresh access token for Graph,
+  Exchange, or IPPS, minted on demand from the MSAL cache (silent when possible, browser
+  sign-in otherwise). Useful for manual REST calls and custom scripts.
+- `Connect-IRTRunspaceExchange`: new public command that establishes a runspace-local
+  Exchange connection with a silently-minted token. Used by playbook steps.
+- The MSAL cache extension assembly is now bundled with the module instead of being
+  downloaded from nuget.org during the first Connect, so the persistent token cache
+  works offline and can no longer silently degrade.
+
+### Changed
+
+- Sign-in prompts are now deterministic. Cached accounts are matched to the target
+  tenant (with per-tenant account memory), and every candidate account is tried before
+  falling back to an interactive prompt. With `EnableTokenCache` enabled, connecting to
+  a previously-used tenant requires no prompts, including in new PowerShell sessions.
+- Exchange and IPPS now always share one MSAL app, so IPPS sign-in is always silent
+  after an Exchange sign-in.
+- Token refresh now re-binds only the service whose token is stale, and reconnects are
+  scoped by ConnectionId, instead of force-reconnecting every service at once.
+- Playbook runspace workers now mint their own Exchange tokens from the shared cache
+  per step, so playbooks running longer than an hour no longer fail with expired
+  tokens. The parent keeps the shared Graph context fresh while the playbook runs.
+- Persistent token cache registration failures are now loud errors with remediation
+  guidance instead of easily-missed warnings.
+- `Get-IRTLicenseReport`: output is now a plain table. This removes the dependency on
+  the external Write-PSObject script, which produced corrupted output and errors when
+  run inside playbook runspaces. `-Runspace` is retained as a no-op for compatibility.
+
+### Fixed
+
+- Spurious interactive sign-in prompts when the token cache held accounts from multiple
+  customer tenants.
+- Reconnecting or refreshing Exchange/IPPS no longer tears down the other service's
+  connection.
+- `Connect-IRT -Refresh` no longer drops Graph scopes that were added with
+  `-AdditionalScope`.
+- After granting tenant-wide admin consent, the session now re-acquires and re-binds
+  the Graph token instead of keeping the pre-consent token (which lacked the newly
+  granted scopes) for the rest of its lifetime. Fixes Graph calls failing for up to an
+  hour after first contact with a new tenant (e.g. the missing domain in the terminal
+  title).
+- `Get-IRTUnifiedAuditLog`: long multi-page and multi-chunk searches now refresh the
+  token mid-search instead of failing after about an hour.
+- Playbook steps no longer intermittently fail with "Collection was modified;
+  enumeration operation may not execute": concurrent module imports across worker
+  runspaces raced on PowerShell's process-wide module-analysis caches. Imports are
+  now serialized with a mutex.
+- `Start-IRTPlaybook`: worker runspaces no longer reset the parent terminal's title to
+  plain `[IRT]`, dropping the tenant domain Connect-IRT had set.
+- `Start-IRTPlaybook`: worker runspaces now import the same module version the parent
+  session is running, instead of whatever version is installed system-wide. Previously
+  a version mismatch could make most playbook steps fail silently.
+- Module import now runs the dependency scan once per session: a successful check
+  records the module root in `$Global:ModuleDependenciesChecked` (a module-agnostic
+  table, since the dependency scripts are portable), and re-imports plus all playbook
+  runspace workers skip the scan. Speeds up module re-import and playbook startup.
+
 
 ## [v2.9.2] - 2026-06-10
 
