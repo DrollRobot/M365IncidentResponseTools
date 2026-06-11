@@ -6,6 +6,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 
+## [v2.9.2] - 2026-06-10
+
+### Fixed
+
+- `Show-IRTEntraAuditLog`: Fixed bug that prevented importing from xml.
+- `Show-IRTEntraAuditLog`, `Show-IRTEntraSignInLog`, `Show-IRTServicePrincipalSignIn`,
+  `Show-IRTUnifiedAuditLog`, `Show-IRTMessageTrace`: supplying neither a log-object list
+  nor `-XmlPath` now raises a clear `InvalidArgument` error instead of crashing with a
+  null-index error or halting with a mandatory-parameter prompt.
+- `Show-IRTServicePrincipal`: Fixed crash when there were no results.
+
+
 ## [v2.9.1] - 2026-06-07
 
 ### Added
