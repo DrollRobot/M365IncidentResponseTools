@@ -31,7 +31,32 @@ function Import-IRTModule {
         [string[]] $Name
     )
 
-    Import-Module -Name 'PSFramework'
+    # Serialize Import-Module across runspaces. Module state is per-runspace,
+    # but PowerShell's module-analysis caches are process-wide, and concurrent
+    # imports (15 playbook workers lazy-loading dependencies at step start)
+    # intermittently throw "Collection was modified; enumeration operation may
+    # not execute". The mutex is process-local; uncontended acquisition costs
+    # microseconds, so single-threaded callers are unaffected.
+    function Import-LockedModule {
+        param([string] $ModuleName)
+        $Mutex = [System.Threading.Mutex]::new($false, 'Local\ImportIRTModuleLock')
+        try {
+            try {
+                $null = $Mutex.WaitOne()
+            } catch [System.Threading.AbandonedMutexException] {
+                # A runspace died while holding the mutex; ownership still
+                # transfers to us, so it is safe to continue.
+            }
+            Import-Module -Name $ModuleName -ErrorAction Stop
+        } finally {
+            $null = $Mutex.ReleaseMutex()
+            $Mutex.Dispose()
+        }
+    }
+
+    if (-not (Get-Module -Name 'PSFramework')) {
+        Import-LockedModule -ModuleName 'PSFramework'
+    }
 
     foreach ($module in $Name) {
         if (Get-Module -Name $module) {
@@ -40,6 +65,6 @@ function Import-IRTModule {
         }
 
         Write-PSFMessage -Level 8 -Message "Importing module: $module"
-        Import-Module -Name $module -ErrorAction Stop
+        Import-LockedModule -ModuleName $module
     }
 }

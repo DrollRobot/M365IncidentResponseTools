@@ -160,8 +160,9 @@ function Start-IRTPlaybook {
         #region PLAYBOOK STEPS
 
         # Each step relies on the shared references injected into the runspace globals
-        # (see the InitialSessionState setup below): $IRT_PlaybookWorkingPath and
-        # $IRT_PlaybookExoConnectParams plus the IRT_* caches. No per-step arguments.
+        # (see the InitialSessionState setup below): $WorkingPath plus the IRT_* caches.
+        # Exchange steps call Connect-IRTRunspaceExchange, which mints a fresh token
+        # silently from the shared MSAL cache per step. No per-step arguments.
         $Steps = @(
 
             @{  Name   = 'Get-IRTLicenseReport'
@@ -221,7 +222,7 @@ function Start-IRTPlaybook {
             @{  Name   = 'Get-IRTMessageTrace'
                 Script = {
                     Set-Location -Path $WorkingPath
-                    Connect-ExchangeOnline @ExoConnectParams
+                    Connect-IRTRunspaceExchange
                     $Params = @{
                         UserObject = $Global:IRT_UserObjects
                         Days       = 90
@@ -234,7 +235,7 @@ function Start-IRTPlaybook {
             @{  Name   = 'Get-IRTInboxRule'
                 Script = {
                     Set-Location -Path $WorkingPath
-                    Connect-ExchangeOnline @ExoConnectParams
+                    Connect-IRTRunspaceExchange
                     Get-IRTInboxRule
                 }
             }
@@ -256,7 +257,7 @@ function Start-IRTPlaybook {
             @{  Name   = 'Get-IRTUnifiedAuditLog'
                 Script = {
                     Set-Location -Path $WorkingPath
-                    Connect-ExchangeOnline @ExoConnectParams
+                    Connect-IRTRunspaceExchange
                     $UAParams = @{
                         UserObject         = $Global:IRT_UserObjects
                         WaitOnMessageTrace = $true
@@ -269,7 +270,7 @@ function Start-IRTPlaybook {
             @{  Name   = 'UALRiskyOperations'
                 Script = {
                     Set-Location -Path $WorkingPath
-                    Connect-ExchangeOnline @ExoConnectParams
+                    Connect-IRTRunspaceExchange
                     $UAParams = @{
                         UserObject      = $Global:IRT_UserObjects
                         RiskyOperations = $true
@@ -283,7 +284,7 @@ function Start-IRTPlaybook {
             @{  Name   = 'UALSignInLogs'
                 Script = {
                     Set-Location -Path $WorkingPath
-                    Connect-ExchangeOnline @ExoConnectParams
+                    Connect-IRTRunspaceExchange
                     $UAParams = @{
                         UserObject = $Global:IRT_UserObjects
                         SignInLogs = $true
@@ -303,7 +304,7 @@ function Start-IRTPlaybook {
             @{  Name   = 'Get-IRTMessageTrace -AllUsers'
                 Script = {
                     Set-Location -Path $WorkingPath
-                    Connect-ExchangeOnline @ExoConnectParams
+                    Connect-IRTRunspaceExchange
                     $Params = @{
                         AllUsers = $true
                         Days     = 10
@@ -330,17 +331,12 @@ function Start-IRTPlaybook {
                     MessageTraceAllUsersDone = $false
                 })
 
-            # build Exchange connection params once for all runspaces
-            $ExoConnectParams = @{
-                AccessToken       = $Global:IRT_Session.Exchange.Token
-                UserPrincipalName = $Global:IRT_Session.Exchange.UserPrincipalName
-                ShowBanner        = $false
-            }
-            $ExoConnectParams['ExchangeEnvironmentName'] =
-            $Global:IRT_Session.CloudConfig.ExchangeEnv
-
             # pack references for injection into child runspace globals. Keys become global
-            # variable names inside each runspace.
+            # variable names inside each runspace. IRT_Session carries the shared MSAL
+            # apps (thread-safe), so workers mint their own Exchange tokens silently via
+            # Connect-IRTRunspaceExchange instead of receiving a static token snapshot
+            # that would expire mid-playbook. IRT_IsRunspaceWorker forces Get-IRTAccessToken
+            # to silent mode so a worker can never pop a hidden browser prompt.
             $SharedRefs = @{
                 IRT_Banner                     = $Global:IRT_Banner
                 IRT_IpInfo                     = $Global:IRT_IpInfo
@@ -365,7 +361,7 @@ function Start-IRTPlaybook {
                 IRT_TenantInfoTable            = $Global:IRT_TenantInfoTable
                 IRT_Session                    = $Global:IRT_Session
                 IRT_UserObjects                = $ScriptUserObjects
-                ExoConnectParams               = $ExoConnectParams
+                IRT_IsRunspaceWorker           = $true
                 WorkingPath                    = $WorkingPath
             }
 
@@ -381,23 +377,27 @@ function Start-IRTPlaybook {
                 $InitialSessionState.Variables.Add($SsveType::new($Key, $SharedRefs[$Key], ''))
             }
 
-            # Seed the dependency-check flag too. Confirm-Dependencies.ps1
-            # (ScriptsToProcess) reads it and skips its Get-Module -ListAvailable scan, so
-            # the parallel runspaces don't each repeat the check the parent already pasbuised.
-            $GvParams = @{
-                Name        = 'IRT_DependenciesChecked'
-                Scope       = 'Global'
-                ValueOnly   = $true
-                ErrorAction = 'SilentlyContinue'
+            # Seed the dependency-check table too. Confirm-Dependencies.ps1
+            # (ScriptsToProcess) records each verified module root in the generic
+            # $Global:ModuleDependenciesChecked hashtable; passing it down lets the
+            # parallel runspaces skip the Get-Module -ListAvailable scan the parent
+            # already passed. The table is module-agnostic (keyed by module root
+            # path) because the dependency scripts are portable across projects.
+            if ($Global:ModuleDependenciesChecked -is [hashtable]) {
+                $InitialSessionState.Variables.Add(
+                    $SsveType::new(
+                        'ModuleDependenciesChecked', $Global:ModuleDependenciesChecked, '')
+                )
             }
-            $ParentDepsChecked = [bool](Get-Variable @GvParams)
-            $InitialSessionState.Variables.Add(
-                $SsveType::new('IRT_DependenciesChecked', $ParentDepsChecked, '')
-            )
 
+            # Import this module into workers BY PATH, not by name: name resolution
+            # would load whatever version is installed under PSModulePath, which can
+            # be older than the module instance the parent session is running (e.g.
+            # source/dev mode or a worktree) and miss functions the steps depend on.
+            $IrtModulePath = (Get-Module -Name 'M365IncidentResponseTools').Path
             $InitialSessionState.ImportPSModule(
                 'ExchangeOnlineManagement',
-                'M365IncidentResponseTools',
+                $IrtModulePath,
                 'Microsoft.Graph.Authentication'
             )
             $Global:IRT_Playbook_RunspacePool = [RunspaceFactory]::CreateRunspacePool(
@@ -459,6 +459,11 @@ function Start-IRTPlaybook {
                     PercentComplete = $PercentComplete
                 }
                 Write-Progress @WpParams
+
+                # Keep the process-wide Graph binding fresh for the workers - they share
+                # the parent's MgContext and cannot re-bind it themselves.
+                $null = Update-IRTToken -Service Graph -SkipIfNeverConnected
+
                 Start-Sleep -Seconds 10
             }
             Write-Progress -Activity 'Playbook Running' -Completed
