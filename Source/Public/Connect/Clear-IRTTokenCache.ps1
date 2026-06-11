@@ -8,10 +8,12 @@ function Clear-IRTTokenCache {
     MSAL writes refresh tokens to disk so the user is not re-prompted in every
     new PowerShell session. This command:
 
-      1. Removes every account from any PublicClientApplication currently held
-         in $Global:IRT_Session (Graph, Exchange, IPPS). Removal also strips
-         their tokens from the on-disk cache via the registered cache helper.
-      2. Deletes the on-disk cache file as a belt-and-suspenders measure in
+      1. Removes every account from each PublicClientApplication currently held
+         in $Global:IRT_Session.Apps. Removal also strips their tokens from the
+         on-disk cache via the registered cache helper.
+      2. Clears the sticky per-client account memory so the next acquisition
+         starts fresh.
+      3. Deletes the on-disk cache file as a belt-and-suspenders measure in
          case no MSAL app is currently registered against it.
 
     Use this after a credential rotation, when sharing a workstation, or to
@@ -34,8 +36,7 @@ function Clear-IRTTokenCache {
     # Sign out in-process accounts first. This invokes the cache helper's
     # write callback and removes the entries from the file cleanly.
     if ($Global:IRT_Session) {
-        foreach ($svc in 'Graph', 'Exchange', 'IPPS') {
-            $App = $Global:IRT_Session.$svc.PublicClientApplication
+        foreach ($App in @($Global:IRT_Session.Apps?.Values)) {
             if (-not $App) { continue }
             try {
                 $Accounts = $App.GetAccountsAsync().GetAwaiter().GetResult()
@@ -44,8 +45,12 @@ function Clear-IRTTokenCache {
                 }
             }
             catch {
-                Write-IRT "Failed to remove $svc MSAL accounts: $_" -Level Warn
+                $AppId = $App.AppConfig.ClientId
+                Write-IRT "Failed to remove MSAL accounts for client ${AppId}: $_" -Level Warn
             }
+        }
+        if ($null -ne $Global:IRT_Session.StickyAccount) {
+            $Global:IRT_Session.StickyAccount.Clear()
         }
     }
 

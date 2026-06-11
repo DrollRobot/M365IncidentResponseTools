@@ -2,13 +2,15 @@
 
 <#
 .SYNOPSIS
-    Tests for Update-IRTToken token-expiry detection and refresh orchestration.
+    Tests for Update-IRTToken bound-token expiry detection and per-service refresh.
 
 .DESCRIPTION
-    All tests are offline. Connect-IRT and Write-IRT are mocked throughout so
-    no network I/O occurs. $Global:IRT_Session is saved before each test and
-    restored afterwards, so the test suite is safe to run while actively
-    connected to a tenant.
+    All tests are offline. The private connectors (Connect-IRTGraph,
+    Connect-IRTExchange, Connect-IRTIPPS), Connect-IRTRunspaceExchange, and
+    Write-IRT are mocked throughout so no network I/O occurs. $Global:IRT_Session
+    (plus the worker globals IRT_IsRunspaceWorker / IRT_RunspaceExo) is saved
+    before each test and restored afterwards, so the test suite is safe to run
+    while actively connected to a tenant.
 
     Session objects are constructed with New-SvcObject (a BeforeAll helper)
     using a signed ExpiresInMinutes value: positive = future, negative = past.
@@ -20,184 +22,72 @@
     Update-IRTToken must detect a missing session before trying to read any
     service slot. When SkipIfNeverConnected is not set it must write one
     error per requested service so the operator knows exactly which services
-    need connecting. When SkipIfNeverConnected is set it must return silently
-    (the prompt calls it before any connection has been made).
-
-    'writes an error for each requested service when SkipIfNeverConnected is not set'
-        Verifies one Write-IRT -Level Error call per service in the -Service list.
-        Bracketing with two services (Graph, Exchange) confirms the loop runs
-        once per service rather than once per function call.
-
-    'writes no output when SkipIfNeverConnected is set'
-        Confirms the early-return path emits nothing at all -- no errors, no
-        status messages.
-
-    'returns nothing even with -PassThru'
-        The function returns before reaching the PassThru block, so the caller
-        must receive $null rather than an empty or partial hashtable.
-
-    'does not call Connect-IRT'
-        A missing session cannot be refreshed; calling Connect-IRT -Refresh
-        would fail anyway because it also requires an existing session.
+    need connecting. When SkipIfNeverConnected is set it must return silently.
 
 -- service slot is null in the session -----------------------------------
 
     A session object can exist while individual service slots are $null (e.g.
     the user connected Graph-only). The function must not treat a null slot as
     a reason to refresh -- there is nothing to refresh -- and it must not call
-    Connect-IRT for a service that was never connected.
+    a connector for a service that was never connected.
 
-    'writes an error when SkipIfNeverConnected is not set'
-        Verifies the "not connected to <svc>" error path for a null slot.
+-- token is healthy (BoundTokenExpiry > 5 minutes from now) --------------
 
-    'writes no error when SkipIfNeverConnected is set'
-        Prompt-mode: null slots are silently skipped.
-
-    '-PassThru returns $false for the missing service'
-        A null slot means no valid token; PassThru must report it as $false.
-
-    'does not call Connect-IRT when the only requested service is missing'
-        A missing service sets continue on the loop without setting
-        $needsRefresh, so the refresh block must not execute.
-
--- token is healthy (TokenExpiry > 5 minutes from now) ------------------
-
-    The function should never call Connect-IRT when all requested tokens are
-    well within their validity window. This is the hot path on every prompt
-    render and every domain-function call; spurious refreshes here would cause
-    unnecessary latency and could trigger MSAL rate limits.
-
-    'does not call Connect-IRT -Refresh'
-        The core assertion: a healthy token produces zero Connect-IRT calls.
-
-    '-PassThru returns $true for the service'
-        The token is valid; PassThru must report it as connected.
-
-    '-PassThru returns a hashtable'
-        Verifies the return type is [hashtable], not $null or another type,
-        so callers can safely key into it with $result['Graph'].
+    The function should never call a connector when all requested bound tokens
+    are well within their validity window. This is the hot path on every
+    domain-function call; spurious refreshes here would cause unnecessary
+    latency and could trigger MSAL rate limits.
 
 -- token is expiring within the 5-minute threshold ----------------------
 
     MSAL's AcquireTokenSilent uses the refresh token (making a network call
     for a fresh access token) only when the cached token is within ~5 minutes
-    of expiry. Update-IRTToken uses the same window so that the Connect-IRT
-    -Refresh call actually yields a genuinely new token rather than the same
-    near-expired cached one.
+    of expiry. Update-IRTToken uses the same window so that the connector call
+    actually yields a genuinely new token rather than the same near-expired
+    cached one.
 
-    'calls Connect-IRT -Refresh exactly once'
-        The function must call Connect-IRT -Refresh exactly once -- not zero
-        times (missing the refresh) and not more than once (retry loop).
-
-    'writes a status message before refreshing'
-        The "Token expiring soon - refreshing..." message warns the operator
-        that a network round-trip is about to happen.
-
-    '-PassThru returns $true because the token has not yet passed its expiry'
-        The token expires in 3 minutes; it is stale by our threshold but still
-        technically valid (TotalMinutes > 0). PassThru must reflect the actual
-        expiry, not the threshold.
-
--- token is already expired (TokenExpiry in the past) -------------------
+-- token is already expired (BoundTokenExpiry in the past) ---------------
 
     An expired token has TotalMinutes < 0. The function must still trigger a
     refresh (expired < threshold) and PassThru must report $false unless the
-    refresh mock actually updates the session.
+    connector mock actually returns a fresh session object.
 
-    'calls Connect-IRT -Refresh'
-        Expired tokens must trigger a refresh, same as near-expired tokens.
+-- connector throws ------------------------------------------------------
 
-    '-PassThru returns $false when the session is not updated by the refresh'
-        When the Connect-IRT mock does nothing, the session still holds the
-        old expired TokenExpiry. PassThru (TotalMinutes > 0) must return $false
-        so callers know the token is not usable.
+    If a connector raises a terminating error the try/catch must absorb it and
+    write a human-readable "Token refresh failed" message. The exception must
+    never propagate to the caller, because Update-IRTToken is called at the
+    top of domain functions where an unhandled error would abort the entire
+    operation. The old session slot must survive the failed refresh.
 
-    '-PassThru returns $true when the refresh updates the session with a fresh token'
-        The mock sets $Global:IRT_Session.Graph.TokenExpiry to +1 hour, exactly
-        as the real Connect-IRT -Refresh would. PassThru must return $true.
+-- per-service refresh ---------------------------------------------------
 
--- Connect-IRT -Refresh throws -------------------------------------------
+    Refresh is scoped: ONLY the stale service's connector is invoked. With
+    Graph expiring and Exchange healthy, exactly one Connect-IRTGraph call and
+    zero Connect-IRTExchange calls must be made. The connector's return value
+    replaces only that service's slot; an empty return must never wipe it.
 
-    If Connect-IRT -Refresh raises a terminating error the try/catch must
-    absorb it and write a human-readable "Token refresh failed" message.
-    The exception must never propagate to the caller, because Update-IRTToken
-    is called at the top of domain functions where an unhandled error would
-    abort the entire operation.
+-- runspace worker mode ($Global:IRT_IsRunspaceWorker) -------------------
 
-    'writes a token-refresh-failed error'
-        Verifies the catch block writes Write-IRT with -Level Error and a
-        message that contains "refresh failed".
-
-    'does not propagate the exception to the caller'
-        { Update-IRTToken } | Should -Not -Throw.
-
--- Connect-IRT pipeline output is suppressed ----------------------------
-
-    Test-IRTConnection (called at the end of Connect-IRT's non-Refresh path)
-    writes PSCustomObjects to the pipeline via Format-Table. Without the
-    $null = assignment those objects flow up through Update-IRTToken and mix
-    with the PassThru hashtable. The caller then receives an Object[] and
-    $result['Graph'] returns $null instead of a boolean -- the root cause of
-    the "Connected: none" bug.
-
-    The mock emits two PSCustomObjects to simulate that pipeline output.
-    With $null = Connect-IRT, those objects are discarded and only the
-    hashtable reaches the caller.
-
-    '-PassThru returns a hashtable (not an array) when Connect-IRT emits pipeline output'
-        Asserts the return type is [hashtable]. If the $null = were removed,
-        Update-IRTToken would return an Object[] and this test would fail.
-
-    '-PassThru hashtable keys are service names, not Connect-IRT pipeline properties'
-        A mixed array would have no 'Graph' key and might have 'Service' or
-        'Connected' as indices instead. This test confirms the correct keys.
-
--- -Service parameter scopes which services are checked -----------------
-
-    The function must only examine and report on the services listed in
-    -Service. Keys for unrequested services must not appear in the PassThru
-    hashtable so callers can rely on the presence of a key to mean "I asked
-    about this service".
-
-    '-PassThru contains only the requested service key'
-        Single-service call returns exactly one key.
-
-    '-PassThru contains all three keys when all three are requested'
-        Full default call returns Graph, Exchange, and IPPS keys.
-
--- one service expiring, another healthy --------------------------------
-
-    $needsRefresh is a single boolean for the entire call: as soon as any
-    service is within the threshold the function calls Connect-IRT -Refresh
-    once for all services together. It must not refresh per-service (which
-    would call Connect-IRT multiple times) and must not skip the refresh
-    because another service is still healthy.
-
-    'calls Connect-IRT -Refresh once regardless of which service triggers it'
-        With Graph expiring and Exchange healthy, exactly one Connect-IRT
-        call must be made.
-
-    '-PassThru reports the healthy service as $true'
-        Exchange has 60 minutes left; it must be reported as connected.
-
-    '-PassThru reports the expiring (but not yet expired) service as $true'
-        Graph expires in 2 minutes: within the threshold but TotalMinutes > 0,
-        so PassThru must still return $true.
+    Workers never re-bind shared session state. Graph is a no-op (the parent
+    keeps the process-wide binding fresh). Exchange delegates to
+    Connect-IRTRunspaceExchange when the runspace-local bound token
+    ($Global:IRT_RunspaceExo.BoundTokenExpiry) is missing or stale, and is a
+    no-op when it is healthy. IPPS is always skipped.
 #>
 
 # ---------------------------------------------------------------------------
-# All tests run inside InModuleScope so that Mock intercepts Write-IRT and
-# Connect-IRT as they are called from within Update-IRTToken, not from the
-# outer session scope.
+# All tests run inside InModuleScope so that Mock intercepts Write-IRT and the
+# private connectors as they are called from within Update-IRTToken, not from
+# the outer session scope.
 # ---------------------------------------------------------------------------
 InModuleScope M365IncidentResponseTools {
 
     BeforeAll {
         # New-SvcObject creates a minimal service-session object for
         # $Global:IRT_Session.Graph / .Exchange / .IPPS. Update-IRTToken only
-        # checks whether .Token and .TokenExpiry are non-null and reads
-        # .TokenExpiry as a [datetime]; it never parses the JWT string itself,
-        # so any non-empty token string is sufficient.
+        # reads .BoundTokenExpiry as a [datetime] (plus .Scopes for Graph and
+        # .SearchOnly for IPPS when building a refresh call).
         # ExpiresInMinutes is signed: positive = future, negative = past.
         function New-SvcObject {
             [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
@@ -208,10 +98,12 @@ InModuleScope M365IncidentResponseTools {
                 [string] $Account = 'test@contoso.com'
             )
             [pscustomobject]@{
-                Token             = 'fake-token'
-                TokenExpiry       = [datetime]::UtcNow.AddMinutes($ExpiresInMinutes)
+                BoundTokenExpiry  = [datetime]::UtcNow.AddMinutes($ExpiresInMinutes)
                 Account           = $Account
                 UserPrincipalName = $Account
+                Scopes            = $null
+                SearchOnly        = $true
+                ConnectionId      = $null
             }
         }
 
@@ -228,26 +120,39 @@ InModuleScope M365IncidentResponseTools {
                 [object] $IPPS = $null
             )
             [pscustomobject]@{
-                TenantId    = $TenantId
-                Environment = 'Commercial'
-                Graph       = $Graph
-                Exchange    = $Exchange
-                IPPS        = $IPPS
+                TenantId      = $TenantId
+                ClientId      = $null
+                Cloud         = 'Commercial'
+                Apps          = [hashtable]::Synchronized(@{})
+                StickyAccount = [hashtable]::Synchronized(@{})
+                Graph         = $Graph
+                Exchange      = $Exchange
+                IPPS          = $IPPS
             }
         }
     }
 
     Describe 'Update-IRTToken' {
 
-        # Save and restore $Global:IRT_Session around every test so the suite
+        # Save and restore the auth globals around every test so the suite
         # is safe to run while the developer is actively connected to a tenant.
         BeforeEach {
             $script:SavedSession = (
                 Get-Variable -Name IRT_Session -Scope Global -ErrorAction SilentlyContinue
             )?.Value
+            $script:SavedWorker = (
+                Get-Variable -Name IRT_IsRunspaceWorker -Scope Global -ErrorAction SilentlyContinue
+            )?.Value
+            $script:SavedRunspaceExo = (
+                Get-Variable -Name IRT_RunspaceExo -Scope Global -ErrorAction SilentlyContinue
+            )?.Value
+            $Global:IRT_IsRunspaceWorker = $false
+            $Global:IRT_RunspaceExo = $null
         }
         AfterEach {
             $Global:IRT_Session = $script:SavedSession
+            $Global:IRT_IsRunspaceWorker = $script:SavedWorker
+            $Global:IRT_RunspaceExo = $script:SavedRunspaceExo
         }
 
         # -------------------------------------------------------------------
@@ -274,10 +179,14 @@ InModuleScope M365IncidentResponseTools {
                 $result | Should -BeNullOrEmpty
             }
 
-            It 'does not call Connect-IRT' {
-                Mock Connect-IRT { }
+            It 'does not call any connector' {
+                Mock Connect-IRTGraph { }
+                Mock Connect-IRTExchange { }
+                Mock Connect-IRTIPPS { }
                 Update-IRTToken -SkipIfNeverConnected
-                Should -Invoke Connect-IRT -Times 0
+                Should -Invoke Connect-IRTGraph -Times 0
+                Should -Invoke Connect-IRTExchange -Times 0
+                Should -Invoke Connect-IRTIPPS -Times 0
             }
         }
 
@@ -305,25 +214,25 @@ InModuleScope M365IncidentResponseTools {
                 $result.Graph | Should -BeFalse
             }
 
-            It 'does not call Connect-IRT when the only requested service is missing' {
-                # A null slot causes continue in the loop; $needsRefresh stays $false.
-                Mock Connect-IRT { }
+            It 'does not call the connector when the only requested service is missing' {
+                # A null slot causes continue in the loop; no refresh fires.
+                Mock Connect-IRTGraph { }
                 Update-IRTToken -Service 'Graph' -SkipIfNeverConnected
-                Should -Invoke Connect-IRT -Times 0
+                Should -Invoke Connect-IRTGraph -Times 0
             }
         }
 
         # -------------------------------------------------------------------
-        Context 'token is healthy (TokenExpiry more than 5 minutes away)' {
+        Context 'token is healthy (BoundTokenExpiry more than 5 minutes away)' {
 
             BeforeEach {
                 $Global:IRT_Session = New-IrtSession -Graph (New-SvcObject -ExpiresInMinutes 60)
-                Mock Connect-IRT { }
+                Mock Connect-IRTGraph { }
             }
 
-            It 'does not call Connect-IRT -Refresh' {
+            It 'does not call the connector' {
                 Update-IRTToken -Service 'Graph'
-                Should -Invoke Connect-IRT -Times 0
+                Should -Invoke Connect-IRTGraph -Times 0
             }
 
             It '-PassThru returns $true for the service' {
@@ -343,16 +252,17 @@ InModuleScope M365IncidentResponseTools {
         Context 'token is expiring within the 5-minute threshold' {
 
             # 3 minutes: within the 5-minute refresh window, but still future
-            # (TotalMinutes > 0), so PassThru must report $true.
+            # (TotalMinutes > 0), so PassThru must report $true even when the
+            # connector mock returns nothing (the slot is left untouched).
             BeforeEach {
                 $Global:IRT_Session = New-IrtSession -Graph (New-SvcObject -ExpiresInMinutes 3)
-                Mock Connect-IRT { }
+                Mock Connect-IRTGraph { }
                 Mock Write-IRT { }
             }
 
-            It 'calls Connect-IRT -Refresh exactly once' {
+            It 'calls the connector exactly once with -Force' {
                 Update-IRTToken -Service 'Graph'
-                Should -Invoke Connect-IRT -Times 1 -Exactly -ParameterFilter { $Refresh }
+                Should -Invoke Connect-IRTGraph -Times 1 -Exactly -ParameterFilter { $Force }
             }
 
             It 'writes a status message before refreshing' {
@@ -364,38 +274,44 @@ InModuleScope M365IncidentResponseTools {
                 $result = Update-IRTToken -Service 'Graph' -PassThru
                 $result.Graph | Should -BeTrue
             }
+
+            It 'an empty connector return does not wipe the session slot' {
+                Update-IRTToken -Service 'Graph'
+                $Global:IRT_Session.Graph | Should -Not -BeNullOrEmpty
+            }
         }
 
         # -------------------------------------------------------------------
-        Context 'token is already expired (TokenExpiry in the past)' {
+        Context 'token is already expired (BoundTokenExpiry in the past)' {
 
             BeforeEach {
                 $Global:IRT_Session = New-IrtSession -Graph (New-SvcObject -ExpiresInMinutes -30)
                 Mock Write-IRT { }
             }
 
-            It 'calls Connect-IRT -Refresh' {
-                Mock Connect-IRT { }
+            It 'calls the connector' {
+                Mock Connect-IRTGraph { }
                 Update-IRTToken -Service 'Graph'
-                Should -Invoke Connect-IRT -Times 1 -ParameterFilter { $Refresh }
+                Should -Invoke Connect-IRTGraph -Times 1 -ParameterFilter { $Force }
             }
 
-            It '-PassThru returns $false when the session is not updated by the refresh' {
-                # The mock does nothing; TokenExpiry remains -30 minutes in the past.
-                # PassThru checks TotalMinutes > 0, which is $false.
-                Mock Connect-IRT { }
+            It '-PassThru returns $false when the connector returns nothing' {
+                # The mock does nothing; BoundTokenExpiry remains -30 minutes in
+                # the past. PassThru checks TotalMinutes > 0, which is $false.
+                Mock Connect-IRTGraph { }
                 $result = Update-IRTToken -Service 'Graph' -PassThru
                 $result.Graph | Should -BeFalse
             }
 
-            It '-PassThru returns $true when the refresh updates the session with a fresh token' {
-                # Simulate what Connect-IRT -Refresh does: write a new connection object
-                # with a future TokenExpiry back into $Global:IRT_Session.Graph.
-                Mock Connect-IRT {
-                    $Global:IRT_Session.Graph = [pscustomobject]@{
-                        Token       = 'refreshed-token'
-                        TokenExpiry = [datetime]::UtcNow.AddHours(1)
-                        Account     = 'test@contoso.com'
+            It '-PassThru returns $true when the connector returns fresh metadata' {
+                # Simulate what Connect-IRTGraph does: return a new metadata object
+                # with a future BoundTokenExpiry, which replaces the session slot.
+                Mock Connect-IRTGraph {
+                    [pscustomobject]@{
+                        Account          = 'test@contoso.com'
+                        Scopes           = $null
+                        BoundTokenExpiry = [datetime]::UtcNow.AddHours(1)
+                        TenantId         = 'aaaaaaaa-0000-0000-0000-aaaaaaaaaaaa'
                     }
                 }
                 $result = Update-IRTToken -Service 'Graph' -PassThru
@@ -404,11 +320,11 @@ InModuleScope M365IncidentResponseTools {
         }
 
         # -------------------------------------------------------------------
-        Context 'Connect-IRT -Refresh throws' {
+        Context 'connector throws' {
 
             BeforeEach {
                 $Global:IRT_Session = New-IrtSession -Graph (New-SvcObject -ExpiresInMinutes 2)
-                Mock Connect-IRT { throw 'MSAL auth failed' }
+                Mock Connect-IRTGraph { throw 'MSAL auth failed' }
                 Mock Write-IRT { }
             }
 
@@ -422,37 +338,10 @@ InModuleScope M365IncidentResponseTools {
             It 'does not propagate the exception to the caller' {
                 { Update-IRTToken -Service 'Graph' } | Should -Not -Throw
             }
-        }
 
-        # -------------------------------------------------------------------
-        Context 'Connect-IRT pipeline output is suppressed' {
-
-            # Test-IRTConnection writes PSCustomObjects to the pipeline via
-            # Format-Table. Without "$null = Connect-IRT -Refresh", those objects
-            # flow into Update-IRTToken's own pipeline and mix with the PassThru
-            # hashtable. The caller receives an Object[] instead of a hashtable,
-            # and $result['Graph'] returns $null -- the "Connected: none" bug.
-            # The mock below emits two objects to reproduce that scenario.
-            BeforeEach {
-                $Global:IRT_Session = New-IrtSession -Graph (New-SvcObject -ExpiresInMinutes 2)
-                Mock Connect-IRT {
-                    [pscustomobject]@{ Service = 'Graph'; Connected = $true }
-                    [pscustomobject]@{ Service = 'Exchange'; Connected = $false }
-                }
-                Mock Write-IRT { }
-            }
-
-            It '-PassThru returns a hashtable even when Connect-IRT emits pipeline output' {
-                $result = Update-IRTToken -Service 'Graph' -PassThru
-                $result | Should -BeOfType [hashtable]
-            }
-
-            It '-PassThru hashtable keys are service names, not pipeline object properties' {
-                $result = Update-IRTToken -Service 'Graph' -PassThru
-                $result.Keys | Should -Contain 'Graph'
-                $result.Keys | Should -HaveCount 1
-                $result.ContainsKey('Service') | Should -BeFalse
-                $result.ContainsKey('Connected') | Should -BeFalse
+            It 'leaves the old session slot intact' {
+                Update-IRTToken -Service 'Graph'
+                $Global:IRT_Session.Graph | Should -Not -BeNullOrEmpty
             }
         }
 
@@ -466,7 +355,9 @@ InModuleScope M365IncidentResponseTools {
                     IPPS     = New-SvcObject -ExpiresInMinutes 60
                 }
                 $Global:IRT_Session = New-IrtSession @IrtParams
-                Mock Connect-IRT { }
+                Mock Connect-IRTGraph { }
+                Mock Connect-IRTExchange { }
+                Mock Connect-IRTIPPS { }
             }
 
             It '-PassThru contains only the requested service key when one service is specified' {
@@ -486,7 +377,7 @@ InModuleScope M365IncidentResponseTools {
         }
 
         # -------------------------------------------------------------------
-        Context 'one service expiring, another healthy' {
+        Context 'one service expiring, another healthy (per-service refresh)' {
 
             BeforeEach {
                 $IrtParams = @{
@@ -494,15 +385,15 @@ InModuleScope M365IncidentResponseTools {
                     Exchange = New-SvcObject -ExpiresInMinutes 60
                 }
                 $Global:IRT_Session = New-IrtSession @IrtParams
-                Mock Connect-IRT { }
+                Mock Connect-IRTGraph { }
+                Mock Connect-IRTExchange { }
                 Mock Write-IRT { }
             }
 
-            It 'calls Connect-IRT -Refresh exactly once regardless of which service triggers it' {
-                # $needsRefresh is a single flag; the loop sets it on the first
-                # expiring service and the refresh block fires once for all services.
+            It 'refreshes ONLY the stale service' {
                 Update-IRTToken -Service 'Graph', 'Exchange'
-                Should -Invoke Connect-IRT -Times 1 -Exactly -ParameterFilter { $Refresh }
+                Should -Invoke Connect-IRTGraph -Times 1 -Exactly
+                Should -Invoke Connect-IRTExchange -Times 0
             }
 
             It '-PassThru reports the healthy service as $true' {
@@ -513,6 +404,92 @@ InModuleScope M365IncidentResponseTools {
             It '-PassThru reports the expiring (but not yet expired) service as $true' {
                 $result = Update-IRTToken -Service 'Graph', 'Exchange' -PassThru
                 $result.Graph | Should -BeTrue
+            }
+        }
+
+        # -------------------------------------------------------------------
+        Context 'IPPS refresh forwards SearchOnly' {
+
+            BeforeEach {
+                $Ipps = New-SvcObject -ExpiresInMinutes 2
+                $Global:IRT_Session = New-IrtSession -IPPS $Ipps
+                Mock Connect-IRTIPPS { }
+                Mock Write-IRT { }
+            }
+
+            It 'passes the session SearchOnly value to the connector' {
+                Update-IRTToken -Service 'IPPS'
+                Should -Invoke Connect-IRTIPPS -Times 1 -ParameterFilter {
+                    $SearchOnly -eq $true
+                }
+            }
+        }
+
+        # -------------------------------------------------------------------
+        Context 'runspace worker mode' {
+
+            BeforeEach {
+                $IrtParams = @{
+                    Graph    = New-SvcObject -ExpiresInMinutes 2
+                    Exchange = New-SvcObject -ExpiresInMinutes 60
+                    IPPS     = New-SvcObject -ExpiresInMinutes 2
+                }
+                $Global:IRT_Session = New-IrtSession @IrtParams
+                $Global:IRT_IsRunspaceWorker = $true
+                Mock Connect-IRTGraph { }
+                Mock Connect-IRTExchange { }
+                Mock Connect-IRTIPPS { }
+                Mock Connect-IRTRunspaceExchange { }
+                Mock Write-IRT { }
+            }
+
+            It 'never calls the parent connectors, even for stale tokens' {
+                Update-IRTToken -Service 'Graph', 'Exchange', 'IPPS'
+                Should -Invoke Connect-IRTGraph -Times 0
+                Should -Invoke Connect-IRTExchange -Times 0
+                Should -Invoke Connect-IRTIPPS -Times 0
+            }
+
+            It 'calls Connect-IRTRunspaceExchange when the runspace token is missing' {
+                $Global:IRT_RunspaceExo = $null
+                Update-IRTToken -Service 'Exchange'
+                Should -Invoke Connect-IRTRunspaceExchange -Times 1 -Exactly
+            }
+
+            It 'calls Connect-IRTRunspaceExchange when the runspace token is stale' {
+                $Global:IRT_RunspaceExo = @{
+                    ConnectionId     = [guid]::NewGuid()
+                    BoundTokenExpiry = [datetime]::UtcNow.AddMinutes(2)
+                }
+                Update-IRTToken -Service 'Exchange'
+                Should -Invoke Connect-IRTRunspaceExchange -Times 1 -Exactly
+            }
+
+            It 'does not call Connect-IRTRunspaceExchange when the runspace token is healthy' {
+                $Global:IRT_RunspaceExo = @{
+                    ConnectionId     = [guid]::NewGuid()
+                    BoundTokenExpiry = [datetime]::UtcNow.AddMinutes(50)
+                }
+                Update-IRTToken -Service 'Exchange'
+                Should -Invoke Connect-IRTRunspaceExchange -Times 0
+            }
+
+            It '-PassThru reads Exchange status from the runspace-local global' {
+                $Global:IRT_RunspaceExo = @{
+                    ConnectionId     = [guid]::NewGuid()
+                    BoundTokenExpiry = [datetime]::UtcNow.AddMinutes(50)
+                }
+                $result = Update-IRTToken -Service 'Exchange' -PassThru
+                $result.Exchange | Should -BeTrue
+            }
+
+            It 'swallows a Connect-IRTRunspaceExchange failure and writes an error' {
+                $Global:IRT_RunspaceExo = $null
+                Mock Connect-IRTRunspaceExchange { throw 'silent acquisition failed' }
+                { Update-IRTToken -Service 'Exchange' } | Should -Not -Throw
+                Should -Invoke Write-IRT -Times 1 -ParameterFilter {
+                    $Level -eq 'Error' -and $Message -match 'refresh failed'
+                }
             }
         }
     }
