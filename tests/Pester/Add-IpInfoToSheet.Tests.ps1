@@ -6,10 +6,10 @@
 
 .DESCRIPTION
     All tests run entirely in-memory; no files are written to disk and no
-    network calls are made. The external 'ip_info' CLI tool is mocked as a
-    PowerShell function so its behaviour can be controlled per test.
-    Copy-ConditionalFormatting and Write-IRT are mocked to eliminate file
-    I/O and console side-effects.
+    network calls are made. The Invoke-IRTNativeCommand wrapper (which runs the
+    external 'ip_info' CLI tool) is mocked so its StdOut/StdErr/ExitCode result
+    can be controlled per test. Copy-ConditionalFormatting and Write-IRT are
+    mocked to eliminate file I/O and console side-effects.
 
     $Global:IRT_Config and $Global:IRT_IpInfo are saved before each test
     and restored afterwards so the suite is safe to run in a live session.
@@ -100,12 +100,20 @@
         cell rewritten with fresh data.
 
     'does not rewrite cells when ip_info exits with a non-zero code'
-        On failure the function returns early; cell values must be unchanged
+        On failure the batch is skipped; cell values must be unchanged
         and no exception must propagate to the caller.
 
-    'writes an error message when ip_info fails'
-        The failure message is written via Write-IRT at Error level so the
-        operator is informed of the problem.
+    'writes an error message including stderr when ip_info fails'
+        The failure message is written via Write-IRT at Error level and
+        includes the tool's captured stderr so the operator sees the cause.
+
+    'queries ip_info in batches of 100 for large IP sets'
+        More than 100 unseen IPs must be split across multiple calls to stay
+        under the command-line length limit that breaks the uv trampoline.
+
+    'logs one error but still enriches other batches when a batch fails'
+        A failing batch is logged and skipped; remaining batches still run,
+        so partial enrichment survives a single bad/transient batch.
 
 -- Copy-ConditionalFormatting per column --------------------------------
 
@@ -134,9 +142,8 @@ InModuleScope M365IncidentResponseTools {
             Mock Write-IRT {}
             Mock Copy-ConditionalFormatting {}
             # Default ip_info mock: succeeds with an empty result set.
-            Mock ip_info {
-                $global:LASTEXITCODE = 0
-                '{}'
+            Mock Invoke-IRTNativeCommand {
+                [pscustomobject]@{ StdOut = @('{}'); StdErr = ''; ExitCode = 0 }
             }
 
             # -------------------------------------------------------------------
@@ -344,7 +351,7 @@ InModuleScope M365IncidentResponseTools {
                 $wb = New-TestWorksheet -ColumnNames 'IpAddress' -Rows $rows
                 try {
                     Add-IpInfoToSheet -Worksheet $wb.Ws -ColumnName 'IpAddress'
-                    Should -Not -Invoke ip_info
+                    Should -Not -Invoke Invoke-IRTNativeCommand
                 } finally { $wb.Pkg.Dispose() }
             }
 
@@ -353,14 +360,17 @@ InModuleScope M365IncidentResponseTools {
                 $wb = New-TestWorksheet -ColumnNames 'IpAddress' -Rows $rows
                 try {
                     Add-IpInfoToSheet -Worksheet $wb.Ws -ColumnName 'IpAddress'
-                    Should -Invoke ip_info -Times 1 -Exactly
+                    Should -Invoke Invoke-IRTNativeCommand -Times 1 -Exactly
                 } finally { $wb.Pkg.Dispose() }
             }
 
             It 'populates the global cache from ip_info JSON output' {
-                Mock ip_info {
-                    $global:LASTEXITCODE = 0
-                    '{"10.4.0.1": "info for 10.4.0.1"}'
+                Mock Invoke-IRTNativeCommand {
+                    [pscustomobject]@{
+                        StdOut   = @('{"10.4.0.1": "info for 10.4.0.1"}')
+                        StdErr   = ''
+                        ExitCode = 0
+                    }
                 }
                 $rows = @(@{ IpAddress = '10.4.0.1' })
                 $wb = New-TestWorksheet -ColumnNames 'IpAddress' -Rows $rows
@@ -372,9 +382,12 @@ InModuleScope M365IncidentResponseTools {
             }
 
             It 'rewrites the cell when ip_info returns data for the IP' {
-                Mock ip_info {
-                    $global:LASTEXITCODE = 0
-                    '{"10.5.0.1": "fresh data for 10.5.0.1"}'
+                Mock Invoke-IRTNativeCommand {
+                    [pscustomobject]@{
+                        StdOut   = @('{"10.5.0.1": "fresh data for 10.5.0.1"}')
+                        StdErr   = ''
+                        ExitCode = 0
+                    }
                 }
                 $rows = @(@{ IpAddress = '10.5.0.1' })
                 $wb = New-TestWorksheet -ColumnNames 'IpAddress' -Rows $rows
@@ -385,7 +398,9 @@ InModuleScope M365IncidentResponseTools {
             }
 
             It 'does not rewrite cells when ip_info exits with a non-zero code' {
-                Mock ip_info { $global:LASTEXITCODE = 1 }
+                Mock Invoke-IRTNativeCommand {
+                    [pscustomobject]@{ StdOut = @(); StdErr = 'boom'; ExitCode = 1 }
+                }
                 $rows = @(@{ IpAddress = '10.6.0.1' })
                 $wb = New-TestWorksheet -ColumnNames 'IpAddress' -Rows $rows
                 try {
@@ -395,14 +410,70 @@ InModuleScope M365IncidentResponseTools {
                 } finally { $wb.Pkg.Dispose() }
             }
 
-            It 'writes an error message when ip_info fails' {
-                Mock ip_info { $global:LASTEXITCODE = 1 }
+            It 'writes an error message including stderr when ip_info fails' {
+                Mock Invoke-IRTNativeCommand {
+                    [pscustomobject]@{
+                        StdOut   = @()
+                        StdErr   = 'uv trampoline failed (os error 87)'
+                        ExitCode = 1
+                    }
+                }
                 Mock Write-IRT {}
                 $rows = @(@{ IpAddress = '10.7.0.1' })
                 $wb = New-TestWorksheet -ColumnNames 'IpAddress' -Rows $rows
                 try {
                     Add-IpInfoToSheet -Worksheet $wb.Ws -ColumnName 'IpAddress'
-                    Should -Invoke Write-IRT -Times 1 -ParameterFilter { $Level -eq 'Error' }
+                    Should -Invoke Write-IRT -Times 1 -ParameterFilter {
+                        $Level -eq 'Error' -and $Message -like '*os error 87*'
+                    }
+                } finally { $wb.Pkg.Dispose() }
+            }
+
+            It 'queries ip_info in batches of 100 for large IP sets' {
+                # 150 distinct uncached IPs => two batches (100 + 50).
+                $rows = 1..150 | ForEach-Object { @{ IpAddress = "10.20.0.$_" } }
+                $wb = New-TestWorksheet -ColumnNames 'IpAddress' -Rows $rows
+                try {
+                    Add-IpInfoToSheet -Worksheet $wb.Ws -ColumnName 'IpAddress'
+                    Should -Invoke Invoke-IRTNativeCommand -Times 2 -Exactly
+                } finally { $wb.Pkg.Dispose() }
+            }
+
+            It 'logs one error but still enriches other batches when a batch fails' {
+                # First batch (100 IPs) fails; second batch (50 IPs) succeeds and
+                # enriches whatever IPs it was handed.
+                $script:BatchCall = 0
+                Mock Invoke-IRTNativeCommand {
+                    $script:BatchCall++
+                    $Idx = [array]::IndexOf($Arguments, '--ip_addresses')
+                    $Ips = $Arguments[($Idx + 1)..($Arguments.Count - 1)]
+                    if ($script:BatchCall -eq 1) {
+                        [pscustomobject]@{
+                            StdOut   = @()
+                            StdErr   = 'uv trampoline failed (os error 87)'
+                            ExitCode = 1
+                        }
+                    } else {
+                        $Obj = [ordered]@{}
+                        foreach ($Ip in $Ips) { $Obj[$Ip] = "data for $Ip" }
+                        [pscustomobject]@{
+                            StdOut   = @(($Obj | ConvertTo-Json -Compress))
+                            StdErr   = ''
+                            ExitCode = 0
+                        }
+                    }
+                }
+                Mock Write-IRT {}
+                $rows = 1..150 | ForEach-Object { @{ IpAddress = "10.21.0.$_" } }
+                $wb = New-TestWorksheet -ColumnNames 'IpAddress' -Rows $rows
+                try {
+                    Add-IpInfoToSheet -Worksheet $wb.Ws -ColumnName 'IpAddress'
+                    Should -Invoke Invoke-IRTNativeCommand -Times 2 -Exactly
+                    Should -Invoke Write-IRT -Times 1 -Exactly -ParameterFilter {
+                        $Level -eq 'Error'
+                    }
+                    # Second batch (50 IPs) succeeded; first batch (100) did not.
+                    $Global:IRT_IpInfo.Count | Should -Be 50
                 } finally { $wb.Pkg.Dispose() }
             }
         }

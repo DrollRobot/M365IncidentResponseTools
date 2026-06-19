@@ -26,7 +26,7 @@ function Add-IpInfoToSheet {
     Add-IpInfoToSheet -Worksheet $Worksheet -ColumnName 'FromIP', 'ToIP'
 
     .NOTES
-    Version: 1.0.0
+    Version: 1.1.0
     #>
     [CmdletBinding()]
     param (
@@ -79,22 +79,43 @@ function Add-IpInfoToSheet {
     $IpInfoTable = $Global:IRT_IpInfo
     $UnseenIps = @($AllIps | Where-Object { -not $IpInfoTable.ContainsKey($_) })
     if ($UnseenIps.Count -gt 0) {
-        $env:PYTHONUTF8 = '1'
-        $RawOutput = @(& ip_info --apis bulk --output_format jsontable --ip_addresses $UnseenIps)
-        if ($LASTEXITCODE -ne 0) {
-            Write-IRT "ip_info query failed (exit $LASTEXITCODE)." -Level Error
-            return
-        }
-        $JsonStart = -1
-        for ($i = 0; $i -lt $RawOutput.Length; $i++) {
-            if ($RawOutput[$i] -match '^\{') { $JsonStart = $i; break }
-        }
-        if ($JsonStart -ge 0) {
-            $JsonText = ($RawOutput[$JsonStart..($RawOutput.Length - 1)]) -join "`n"
-            $JsonData = $JsonText | ConvertFrom-Json -ErrorAction SilentlyContinue
-            if ($JsonData) {
-                foreach ($Prop in $JsonData.PSObject.Properties) {
-                    $IpInfoTable[$Prop.Name] = $Prop.Value
+        # ip_info.exe is a uv trampoline that re-spawns python via CreateProcessW,
+        # which caps the command line near 32,767 chars. A large log pull can push
+        # enough unique IPs past that limit (os error 87), so query in batches.
+        $BatchSize = 100
+        for ($Start = 0; $Start -lt $UnseenIps.Count; $Start += $BatchSize) {
+            $End = [Math]::Min($Start + $BatchSize, $UnseenIps.Count) - 1
+            $Batch = @($UnseenIps[$Start..$End])
+
+            $InvokeParams = @{
+                FilePath    = 'ip_info'
+                Arguments   = @('--apis', 'bulk', '--output_format', 'jsontable',
+                    '--ip_addresses') + $Batch
+                # Force python to emit UTF-8 to match the wrapper's UTF-8 decoding.
+                Environment = @{ PYTHONUTF8 = '1' }
+            }
+            $Result = Invoke-IRTNativeCommand @InvokeParams
+
+            # On failure, surface the tool's stderr and keep going so one bad
+            # batch does not discard enrichment for the rest.
+            if ($Result.ExitCode -ne 0) {
+                $Detail = if ($Result.StdErr) { ": $($Result.StdErr.Trim())" } else { '.' }
+                Write-IRT "ip_info query failed (exit $($Result.ExitCode))$Detail" -Level Error
+                continue
+            }
+
+            $RawOutput = $Result.StdOut
+            $JsonStart = -1
+            for ($i = 0; $i -lt $RawOutput.Length; $i++) {
+                if ($RawOutput[$i] -match '^\{') { $JsonStart = $i; break }
+            }
+            if ($JsonStart -ge 0) {
+                $JsonText = ($RawOutput[$JsonStart..($RawOutput.Length - 1)]) -join "`n"
+                $JsonData = $JsonText | ConvertFrom-Json -ErrorAction SilentlyContinue
+                if ($JsonData) {
+                    foreach ($Prop in $JsonData.PSObject.Properties) {
+                        $IpInfoTable[$Prop.Name] = $Prop.Value
+                    }
                 }
             }
         }

@@ -13,7 +13,9 @@ $ExecutionContext.SessionState.Module.OnRemove = {
 # Using Synchronized everywhere costs nothing measurable and is safe for runspace sharing.
 # Existing data is preserved on module re-import (-Force).
 foreach ($VarName in 'IRT_IpInfo', 'IRT_MessageTraceTable') {
-    $Current = Get-Variable -Name $VarName -Scope Global -ValueOnly -ErrorAction SilentlyContinue
+    # -ErrorAction Ignore (not SilentlyContinue): on first import the global does
+    # not exist yet, and Ignore keeps that expected miss out of $Error.
+    $Current = Get-Variable -Name $VarName -Scope Global -ValueOnly -ErrorAction Ignore
     if (-not ($Current -is [hashtable] -and $Current.IsSynchronized)) {
         $Existing = if ($Current -is [hashtable]) { $Current } else { @{} }
         Set-Variable -Name $VarName -Scope Global -Value ([hashtable]::Synchronized($Existing))

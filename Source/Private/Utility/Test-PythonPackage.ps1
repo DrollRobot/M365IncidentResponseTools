@@ -43,15 +43,15 @@ function Test-PythonPackage {
             # prefer 'python', then 'python3', then 'py -3' on windows
             $Candidates = @(
                 @{
-                    Cmd = (Get-Command -Name 'python' -ErrorAction SilentlyContinue)?.Source
+                    Cmd = (Get-Command -Name 'python' -ErrorAction Ignore)?.Source
                     PrefixArgs = @()
                 }
                 @{
-                    Cmd = (Get-Command -Name 'python3' -ErrorAction SilentlyContinue)?.Source
+                    Cmd = (Get-Command -Name 'python3' -ErrorAction Ignore)?.Source
                     PrefixArgs = @()
                 }
                 @{
-                    Cmd = (Get-Command -Name 'py' -ErrorAction SilentlyContinue)?.Source
+                    Cmd = (Get-Command -Name 'py' -ErrorAction Ignore)?.Source
                     PrefixArgs = @('-3')
                 }
             ) | Where-Object { $_.Cmd }
@@ -64,15 +64,19 @@ function Test-PythonPackage {
         function Find-UvTool {
             param([string]$ToolName)
 
-            $uvCmd = Get-Command -Name 'uv' -ErrorAction SilentlyContinue
+            $uvCmd = Get-Command -Name 'uv' -ErrorAction Ignore
             if (-not $uvCmd) { return $null }
 
             # normalize per PEP 503: lowercase, collapse runs of [-_.] to a single hyphen
             $normalizedName = ($ToolName -replace '[_.\-]+', '-').ToLower()
 
             try {
-                $listOutput = & $uvCmd.Source tool list --no-color 2>$null
-                if ($LASTEXITCODE -ne 0) { return $null }
+                # Detection probe: a non-zero exit just means "not installed",
+                # so the captured stderr is intentionally discarded (silent probe).
+                $ListArgs = @('tool', 'list', '--no-color')
+                $ListResult = Invoke-IRTNativeCommand -FilePath $uvCmd.Source -Arguments $ListArgs
+                if ($ListResult.ExitCode -ne 0) { return $null }
+                $listOutput = $ListResult.StdOut
 
                 $version = $null
                 $distName = $null
@@ -90,8 +94,11 @@ function Test-PythonPackage {
                 if (-not $version) { return $null }
 
                 # locate the venv python inside the tool environment
-                $toolDir = (& $uvCmd.Source tool dir 2>$null)
-                if ($LASTEXITCODE -ne 0 -or -not $toolDir) {
+                $DirArgs = @('tool', 'dir')
+                $DirResult = Invoke-IRTNativeCommand -FilePath $uvCmd.Source -Arguments $DirArgs
+                $toolDir = @($DirResult.StdOut) |
+                    Where-Object { $_.Trim() } | Select-Object -First 1
+                if ($DirResult.ExitCode -ne 0 -or -not $toolDir) {
                     return @{ Version = $version; Python = $null }
                 }
                 $toolDir = $toolDir.Trim()
@@ -163,13 +170,15 @@ except Exception:
             if ($Py.PrefixArgs) { $Arguments += $Py.PrefixArgs }
             $Arguments += @('-c', $PyCode, $Name)
 
-            $Output = & $Py.Cmd @Arguments 2>$null
-            $Exit = $LASTEXITCODE
+            $PyResult = Invoke-IRTNativeCommand -FilePath $Py.Cmd -Arguments $Arguments
+            $Exit = $PyResult.ExitCode
 
             $PyPresent = ($Exit -eq 0)
             if ($PyPresent) {
-                $PyVersion = ($Output | Select-Object -First 1).ToString().Trim()
+                $PyVersion = @($PyResult.StdOut)[0]
+                if ($null -ne $PyVersion) { $PyVersion = $PyVersion.Trim() }
             } else {
+                # Silent probe: a failed import just means "not installed".
                 $PyVersion = $null
             }
             $PrefixStr = if ($Py.PrefixArgs.Count) { ' ' + ($Py.PrefixArgs -join ' ') } else { '' }
