@@ -1161,6 +1161,8 @@ function Get-TokenExpiry {
         [string] $Token
     )
 
+    Import-IRTModule -Name 'PSFramework'
+
     try {
         $parts = $Token.Split('.')
         if ($parts.Count -lt 2) { return $null }
@@ -1188,7 +1190,7 @@ function Get-TokenExpiry {
         return $null
     }
 }
-#EndRegion '.\Private\Connect\Get-TokenExpiry.ps1' 43
+#EndRegion '.\Private\Connect\Get-TokenExpiry.ps1' 45
 #Region '.\Private\Connect\Get-TokenPayload.ps1' -1
 
 function Get-TokenPayload {
@@ -1257,6 +1259,8 @@ function Import-MsalAssembly {
     [OutputType([System.Reflection.Assembly])]
     param()
 
+    Import-IRTModule -Name 'PSFramework'
+
     $Assembly = [System.AppDomain]::CurrentDomain.GetAssemblies() |
         Where-Object { $_.FullName -like 'Microsoft.Identity.Client,*' }
 
@@ -1287,7 +1291,7 @@ function Import-MsalAssembly {
     return [System.AppDomain]::CurrentDomain.GetAssemblies() |
         Where-Object { $_.FullName -like 'Microsoft.Identity.Client,*' }
 }
-#EndRegion '.\Private\Connect\Import-MsalAssembly.ps1' 55
+#EndRegion '.\Private\Connect\Import-MsalAssembly.ps1' 57
 #Region '.\Private\Connect\Install-MsalExtensions.ps1' -1
 
 function Install-MsalExtensions {
@@ -1314,6 +1318,8 @@ function Install-MsalExtensions {
         'PSUseSingularNouns', '',
         Justification = 'Internal helper; plural name reflects MSAL extensions assembly.')]
     param()
+
+    Import-IRTModule -Name 'PSFramework'
 
     # Pinned version. Bump when Graph SDK's bundled MSAL outpaces this.
     $Version = '4.66.2'
@@ -1411,7 +1417,7 @@ function Install-MsalExtensions {
     Add-Type -Path $DllPath
     return $DllPath
 }
-#EndRegion '.\Private\Connect\Install-MsalExtensions.ps1' 122
+#EndRegion '.\Private\Connect\Install-MsalExtensions.ps1' 124
 #Region '.\Private\Connect\Invoke-AdminConsent.ps1' -1
 
 function Invoke-AdminConsent {
@@ -1433,6 +1439,7 @@ function Invoke-AdminConsent {
     )
 
     begin {
+        Import-IRTModule -Name 'PSFramework'
         $Listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, 0)
         $Listener.Start()
         $Port = ([System.Net.IPEndPoint]$Listener.LocalEndpoint).Port
@@ -1538,7 +1545,7 @@ function Invoke-AdminConsent {
         }
     }
 }
-#EndRegion '.\Private\Connect\Invoke-AdminConsent.ps1' 125
+#EndRegion '.\Private\Connect\Invoke-AdminConsent.ps1' 126
 #Region '.\Private\Connect\Register-MsalCache.ps1' -1
 
 function Register-MsalCache {
@@ -1581,6 +1588,8 @@ function Register-MsalCache {
         [string] $CachePath = $Global:IRT_Config.MsalCachePath
     )
 
+    Import-IRTModule -Name 'PSFramework'
+
     Write-PSFMessage -Level 8 -Message "Register-MsalCache: CachePath=$CachePath"
 
     if (-not $IsWindows -and $PSVersionTable.PSVersion.Major -ge 6) {
@@ -1618,7 +1627,7 @@ function Register-MsalCache {
     Write-PSFMessage -Level 8 -Message "Register-MsalCache: Registering cache at: $CachePath"
     $Helper.RegisterCache($App.UserTokenCache)
 }
-#EndRegion '.\Private\Connect\Register-MsalCache.ps1' 78
+#EndRegion '.\Private\Connect\Register-MsalCache.ps1' 80
 #Region '.\Private\Connect\Test-GraphAdminConsent.ps1' -1
 
 function Test-GraphAdminConsent {
@@ -1645,6 +1654,8 @@ function Test-GraphAdminConsent {
         [string] $ClientAppId = '14d82eec-204b-4c2f-b7e8-296a70dab67e',  # Graph CLI Tools
         [string] $ResourceAppId = '00000003-0000-0000-c000-000000000000' # Microsoft Graph
     )
+
+    Import-IRTModule -Name 'Microsoft.Graph.Authentication', 'PSFramework'
 
     Write-PSFMessage -Level 8 -Message (
         "Test-GraphAdminConsent: Resolving SPs - Client=$ClientAppId, Resource=$ResourceAppId")
@@ -1690,7 +1701,7 @@ function Test-GraphAdminConsent {
         "Requested=$($RequestedScope.Count), Missing=$($MissingScopes.Count)")
     [string[]] $MissingScopes
 }
-#EndRegion '.\Private\Connect\Test-GraphAdminConsent.ps1' 70
+#EndRegion '.\Private\Connect\Test-GraphAdminConsent.ps1' 72
 #Region '.\Private\Connect\Test-TokenExpired.ps1' -1
 
 function Test-TokenExpired {
@@ -1714,6 +1725,8 @@ function Test-TokenExpired {
         [int] $BufferSeconds = 300
     )
 
+    Import-IRTModule -Name 'PSFramework'
+
     $expiry = Get-TokenExpiry -Token $Token
     if ($null -eq $expiry) {
         Write-PSFMessage -Level 8 -Message (
@@ -1729,7 +1742,7 @@ function Test-TokenExpired {
         "MinutesLeft=$minutesLeft, Expired=$expired")
     return $expired
 }
-#EndRegion '.\Private\Connect\Test-TokenExpired.ps1' 37
+#EndRegion '.\Private\Connect\Test-TokenExpired.ps1' 39
 #Region '.\Private\Device\Set-IRTDeviceEnabled.ps1' -1
 
 function Set-IRTDeviceEnabled {
@@ -1752,6 +1765,7 @@ function Set-IRTDeviceEnabled {
 
     begin {
         Update-IRTToken -Service 'Graph'
+        Import-IRTModule -Name 'Microsoft.Graph.Identity.DirectoryManagement'
         # if not passed directly, find global
         if ( -not $DeviceObject -or $DeviceObject.Count -eq 0 ) {
 
@@ -1821,7 +1835,7 @@ function Set-IRTDeviceEnabled {
         }
     }
 }
-#EndRegion '.\Private\Device\Set-IRTDeviceEnabled.ps1' 90
+#EndRegion '.\Private\Device\Set-IRTDeviceEnabled.ps1' 91
 #Region '.\Private\Device\Show-GraphDeviceTree.ps1' -1
 
 function Show-GraphDeviceTree {
@@ -2345,6 +2359,7 @@ function Request-DirectoryRole {
     )
 
     begin {
+        Import-IRTModule -Name 'Microsoft.Graph.Identity.DirectoryManagement', 'PSFramework'
         $FunctionName = $MyInvocation.MyCommand.Name
         $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
 
@@ -2429,7 +2444,7 @@ function Request-DirectoryRole {
         }
     }
 }
-#EndRegion '.\Private\Graph\Request-DirectoryRole.ps1' 109
+#EndRegion '.\Private\Graph\Request-DirectoryRole.ps1' 110
 #Region '.\Private\Graph\Request-DirectoryRoleTemplate.ps1' -1
 
 function Request-DirectoryRoleTemplate {
@@ -2455,6 +2470,7 @@ function Request-DirectoryRoleTemplate {
     )
 
     begin {
+        Import-IRTModule -Name 'Microsoft.Graph.Identity.DirectoryManagement', 'PSFramework'
         $FunctionName = $MyInvocation.MyCommand.Name
         $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
 
@@ -2537,7 +2553,7 @@ function Request-DirectoryRoleTemplate {
         }
     }
 }
-#EndRegion '.\Private\Graph\Request-DirectoryRoleTemplate.ps1' 106
+#EndRegion '.\Private\Graph\Request-DirectoryRoleTemplate.ps1' 107
 #Region '.\Private\Graph\Request-GraphDevice.ps1' -1
 
 function Request-GraphDevice {
@@ -2567,6 +2583,7 @@ function Request-GraphDevice {
     )
 
     begin {
+        Import-IRTModule -Name 'Microsoft.Graph.Identity.DirectoryManagement', 'PSFramework'
         $FunctionName = $MyInvocation.MyCommand.Name
         $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
 
@@ -2719,7 +2736,7 @@ function Request-GraphDevice {
         }
     }
 }
-#EndRegion '.\Private\Graph\Request-GraphDevice.ps1' 180
+#EndRegion '.\Private\Graph\Request-GraphDevice.ps1' 181
 #Region '.\Private\Graph\Request-GraphGroup.ps1' -1
 
 function Request-GraphGroup {
@@ -2746,6 +2763,7 @@ function Request-GraphGroup {
     )
 
     begin {
+        Import-IRTModule -Name 'Microsoft.Graph.Groups', 'PSFramework'
         $FunctionName = $MyInvocation.MyCommand.Name
         $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
 
@@ -2836,7 +2854,7 @@ function Request-GraphGroup {
         }
     }
 }
-#EndRegion '.\Private\Graph\Request-GraphGroup.ps1' 115
+#EndRegion '.\Private\Graph\Request-GraphGroup.ps1' 116
 #Region '.\Private\Graph\Request-GraphOauth2Grant.ps1' -1
 
 function Request-GraphOauth2Grant {
@@ -2863,6 +2881,7 @@ function Request-GraphOauth2Grant {
     )
 
     begin {
+        Import-IRTModule -Name 'Microsoft.Graph.Identity.SignIns', 'PSFramework'
         $FunctionName = $MyInvocation.MyCommand.Name
         $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
 
@@ -2945,7 +2964,7 @@ function Request-GraphOauth2Grant {
         }
     }
 }
-#EndRegion '.\Private\Graph\Request-GraphOauth2Grant.ps1' 107
+#EndRegion '.\Private\Graph\Request-GraphOauth2Grant.ps1' 108
 #Region '.\Private\Graph\Request-GraphServicePrincipal.ps1' -1
 
 function Request-GraphServicePrincipal {
@@ -2972,6 +2991,7 @@ function Request-GraphServicePrincipal {
     )
 
     begin {
+        Import-IRTModule -Name 'Microsoft.Graph.Applications', 'PSFramework'
         $FunctionName = $MyInvocation.MyCommand.Name
         $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
 
@@ -3078,7 +3098,7 @@ function Request-GraphServicePrincipal {
         }
     }
 }
-#EndRegion '.\Private\Graph\Request-GraphServicePrincipal.ps1' 131
+#EndRegion '.\Private\Graph\Request-GraphServicePrincipal.ps1' 132
 #Region '.\Private\Graph\Request-GraphUser.ps1' -1
 
 function Request-GraphUser {
@@ -3105,6 +3125,7 @@ function Request-GraphUser {
     )
 
     begin {
+        Import-IRTModule -Name 'Microsoft.Graph.Users', 'PSFramework'
         $FunctionName = $MyInvocation.MyCommand.Name
         $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
 
@@ -3183,7 +3204,7 @@ function Request-GraphUser {
         }
     }
 }
-#EndRegion '.\Private\Graph\Request-GraphUser.ps1' 103
+#EndRegion '.\Private\Graph\Request-GraphUser.ps1' 104
 #Region '.\Private\Graph\Request-IntuneDevice.ps1' -1
 
 function Request-IntuneDevice {
@@ -3198,6 +3219,10 @@ function Request-IntuneDevice {
     [OutputType([System.Object[]])]
     [CmdletBinding()]
     param ()
+
+    begin {
+        Import-IRTModule -Name 'Microsoft.Graph.DeviceManagement', 'PSFramework'
+    }
 
     process {
 
@@ -3215,7 +3240,7 @@ function Request-IntuneDevice {
         }
     }
 }
-#EndRegion '.\Private\Graph\Request-IntuneDevice.ps1' 30
+#EndRegion '.\Private\Graph\Request-IntuneDevice.ps1' 34
 #Region '.\Private\Graph\Resolve-DateRange.ps1' -1
 
 function Resolve-DateRange {
@@ -5031,6 +5056,7 @@ function Request-MessageTrace {
 
     begin {
         Update-IRTToken -Service 'Exchange'
+        Import-IRTModule -Name 'ExchangeOnlineManagement'
         $MaxPageSize = 5000
         $AbsoluteEnd = Get-Date
         $AbsoluteStart = $AbsoluteEnd.AddDays(-1 * $Days)
@@ -5222,7 +5248,7 @@ function Request-MessageTrace {
         Write-Output $AllMessages
     }
 }
-#EndRegion '.\Private\MessageTrace\Request-MessageTrace.ps1' 212
+#EndRegion '.\Private\MessageTrace\Request-MessageTrace.ps1' 213
 #Region '.\Private\MessageTrace\Request-MessageTraceV1.ps1' -1
 
 function Request-MessageTraceV1 {
@@ -5242,6 +5268,7 @@ function Request-MessageTraceV1 {
     )
     begin {
         Update-IRTToken -Service 'Exchange'
+        Import-IRTModule -Name 'ExchangeOnlineManagement', 'PSFramework'
         $PageSize = 5000
         $Page = 1
         $MoreToGet = $true
@@ -5292,7 +5319,7 @@ function Request-MessageTraceV1 {
         return $AllMessages
     }
 }
-#EndRegion '.\Private\MessageTrace\Request-MessageTraceV1.ps1' 68
+#EndRegion '.\Private\MessageTrace\Request-MessageTraceV1.ps1' 69
 #Region '.\Private\MessageTrace\Test-IsSorted.ps1' -1
 
 function Test-IsSorted {
@@ -5316,9 +5343,9 @@ function Test-IsSorted {
     return $true
 }
 #EndRegion '.\Private\MessageTrace\Test-IsSorted.ps1' 21
-#Region '.\Private\MessageTrace\Test-MergeSortedListsOnDate.ps1' -1
+#Region '.\Private\MessageTrace\Test-MergeListOnDate.ps1' -1
 
-function Test-MergeSortedListsOnDate {
+function Test-MergeListOnDate {
     [CmdletBinding()]
     param(
         # show merged outputs (off by default to keep output minimal)
@@ -5387,7 +5414,7 @@ function Test-MergeSortedListsOnDate {
         PropertyName = 'When'
         Ascending    = $true
     }
-    $MergedAsc = Merge-SortedListsOnDate @AscParams
+    $MergedAsc = Merge-ListOnDate @AscParams
 
     # run descending merge
     $DescParams = @{
@@ -5395,7 +5422,7 @@ function Test-MergeSortedListsOnDate {
         PropertyName = 'When'
         Descending   = $true
     }
-    $MergedDesc = Merge-SortedListsOnDate @DescParams
+    $MergedDesc = Merge-ListOnDate @DescParams
 
     # perform simple assertions
     $Failures = [System.Collections.Generic.List[string]]::new()
@@ -5451,7 +5478,7 @@ function Test-MergeSortedListsOnDate {
     # return the summary object; no extraneous screen output
     Write-Output $Result
 }
-#EndRegion '.\Private\MessageTrace\Test-MergeSortedListsOnDate.ps1' 134
+#EndRegion '.\Private\MessageTrace\Test-MergeListOnDate.ps1' 134
 #Region '.\Private\OnPremAd\Get-AdGlobalUserObject.ps1' -1
 
 function Get-AdGlobalUserObject {
@@ -5677,6 +5704,8 @@ function Test-RunningOnDomainController {
     [CmdletBinding()]
     param ()
 
+    Import-IRTModule -Name 'ActiveDirectory'
+
     try {
         $DomainControllerNames = (Get-ADDomainController -Filter *).Name
         return $env:ComputerName -in $DomainControllerNames
@@ -5685,7 +5714,7 @@ function Test-RunningOnDomainController {
         return $false
     }
 }
-#EndRegion '.\Private\OnPremAd\Test-RunningOnDomainController.ps1' 26
+#EndRegion '.\Private\OnPremAd\Test-RunningOnDomainController.ps1' 28
 #Region '.\Private\Role\Get-UnknownObject.ps1' -1
 
 function Get-UnknownObject {
@@ -5702,6 +5731,10 @@ function Get-UnknownObject {
     param(
         [string] $Id
     )
+
+    begin {
+        Import-IRTModule -Name 'Microsoft.Graph.DirectoryObjects'
+    }
 
     process {
 
@@ -5745,7 +5778,7 @@ function Get-UnknownObject {
         }
     }
 }
-#EndRegion '.\Private\Role\Get-UnknownObject.ps1' 58
+#EndRegion '.\Private\Role\Get-UnknownObject.ps1' 62
 #Region '.\Private\Role\New-RoleMemberObject.ps1' -1
 
 function New-RoleMemberObject {
@@ -5891,6 +5924,7 @@ function Build-AllOperationSheet {
     )
 
     begin {
+        Import-IRTModule -Name 'ImportExcel', 'PSFramework'
         $FunctionName = $MyInvocation.MyCommand.Name
         $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
         $RawDateProperty = 'CreationDate'
@@ -6253,7 +6287,7 @@ function Build-AllOperationSheet {
         return $Workbook
     }
 }
-#EndRegion '.\Private\UnifiedAuditLog\Build-AllOperationSheet.ps1' 398
+#EndRegion '.\Private\UnifiedAuditLog\Build-AllOperationSheet.ps1' 399
 #Region '.\Private\UnifiedAuditLog\Build-UserLoginOperationsSheet.ps1' -1
 
 function Build-UserLoginOperationsSheet {
@@ -6285,6 +6319,7 @@ function Build-UserLoginOperationsSheet {
     )
 
     begin {
+        Import-IRTModule -Name 'ImportExcel', 'PSFramework'
         $FunctionName = $MyInvocation.MyCommand.Name
         $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
         $RawDateProperty = 'CreationDate'
@@ -6514,7 +6549,7 @@ function Build-UserLoginOperationsSheet {
         return $Workbook
     }
 }
-#EndRegion '.\Private\UnifiedAuditLog\Build-UserLoginOperationsSheet.ps1' 259
+#EndRegion '.\Private\UnifiedAuditLog\Build-UserLoginOperationsSheet.ps1' 260
 #Region '.\Private\UnifiedAuditLog\Get-AddRemoveRoleSummary.ps1' -1
 
 function Get-AddRemoveRoleSummary {
@@ -7384,6 +7419,7 @@ function Get-FullUserObject {
 
     begin {
         Update-IRTToken -Service 'Graph'
+        Import-IRTModule -Name 'Microsoft.Graph.Users', 'PSFramework'
         $ScriptUserObject = $UserObject
 
         # properties you can safely query on all users
@@ -7490,7 +7526,7 @@ function Get-FullUserObject {
         Write-Output $ScriptUserObject
     }
 }
-#EndRegion '.\Private\User\Get-FullUserObject.ps1' 137
+#EndRegion '.\Private\User\Get-FullUserObject.ps1' 138
 #Region '.\Private\User\Set-UserEnabled.ps1' -1
 
 function Set-UserEnabled {
@@ -7513,6 +7549,14 @@ function Set-UserEnabled {
 
     begin {
         Update-IRTToken -Service 'Graph'
+        $ImportParams = @{
+            Name = @(
+                'Microsoft.Graph.Identity.DirectoryManagement'
+                'Microsoft.Graph.Users'
+                'Microsoft.Graph.Users.Actions'
+            )
+        }
+        Import-IRTModule @ImportParams
         # if not passed directly, find global
         if ( -not $UserObject -or $UserObject.Count -eq 0 ) {
 
@@ -7615,7 +7659,7 @@ function Set-UserEnabled {
         }
     }
 }
-#EndRegion '.\Private\User\Set-UserEnabled.ps1' 123
+#EndRegion '.\Private\User\Set-UserEnabled.ps1' 131
 #Region '.\Private\User\Show-GraphUserTree.ps1' -1
 
 function Show-GraphUserTree {
@@ -7698,7 +7742,7 @@ function Add-IpInfoToSheet {
     Add-IpInfoToSheet -Worksheet $Worksheet -ColumnName 'FromIP', 'ToIP'
 
     .NOTES
-    Version: 1.0.0
+    Version: 1.1.0
     #>
     [CmdletBinding()]
     param (
@@ -7751,22 +7795,43 @@ function Add-IpInfoToSheet {
     $IpInfoTable = $Global:IRT_IpInfo
     $UnseenIps = @($AllIps | Where-Object { -not $IpInfoTable.ContainsKey($_) })
     if ($UnseenIps.Count -gt 0) {
-        $env:PYTHONUTF8 = '1'
-        $RawOutput = @(& ip_info --apis bulk --output_format jsontable --ip_addresses $UnseenIps)
-        if ($LASTEXITCODE -ne 0) {
-            Write-IRT "ip_info query failed (exit $LASTEXITCODE)." -Level Error
-            return
-        }
-        $JsonStart = -1
-        for ($i = 0; $i -lt $RawOutput.Length; $i++) {
-            if ($RawOutput[$i] -match '^\{') { $JsonStart = $i; break }
-        }
-        if ($JsonStart -ge 0) {
-            $JsonText = ($RawOutput[$JsonStart..($RawOutput.Length - 1)]) -join "`n"
-            $JsonData = $JsonText | ConvertFrom-Json -ErrorAction SilentlyContinue
-            if ($JsonData) {
-                foreach ($Prop in $JsonData.PSObject.Properties) {
-                    $IpInfoTable[$Prop.Name] = $Prop.Value
+        # ip_info.exe is a uv trampoline that re-spawns python via CreateProcessW,
+        # which caps the command line near 32,767 chars. A large log pull can push
+        # enough unique IPs past that limit (os error 87), so query in batches.
+        $BatchSize = 100
+        for ($Start = 0; $Start -lt $UnseenIps.Count; $Start += $BatchSize) {
+            $End = [Math]::Min($Start + $BatchSize, $UnseenIps.Count) - 1
+            $Batch = @($UnseenIps[$Start..$End])
+
+            $InvokeParams = @{
+                FilePath    = 'ip_info'
+                Arguments   = @('--apis', 'bulk', '--output_format', 'jsontable',
+                    '--ip_addresses') + $Batch
+                # Force python to emit UTF-8 to match the wrapper's UTF-8 decoding.
+                Environment = @{ PYTHONUTF8 = '1' }
+            }
+            $Result = Invoke-IRTNativeCommand @InvokeParams
+
+            # On failure, surface the tool's stderr and keep going so one bad
+            # batch does not discard enrichment for the rest.
+            if ($Result.ExitCode -ne 0) {
+                $Detail = if ($Result.StdErr) { ": $($Result.StdErr.Trim())" } else { '.' }
+                Write-IRT "ip_info query failed (exit $($Result.ExitCode))$Detail" -Level Error
+                continue
+            }
+
+            $RawOutput = $Result.StdOut
+            $JsonStart = -1
+            for ($i = 0; $i -lt $RawOutput.Length; $i++) {
+                if ($RawOutput[$i] -match '^\{') { $JsonStart = $i; break }
+            }
+            if ($JsonStart -ge 0) {
+                $JsonText = ($RawOutput[$JsonStart..($RawOutput.Length - 1)]) -join "`n"
+                $JsonData = $JsonText | ConvertFrom-Json -ErrorAction SilentlyContinue
+                if ($JsonData) {
+                    foreach ($Prop in $JsonData.PSObject.Properties) {
+                        $IpInfoTable[$Prop.Name] = $Prop.Value
+                    }
                 }
             }
         }
@@ -7825,7 +7890,7 @@ function Add-IpInfoToSheet {
         }
     }
 }
-#EndRegion '.\Private\Utility\Add-IpInfoToSheet.ps1' 156
+#EndRegion '.\Private\Utility\Add-IpInfoToSheet.ps1' 177
 #Region '.\Private\Utility\Convert-DecimalToExcelColumn.ps1' -1
 
 function Convert-DecimalToExcelColumn {
@@ -8032,6 +8097,8 @@ function Copy-ConditionalFormatting {
         [string] $SourceSheet,
         [string] $DestinationSheet
     )
+
+    Import-IRTModule -Name 'PSFramework'
 
     # ---------------------------------------------------------------- helpers ----
     function Resolve-Package($in, [string]$role) {
@@ -8278,7 +8345,7 @@ function Copy-ConditionalFormatting {
         }
     }
 }
-#EndRegion '.\Private\Utility\Copy-ConditionalFormatting.ps1' 334
+#EndRegion '.\Private\Utility\Copy-ConditionalFormatting.ps1' 336
 #Region '.\Private\Utility\Format-PhoneNumber.ps1' -1
 
 function Format-PhoneNumber {
@@ -8403,6 +8470,10 @@ function Get-DefaultDomain {
         [switch] $SecondLevelDomain
     )
 
+    begin {
+        Import-IRTModule -Name 'Microsoft.Graph.Identity.DirectoryManagement', 'PSFramework'
+    }
+
     process {
 
         # serve from cache when available
@@ -8437,7 +8508,7 @@ function Get-DefaultDomain {
         return $DefaultDomainName
     }
 }
-#EndRegion '.\Private\Utility\Get-DefaultDomain.ps1' 111
+#EndRegion '.\Private\Utility\Get-DefaultDomain.ps1' 115
 #Region '.\Private\Utility\Get-GlobalUserObject.ps1' -1
 
 function Get-GlobalUserObject {
@@ -8574,6 +8645,8 @@ function Import-IRTModule {
         [string[]] $Name
     )
 
+    Import-Module -Name 'PSFramework'
+
     foreach ($module in $Name) {
         if (Get-Module -Name $module) {
             Write-PSFMessage -Level 8 -Message "Module already loaded, skipping: $module"
@@ -8584,7 +8657,7 @@ function Import-IRTModule {
         Import-Module -Name $module -ErrorAction Stop
     }
 }
-#EndRegion '.\Private\Utility\Import-IRTModule.ps1' 44
+#EndRegion '.\Private\Utility\Import-IRTModule.ps1' 46
 #Region '.\Private\Utility\Import-ReferenceData.ps1' -1
 
 function Import-ReferenceData {
@@ -8619,6 +8692,8 @@ function Import-ReferenceData {
     #>
     [CmdletBinding()]
     param()
+
+    Import-IRTModule -Name 'ImportExcel', 'PSFramework'
 
     $ModuleRoot = $MyInvocation.MyCommand.Module.ModuleBase
 
@@ -8686,7 +8761,153 @@ function Import-ReferenceData {
         "UserTypes=$($Global:IRT_UalUserTypeTable.Count), " +
         "TenantCache=$($Global:IRT_TenantInfoTable.Count)")
 }
-#EndRegion '.\Private\Utility\Import-ReferenceData.ps1' 100
+#EndRegion '.\Private\Utility\Import-ReferenceData.ps1' 102
+#Region '.\Private\Utility\Invoke-IRTNativeCommand.ps1' -1
+
+function Invoke-IRTNativeCommand {
+    <#
+    .SYNOPSIS
+    Runs an external CLI tool and returns its stdout, stderr, and exit code.
+
+    .DESCRIPTION
+    Central wrapper for invoking external executables (e.g. ip_info, python, uv).
+    Uses System.Diagnostics.Process with both standard streams redirected and
+    decoded as UTF-8, so the caller always gets the tool's stdout and stderr as
+    data instead of it printing raw to the console disconnected from IRT logging.
+
+    Because both streams are captured (rather than inherited by the console) the
+    tool's output is not streamed live -- live streaming would require writing to
+    the host from background reader threads. Instead the captured stdout and
+    stderr, the resolved path, argument count, command-line length, and exit code
+    are written to the debug log via Write-PSFMessage -Level 8.
+
+    Redirecting BOTH streams explicitly also avoids the
+    "StandardOutputEncoding is only supported when standard output is redirected"
+    error that PowerShell throws when only stderr is redirected (e.g. naive 2>).
+
+    stdout and stderr are drained concurrently (stderr via ReadToEndAsync) to
+    avoid the classic pipe-buffer deadlock when a tool fills one stream while the
+    caller blocks reading the other.
+
+    If the process cannot be started at all, ExitCode is -1 and StdErr carries the
+    exception message, so callers can branch on ExitCode uniformly.
+
+    .PARAMETER FilePath
+    The executable to run. A bare command name (e.g. 'ip_info') is resolved to a
+    full path via Get-Command, because Process.Start with UseShellExecute = $false
+    does not reliably search PATH on all platforms.
+
+    .PARAMETER Arguments
+    Arguments passed to the executable. Supplied via ArgumentList, so each element
+    is escaped individually and values are never re-parsed as a single string.
+
+    .PARAMETER Environment
+    Optional extra environment variables to set for the child process only (does
+    not mutate the caller's session). For example, @{ PYTHONUTF8 = '1' } forces a
+    Python tool to write UTF-8 to match this wrapper's UTF-8 decoding.
+
+    .EXAMPLE
+    $Result = Invoke-IRTNativeCommand -FilePath 'ip_info' -Arguments @(
+        '--apis', 'bulk', '--output_format', 'jsontable', '--ip_addresses', '1.1.1.1')
+    if ($Result.ExitCode -ne 0) { Write-IRT $Result.StdErr -Level Error }
+
+    .OUTPUTS
+    [pscustomobject] with StdOut ([string[]] of lines), StdErr ([string]), and
+    ExitCode ([int]).
+
+    .NOTES
+    Version: 1.2.0
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory, Position = 0)]
+        [string] $FilePath,
+
+        [Parameter(Position = 1)]
+        [string[]] $Arguments = @(),
+
+        [hashtable] $Environment
+    )
+
+    Import-IRTModule -Name 'PSFramework'
+
+    # Resolve a bare command name to its full executable path.
+    $ResolvedPath = $FilePath
+    if (-not (Test-Path -LiteralPath $FilePath)) {
+        $Cmd = Get-Command -Name $FilePath -CommandType Application -ErrorAction Ignore |
+            Select-Object -First 1
+        if ($Cmd) { $ResolvedPath = $Cmd.Source }
+    }
+
+    $CmdLineLength = $ResolvedPath.Length + ($Arguments -join ' ').Length + 1
+    Write-PSFMessage -Level 8 -Message (
+        "Invoke-IRTNativeCommand: $ResolvedPath -- $($Arguments.Count) arg(s), " +
+        "~$CmdLineLength char command line.")
+
+    $StartInfo = [System.Diagnostics.ProcessStartInfo]::new()
+    $StartInfo.FileName = $ResolvedPath
+    $StartInfo.UseShellExecute = $false
+    $StartInfo.CreateNoWindow = $true
+    $StartInfo.RedirectStandardOutput = $true
+    $StartInfo.RedirectStandardError = $true
+    $StartInfo.StandardOutputEncoding = [System.Text.Encoding]::UTF8
+    $StartInfo.StandardErrorEncoding = [System.Text.Encoding]::UTF8
+    foreach ($Arg in $Arguments) { $StartInfo.ArgumentList.Add($Arg) }
+    if ($Environment) {
+        foreach ($Key in $Environment.Keys) {
+            $StartInfo.Environment[$Key] = [string]$Environment[$Key]
+        }
+    }
+
+    $Process = [System.Diagnostics.Process]::new()
+    $Process.StartInfo = $StartInfo
+
+    try {
+        $null = $Process.Start()
+    } catch {
+        $Process.Dispose()
+        $Message = $_.Exception.Message
+        Write-PSFMessage -Level 8 -Message (
+            "Invoke-IRTNativeCommand: failed to start '$ResolvedPath': $Message")
+        return [pscustomobject]@{
+            StdOut   = @()
+            StdErr   = $Message
+            ExitCode = -1
+        }
+    }
+
+    # Drain stderr asynchronously while reading stdout to end, then join.
+    $StdErrTask = $Process.StandardError.ReadToEndAsync()
+    $StdOutText = $Process.StandardOutput.ReadToEnd()
+    $Process.WaitForExit()
+    $StdErrText = $StdErrTask.GetAwaiter().GetResult()
+    $ExitCode = $Process.ExitCode
+    $Process.Dispose()
+
+    # The tool's output is captured rather than streamed, so route it to the debug
+    # log where it is available without polluting normal command output.
+    Write-PSFMessage -Level 8 -Message (
+        "Invoke-IRTNativeCommand: exit $ExitCode -- stdout $($StdOutText.Length) " +
+        "char(s), stderr $($StdErrText.Length) char(s).")
+    if ($StdOutText.Trim()) {
+        Write-PSFMessage -Level 8 -Message (
+            "Invoke-IRTNativeCommand stdout: $($StdOutText.TrimEnd())")
+    }
+    if ($StdErrText.Trim()) {
+        Write-PSFMessage -Level 8 -Message (
+            "Invoke-IRTNativeCommand stderr: $($StdErrText.TrimEnd())")
+    }
+
+    # Normalize stdout to a line array so callers can scan/slice it.
+    $StdOutLines = $StdOutText.Replace("`r`n", "`n").Split("`n")
+
+    [pscustomobject]@{
+        StdOut   = $StdOutLines
+        StdErr   = $StdErrText
+        ExitCode = $ExitCode
+    }
+}
+#EndRegion '.\Private\Utility\Invoke-IRTNativeCommand.ps1' 144
 #Region '.\Private\Utility\Test-PythonPackage.ps1' -1
 
 function Test-PythonPackage {
@@ -8734,15 +8955,15 @@ function Test-PythonPackage {
             # prefer 'python', then 'python3', then 'py -3' on windows
             $Candidates = @(
                 @{
-                    Cmd = (Get-Command -Name 'python' -ErrorAction SilentlyContinue)?.Source
+                    Cmd = (Get-Command -Name 'python' -ErrorAction Ignore)?.Source
                     PrefixArgs = @()
                 }
                 @{
-                    Cmd = (Get-Command -Name 'python3' -ErrorAction SilentlyContinue)?.Source
+                    Cmd = (Get-Command -Name 'python3' -ErrorAction Ignore)?.Source
                     PrefixArgs = @()
                 }
                 @{
-                    Cmd = (Get-Command -Name 'py' -ErrorAction SilentlyContinue)?.Source
+                    Cmd = (Get-Command -Name 'py' -ErrorAction Ignore)?.Source
                     PrefixArgs = @('-3')
                 }
             ) | Where-Object { $_.Cmd }
@@ -8755,15 +8976,19 @@ function Test-PythonPackage {
         function Find-UvTool {
             param([string]$ToolName)
 
-            $uvCmd = Get-Command -Name 'uv' -ErrorAction SilentlyContinue
+            $uvCmd = Get-Command -Name 'uv' -ErrorAction Ignore
             if (-not $uvCmd) { return $null }
 
             # normalize per PEP 503: lowercase, collapse runs of [-_.] to a single hyphen
             $normalizedName = ($ToolName -replace '[_.\-]+', '-').ToLower()
 
             try {
-                $listOutput = & $uvCmd.Source tool list --no-color 2>$null
-                if ($LASTEXITCODE -ne 0) { return $null }
+                # Detection probe: a non-zero exit just means "not installed",
+                # so the captured stderr is intentionally discarded (silent probe).
+                $ListArgs = @('tool', 'list', '--no-color')
+                $ListResult = Invoke-IRTNativeCommand -FilePath $uvCmd.Source -Arguments $ListArgs
+                if ($ListResult.ExitCode -ne 0) { return $null }
+                $listOutput = $ListResult.StdOut
 
                 $version = $null
                 $distName = $null
@@ -8781,8 +9006,11 @@ function Test-PythonPackage {
                 if (-not $version) { return $null }
 
                 # locate the venv python inside the tool environment
-                $toolDir = (& $uvCmd.Source tool dir 2>$null)
-                if ($LASTEXITCODE -ne 0 -or -not $toolDir) {
+                $DirArgs = @('tool', 'dir')
+                $DirResult = Invoke-IRTNativeCommand -FilePath $uvCmd.Source -Arguments $DirArgs
+                $toolDir = @($DirResult.StdOut) |
+                    Where-Object { $_.Trim() } | Select-Object -First 1
+                if ($DirResult.ExitCode -ne 0 -or -not $toolDir) {
                     return @{ Version = $version; Python = $null }
                 }
                 $toolDir = $toolDir.Trim()
@@ -8854,13 +9082,15 @@ except Exception:
             if ($Py.PrefixArgs) { $Arguments += $Py.PrefixArgs }
             $Arguments += @('-c', $PyCode, $Name)
 
-            $Output = & $Py.Cmd @Arguments 2>$null
-            $Exit = $LASTEXITCODE
+            $PyResult = Invoke-IRTNativeCommand -FilePath $Py.Cmd -Arguments $Arguments
+            $Exit = $PyResult.ExitCode
 
             $PyPresent = ($Exit -eq 0)
             if ($PyPresent) {
-                $PyVersion = ($Output | Select-Object -First 1).ToString().Trim()
+                $PyVersion = @($PyResult.StdOut)[0]
+                if ($null -ne $PyVersion) { $PyVersion = $PyVersion.Trim() }
             } else {
+                # Silent probe: a failed import just means "not installed".
                 $PyVersion = $null
             }
             $PrefixStr = if ($Py.PrefixArgs.Count) { ' ' + ($Py.PrefixArgs -join ' ') } else { '' }
@@ -8914,7 +9144,7 @@ except Exception:
             })
     }
 }
-#EndRegion '.\Private\Utility\Test-PythonPackage.ps1' 226
+#EndRegion '.\Private\Utility\Test-PythonPackage.ps1' 235
 #Region '.\Private\Utility\Write-IRT.ps1' -1
 
 function Write-IRT {
@@ -9438,6 +9668,7 @@ function Connect-IRTTenant {
     )
 
     begin {
+        Import-IRTModule -Name 'ImportExcel'
         if (-not $TenantFile) {
             $TenantFile = $Global:IRT_Config.TenantsSheetPath
         }
@@ -9514,7 +9745,7 @@ function Connect-IRTTenant {
         Connect-IRT @ConnectParams
     }
 }
-#EndRegion '.\Public\Connect\Connect-IRTTenant.ps1' 157
+#EndRegion '.\Public\Connect\Connect-IRTTenant.ps1' 158
 #Region '.\Public\Connect\Disconnect-IRT.ps1' -1
 
 function Disconnect-IRT {
@@ -9545,6 +9776,10 @@ function Disconnect-IRT {
         [switch] $Exchange,
         [switch] $IPPS
     )
+
+    begin {
+        Import-IRTModule -Name 'ExchangeOnlineManagement', 'Microsoft.Graph.Authentication'
+    }
 
     process {
 
@@ -9622,7 +9857,7 @@ function Disconnect-IRT {
         }
     }
 }
-#EndRegion '.\Public\Connect\Disconnect-IRT.ps1' 106
+#EndRegion '.\Public\Connect\Disconnect-IRT.ps1' 110
 #Region '.\Public\Connect\Open-IRTTab.ps1' -1
 
 function Open-IRTTab {
@@ -9753,6 +9988,10 @@ function Test-IRTConnection {
         [switch] $Quiet
     )
 
+    begin {
+        Import-IRTModule -Name 'ExchangeOnlineManagement', 'Microsoft.Graph.Authentication'
+    }
+
     process {
 
         $GraphCtx = Get-MgContext -ErrorAction SilentlyContinue
@@ -9846,7 +10085,7 @@ function Test-IRTConnection {
         }
     }
 }
-#EndRegion '.\Public\Connect\Test-IRTConnection.ps1' 125
+#EndRegion '.\Public\Connect\Test-IRTConnection.ps1' 129
 #Region '.\Public\Connect\Update-IRTToken.ps1' -1
 
 function Update-IRTToken {
@@ -9918,6 +10157,8 @@ function Update-IRTToken {
         [switch] $PassThru
     )
 
+    Import-IRTModule -Name 'PSFramework'
+
     Write-PSFMessage -Level 8 -Message (
         "Update-IRTToken: Services=[$($Service -join ', ')], " +
         "SkipIfNeverConnected=$SkipIfNeverConnected")
@@ -9980,7 +10221,7 @@ function Update-IRTToken {
         return $status
     }
 }
-#EndRegion '.\Public\Connect\Update-IRTToken.ps1' 132
+#EndRegion '.\Public\Connect\Update-IRTToken.ps1' 134
 #Region '.\Public\Device\Disable-IRTDevice.ps1' -1
 
 function Disable-IRTDevice {
@@ -11157,7 +11398,7 @@ function Show-IRTMessageTrace {
 	#>
     [CmdletBinding( DefaultParameterSetName = 'Objects' )]
     param (
-        [Parameter(Position = 0, Mandatory, ValueFromPipeline, ParameterSetName = 'Objects')]
+        [Parameter(Position = 0, ValueFromPipeline, ParameterSetName = 'Objects')]
         [Alias('Messages')]
         [System.Collections.Generic.List[PSObject]] $Message,
 
@@ -11170,6 +11411,7 @@ function Show-IRTMessageTrace {
     )
 
     begin {
+        Import-IRTModule -Name 'ImportExcel', 'PSFramework'
         $FunctionName = $MyInvocation.MyCommand.Name
         $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
         $ParameterSet = $PSCmdlet.ParameterSetName
@@ -11192,6 +11434,16 @@ function Show-IRTMessageTrace {
                 Write-IRT "Error importing from ${XmlPath}." -Level Error
                 return
             }
+        }
+
+        # messages must come from either -Message or -XmlPath
+        if (-not $Message) {
+            $ErrorParams = @{
+                Category    = 'InvalidArgument'
+                Message     = 'No messages provided. Use -Message or -XmlPath.'
+                ErrorAction = 'Stop'
+            }
+            Write-Error @ErrorParams
         }
 
         # import metadata
@@ -11461,7 +11713,7 @@ function Show-IRTMessageTrace {
         $Workbook | Close-ExcelPackage -Show
     }
 }
-#EndRegion '.\Public\Email\Show-IRTMessageTrace.ps1' 315
+#EndRegion '.\Public\Email\Show-IRTMessageTrace.ps1' 326
 #Region '.\Public\Entra\Get-IRTEntraAuditLog.ps1' -1
 
 function Get-IRTEntraAuditLog {
@@ -11541,7 +11793,15 @@ function Get-IRTEntraAuditLog {
 
     begin {
         Update-IRTToken -Service 'Graph'
-        Import-IRTModule -Name 'ImportExcel', 'PSFramework'
+        $ImportParams = @{
+            Name = @(
+                'ImportExcel'
+                'Microsoft.Graph.Beta.Reports'
+                'Microsoft.Graph.Reports'
+                'PSFramework'
+            )
+        }
+        Import-IRTModule @ImportParams
         $FunctionName = $MyInvocation.MyCommand.Name
         $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
         $FilterStrings = [System.Collections.Generic.List[string]]::new()
@@ -11688,7 +11948,7 @@ function Get-IRTEntraAuditLog {
         }
     }
 }
-#EndRegion '.\Public\Entra\Get-IRTEntraAuditLog.ps1' 225
+#EndRegion '.\Public\Entra\Get-IRTEntraAuditLog.ps1' 233
 #Region '.\Public\Entra\Get-IRTEntraSignInLog.ps1' -1
 
 function Get-IRTEntraSignInLog {
@@ -11793,7 +12053,15 @@ function Get-IRTEntraSignInLog {
 
     begin {
         Update-IRTToken -Service 'Graph'
-        Import-IRTModule -Name 'ImportExcel', 'PSFramework'
+        $ImportParams = @{
+            Name = @(
+                'ImportExcel'
+                'Microsoft.Graph.Beta.Reports'
+                'Microsoft.Graph.Reports'
+                'PSFramework'
+            )
+        }
+        Import-IRTModule @ImportParams
 
         #region BEGIN
 
@@ -12048,7 +12316,7 @@ function Get-IRTEntraSignInLog {
         }
     }
 }
-#EndRegion '.\Public\Entra\Get-IRTEntraSignInLog.ps1' 358
+#EndRegion '.\Public\Entra\Get-IRTEntraSignInLog.ps1' 366
 #Region '.\Public\Entra\Get-IRTNonInteractiveSignIn.ps1' -1
 
 function Get-IRTNonInteractiveSignIn {
@@ -12233,7 +12501,15 @@ function Get-IRTServicePrincipalSignInLog {
 
     begin {
         Update-IRTToken -Service 'Graph'
-        Import-IRTModule -Name 'ImportExcel', 'PSFramework'
+        $ImportParams = @{
+            Name = @(
+                'ImportExcel'
+                'Microsoft.Graph.Beta.Reports'
+                'Microsoft.Graph.Reports'
+                'PSFramework'
+            )
+        }
+        Import-IRTModule @ImportParams
 
         #region BEGIN
 
@@ -12410,7 +12686,7 @@ function Get-IRTServicePrincipalSignInLog {
         }
     }
 }
-#EndRegion '.\Public\Entra\Get-IRTServicePrincipalSignInLog.ps1' 273
+#EndRegion '.\Public\Entra\Get-IRTServicePrincipalSignInLog.ps1' 281
 #Region '.\Public\Entra\Show-IRTEntraAuditLog.ps1' -1
 
 function Show-IRTEntraAuditLog {
@@ -12425,7 +12701,7 @@ function Show-IRTEntraAuditLog {
 	#>
     [CmdletBinding(DefaultParameterSetName = 'Objects')]
     param (
-        [Parameter(Position = 0, Mandatory, ParameterSetName = 'Objects')]
+        [Parameter(Position = 0, ParameterSetName = 'Objects')]
         [Alias('Logs')]
         [System.Collections.Generic.List[PSObject]] $Log,
 
@@ -12441,23 +12717,34 @@ function Show-IRTEntraAuditLog {
 
     begin {
         Import-IRTModule -Name 'ImportExcel', 'PSFramework'
-        # get logs from file if xml path used
-        if ( $XmlPath ) {
+        $ParameterSet = $PSCmdlet.ParameterSetName
 
-            $ResolvedXmlPath = Resolve-ScriptPath -Path $XmlPath -File -FileExtension 'xml'
-            [System.Collections.Generic.List[PSObject]]$Log = Import-Clixml -Path $ResolvedXmlPath
-        }
-        elseif ( -not $Log ) {
-
-            # run import-logs to get file name
-            $ImportParams = @{
-                Pattern    = "^EntraAuditLogs_Raw_.*\.xml$"
-                ReturnPath = $true
+        # import from xml
+        if ($ParameterSet -eq 'Xml') {
+            try {
+                $ResolvedXmlPath = Resolve-ScriptPath -Path $XmlPath -File -FileExtension 'xml'
+                [System.Collections.Generic.List[PSObject]]$Log =
+                Import-CliXml -Path $ResolvedXmlPath
             }
-            $ResolvedXmlPath = Import-LogFile @ImportParams
+            catch {
+                $_
+                $ErrorParams = @{
+                    Category    = 'ReadError'
+                    Message     = "Error importing from ${XmlPath}."
+                    ErrorAction = 'Stop'
+                }
+                Write-Error @ErrorParams
+            }
+        }
 
-            # use path to import logs
-            [System.Collections.Generic.List[PSObject]]$Log = Import-Clixml -Path $ResolvedXmlPath
+        # logs must come from either -Log or -XmlPath
+        if (-not $Log) {
+            $ErrorParams = @{
+                Category    = 'InvalidArgument'
+                Message     = 'No logs provided. Use -Log or -XmlPath.'
+                ErrorAction = 'Stop'
+            }
+            Write-Error @ErrorParams
         }
 
         #region METADATA
@@ -12967,7 +13254,7 @@ function Show-IRTEntraAuditLog {
         }
     }
 }
-#EndRegion '.\Public\Entra\Show-IRTEntraAuditLog.ps1' 555
+#EndRegion '.\Public\Entra\Show-IRTEntraAuditLog.ps1' 566
 #Region '.\Public\Entra\Show-IRTEntraSignInLog.ps1' -1
 
 function Show-IRTEntraSignInLog {
@@ -12981,7 +13268,7 @@ function Show-IRTEntraSignInLog {
 	#>
     [CmdletBinding(DefaultParameterSetName = 'Objects')]
     param (
-        [Parameter(Position = 0, Mandatory, ParameterSetName = 'Objects')]
+        [Parameter(Position = 0, ParameterSetName = 'Objects')]
         [Alias('Logs')]
         [System.Collections.Generic.List[PSObject]] $Log,
 
@@ -13021,6 +13308,16 @@ function Show-IRTEntraSignInLog {
                 }
                 Write-Error @ErrorParams
             }
+        }
+
+        # logs must come from either -Log or -XmlPath
+        if (-not $Log) {
+            $ErrorParams = @{
+                Category    = 'InvalidArgument'
+                Message     = 'No logs provided. Use -Log or -XmlPath.'
+                ErrorAction = 'Stop'
+            }
+            Write-Error @ErrorParams
         }
 
         #region Metadata
@@ -13289,7 +13586,7 @@ function Show-IRTEntraSignInLog {
         }
     }
 }
-#EndRegion '.\Public\Entra\Show-IRTEntraSignInLog.ps1' 320
+#EndRegion '.\Public\Entra\Show-IRTEntraSignInLog.ps1' 330
 #Region '.\Public\Entra\Show-IRTServicePrincipalSignIn.ps1' -1
 
 function Show-IRTServicePrincipalSignIn {
@@ -13330,7 +13627,7 @@ function Show-IRTServicePrincipalSignIn {
     #>
     [CmdletBinding(DefaultParameterSetName = 'Objects')]
     param (
-        [Parameter(Position = 0, Mandatory, ParameterSetName = 'Objects')]
+        [Parameter(Position = 0, ParameterSetName = 'Objects')]
         [Alias('Logs')]
         [System.Collections.Generic.List[PSObject]] $Log,
 
@@ -13370,6 +13667,16 @@ function Show-IRTServicePrincipalSignIn {
                 }
                 Write-Error @ErrorParams
             }
+        }
+
+        # logs must come from either -Log or -XmlPath
+        if (-not $Log) {
+            $ErrorParams = @{
+                Category    = 'InvalidArgument'
+                Message     = 'No logs provided. Use -Log or -XmlPath.'
+                ErrorAction = 'Stop'
+            }
+            Write-Error @ErrorParams
         }
 
         #region Metadata
@@ -13569,7 +13876,7 @@ function Show-IRTServicePrincipalSignIn {
         }
     }
 }
-#EndRegion '.\Public\Entra\Show-IRTServicePrincipalSignIn.ps1' 278
+#EndRegion '.\Public\Entra\Show-IRTServicePrincipalSignIn.ps1' 288
 #Region '.\Public\Lib\Get-TenantOidc.ps1' -1
 
 function Get-TenantOidc {
@@ -15463,6 +15770,10 @@ function Push-IRTAdSync {
         [int] $ThrottleLimit = 20
     )
 
+    begin {
+        Import-IRTModule -Name 'ActiveDirectory'
+    }
+
     process {
 
         if (Test-RunningOnDomainController) {
@@ -15712,7 +16023,7 @@ function Push-IRTAdSync {
         }
     }
 }
-#EndRegion '.\Public\OnPremAd\Push-IRTAdSync.ps1' 318
+#EndRegion '.\Public\OnPremAd\Push-IRTAdSync.ps1' 322
 #Region '.\Public\OnPremAd\Reset-IRTAdUserPassword.ps1' -1
 
 function Reset-IRTAdUserPassword {
@@ -16744,7 +17055,7 @@ function Find-IRTRiskyServicePrincipal {
 
     begin {
         Update-IRTToken -Service 'Graph'
-        Import-IRTModule -Name 'Microsoft.Graph.Applications'
+        Import-IRTModule -Name 'Microsoft.Graph.Applications', 'Microsoft.Graph.Identity.SignIns'
         # variables
         $UserDisplayProperties = @(
             'AccountEnabled'
@@ -17081,7 +17392,7 @@ function Get-IRTServicePrincipal {
 
     begin {
         Update-IRTToken -Service 'Graph'
-        Import-IRTModule -Name 'ImportExcel'
+        Import-IRTModule -Name 'ImportExcel', 'Microsoft.Graph.Authentication'
 
         # variables
         $TenantId = (Get-MgContext).TenantId
@@ -17313,7 +17624,7 @@ function Get-IRTTenantOwner {
 
         # update connection
         Update-IRTToken -Service 'Graph'
-        Import-IRTModule -Name 'PSFramework'
+        Import-IRTModule -Name 'Microsoft.Graph.Authentication', 'PSFramework'
 
         $NewCacheEntries = [System.Collections.Generic.List[psobject]]::new()
         $ModuleName = $MyInvocation.MyCommand.ModuleName
@@ -17514,7 +17825,7 @@ function Get-IRTTenantOwner {
 #EndRegion '.\Public\ServicePrincipal\Get-IRTTenantOwner.ps1' 273
 #Region '.\Public\ServicePrincipal\Get-IRTUserServicePrincipal.ps1' -1
 
-function Get-IRTUserServicePrincipal {
+function Get-IRTUserServicePrincipal { # FIXME rename to Get-IRTUserAppConsent
     <#
     .SYNOPSIS
     Displays user's Oauth2 permission grants. (Applications they have granted consent to)
@@ -17761,6 +18072,8 @@ function Open-IRTTenantOwnerCSV {
     [CmdletBinding()]
     param ()
 
+    Import-IRTModule -Name 'PSFramework'
+
     $moduleName = $MyInvocation.MyCommand.ModuleName
     $JpParams = @{
         Path                = $env:APPDATA
@@ -17779,7 +18092,7 @@ function Open-IRTTenantOwnerCSV {
     Write-PSFMessage -Level 8 -Message "Opening $cachePath"
     Start-Process $cachePath
 }
-#EndRegion '.\Public\ServicePrincipal\Open-IRTTenantOwnerCSV.ps1' 38
+#EndRegion '.\Public\ServicePrincipal\Open-IRTTenantOwnerCSV.ps1' 40
 #Region '.\Public\ServicePrincipal\Open-IRTTenantSheet.ps1' -1
 
 function Open-IRTTenantSheet {
@@ -17911,6 +18224,7 @@ function Show-IRTServicePrincipal {
 
     begin {
         Update-IRTToken -Service 'Graph'
+        Import-IRTModule -Name 'Microsoft.Graph.Applications', 'Microsoft.Graph.Identity.Governance'
         if ( -not $ServicePrincipalObject -or $ServicePrincipalObject.Count -eq 0 ) {
             $ScriptServicePrincipalObjects = @( $Global:IRT_ServicePrincipalObjects )
             if ( -not $ScriptServicePrincipalObjects -or
@@ -18000,7 +18314,7 @@ function Show-IRTServicePrincipal {
                 $UsersById = Request-GraphUser -Cached:$Cached -Return 'tablebyid'
 
                 Write-IRT "OAuth2 Permission Grants (delegated) for: ${SpName}"
-                if ($OAuth2Grants.Count -gt 0) {
+                if (($OAuth2Grants | Measure-Object).Count -gt 0) {
                     $OAuth2Grants | ForEach-Object {
                         $User = if ($_.ConsentType -eq 'Principal') {
                             $UsersById[$_.PrincipalId]
@@ -18150,7 +18464,7 @@ function Show-IRTServicePrincipal {
         }
     }
 }
-#EndRegion '.\Public\ServicePrincipal\Show-IRTServicePrincipal.ps1' 316
+#EndRegion '.\Public\ServicePrincipal\Show-IRTServicePrincipal.ps1' 317
 #Region '.\Public\UnifiedAuditLog\Get-IRTUnifiedAuditLog.ps1' -1
 
 function Get-IRTUnifiedAuditLog {
@@ -18281,7 +18595,7 @@ function Get-IRTUnifiedAuditLog {
 
     begin {
         Update-IRTToken -Service 'Exchange'
-        Import-IRTModule -Name 'ImportExcel', 'PSFramework'
+        Import-IRTModule -Name 'ExchangeOnlineManagement', 'ImportExcel', 'PSFramework'
         $FunctionName = $MyInvocation.MyCommand.Name
         $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
         $ParameterSet = $PSCmdlet.ParameterSetName
@@ -18831,7 +19145,7 @@ function Show-IRTUnifiedAuditLog {
 	#>
     [CmdletBinding(DefaultParameterSetName = 'Objects')]
     param (
-        [Parameter(Position = 0, Mandatory, ParameterSetName = 'Objects')]
+        [Parameter(Position = 0, ParameterSetName = 'Objects')]
         [Alias('Logs')]
         [System.Collections.Generic.List[PSObject]] $Log,
 
@@ -18868,6 +19182,16 @@ function Show-IRTUnifiedAuditLog {
                 Write-IRT "Error importing from ${XmlPath}." -Level Error
                 return
             }
+        }
+
+        # logs must come from either -Log or -XmlPath
+        if (-not $Log) {
+            $ErrorParams = @{
+                Category    = 'InvalidArgument'
+                Message     = 'No logs provided. Use -Log or -XmlPath.'
+                ErrorAction = 'Stop'
+            }
+            Write-Error @ErrorParams
         }
 
         #region METADATA
@@ -19052,7 +19376,7 @@ function Show-IRTUnifiedAuditLog {
         }
     }
 }
-#EndRegion '.\Public\UnifiedAuditLog\Show-IRTUnifiedAuditLog.ps1' 233
+#EndRegion '.\Public\UnifiedAuditLog\Show-IRTUnifiedAuditLog.ps1' 243
 #Region '.\Public\User\Disable-IRTUser.ps1' -1
 
 function Disable-IRTUser {
@@ -19822,7 +20146,15 @@ function Show-IRTUserMfa {
 
     begin {
         Update-IRTToken -Service 'Graph'
-        Import-IRTModule -Name 'ImportExcel', 'Microsoft.Graph.Users'
+        $ImportParams = @{
+            Name = @(
+                'ImportExcel'
+                'Microsoft.Graph.Identity.SignIns'
+                'Microsoft.Graph.Users'
+                'PSFramework'
+            )
+        }
+        Import-IRTModule @ImportParams
         $OutputTable = [System.Collections.Generic.List[PSCustomObject]]::new()
         $Properties = [System.Collections.Generic.Hashset[string]]::new()
         $PropertySortOrder = @(
@@ -20247,7 +20579,7 @@ function Show-IRTUserMfa {
         }
     }
 }
-#EndRegion '.\Public\User\Show-IRTUserMfa.ps1' 485
+#EndRegion '.\Public\User\Show-IRTUserMfa.ps1' 493
 #Region '.\Public\Utility\Compress-IRTInvestigationFolder.ps1' -1
 
 function Compress-IRTInvestigationFolder {
@@ -20523,6 +20855,15 @@ function Find-IRTDirectoryObject {
     )
 
     begin {
+        $ImportParams = @{
+            Name = @(
+                'Microsoft.Graph.Applications'
+                'Microsoft.Graph.DirectoryObjects'
+                'Microsoft.Graph.Groups'
+                'Microsoft.Graph.Users'
+            )
+        }
+        Import-IRTModule @ImportParams
         $GuidPattern = "\b[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}\b"
 
         # get content from clipboard
@@ -20619,7 +20960,7 @@ function Find-IRTDirectoryObject {
         }
     }
 }
-#EndRegion '.\Public\Utility\Find-IRTDirectoryObject.ps1' 105
+#EndRegion '.\Public\Utility\Find-IRTDirectoryObject.ps1' 114
 #Region '.\Public\Utility\Get-IRTLicenseReport.ps1' -1
 
 function Get-IRTLicenseReport {
@@ -20665,6 +21006,13 @@ function Get-IRTLicenseReport {
     )
 
     begin {
+        $ImportParams = @{
+            Name = @(
+                'Microsoft.Graph.Authentication'
+                'Microsoft.Graph.Identity.DirectoryManagement'
+            )
+        }
+        Import-IRTModule @ImportParams
         $Context = Get-MgContext
         if ( -not $Context ) {
             throw "Not connected to Graph. Exiting"
@@ -20738,7 +21086,7 @@ function Get-IRTLicenseReport {
         }
     }
 }
-#EndRegion '.\Public\Utility\Get-IRTLicenseReport.ps1' 117
+#EndRegion '.\Public\Utility\Get-IRTLicenseReport.ps1' 124
 #Region '.\Public\Utility\Import-IRT.ps1' -1
 
 function Import-IRT {
@@ -21352,6 +21700,7 @@ function Start-IRTPlaybook {
     )
 
     begin {
+        Import-IRTModule -Name 'PSFramework'
 
         #region BEGIN
 
@@ -21776,10 +22125,12 @@ function Start-IRTPlaybook {
             "${FunctionName}: Playbook complete. Total elapsed: $TotalElapsed")
     }
 }
-#EndRegion '.\Public\Utility\Start-IRTPlaybook.ps1' 490
+#EndRegion '.\Public\Utility\Start-IRTPlaybook.ps1' 491
 #Region '.\Suffix.ps1' -1
 
 # ModuleBuilder Notes: Code in this file will be appended to the built .psm1 file.
+
+Import-IRTModule -Name 'PSFramework'
 
 # when removing module from session, restore original prompt function if it was modified
 $ExecutionContext.SessionState.Module.OnRemove = {
@@ -21792,7 +22143,9 @@ $ExecutionContext.SessionState.Module.OnRemove = {
 # Using Synchronized everywhere costs nothing measurable and is safe for runspace sharing.
 # Existing data is preserved on module re-import (-Force).
 foreach ($VarName in 'IRT_IpInfo', 'IRT_MessageTraceTable') {
-    $Current = Get-Variable -Name $VarName -Scope Global -ValueOnly -ErrorAction SilentlyContinue
+    # -ErrorAction Ignore (not SilentlyContinue): on first import the global does
+    # not exist yet, and Ignore keeps that expected miss out of $Error.
+    $Current = Get-Variable -Name $VarName -Scope Global -ValueOnly -ErrorAction Ignore
     if (-not ($Current -is [hashtable] -and $Current.IsSynchronized)) {
         $Existing = if ($Current -is [hashtable]) { $Current } else { @{} }
         Set-Variable -Name $VarName -Scope Global -Value ([hashtable]::Synchronized($Existing))
@@ -21843,5 +22196,5 @@ if ($Global:IRT_LoadStopwatch) {
     Write-PSFMessage -Level 8 -Message "Module loaded in $($Elapsed.ToString('N2'))s."
     Remove-Variable -Name 'IRT_LoadStopwatch' -Scope Global
 }
-#EndRegion '.\Suffix.ps1' 65
+#EndRegion '.\Suffix.ps1' 69
 

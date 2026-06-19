@@ -20,4 +20,4 @@ if (($Global:IRT_UserObjects | Measure-Object).Count -eq 0) {
 
 Set-Location ([environment]::GetFolderPath('Desktop'))
 
-Get-IRTEntraSignInLog
+Get-IRTEntraSignInLog 
