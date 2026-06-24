@@ -3343,6 +3343,18 @@ function Resolve-DateRange {
             $EndDate = $Temp
         }
 
+        # reject a zero-length range (e.g. identical -Start and -End)
+        if ($StartUtc -ge $EndUtc) {
+            $SameTime = $StartUtc.ToLocalTime().ToString('M/d/yy h:mmtt')
+            $ErrorParams = @{
+                Category    = 'InvalidArgument'
+                Message     = "-Start and -End resolve to the same time (${SameTime})." +
+                ' Specify a range with a non-zero duration.'
+                ErrorAction = 'Stop'
+            }
+            Write-Error @ErrorParams
+        }
+
         # calculate days from absolute range
         $Days = [Int]([Math]::Ceiling(($EndDate - $StartDate).TotalDays))
     }
@@ -3366,7 +3378,7 @@ function Resolve-DateRange {
         EndString   = $EndUtc.ToString('yyyy-MM-ddTHH:mm:ssZ')
     }
 }
-#EndRegion '.\Private\Graph\Resolve-DateRange.ps1' 124
+#EndRegion '.\Private\Graph\Resolve-DateRange.ps1' 136
 #Region '.\Private\Lib\Build-Menu.ps1' -1
 
 function Build-Menu {
@@ -4773,6 +4785,243 @@ function Set-TerminalTitle {
     }
 }
 #EndRegion '.\Private\Lib\Set-TerminalTitle.ps1' 44
+#Region '.\Private\Lib\Test-PythonPackage.ps1' -1
+
+function Test-PythonPackage {
+    <#
+    .SYNOPSIS
+    Tests whether a python package is available via python import or uv tool install.
+
+    .PARAMETER Name
+    The python module name to import (e.g., 'requests' or 'pandas').
+
+    .PARAMETER MinVersion
+    Optional minimum version requirement (nuget-style: 1.2.3).
+
+    .PARAMETER PythonPath
+    Optional explicit path to python interpreter. if omitted, tries python, python3, then py -3.
+
+    .OUTPUTS
+    [pscustomobject] with Present (bool), Source (string), Version (string),
+    Python (string path/command)
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory, Position = 0)]
+        [string] $Name,
+
+        [Parameter()]
+        [string] $MinVersion,
+
+        [Parameter()]
+        [string] $PythonPath
+    )
+
+    begin {
+
+        function Find-PythonInterpreter {
+            param(
+                [string]$ExplicitPath
+            )
+
+            # if explicit path provided and exists, use it
+            if ($ExplicitPath -and (Test-Path -LiteralPath $ExplicitPath)) {
+                return @{ Cmd = $ExplicitPath; PrefixArgs = @() }
+            }
+
+            # prefer 'python', then 'python3', then 'py -3' on windows
+            $Candidates = @(
+                @{
+                    Cmd = (Get-Command -Name 'python' -ErrorAction Ignore)?.Source
+                    PrefixArgs = @()
+                }
+                @{
+                    Cmd = (Get-Command -Name 'python3' -ErrorAction Ignore)?.Source
+                    PrefixArgs = @()
+                }
+                @{
+                    Cmd = (Get-Command -Name 'py' -ErrorAction Ignore)?.Source
+                    PrefixArgs = @('-3')
+                }
+            ) | Where-Object { $_.Cmd }
+
+            if (($Candidates | Measure-Object).Count -gt 0) { return $Candidates[0] }
+
+            return $null
+        }
+
+        function Find-UvTool {
+            param([string]$ToolName)
+
+            $uvCmd = Get-Command -Name 'uv' -ErrorAction Ignore
+            if (-not $uvCmd) { return $null }
+
+            # normalize per PEP 503: lowercase, collapse runs of [-_.] to a single hyphen
+            $normalizedName = ($ToolName -replace '[_.\-]+', '-').ToLower()
+
+            try {
+                # Detection probe: a non-zero exit just means "not installed",
+                # so the captured stderr is intentionally discarded (silent probe).
+                $ListArgs = @('tool', 'list', '--no-color')
+                $ListResult = Invoke-IRTNativeCommand -FilePath $uvCmd.Source -Arguments $ListArgs
+                if ($ListResult.ExitCode -ne 0) { return $null }
+                $listOutput = $ListResult.StdOut
+
+                $version = $null
+                $distName = $null
+                foreach ($line in $listOutput) {
+                    if ($line -match '^(\S+)\s+v(.+)$') {
+                        $candidate = ($Matches[1] -replace '[_.\-]+', '-').ToLower()
+                        if ($candidate -eq $normalizedName) {
+                            $distName = $Matches[1]
+                            $version = $Matches[2].Trim()
+                            break
+                        }
+                    }
+                }
+
+                if (-not $version) { return $null }
+
+                # locate the venv python inside the tool environment
+                $DirArgs = @('tool', 'dir')
+                $DirResult = Invoke-IRTNativeCommand -FilePath $uvCmd.Source -Arguments $DirArgs
+                $toolDir = @($DirResult.StdOut) |
+                    Where-Object { $_.Trim() } | Select-Object -First 1
+                if ($DirResult.ExitCode -ne 0 -or -not $toolDir) {
+                    return @{ Version = $version; Python = $null }
+                }
+                $toolDir = $toolDir.Trim()
+
+                # try likely directory names for the tool's venv
+                $dirCandidates = @($distName, $ToolName, $normalizedName) | Select-Object -Unique
+
+                $pythonPath = $null
+                foreach ($dir in $dirCandidates) {
+                    $JpParams = @{
+                        Path      = $toolDir
+                        ChildPath = $dir
+                    }
+                    $testPath = if ($IsWindows -or $env:OS -match 'Windows') {
+                        Join-Path @JpParams -AdditionalChildPath 'Scripts', 'python.exe'
+                    } else {
+                        Join-Path @JpParams -AdditionalChildPath 'bin', 'python'
+                    }
+                    if (Test-Path -LiteralPath $testPath) {
+                        $pythonPath = $testPath
+                        break
+                    }
+                }
+
+                return @{ Version = $version; Python = $pythonPath }
+            } catch {
+                return $null
+            }
+        }
+
+        # python snippet: try import, then try to resolve a version
+        # - prefers importlib.metadata (py>=3.8) using the package (distribution)
+        #   name equal to module name
+        # - falls back to module.__version__ if metadata not found
+        $PyCode = @"
+import sys, importlib
+name=sys.argv[1]
+try:
+    m = importlib.import_module(name)
+    ver = ""
+    try:
+        try:
+            from importlib.metadata import version, PackageNotFoundError
+        except Exception:
+            from importlib_metadata import version, PackageNotFoundError  # backport if installed
+        try:
+            ver = version(name)
+        except PackageNotFoundError:
+            ver = getattr(m, "__version__", "") or ""
+    except Exception:
+        ver = getattr(m, "__Version__", "") or ""
+    print(ver)
+    sys.exit(0)
+except Exception:
+    sys.exit(1)
+"@.Trim()
+    }
+
+    process {
+
+        # === python import check ===
+        $Py = Find-PythonInterpreter -ExplicitPath $PythonPath
+        $PyPresent = $false
+        $PyVersion = $null
+        $PyCmd = $null
+
+        if ($Py) {
+            $Arguments = @()
+            if ($Py.PrefixArgs) { $Arguments += $Py.PrefixArgs }
+            $Arguments += @('-c', $PyCode, $Name)
+
+            $PyResult = Invoke-IRTNativeCommand -FilePath $Py.Cmd -Arguments $Arguments
+            $Exit = $PyResult.ExitCode
+
+            $PyPresent = ($Exit -eq 0)
+            if ($PyPresent) {
+                $PyVersion = @($PyResult.StdOut)[0]
+                if ($null -ne $PyVersion) { $PyVersion = $PyVersion.Trim() }
+            } else {
+                # Silent probe: a failed import just means "not installed".
+                $PyVersion = $null
+            }
+            $PrefixStr = if ($Py.PrefixArgs.Count) { ' ' + ($Py.PrefixArgs -join ' ') } else { '' }
+            $PyCmd = $Py.Cmd + $PrefixStr
+        }
+
+        # === uv tool check ===
+        $UvTool = Find-UvTool -ToolName $Name
+        $UvPresent = $null -ne $UvTool
+        $UvVersion = if ($UvPresent) { $UvTool.Version } else { $null }
+        $UvPython = if ($UvPresent) { $UvTool.Python } else { $null }
+
+        # overall result
+        $Present = $PyPresent -or $UvPresent
+
+        $Source = if ($PyPresent -and $UvPresent) { 'both' }
+        elseif ($PyPresent) { 'python' }
+        elseif ($UvPresent) { 'uv-tool' }
+        else { $null }
+
+        # effective version (prefer python import, fall back to uv tool)
+        $Version = if ($PyVersion) { $PyVersion } elseif ($UvVersion) { $UvVersion } else { $null }
+
+        # effective python interpreter
+        # if found via import, use that interpreter; if only via uv tool, use the venv python
+        $Python = if ($PyPresent) { $PyCmd }
+        elseif ($UvPython) { $UvPython }
+        elseif ($PyCmd) { $PyCmd }
+        else { $null }
+
+        # optional min version check
+        $MeetsMin = $true
+        if ($Present -and $MinVersion -and $Version) {
+            try {
+                # attempt semantic comparison; if parse fails, treat as not comparable
+                $vA = [Version]($Version -replace '[^0-9\.].*$', '')
+                $vB = [Version]($MinVersion -replace '[^0-9\.].*$', '')
+                $MeetsMin = ($vA -ge $vB)
+            } catch {
+                $MeetsMin = $false
+            }
+        }
+
+        Write-Output ([pscustomobject]@{
+                Present         = $Present
+                Source          = $Source
+                Version         = $Version
+                MeetsMinVersion = if ($MinVersion) { $MeetsMin } else { $null }
+                Name            = $Name
+                Python          = $Python
+            })
+    }
+}
+#EndRegion '.\Private\Lib\Test-PythonPackage.ps1' 235
 #Region '.\Private\MessageTrace\Build-TraceContinuation.ps1' -1
 
 function Build-TraceContinuation {
@@ -8908,243 +9157,6 @@ function Invoke-IRTNativeCommand {
     }
 }
 #EndRegion '.\Private\Utility\Invoke-IRTNativeCommand.ps1' 144
-#Region '.\Private\Utility\Test-PythonPackage.ps1' -1
-
-function Test-PythonPackage {
-    <#
-    .SYNOPSIS
-    Tests whether a python package is available via python import or uv tool install.
-
-    .PARAMETER Name
-    The python module name to import (e.g., 'requests' or 'pandas').
-
-    .PARAMETER MinVersion
-    Optional minimum version requirement (nuget-style: 1.2.3).
-
-    .PARAMETER PythonPath
-    Optional explicit path to python interpreter. if omitted, tries python, python3, then py -3.
-
-    .OUTPUTS
-    [pscustomobject] with Present (bool), Source (string), Version (string),
-    Python (string path/command)
-    #>
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory, Position = 0)]
-        [string] $Name,
-
-        [Parameter()]
-        [string] $MinVersion,
-
-        [Parameter()]
-        [string] $PythonPath
-    )
-
-    begin {
-
-        function Find-PythonInterpreter {
-            param(
-                [string]$ExplicitPath
-            )
-
-            # if explicit path provided and exists, use it
-            if ($ExplicitPath -and (Test-Path -LiteralPath $ExplicitPath)) {
-                return @{ Cmd = $ExplicitPath; PrefixArgs = @() }
-            }
-
-            # prefer 'python', then 'python3', then 'py -3' on windows
-            $Candidates = @(
-                @{
-                    Cmd = (Get-Command -Name 'python' -ErrorAction Ignore)?.Source
-                    PrefixArgs = @()
-                }
-                @{
-                    Cmd = (Get-Command -Name 'python3' -ErrorAction Ignore)?.Source
-                    PrefixArgs = @()
-                }
-                @{
-                    Cmd = (Get-Command -Name 'py' -ErrorAction Ignore)?.Source
-                    PrefixArgs = @('-3')
-                }
-            ) | Where-Object { $_.Cmd }
-
-            if (($Candidates | Measure-Object).Count -gt 0) { return $Candidates[0] }
-
-            return $null
-        }
-
-        function Find-UvTool {
-            param([string]$ToolName)
-
-            $uvCmd = Get-Command -Name 'uv' -ErrorAction Ignore
-            if (-not $uvCmd) { return $null }
-
-            # normalize per PEP 503: lowercase, collapse runs of [-_.] to a single hyphen
-            $normalizedName = ($ToolName -replace '[_.\-]+', '-').ToLower()
-
-            try {
-                # Detection probe: a non-zero exit just means "not installed",
-                # so the captured stderr is intentionally discarded (silent probe).
-                $ListArgs = @('tool', 'list', '--no-color')
-                $ListResult = Invoke-IRTNativeCommand -FilePath $uvCmd.Source -Arguments $ListArgs
-                if ($ListResult.ExitCode -ne 0) { return $null }
-                $listOutput = $ListResult.StdOut
-
-                $version = $null
-                $distName = $null
-                foreach ($line in $listOutput) {
-                    if ($line -match '^(\S+)\s+v(.+)$') {
-                        $candidate = ($Matches[1] -replace '[_.\-]+', '-').ToLower()
-                        if ($candidate -eq $normalizedName) {
-                            $distName = $Matches[1]
-                            $version = $Matches[2].Trim()
-                            break
-                        }
-                    }
-                }
-
-                if (-not $version) { return $null }
-
-                # locate the venv python inside the tool environment
-                $DirArgs = @('tool', 'dir')
-                $DirResult = Invoke-IRTNativeCommand -FilePath $uvCmd.Source -Arguments $DirArgs
-                $toolDir = @($DirResult.StdOut) |
-                    Where-Object { $_.Trim() } | Select-Object -First 1
-                if ($DirResult.ExitCode -ne 0 -or -not $toolDir) {
-                    return @{ Version = $version; Python = $null }
-                }
-                $toolDir = $toolDir.Trim()
-
-                # try likely directory names for the tool's venv
-                $dirCandidates = @($distName, $ToolName, $normalizedName) | Select-Object -Unique
-
-                $pythonPath = $null
-                foreach ($dir in $dirCandidates) {
-                    $JpParams = @{
-                        Path      = $toolDir
-                        ChildPath = $dir
-                    }
-                    $testPath = if ($IsWindows -or $env:OS -match 'Windows') {
-                        Join-Path @JpParams -AdditionalChildPath 'Scripts', 'python.exe'
-                    } else {
-                        Join-Path @JpParams -AdditionalChildPath 'bin', 'python'
-                    }
-                    if (Test-Path -LiteralPath $testPath) {
-                        $pythonPath = $testPath
-                        break
-                    }
-                }
-
-                return @{ Version = $version; Python = $pythonPath }
-            } catch {
-                return $null
-            }
-        }
-
-        # python snippet: try import, then try to resolve a version
-        # - prefers importlib.metadata (py>=3.8) using the package (distribution)
-        #   name equal to module name
-        # - falls back to module.__version__ if metadata not found
-        $PyCode = @"
-import sys, importlib
-name=sys.argv[1]
-try:
-    m = importlib.import_module(name)
-    ver = ""
-    try:
-        try:
-            from importlib.metadata import version, PackageNotFoundError
-        except Exception:
-            from importlib_metadata import version, PackageNotFoundError  # backport if installed
-        try:
-            ver = version(name)
-        except PackageNotFoundError:
-            ver = getattr(m, "__version__", "") or ""
-    except Exception:
-        ver = getattr(m, "__Version__", "") or ""
-    print(ver)
-    sys.exit(0)
-except Exception:
-    sys.exit(1)
-"@.Trim()
-    }
-
-    process {
-
-        # === python import check ===
-        $Py = Find-PythonInterpreter -ExplicitPath $PythonPath
-        $PyPresent = $false
-        $PyVersion = $null
-        $PyCmd = $null
-
-        if ($Py) {
-            $Arguments = @()
-            if ($Py.PrefixArgs) { $Arguments += $Py.PrefixArgs }
-            $Arguments += @('-c', $PyCode, $Name)
-
-            $PyResult = Invoke-IRTNativeCommand -FilePath $Py.Cmd -Arguments $Arguments
-            $Exit = $PyResult.ExitCode
-
-            $PyPresent = ($Exit -eq 0)
-            if ($PyPresent) {
-                $PyVersion = @($PyResult.StdOut)[0]
-                if ($null -ne $PyVersion) { $PyVersion = $PyVersion.Trim() }
-            } else {
-                # Silent probe: a failed import just means "not installed".
-                $PyVersion = $null
-            }
-            $PrefixStr = if ($Py.PrefixArgs.Count) { ' ' + ($Py.PrefixArgs -join ' ') } else { '' }
-            $PyCmd = $Py.Cmd + $PrefixStr
-        }
-
-        # === uv tool check ===
-        $UvTool = Find-UvTool -ToolName $Name
-        $UvPresent = $null -ne $UvTool
-        $UvVersion = if ($UvPresent) { $UvTool.Version } else { $null }
-        $UvPython = if ($UvPresent) { $UvTool.Python } else { $null }
-
-        # overall result
-        $Present = $PyPresent -or $UvPresent
-
-        $Source = if ($PyPresent -and $UvPresent) { 'both' }
-        elseif ($PyPresent) { 'python' }
-        elseif ($UvPresent) { 'uv-tool' }
-        else { $null }
-
-        # effective version (prefer python import, fall back to uv tool)
-        $Version = if ($PyVersion) { $PyVersion } elseif ($UvVersion) { $UvVersion } else { $null }
-
-        # effective python interpreter
-        # if found via import, use that interpreter; if only via uv tool, use the venv python
-        $Python = if ($PyPresent) { $PyCmd }
-        elseif ($UvPython) { $UvPython }
-        elseif ($PyCmd) { $PyCmd }
-        else { $null }
-
-        # optional min version check
-        $MeetsMin = $true
-        if ($Present -and $MinVersion -and $Version) {
-            try {
-                # attempt semantic comparison; if parse fails, treat as not comparable
-                $vA = [Version]($Version -replace '[^0-9\.].*$', '')
-                $vB = [Version]($MinVersion -replace '[^0-9\.].*$', '')
-                $MeetsMin = ($vA -ge $vB)
-            } catch {
-                $MeetsMin = $false
-            }
-        }
-
-        Write-Output ([pscustomobject]@{
-                Present         = $Present
-                Source          = $Source
-                Version         = $Version
-                MeetsMinVersion = if ($MinVersion) { $MeetsMin } else { $null }
-                Name            = $Name
-                Python          = $Python
-            })
-    }
-}
-#EndRegion '.\Private\Utility\Test-PythonPackage.ps1' 235
 #Region '.\Private\Utility\Write-IRT.ps1' -1
 
 function Write-IRT {
@@ -11985,6 +11997,25 @@ function Get-IRTEntraSignInLog {
     .PARAMETER End
     End of date range (parseable date string). Used with -Start for an absolute range.
 
+    .PARAMETER ChunkDays
+    Splits the requested date range into sub-queries of this many days each, querying
+    newest to oldest and merging the results. Default: 30 (a default 30-day pull is a
+    single chunk). Graph applies its 300-second HttpClient timeout per request, so very
+    large pulls (e.g. -AllUsers over a wide range) can time out while the server computes
+    a single page. Pass a smaller value (e.g. -ChunkDays 1) to break the request into
+    windows small enough to return in time.
+
+    .PARAMETER ChunkDelaySeconds
+    Seconds to pause between chunk queries. A small pause reduces the chance of
+    tripping Graph throttling limits on large multi-chunk pulls. Default: 2.
+    Set to 0 to disable. Only applies when the range spans more than one chunk.
+
+    .PARAMETER ThrottleDelaySeconds
+    Base backoff (seconds) used when Graph throttles a request but does not return a
+    Retry-After value. Backoff grows exponentially per retry (base, base*2, base*4...).
+    When Graph does return Retry-After, that value is honored and printed instead.
+    Default: 60.
+
     .PARAMETER NonInteractive
     Retrieve non-interactive sign-in logs instead of interactive logs.
 
@@ -12019,7 +12050,12 @@ function Get-IRTEntraSignInLog {
     None. Results are exported to an Excel workbook.
 
     .NOTES
-    Version: 1.1.2
+    Version: 1.2.1
+    1.2.1 - Throttle handling: honor and print Retry-After, exponential backoff
+            when absent, and an inter-chunk delay to avoid tripping limits.
+    1.2.0 - Added -ChunkDays to split large queries into smaller date windows,
+            with per-chunk token refresh and retry on timeout/throttle, to work
+            around the Graph 300s per-request HttpClient timeout.
     1.1.2 - Added graceful exit when no logs are found.
     1.1.1 - Added test timers.
     #>
@@ -12041,6 +12077,18 @@ function Get-IRTEntraSignInLog {
         # absolute date range
         [string] $Start,
         [string] $End,
+
+        # split the date range into sub-queries of this many days each
+        [ValidateRange(1, 3650)]
+        [int] $ChunkDays = 30,
+
+        # seconds to pause between chunk queries to avoid tripping throttle limits
+        [ValidateRange(0, 3600)]
+        [int] $ChunkDelaySeconds = 2,
+
+        # base seconds for throttle backoff when Graph sends no Retry-After
+        [ValidateRange(1, 3600)]
+        [int] $ThrottleDelaySeconds = 60,
 
         [switch] $NonInteractive,
 
@@ -12137,10 +12185,30 @@ function Get-IRTEntraSignInLog {
             DefaultDays = $DefaultDays
         }
         $DateRange = Resolve-DateRange @DateRangeParams
-        $DateRangeType = $DateRange.RangeType
         $Days = $DateRange.Days
         $StartDateUtc = $DateRange.StartUtc
         $EndDateUtc = $DateRange.EndUtc
+
+        # build non-overlapping date chunks, newest to oldest, clamped to the range
+        $DateChunks = [System.Collections.Generic.List[hashtable]]::new()
+        $ChunkEnd = $EndDateUtc
+        while ($ChunkEnd -gt $StartDateUtc) {
+            $ProposedStart = $ChunkEnd.AddDays(-$ChunkDays)
+            $ChunkStart = $ProposedStart -gt $StartDateUtc ? $ProposedStart : $StartDateUtc
+            $DateChunks.Add(@{ Start = $ChunkStart; End = $ChunkEnd })
+            $ChunkEnd = $ChunkStart # newest-first; halves meet at the boundary
+        }
+        $ChunkCount = $DateChunks.Count
+        $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+        if ($ChunkCount -gt 1) {
+            $ChunkMsg = "Date range is $Days days, split into $ChunkCount ${ChunkDays}-day chunks."
+            Write-IRT $ChunkMsg
+            Write-PSFMessage -Level 8 -Message "${FunctionName}: $ChunkMsg [$Elapsed]"
+        }
+        else {
+            Write-PSFMessage -Level 8 -Message (
+                "${FunctionName}: Date range is $Days days (single chunk). [$Elapsed]")
+        }
     }
 
     process {
@@ -12189,22 +12257,12 @@ function Get-IRTEntraSignInLog {
             $SheetTitle = "${TitleType} sign-in logs for ${Target}." +
             " Covers ${Days} days, ${TitleStartDate} to ${TitleEndDate}."
 
-            # time range
-            if ($DateRangeType -eq 'Relative') {
-                if ($Days -ne 30) { # don't use filter if date range is maximum
-                    $FilterStrings.Add( "createdDateTime ge $($DateRange.StartString)" )
-                }
-            }
-            elseif ($DateRangeType -eq 'Absolute') {
-                $FilterStrings.Add( "createdDateTime ge $($DateRange.StartString)" )
-                $FilterStrings.Add( "createdDateTime le $($DateRange.EndString)" )
-            }
-
             # non interactive
             if ( $NonInteractive ) {
                 $FilterStrings.Add( "signInEventTypes/any(t: t eq 'NonInteractiveUser')" )
             }
-            $FilterString = $FilterStrings -join " and "
+            # base filters are constant per user; date bounds are added per chunk
+            $BaseFilterStrings = $FilterStrings
 
             #region QUERY LOGS
             # user messages
@@ -12214,63 +12272,147 @@ function Get-IRTEntraSignInLog {
             else {
                 Write-IRT "Retrieving ${Days} days of sign-in logs for ${Target}."
             }
-            Write-PSFMessage -Level 8 -Message (
-                "${FunctionName}: Filter string: '${FilterString}'")
-            $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-            Write-PSFMessage -Level 8 -Message (
-                "${FunctionName}: Get-MgAuditLogSignIn [$Elapsed]")
 
-            # query logs
-            if ($Beta) { # default is to use beta, which returns more information
-                # $GetProperties = @( # FIXME going to see how much slower pulling all properties is
-                #     'AppDisplayName'
-                #     'AuthenticationProtocol'
-                #     'CorrelationID'
-                #     'CreatedDateTime'
-                #     'DeviceDetail'
-                #     'IpAddress'
-                #     'Location'
-                #     'ResourceId'
-                #     'Status'
-                #     # 'UniqueTokenIdentifier'
-                #     'UserAgent'
-                #     'UserPrincipalName'
-                # )
+            # $GetProperties = @( # FIXME going to see how much slower pulling all properties is
+            #     'AppDisplayName'
+            #     'AuthenticationProtocol'
+            #     'CorrelationID'
+            #     'CreatedDateTime'
+            #     'DeviceDetail'
+            #     'IpAddress'
+            #     'Location'
+            #     'ResourceId'
+            #     'Status'
+            #     # 'UniqueTokenIdentifier'
+            #     'UserAgent'
+            #     'UserPrincipalName'
+            # )
+
+            # accumulate logs across all date chunks
+            $Logs = [System.Collections.Generic.List[PSObject]]::new()
+            $MaxRetry = 3
+            $ChunkIndex = 0
+            foreach ($Chunk in $DateChunks) {
+                $ChunkIndex++
+
+                # refresh token each chunk; a long multi-chunk run can outlive the
+                # token's 5-minute refresh window and start failing with 401s
+                Update-IRTToken -Service 'Graph'
+
+                # build this chunk's filter: base filters + explicit date bounds
+                $ChunkFilterStrings = [System.Collections.Generic.List[string]]::new()
+                foreach ( $f in $BaseFilterStrings ) { $ChunkFilterStrings.Add( $f ) }
+                $ChunkStartString = $Chunk.Start.ToString('yyyy-MM-ddTHH:mm:ssZ')
+                $ChunkEndString = $Chunk.End.ToString('yyyy-MM-ddTHH:mm:ssZ')
+                $ChunkFilterStrings.Add( "createdDateTime ge $ChunkStartString" )
+                $ChunkFilterStrings.Add( "createdDateTime le $ChunkEndString" )
+                $FilterString = $ChunkFilterStrings -join " and "
+
+                # chunk progress message
+                if ( $ChunkCount -gt 1 ) {
+                    $ChunkStartLocal = $Chunk.Start.ToLocalTime().ToString('M/d/yy h:mmtt')
+                    $ChunkEndLocal = $Chunk.End.ToLocalTime().ToString('M/d/yy h:mmtt')
+                    Write-IRT ("Chunk ${ChunkIndex} of ${ChunkCount}:" +
+                        " ${ChunkStartLocal} to ${ChunkEndLocal}.")
+                }
+                Write-PSFMessage -Level 8 -Message (
+                    "${FunctionName}: Filter string: '${FilterString}'")
+                $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+                Write-PSFMessage -Level 8 -Message (
+                    "${FunctionName}: Get-MgAuditLogSignIn [$Elapsed]")
+
                 $GetParams = @{
                     Filter = $FilterString
                     # Property = $GetProperties
                     All = $true
                 }
-                [System.Collections.Generic.List[PSObject]]$Logs =
-                Get-MgBetaAuditLogSignIn @GetParams  # | Select-Object $GetProperties
-            }
-            else { # if $Beta = $false
-                # $GetProperties = @( # FIXME going to see how much slower pulling all properties is
-                #     'AppDisplayName'
-                #     'CorrelationID'
-                #     'CreatedDateTime'
-                #     'DeviceDetail'
-                #     'IpAddress'
-                #     'Location'
-                #     'ResourceId'
-                #     'Status'
-                #     'UniqueTokenIdentifier'
-                #     'UserAgent'
-                #     'UserPrincipalName'
-                # )
-                $GetParams = @{
-                    Filter = $FilterString
-                    # Property = $GetProperties
-                    All = $true
+
+                # query logs, retrying on Graph timeout / throttling
+                $RetryCount = 0
+                while ($true) {
+                    try {
+                        if ($Beta) { # default is beta, which returns more information
+                            $ChunkLogs = Get-MgBetaAuditLogSignIn @GetParams
+                        }
+                        else {
+                            $ChunkLogs = Get-MgAuditLogSignIn @GetParams
+                        }
+                        break
+                    }
+                    catch {
+                        $Message = $_.Exception.Message
+                        $IsTimeout = $Message -match
+                            'HttpClient\.Timeout|request was canceled|task was canceled'
+                        $IsThrottle = $Message -match 'TooManyRequests|429'
+
+                        if ($IsThrottle -and $RetryCount -lt $MaxRetry) {
+                            $RetryCount++
+
+                            # determine server-requested Retry-After, if any: prefer the
+                            # response header object, then fall back to the message text
+                            $RetryAfter = $null
+                            try {
+                                $Delta = $_.Exception.Response.Headers.RetryAfter.Delta
+                                if ($null -ne $Delta) { $RetryAfter = [int]$Delta.TotalSeconds }
+                            }
+                            catch { $RetryAfter = $null }
+                            if (-not $RetryAfter -and
+                                $Message -match 'try again (?:in|after)[^0-9]*([0-9]+)\s*second') {
+                                $RetryAfter = [int]$Matches[1]
+                            }
+
+                            if ($RetryAfter) {
+                                # honor and surface the server's requested delay
+                                $Wait = $RetryAfter
+                                Write-IRT ("Throttled by Graph. Honoring Retry-After of" +
+                                    " ${Wait}s (retry ${RetryCount}/${MaxRetry})...") -Level Warn
+                            }
+                            else {
+                                # no Retry-After: exponential backoff from the base
+                                $Factor = [Math]::Pow(2, $RetryCount - 1)
+                                $Wait = [int]($ThrottleDelaySeconds * $Factor)
+                                Write-IRT ("Throttled by Graph (no Retry-After). Backing off" +
+                                    " ${Wait}s (retry ${RetryCount}/${MaxRetry})...") -Level Warn
+                            }
+                            Start-Sleep -Seconds $Wait
+                            continue
+                        }
+                        elseif ($IsTimeout -and $RetryCount -lt $MaxRetry) {
+                            $RetryCount++
+                            Write-IRT ("Request timed out. Retrying" +
+                                " (${RetryCount}/${MaxRetry})...") -Level Warn
+                            Start-Sleep -Seconds 5
+                            continue
+                        }
+                        elseif ($IsTimeout) {
+                            Write-IRT ("Chunk still timing out after ${MaxRetry} retries." +
+                                " Skipping - re-run with a smaller -ChunkDays.") -Level Error
+                            $ChunkLogs = $null
+                            break
+                        }
+                        else {
+                            throw
+                        }
+                    }
                 }
-                [System.Collections.Generic.List[PSObject]]$Logs =
-                Get-MgAuditLogSignIn @GetParams  # | Select-Object $GetProperties
+
+                # accumulate this chunk's results
+                foreach ( $l in $ChunkLogs ) { $Logs.Add( $l ) }
+
+                # brief pause between chunks to avoid tripping throttle limits
+                if ( $ChunkDelaySeconds -gt 0 -and $ChunkIndex -lt $ChunkCount ) {
+                    Start-Sleep -Seconds $ChunkDelaySeconds
+                }
             }
 
             if (($Logs | Measure-Object).Count -eq 0 ) {
                 Write-IRT "No logs found for ${Target} for past ${Days} days. Exiting." -Level Error
                 continue
             }
+
+            # sort newest first (chunks are concatenated newest-first; safety net)
+            $Logs = [System.Collections.Generic.List[PSObject]](
+                $Logs | Sort-Object -Property CreatedDateTime -Descending)
 
             # add metadata to results
             $Logs.Insert(0,
@@ -12316,7 +12458,7 @@ function Get-IRTEntraSignInLog {
         }
     }
 }
-#EndRegion '.\Public\Entra\Get-IRTEntraSignInLog.ps1' 366
+#EndRegion '.\Public\Entra\Get-IRTEntraSignInLog.ps1' 496
 #Region '.\Public\Entra\Get-IRTNonInteractiveSignIn.ps1' -1
 
 function Get-IRTNonInteractiveSignIn {
@@ -20736,6 +20878,7 @@ function Copy-IRTFunction {
             'Find-IRTDomainController'
             'Get-IRTAdAdminUser'
             'Get-AdGlobalUserObject'
+            'Import-IRTModule'
             'Push-IRTAdSync'
             'Reset-IRTAdUserPassword'
             'Set-AdUserEnabled'
@@ -20844,7 +20987,7 @@ if (-not `$Global:IRT_Config) {
         Write-IRT "Copied $Resolved function(s) to clipboard."
     }
 }
-#EndRegion '.\Public\Utility\Copy-IRTFunction.ps1' 179
+#EndRegion '.\Public\Utility\Copy-IRTFunction.ps1' 180
 #Region '.\Public\Utility\Find-IRTDirectoryObject.ps1' -1
 
 function Find-IRTDirectoryObject {

@@ -68,6 +68,7 @@ function Copy-IRTFunction {
             'Find-IRTDomainController'
             'Get-IRTAdAdminUser'
             'Get-AdGlobalUserObject'
+            'Import-IRTModule'
             'Push-IRTAdSync'
             'Reset-IRTAdUserPassword'
             'Set-AdUserEnabled'
