@@ -65,5 +65,8 @@ Describe 'Resolve-DateRange' {
         It 'throws when -Days is combined with -Start only' {
             { Resolve-DateRange -Days 7 -Start '01/01/2024' } | Should -Throw
         }
+        It 'throws when -Start and -End resolve to the same time' {
+            { Resolve-DateRange -Start '6/15/26 3:48pm' -End '6/15/26 3:48pm' } | Should -Throw
+        }
     }
 }

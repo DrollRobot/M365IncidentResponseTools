@@ -98,6 +98,18 @@ function Resolve-DateRange {
             $EndDate = $Temp
         }
 
+        # reject a zero-length range (e.g. identical -Start and -End)
+        if ($StartUtc -ge $EndUtc) {
+            $SameTime = $StartUtc.ToLocalTime().ToString('M/d/yy h:mmtt')
+            $ErrorParams = @{
+                Category    = 'InvalidArgument'
+                Message     = "-Start and -End resolve to the same time (${SameTime})." +
+                ' Specify a range with a non-zero duration.'
+                ErrorAction = 'Stop'
+            }
+            Write-Error @ErrorParams
+        }
+
         # calculate days from absolute range
         $Days = [Int]([Math]::Ceiling(($EndDate - $StartDate).TotalDays))
     }

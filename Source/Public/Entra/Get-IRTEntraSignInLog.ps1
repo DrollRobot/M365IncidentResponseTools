@@ -32,6 +32,25 @@ function Get-IRTEntraSignInLog {
     .PARAMETER End
     End of date range (parseable date string). Used with -Start for an absolute range.
 
+    .PARAMETER ChunkDays
+    Splits the requested date range into sub-queries of this many days each, querying
+    newest to oldest and merging the results. Default: 30 (a default 30-day pull is a
+    single chunk). Graph applies its 300-second HttpClient timeout per request, so very
+    large pulls (e.g. -AllUsers over a wide range) can time out while the server computes
+    a single page. Pass a smaller value (e.g. -ChunkDays 1) to break the request into
+    windows small enough to return in time.
+
+    .PARAMETER ChunkDelaySeconds
+    Seconds to pause between chunk queries. A small pause reduces the chance of
+    tripping Graph throttling limits on large multi-chunk pulls. Default: 2.
+    Set to 0 to disable. Only applies when the range spans more than one chunk.
+
+    .PARAMETER ThrottleDelaySeconds
+    Base backoff (seconds) used when Graph throttles a request but does not return a
+    Retry-After value. Backoff grows exponentially per retry (base, base*2, base*4...).
+    When Graph does return Retry-After, that value is honored and printed instead.
+    Default: 60.
+
     .PARAMETER NonInteractive
     Retrieve non-interactive sign-in logs instead of interactive logs.
 
@@ -66,7 +85,12 @@ function Get-IRTEntraSignInLog {
     None. Results are exported to an Excel workbook.
 
     .NOTES
-    Version: 1.1.2
+    Version: 1.2.1
+    1.2.1 - Throttle handling: honor and print Retry-After, exponential backoff
+            when absent, and an inter-chunk delay to avoid tripping limits.
+    1.2.0 - Added -ChunkDays to split large queries into smaller date windows,
+            with per-chunk token refresh and retry on timeout/throttle, to work
+            around the Graph 300s per-request HttpClient timeout.
     1.1.2 - Added graceful exit when no logs are found.
     1.1.1 - Added test timers.
     #>
@@ -88,6 +112,18 @@ function Get-IRTEntraSignInLog {
         # absolute date range
         [string] $Start,
         [string] $End,
+
+        # split the date range into sub-queries of this many days each
+        [ValidateRange(1, 3650)]
+        [int] $ChunkDays = 30,
+
+        # seconds to pause between chunk queries to avoid tripping throttle limits
+        [ValidateRange(0, 3600)]
+        [int] $ChunkDelaySeconds = 2,
+
+        # base seconds for throttle backoff when Graph sends no Retry-After
+        [ValidateRange(1, 3600)]
+        [int] $ThrottleDelaySeconds = 60,
 
         [switch] $NonInteractive,
 
@@ -184,10 +220,30 @@ function Get-IRTEntraSignInLog {
             DefaultDays = $DefaultDays
         }
         $DateRange = Resolve-DateRange @DateRangeParams
-        $DateRangeType = $DateRange.RangeType
         $Days = $DateRange.Days
         $StartDateUtc = $DateRange.StartUtc
         $EndDateUtc = $DateRange.EndUtc
+
+        # build non-overlapping date chunks, newest to oldest, clamped to the range
+        $DateChunks = [System.Collections.Generic.List[hashtable]]::new()
+        $ChunkEnd = $EndDateUtc
+        while ($ChunkEnd -gt $StartDateUtc) {
+            $ProposedStart = $ChunkEnd.AddDays(-$ChunkDays)
+            $ChunkStart = $ProposedStart -gt $StartDateUtc ? $ProposedStart : $StartDateUtc
+            $DateChunks.Add(@{ Start = $ChunkStart; End = $ChunkEnd })
+            $ChunkEnd = $ChunkStart # newest-first; halves meet at the boundary
+        }
+        $ChunkCount = $DateChunks.Count
+        $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+        if ($ChunkCount -gt 1) {
+            $ChunkMsg = "Date range is $Days days, split into $ChunkCount ${ChunkDays}-day chunks."
+            Write-IRT $ChunkMsg
+            Write-PSFMessage -Level 8 -Message "${FunctionName}: $ChunkMsg [$Elapsed]"
+        }
+        else {
+            Write-PSFMessage -Level 8 -Message (
+                "${FunctionName}: Date range is $Days days (single chunk). [$Elapsed]")
+        }
     }
 
     process {
@@ -236,22 +292,12 @@ function Get-IRTEntraSignInLog {
             $SheetTitle = "${TitleType} sign-in logs for ${Target}." +
             " Covers ${Days} days, ${TitleStartDate} to ${TitleEndDate}."
 
-            # time range
-            if ($DateRangeType -eq 'Relative') {
-                if ($Days -ne 30) { # don't use filter if date range is maximum
-                    $FilterStrings.Add( "createdDateTime ge $($DateRange.StartString)" )
-                }
-            }
-            elseif ($DateRangeType -eq 'Absolute') {
-                $FilterStrings.Add( "createdDateTime ge $($DateRange.StartString)" )
-                $FilterStrings.Add( "createdDateTime le $($DateRange.EndString)" )
-            }
-
             # non interactive
             if ( $NonInteractive ) {
                 $FilterStrings.Add( "signInEventTypes/any(t: t eq 'NonInteractiveUser')" )
             }
-            $FilterString = $FilterStrings -join " and "
+            # base filters are constant per user; date bounds are added per chunk
+            $BaseFilterStrings = $FilterStrings
 
             #region QUERY LOGS
             # user messages
@@ -261,63 +307,147 @@ function Get-IRTEntraSignInLog {
             else {
                 Write-IRT "Retrieving ${Days} days of sign-in logs for ${Target}."
             }
-            Write-PSFMessage -Level 8 -Message (
-                "${FunctionName}: Filter string: '${FilterString}'")
-            $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-            Write-PSFMessage -Level 8 -Message (
-                "${FunctionName}: Get-MgAuditLogSignIn [$Elapsed]")
 
-            # query logs
-            if ($Beta) { # default is to use beta, which returns more information
-                # $GetProperties = @( # FIXME going to see how much slower pulling all properties is
-                #     'AppDisplayName'
-                #     'AuthenticationProtocol'
-                #     'CorrelationID'
-                #     'CreatedDateTime'
-                #     'DeviceDetail'
-                #     'IpAddress'
-                #     'Location'
-                #     'ResourceId'
-                #     'Status'
-                #     # 'UniqueTokenIdentifier'
-                #     'UserAgent'
-                #     'UserPrincipalName'
-                # )
+            # $GetProperties = @( # FIXME going to see how much slower pulling all properties is
+            #     'AppDisplayName'
+            #     'AuthenticationProtocol'
+            #     'CorrelationID'
+            #     'CreatedDateTime'
+            #     'DeviceDetail'
+            #     'IpAddress'
+            #     'Location'
+            #     'ResourceId'
+            #     'Status'
+            #     # 'UniqueTokenIdentifier'
+            #     'UserAgent'
+            #     'UserPrincipalName'
+            # )
+
+            # accumulate logs across all date chunks
+            $Logs = [System.Collections.Generic.List[PSObject]]::new()
+            $MaxRetry = 3
+            $ChunkIndex = 0
+            foreach ($Chunk in $DateChunks) {
+                $ChunkIndex++
+
+                # refresh token each chunk; a long multi-chunk run can outlive the
+                # token's 5-minute refresh window and start failing with 401s
+                Update-IRTToken -Service 'Graph'
+
+                # build this chunk's filter: base filters + explicit date bounds
+                $ChunkFilterStrings = [System.Collections.Generic.List[string]]::new()
+                foreach ( $f in $BaseFilterStrings ) { $ChunkFilterStrings.Add( $f ) }
+                $ChunkStartString = $Chunk.Start.ToString('yyyy-MM-ddTHH:mm:ssZ')
+                $ChunkEndString = $Chunk.End.ToString('yyyy-MM-ddTHH:mm:ssZ')
+                $ChunkFilterStrings.Add( "createdDateTime ge $ChunkStartString" )
+                $ChunkFilterStrings.Add( "createdDateTime le $ChunkEndString" )
+                $FilterString = $ChunkFilterStrings -join " and "
+
+                # chunk progress message
+                if ( $ChunkCount -gt 1 ) {
+                    $ChunkStartLocal = $Chunk.Start.ToLocalTime().ToString('M/d/yy h:mmtt')
+                    $ChunkEndLocal = $Chunk.End.ToLocalTime().ToString('M/d/yy h:mmtt')
+                    Write-IRT ("Chunk ${ChunkIndex} of ${ChunkCount}:" +
+                        " ${ChunkStartLocal} to ${ChunkEndLocal}.")
+                }
+                Write-PSFMessage -Level 8 -Message (
+                    "${FunctionName}: Filter string: '${FilterString}'")
+                $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+                Write-PSFMessage -Level 8 -Message (
+                    "${FunctionName}: Get-MgAuditLogSignIn [$Elapsed]")
+
                 $GetParams = @{
                     Filter = $FilterString
                     # Property = $GetProperties
                     All = $true
                 }
-                [System.Collections.Generic.List[PSObject]]$Logs =
-                Get-MgBetaAuditLogSignIn @GetParams  # | Select-Object $GetProperties
-            }
-            else { # if $Beta = $false
-                # $GetProperties = @( # FIXME going to see how much slower pulling all properties is
-                #     'AppDisplayName'
-                #     'CorrelationID'
-                #     'CreatedDateTime'
-                #     'DeviceDetail'
-                #     'IpAddress'
-                #     'Location'
-                #     'ResourceId'
-                #     'Status'
-                #     'UniqueTokenIdentifier'
-                #     'UserAgent'
-                #     'UserPrincipalName'
-                # )
-                $GetParams = @{
-                    Filter = $FilterString
-                    # Property = $GetProperties
-                    All = $true
+
+                # query logs, retrying on Graph timeout / throttling
+                $RetryCount = 0
+                while ($true) {
+                    try {
+                        if ($Beta) { # default is beta, which returns more information
+                            $ChunkLogs = Get-MgBetaAuditLogSignIn @GetParams
+                        }
+                        else {
+                            $ChunkLogs = Get-MgAuditLogSignIn @GetParams
+                        }
+                        break
+                    }
+                    catch {
+                        $Message = $_.Exception.Message
+                        $IsTimeout = $Message -match
+                            'HttpClient\.Timeout|request was canceled|task was canceled'
+                        $IsThrottle = $Message -match 'TooManyRequests|429'
+
+                        if ($IsThrottle -and $RetryCount -lt $MaxRetry) {
+                            $RetryCount++
+
+                            # determine server-requested Retry-After, if any: prefer the
+                            # response header object, then fall back to the message text
+                            $RetryAfter = $null
+                            try {
+                                $Delta = $_.Exception.Response.Headers.RetryAfter.Delta
+                                if ($null -ne $Delta) { $RetryAfter = [int]$Delta.TotalSeconds }
+                            }
+                            catch { $RetryAfter = $null }
+                            if (-not $RetryAfter -and
+                                $Message -match 'try again (?:in|after)[^0-9]*([0-9]+)\s*second') {
+                                $RetryAfter = [int]$Matches[1]
+                            }
+
+                            if ($RetryAfter) {
+                                # honor and surface the server's requested delay
+                                $Wait = $RetryAfter
+                                Write-IRT ("Throttled by Graph. Honoring Retry-After of" +
+                                    " ${Wait}s (retry ${RetryCount}/${MaxRetry})...") -Level Warn
+                            }
+                            else {
+                                # no Retry-After: exponential backoff from the base
+                                $Factor = [Math]::Pow(2, $RetryCount - 1)
+                                $Wait = [int]($ThrottleDelaySeconds * $Factor)
+                                Write-IRT ("Throttled by Graph (no Retry-After). Backing off" +
+                                    " ${Wait}s (retry ${RetryCount}/${MaxRetry})...") -Level Warn
+                            }
+                            Start-Sleep -Seconds $Wait
+                            continue
+                        }
+                        elseif ($IsTimeout -and $RetryCount -lt $MaxRetry) {
+                            $RetryCount++
+                            Write-IRT ("Request timed out. Retrying" +
+                                " (${RetryCount}/${MaxRetry})...") -Level Warn
+                            Start-Sleep -Seconds 5
+                            continue
+                        }
+                        elseif ($IsTimeout) {
+                            Write-IRT ("Chunk still timing out after ${MaxRetry} retries." +
+                                " Skipping - re-run with a smaller -ChunkDays.") -Level Error
+                            $ChunkLogs = $null
+                            break
+                        }
+                        else {
+                            throw
+                        }
+                    }
                 }
-                [System.Collections.Generic.List[PSObject]]$Logs =
-                Get-MgAuditLogSignIn @GetParams  # | Select-Object $GetProperties
+
+                # accumulate this chunk's results
+                foreach ( $l in $ChunkLogs ) { $Logs.Add( $l ) }
+
+                # brief pause between chunks to avoid tripping throttle limits
+                if ( $ChunkDelaySeconds -gt 0 -and $ChunkIndex -lt $ChunkCount ) {
+                    Start-Sleep -Seconds $ChunkDelaySeconds
+                }
             }
 
             if (($Logs | Measure-Object).Count -eq 0 ) {
                 Write-IRT "No logs found for ${Target} for past ${Days} days. Exiting." -Level Error
                 continue
             }
+
+            # sort newest first (chunks are concatenated newest-first; safety net)
+            $Logs = [System.Collections.Generic.List[PSObject]](
+                $Logs | Sort-Object -Property CreatedDateTime -Descending)
 
             # add metadata to results
             $Logs.Insert(0,
