@@ -1,0 +1,78 @@
+base: develop
+title: y
+---
+# feat(email): add Get-IRTEmailSearch manager
+
+## Summary
+
+This branch finishes the email-search workflow. `New-IRTEmailSearch`
+already creates and starts a search; the new `Get-IRTEmailSearch` lets an
+analyst come back to existing searches and actually work them — run, wait,
+review hits, purge, and clean up — without dropping to the raw
+`*-ComplianceSearch*` cmdlets. It also hardens the create side and unifies
+terminology on "email search."
+
+## What changed
+
+**New: `Get-IRTEmailSearch` (interactive manager)**
+- Lists existing searches in an aligned, numbered table (name + status),
+  and shows each search's item count once it has been viewed this session.
+- Per-search action menu: **Start**, **Wait for completion**,
+  **Results**, **Purge email**, **Wait for purge**, **Delete search**.
+- **Results** reads the search's structured `SearchStatistics` JSON
+  (per-mailbox name / item count / size). This needs only ordinary
+  Compliance Search permissions — *not* the eDiscovery Preview role — so it
+  works for analysts who can run searches but can't preview. It always
+  exports an autosized Excel workbook (opened on save) titled with the
+  search name, tenant domain, and run time.
+- **Purge** asks SoftDelete vs HardDelete first, then confirms, and
+  suppresses the native Exchange confirmation prompt. **Wait for purge**
+  monitors the purge action to completion.
+- Main-menu **bulk delete** removes every search whose name starts with the
+  configured prefix, after listing them and confirming.
+- Detailed search objects are cached per session: a completed (immutable)
+  search is reused instead of re-fetched, and the wait loops check status
+  before sleeping so an already-finished search/purge returns immediately.
+
+**New: `Get-EmailSearchResult` (private helper)**
+- Parses `SearchStatistics` into one row per mailbox with hits. Carries a
+  `# FIXME` for a future opt-in Graph mode that would re-query per mailbox
+  for message-level detail and folder (trash) info via `Mail.Read`.
+
+**Hardened `New-IRTEmailSearch`**
+- Strips characters Exchange rejects from the generated name (notably the
+  `*` / `?` wildcards) so a valid query like `From:microsoft*` no longer
+  crashes creation. The wildcard still works in the query itself.
+- Wraps create/start so a failed `New-ComplianceSearch` stops with a clear
+  error instead of falling through to `Start-ComplianceSearch` on a null
+  object and falsely reporting success.
+- On a name collision it now offers a new name (Enter accepts the next free
+  `Name N`, or type your own); `-Force` picks the next free name instead of
+  overwriting. Nothing is ever overwritten.
+
+**Other**
+- New `EmailSearchNamePrefix` config setting (default `IRT: `).
+- The interactive builder now explains KQL From-field tokenization and
+  trailing-wildcard behavior when entering a From value.
+- Standardized user-facing wording on "email search" (kept literal cmdlet
+  names and the Exchange "Compliance Search" role name).
+- `tests/Test-ExplicitModuleImport.ps1`: mapped the offline-undiscoverable
+  `Get-/New-ComplianceSearchAction` cmdlets to `ExchangeOnlineManagement`.
+- Added `Scripts/Debug/Get-IRTEmailSearch_DEBUG.ps1` for live-tenant runs.
+
+## Testing
+
+- Offline Pester suite: 246 passed, 0 failed (2 skipped, online not run).
+- Formatting/lint on changed files: LineLength, BacktickContinuation, and
+  PSScriptAnalyzer all clean.
+- `Get-EmailSearchResult`'s `SearchStatistics` parsing was verified against
+  a real exported search result (6 mailboxes, 121 items).
+
+## Notes
+
+- Built artifacts (`M365IncidentResponseTools.psd1/.psm1`, root `Data/`,
+  the `.xlsx` templates) were intentionally not committed; regenerate with
+  `.\Build.ps1`.
+- Folder/trash detection is deliberately out of scope here — it requires
+  either the eDiscovery Preview role or the future Graph mode noted by the
+  `# FIXME`s. The current Results view is aggregate-only by design.
