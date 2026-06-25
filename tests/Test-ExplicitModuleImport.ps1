@@ -55,7 +55,21 @@ $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
 # Find current module name. Error out if not currently imported.
 #   Prefer erroring over importing because script doesn't know if dev wants
 #   to test source or build module.
-$CurrentModuleName = (Find-ModuleRoot -Path $PSScriptRoot).Name
+# The orchestrator resolves the module name from the manifest (worktree-safe)
+# and shares it via $Global:Dev_ModuleName; prefer that. Fall back to folder-name
+# detection for standalone runs (which assume the repo folder matches the module).
+$CurrentModuleName = if ($Global:Dev_ModuleName) {
+    $Global:Dev_ModuleName
+}
+else {
+    (Find-ModuleRoot -Path $PSScriptRoot).Name
+}
+if (-not $CurrentModuleName) {
+    $ErrMsg = 'Could not determine the module name. Run via Tests.ps1, ' +
+    'or ensure the repo folder matches the module manifest.'
+    Write-Error $ErrMsg
+    exit 1
+}
 if (-not (Get-Module -Name $CurrentModuleName)) {
     $ErrMsg = "Module '$CurrentModuleName' is not imported. " +
     "Import it before running this test."
