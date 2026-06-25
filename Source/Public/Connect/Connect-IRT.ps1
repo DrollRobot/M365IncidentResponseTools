@@ -115,6 +115,11 @@ function Connect-IRT {
             if ($Global:IRT_Session.ClientId) {
                 $RefreshParams['ClientId'] = $Global:IRT_Session.ClientId
             }
+            # Re-request any extra Graph scopes granted in this session, so a refresh
+            # doesn't silently drop scopes added via -AdditionalScope.
+            $ScopeDelta = @($Global:IRT_Session.Graph?.Scopes |
+                    Where-Object { $_ -notin (Get-IRTGraphDefaultScope) })
+            if ($ScopeDelta) { $RefreshParams['AdditionalScope'] = $ScopeDelta }
             if ($Global:IRT_Session.Graph) { $RefreshParams['Graph'] = $true }
             if ($Global:IRT_Session.Exchange) { $RefreshParams['Exchange'] = $true }
             if ($Global:IRT_Session.IPPS) { $RefreshParams['IPPS'] = $true }
@@ -163,14 +168,19 @@ function Connect-IRT {
         }
 
         if (-not $Global:IRT_Session) {
+            # Apps holds one MSAL PublicClientApplication per client ID (Exchange and
+            # IPPS share one); StickyAccount remembers which cached account last worked
+            # per client ID. Synchronized so playbook runspaces can share them safely.
             $Global:IRT_Session = [pscustomobject]@{
-                TenantId    = $TenantId
-                ClientId    = $ClientId
-                Cloud       = $DetectedCloud
-                CloudConfig = $CloudConfig
-                Graph       = $null
-                Exchange    = $null
-                IPPS        = $null
+                TenantId      = $TenantId
+                ClientId      = $ClientId
+                Cloud         = $DetectedCloud
+                CloudConfig   = $CloudConfig
+                Apps          = [hashtable]::Synchronized(@{})
+                StickyAccount = [hashtable]::Synchronized(@{})
+                Graph         = $null
+                Exchange      = $null
+                IPPS          = $null
             }
         } else {
             $AddMemberParams = @{
@@ -179,6 +189,19 @@ function Connect-IRT {
                 Force             = $true
             }
             $Global:IRT_Session | Add-Member @AddMemberParams
+
+            # Backfill the app/sticky stores when reusing an older session object, so
+            # reconnects keep the existing PCA pool instead of failing.
+            foreach ($StoreName in 'Apps', 'StickyAccount') {
+                if ($null -eq $Global:IRT_Session.$StoreName) {
+                    $StoreParams = @{
+                        NotePropertyName  = $StoreName
+                        NotePropertyValue = [hashtable]::Synchronized(@{})
+                        Force             = $true
+                    }
+                    $Global:IRT_Session | Add-Member @StoreParams
+                }
+            }
         }
 
         # --- Graph ---

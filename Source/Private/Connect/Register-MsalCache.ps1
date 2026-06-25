@@ -4,8 +4,8 @@ function Register-MsalCache {
     Attaches the IRT persistent token cache to an MSAL PublicClientApplication.
 
     .DESCRIPTION
-    Internal helper. Loads Microsoft.Identity.Client.Extensions.Msal (downloading
-    it on first use), then registers a DPAPI-encrypted on-disk cache against the
+    Internal helper. Loads the bundled Microsoft.Identity.Client.Extensions.Msal
+    assembly, then registers a DPAPI-encrypted on-disk cache against the
     supplied app's UserTokenCache. After registration, MSAL automatically
     persists refresh tokens between PowerShell sessions, so subsequent
     AcquireTokenSilent calls succeed without an interactive prompt for the life
@@ -27,8 +27,9 @@ function Register-MsalCache {
     Register-MsalCache -App $App -CachePath 'C:\Temp\test-msal.bin'
 
     .NOTES
-    Version: 1.1.0
-    Windows-only. On non-Windows platforms the function returns silently.
+    Version: 2.0.0
+    Windows-only. On non-Windows platforms the function throws so the caller
+    can surface the failure loudly.
     #>
     [CmdletBinding()]
     param(
@@ -43,11 +44,10 @@ function Register-MsalCache {
     Write-PSFMessage -Level 8 -Message "Register-MsalCache: CachePath=$CachePath"
 
     if (-not $IsWindows -and $PSVersionTable.PSVersion.Major -ge 6) {
-        Write-IRT 'Persistent MSAL cache is currently Windows-only.' -Level Warn
-        return
+        throw 'Persistent MSAL cache is currently Windows-only.'
     }
 
-    $null = Install-MsalExtensions
+    $null = Import-MsalExtensionAssembly
 
     $CacheDir = Split-Path $CachePath -Parent
     $CacheFile = Split-Path $CachePath -Leaf

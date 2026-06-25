@@ -124,12 +124,16 @@
         Same principle as the Exchange case.
 
     'stores the refreshed Graph result back into the session'
-        The new connection object from Connect-IRTGraph must replace the
-        stale one so subsequent module calls use the fresh token.
+        The new metadata object from Connect-IRTGraph must replace the
+        stale one so subsequent module calls see the fresh binding.
 
-    'stores the refreshed TokenExpiry in the session'
-        TokenExpiry must be updated so the prompt function and
-        Test-IRTConnection see the correct next-expiry time.
+    'stores the refreshed BoundTokenExpiry in the session'
+        BoundTokenExpiry must be updated so Update-IRTToken sees the
+        correct next-expiry time for the token bound into the SDK.
+
+    'forwards extra session scopes as -AdditionalScope'
+        Scopes granted in this session beyond the default set must be
+        re-requested on refresh instead of being silently dropped.
 
 -- Connect-IRT session state (live) [Tag: Online] ------------------------
 
@@ -146,14 +150,21 @@
     silently to verify the full cache round-trip in a single run.
     In agent mode (-Online -CachedAuth) only a silent refresh is attempted.
 
-    'Graph TokenExpiry is a future UTC DateTime'
-        Confirms a real Graph access token was acquired and its expiry was
-        correctly parsed; a past expiry would mean every API call would
-        immediately trigger a re-auth.
+    'Graph BoundTokenExpiry is a future UTC DateTime'
+        Confirms a real Graph access token was acquired and bound; a past
+        expiry would mean every API call would immediately trigger a re-auth.
 
-    'Exchange TokenExpiry is a future UTC DateTime'
+    'Exchange BoundTokenExpiry is a future UTC DateTime'
         Same assertion for Exchange; validates the separate MSAL client ID
         and scope path through the token acquisition code.
+
+    'Exchange and IPPS share one MSAL app'
+        The session Apps store must hold a single entry for the shared EXO
+        client ID - the invariant that makes IPPS sign-in always silent.
+
+    'Get-IRTAccessToken mints a fresh Exchange token silently'
+        Validates the public token authority end to end against the cache
+        populated by Connect-IRT.
 
     'Connect-IRT -Refresh preserves the session TenantId'
         A live -Refresh call must not overwrite the session identity that
@@ -411,32 +422,35 @@ InModuleScope M365IncidentResponseTools {
             #
             # Connect-IRTGraph, Connect-IRTExchange, Connect-IRTIPPS, and
             # Test-IRTConnection are all mocked to eliminate any real network
-            # calls. The mock for Connect-IRTGraph returns a synthetic connection
-            # object with a predictable Token and TokenExpiry so the session
-            # state can be asserted on after the call.
+            # calls. The mock for Connect-IRTGraph returns a synthetic metadata
+            # object with a predictable Account and BoundTokenExpiry so the
+            # session state can be asserted on after the call.
             BeforeEach {
                 $script:SavedSession = (
                     Get-Variable -Name IRT_Session -Scope Global -ErrorAction SilentlyContinue
                 )?.Value
                 $script:RefreshedExpiry = [System.DateTime]::UtcNow.AddHours(1)
                 $Global:IRT_Session = [pscustomobject]@{
-                    TenantId    = 'bbbbbbbb-0000-0000-0000-bbbbbbbbbbbb'
-                    Cloud = 'Commercial'
-                    Graph       = [pscustomobject]@{
-                        Token                   = 'old-graph-token'
-                        TokenExpiry             = [System.DateTime]::UtcNow.AddMinutes(5)
-                        Account                 = $null
-                        PublicClientApplication = $null
+                    TenantId      = 'bbbbbbbb-0000-0000-0000-bbbbbbbbbbbb'
+                    ClientId      = $null
+                    Cloud         = 'Commercial'
+                    Apps          = [hashtable]::Synchronized(@{})
+                    StickyAccount = [hashtable]::Synchronized(@{})
+                    Graph         = [pscustomobject]@{
+                        Account          = 'old@contoso.com'
+                        Scopes           = $null
+                        BoundTokenExpiry = [System.DateTime]::UtcNow.AddMinutes(5)
+                        TenantId         = 'bbbbbbbb-0000-0000-0000-bbbbbbbbbbbb'
                     }
-                    Exchange    = $null
-                    IPPS        = $null
+                    Exchange      = $null
+                    IPPS          = $null
                 }
                 Mock Connect-IRTGraph {
                     [pscustomobject]@{
-                        Token                   = 'refreshed-graph-token'
-                        TokenExpiry             = $script:RefreshedExpiry
-                        Account                 = $null
-                        PublicClientApplication = $null
+                        Account          = 'refreshed@contoso.com'
+                        Scopes           = $null
+                        BoundTokenExpiry = $script:RefreshedExpiry
+                        TenantId         = 'bbbbbbbb-0000-0000-0000-bbbbbbbbbbbb'
                     }
                 }
                 Mock Connect-IRTExchange { }
@@ -488,18 +502,131 @@ InModuleScope M365IncidentResponseTools {
                 Should -Invoke Connect-IRTIPPS -Times 0
             }
             It 'stores the refreshed Graph result back into the session' {
-                # The fresh connection object returned by Connect-IRTGraph must
+                # The fresh metadata object returned by Connect-IRTGraph must
                 # replace the stale one in $Global:IRT_Session.Graph so that
-                # subsequent module calls use the new token.
+                # subsequent module calls see the new binding.
                 Connect-IRT -Refresh
-                $Global:IRT_Session.Graph.Token | Should -Be 'refreshed-graph-token'
+                $Global:IRT_Session.Graph.Account | Should -Be 'refreshed@contoso.com'
             }
-            It 'stores the refreshed TokenExpiry in the session' {
-                # TokenExpiry is used by Test-IRTConnection and the prompt
-                # function to decide whether a re-authentication is needed.
-                # A stale expiry would cause unnecessary re-auth prompts.
+            It 'stores the refreshed BoundTokenExpiry in the session' {
+                # BoundTokenExpiry is used by Update-IRTToken to decide whether
+                # a re-bind is needed. A stale expiry would cause unnecessary
+                # refresh churn.
                 Connect-IRT -Refresh
-                $Global:IRT_Session.Graph.TokenExpiry | Should -Be $script:RefreshedExpiry
+                $Global:IRT_Session.Graph.BoundTokenExpiry | Should -Be $script:RefreshedExpiry
+            }
+            It 'forwards extra session scopes as -AdditionalScope' {
+                # Scopes added during the session (via -AdditionalScope) must be
+                # re-requested on refresh instead of being silently dropped.
+                $Global:IRT_Session.Graph.Scopes =
+                @(Get-IRTGraphDefaultScope) + 'Custom.Extra.Scope'
+                Connect-IRT -Refresh
+                $Assert = @{
+                    Times           = 1
+                    ParameterFilter = { $AdditionalScope -contains 'Custom.Extra.Scope' }
+                }
+                Should -Invoke Connect-IRTGraph @Assert
+            }
+        }
+
+        Context 'session initialization (mocked downstream)' {
+            # Connect-IRT owns the $Global:IRT_Session shape. A fresh connect must
+            # create the Apps and StickyAccount stores (synchronized, so playbook
+            # runspaces can share them); a reconnect over an old-shape session
+            # object (pre-Apps) must backfill the stores instead of failing.
+            # -Cloud is always supplied so the static cloud table is used and no
+            # OIDC discovery network call happens.
+            BeforeEach {
+                $script:SavedSession = (
+                    Get-Variable -Name IRT_Session -Scope Global -ErrorAction SilentlyContinue
+                )?.Value
+                Mock Connect-IRTGraph {
+                    [pscustomobject]@{
+                        Account          = 'admin@customer.com'
+                        Scopes           = $null
+                        BoundTokenExpiry = [datetime]::UtcNow.AddMinutes(55)
+                        TenantId         = 'cccccccc-0000-0000-0000-cccccccccccc'
+                    }
+                }
+                Mock Connect-IRTExchange { }
+                Mock Connect-IRTIPPS { }
+                Mock Test-IRTConnection { }
+                Mock Get-DefaultDomain { $null }
+                Mock Set-TerminalTitle { }
+            }
+            AfterEach {
+                $Global:IRT_Session = $script:SavedSession
+            }
+
+            It 'creates the Apps and StickyAccount stores on a fresh session' {
+                $Global:IRT_Session = $null
+                $ConnectParams = @{
+                    TenantId = 'cccccccc-0000-0000-0000-cccccccccccc'
+                    Cloud    = 'Commercial'
+                    Graph    = $true
+                }
+                Connect-IRT @ConnectParams
+                $Global:IRT_Session.Apps | Should -BeOfType [hashtable]
+                $Global:IRT_Session.Apps.IsSynchronized | Should -BeTrue
+                $Global:IRT_Session.StickyAccount | Should -BeOfType [hashtable]
+                $Global:IRT_Session.StickyAccount.IsSynchronized | Should -BeTrue
+            }
+
+            It 'populates TenantId and CloudConfig on a fresh session' {
+                $Global:IRT_Session = $null
+                $ConnectParams = @{
+                    TenantId = 'cccccccc-0000-0000-0000-cccccccccccc'
+                    Cloud    = 'Commercial'
+                    Graph    = $true
+                }
+                Connect-IRT @ConnectParams
+                $Global:IRT_Session.TenantId |
+                    Should -Be 'cccccccc-0000-0000-0000-cccccccccccc'
+                $Global:IRT_Session.CloudConfig.LoginHost |
+                    Should -Be 'https://login.microsoftonline.com'
+            }
+
+            It 'backfills Apps/StickyAccount on an old-shape session object' {
+                # Pre-3.0 session shape: no Apps or StickyAccount properties.
+                $Global:IRT_Session = [pscustomobject]@{
+                    TenantId = 'cccccccc-0000-0000-0000-cccccccccccc'
+                    ClientId = $null
+                    Cloud    = 'Commercial'
+                    Graph    = $null
+                    Exchange = $null
+                    IPPS     = $null
+                }
+                $ConnectParams = @{
+                    TenantId = 'cccccccc-0000-0000-0000-cccccccccccc'
+                    Cloud    = 'Commercial'
+                    Graph    = $true
+                }
+                Connect-IRT @ConnectParams
+                $Global:IRT_Session.Apps | Should -BeOfType [hashtable]
+                $Global:IRT_Session.StickyAccount | Should -BeOfType [hashtable]
+            }
+
+            It 'keeps an existing Apps store (PCA pool) on reconnect' {
+                # Reconnecting must not throw away already-built MSAL apps.
+                $Marker = [pscustomobject]@{ Marker = 'existing-pca' }
+                $Existing = [hashtable]::Synchronized(@{ 'client-id' = $Marker })
+                $Global:IRT_Session = [pscustomobject]@{
+                    TenantId      = 'cccccccc-0000-0000-0000-cccccccccccc'
+                    ClientId      = $null
+                    Cloud         = 'Commercial'
+                    Apps          = $Existing
+                    StickyAccount = [hashtable]::Synchronized(@{})
+                    Graph         = $null
+                    Exchange      = $null
+                    IPPS          = $null
+                }
+                $ConnectParams = @{
+                    TenantId = 'cccccccc-0000-0000-0000-cccccccccccc'
+                    Cloud    = 'Commercial'
+                    Graph    = $true
+                }
+                Connect-IRT @ConnectParams
+                $Global:IRT_Session.Apps['client-id'] | Should -Be $Marker
             }
         }
     }
@@ -598,25 +725,52 @@ Describe 'Connect-IRT session state (live)' -Tag 'Online' {
         $Global:IRT_Session.TenantId | Should -Not -BeNullOrEmpty
     }
 
-    It 'Graph TokenExpiry is a future UTC DateTime' {
-        # Confirms that a real access token was obtained and that its expiry
-        # was correctly parsed and stored. A past expiry would mean the
-        # token is already considered expired before a single API call is made.
+    It 'Graph BoundTokenExpiry is a future UTC DateTime' {
+        # Confirms that a real access token was obtained and bound into the
+        # SDK context. A past expiry would mean the token is already considered
+        # expired before a single API call is made.
         if (-not $Global:IRT_Session.Graph) {
             Set-ItResult -Skipped -Because 'Graph is not connected in this session'
         }
-        $Global:IRT_Session.Graph.TokenExpiry | Should -BeOfType [System.DateTime]
-        $Global:IRT_Session.Graph.TokenExpiry | Should -BeGreaterThan ([System.DateTime]::UtcNow)
+        $Global:IRT_Session.Graph.BoundTokenExpiry | Should -BeOfType [System.DateTime]
+        $Global:IRT_Session.Graph.BoundTokenExpiry |
+            Should -BeGreaterThan ([System.DateTime]::UtcNow)
     }
 
-    It 'Exchange TokenExpiry is a future UTC DateTime' {
+    It 'Exchange BoundTokenExpiry is a future UTC DateTime' {
         # Same assertion as the Graph case; Exchange uses a separate MSAL
-        # client ID and scope so token parsing is exercised independently.
+        # client ID and scope so token acquisition is exercised independently.
         if (-not $Global:IRT_Session.Exchange) {
             Set-ItResult -Skipped -Because 'Exchange is not connected in this session'
         }
-        $Global:IRT_Session.Exchange.TokenExpiry | Should -BeOfType [System.DateTime]
-        $Global:IRT_Session.Exchange.TokenExpiry | Should -BeGreaterThan ([System.DateTime]::UtcNow)
+        $Global:IRT_Session.Exchange.BoundTokenExpiry | Should -BeOfType [System.DateTime]
+        $Global:IRT_Session.Exchange.BoundTokenExpiry |
+            Should -BeGreaterThan ([System.DateTime]::UtcNow)
+    }
+
+    It 'Exchange and IPPS share one MSAL app' {
+        # The Apps store must hold exactly one entry for the shared EXO client
+        # ID - the invariant that makes IPPS sign-in always silent after an
+        # Exchange sign-in.
+        if (-not ($Global:IRT_Session.Exchange -and $Global:IRT_Session.IPPS)) {
+            Set-ItResult -Skipped -Because 'requires both Exchange and IPPS connections'
+        }
+        $ExoClientId = 'fb78d390-0c51-40cd-8e17-fdbfab77341b'
+        $Global:IRT_Session.Apps.ContainsKey($ExoClientId) | Should -BeTrue
+        $ExoApps = @($Global:IRT_Session.Apps.Keys |
+                Where-Object { $_ -eq $ExoClientId })
+        $ExoApps | Should -HaveCount 1
+    }
+
+    It 'Get-IRTAccessToken mints a fresh Exchange token silently' {
+        # End-to-end validation of the public token authority against the
+        # cache populated by Connect-IRT: no prompt, valid future expiry.
+        if (-not $Global:IRT_Session.Exchange) {
+            Set-ItResult -Skipped -Because 'Exchange is not connected in this session'
+        }
+        $Result = Get-IRTAccessToken -Service Exchange -Silent
+        $Result.AccessToken | Should -Not -BeNullOrEmpty
+        $Result.ExpiresOn.UtcDateTime | Should -BeGreaterThan ([System.DateTime]::UtcNow)
     }
 
     It 'Connect-IRT -Refresh preserves the session TenantId' {
@@ -763,8 +917,8 @@ Describe 'Connect-IRT admin consent workflow (live)' -Tag 'Online' {
             return
         }
         $Global:IRT_Session.Graph | Should -Not -BeNullOrEmpty
-        $Global:IRT_Session.Graph.TokenExpiry | Should -BeOfType [System.DateTime]
-        $Global:IRT_Session.Graph.TokenExpiry | Should -BeGreaterThan (
+        $Global:IRT_Session.Graph.BoundTokenExpiry | Should -BeOfType [System.DateTime]
+        $Global:IRT_Session.Graph.BoundTokenExpiry | Should -BeGreaterThan (
             [System.DateTime]::UtcNow
         ) -Because 'the forced reconnect must produce a fresh token'
     }

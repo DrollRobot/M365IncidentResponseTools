@@ -5,7 +5,7 @@ Non-domain: Build/ Test/, Scripts/, Source/Build.psd1, Source/Public/Lib,
    Source/Private/Lib.
 
 Ignore built code in the module root, such as *.psm1 and *.psd1, ScriptsToProcess/,
-   Data/. Also, the built documents in Docs/Commands/.
+   Data/. Also, the built documents in Docs/Commands/ and Build/.
 
 Source
 

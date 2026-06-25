@@ -56,8 +56,12 @@ $Global:IRT_Config.IpInfoAvailable = (Test-PythonPackage -Name 'ip_info').Presen
 # Load static reference data (error codes, UAL operation metadata, UAL user types).
 Import-ReferenceData
 
-# Set terminal title on module load.
-Set-TerminalTitle '[IRT]'
+# Set terminal title on module load - but not when loading inside a playbook
+# worker runspace: workers share the parent's host, so this would stomp the
+# domain-suffixed title Connect-IRT set in the parent terminal.
+if (-not $Global:IRT_IsRunspaceWorker) {
+    Set-TerminalTitle '[IRT]'
+}
 
 # debug: output module load time
 if ($Global:IRT_LoadStopwatch) {

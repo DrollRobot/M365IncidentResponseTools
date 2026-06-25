@@ -597,6 +597,10 @@ function Get-IRTUnifiedAuditLog {
 
                     if ($AllLogs.Count -ge $ResultLimit) { $LimitReached = $true; break }
 
+                    # Multi-chunk/multi-query searches can outlive the ~1h access token.
+                    # Cheap no-op while the bound token is healthy.
+                    $null = Update-IRTToken -Service 'Exchange'
+
                     # build final params
                     $FirstPageParams = @{}
                     $BaseParams.GetEnumerator() |
@@ -656,6 +660,10 @@ function Get-IRTUnifiedAuditLog {
 
                     # retrieve pages until exhausted or ResultLimit reached
                     while ($LogCount -eq 5000 -and $AllLogs.Count -lt $ResultLimit) {
+
+                        # Large searches can outlive the ~1h access token. Cheap no-op
+                        # while the bound token is healthy; silent re-bind when not.
+                        $null = Update-IRTToken -Service 'Exchange'
 
                         Write-IRT "Requesting page ${PageCount}."
                         $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
