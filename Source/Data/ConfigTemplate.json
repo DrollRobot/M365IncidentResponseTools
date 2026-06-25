@@ -16,5 +16,6 @@
     "EnableTokenCache": false,
     "MsalCachePath": null,
     "IPConditionalFormattingTemplatePath": null,
-    "PlaybookOpenNewTab": true
+    "PlaybookOpenNewTab": true,
+    "EmailSearchNamePrefix": "IRT: "
 }

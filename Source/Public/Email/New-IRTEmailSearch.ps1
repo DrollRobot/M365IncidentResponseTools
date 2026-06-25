@@ -1,7 +1,7 @@
 function New-IRTEmailSearch {
     <#
     .SYNOPSIS
-    Builds, creates, and starts an Exchange compliance search for email.
+    Builds, creates, and starts an email search.
 
     .DESCRIPTION
     Assembles a Keyword Query Language (KeyQL) ContentMatchQuery from recipient, keyword,
@@ -50,11 +50,17 @@ function New-IRTEmailSearch {
     Override the auto-generated search name. By default the name is built from the
     recipient and keyword criteria (dates excluded).
 
+    .PARAMETER NamePrefix
+    String prepended to the search name (whether auto-generated or supplied via -Name).
+    Defaults to IRT_Config.EmailSearchNamePrefix ('IRT: '). The prefix is not re-applied
+    if the resolved name already starts with it. Pass '' to omit the prefix.
+
     .PARAMETER ExchangeLocation
     Mailboxes to search. Default: All.
 
     .PARAMETER Force
-    Overwrite an existing search of the same name without prompting.
+    On a name collision, automatically use the next available 'Name N' instead of
+    prompting. Never overwrites an existing search.
 
     .EXAMPLE
     New-IRTEmailSearch
@@ -73,7 +79,8 @@ function New-IRTEmailSearch {
     $Global:IRT_EmailSearch.
 
     .NOTES
-    Version: 1.1.0
+    Version: 1.2.0
+    1.2.0 - Prepend a configurable name prefix (IRT_Config.EmailSearchNamePrefix, default 'IRT: ').
     1.1.0 - Create and start when connected to IPPS; when offline, save criteria and warn.
     #>
     [CmdletBinding(SupportsShouldProcess)]
@@ -89,6 +96,7 @@ function New-IRTEmailSearch {
         [string[]] $Body,
         [string[]] $AttachmentName,
         [string] $Name,
+        [string] $NamePrefix = $Global:IRT_Config.EmailSearchNamePrefix,
         [string[]] $ExchangeLocation = 'All',
         [switch] $Force
     )
@@ -167,39 +175,89 @@ function New-IRTEmailSearch {
         $Name = Build-EmailSearchName -Criteria $Criteria
     }
 
+    # prepend the configurable prefix so IRT-created searches are easy to identify.
+    # skip when the name already starts with it (e.g. a -Name that includes the prefix).
+    if ($NamePrefix -and -not $Name.StartsWith($NamePrefix)) {
+        $Name = "$NamePrefix$Name"
+    }
+
+    # email search names reject certain characters - notably the * and ? wildcards
+    # that a query value like 'microsoft*' introduces. Strip them so creation does not
+    # fail; the wildcard still works in the ContentMatchQuery, just not in the name.
+    $Name = ($Name -replace '[*?<>\\/|"]', '').Trim()
+
     $Search = $null
     $Started = $false
 
     if ($IppsConnected) {
 
-        # handle an existing search of the same name
-        $Existing = Get-ComplianceSearch -Identity $Name -ErrorAction SilentlyContinue
-        if ($Existing) {
-            $Prompt = "A search named '$Name' already exists. Overwrite?"
-            $Overwrite = $Force -or (Get-YesNo $Prompt)
-            if (-not $Overwrite) {
-                Write-IRT 'Aborted. Existing search left unchanged.' -Level Warn
+        # handle a name collision. Rather than overwrite, let the user adjust the name
+        # (e.g. append a number). -Force keeps the old overwrite behavior for scripts.
+        while ($true) {
+            $Existing = Get-ComplianceSearch -Identity $Name -ErrorAction SilentlyContinue
+            if (-not $Existing) {
+                break
+            }
+
+            # suggest the first free 'Name N'
+            $Suggested = $Name
+            $Counter = 2
+            while (Get-ComplianceSearch -Identity $Suggested -ErrorAction SilentlyContinue) {
+                $Suggested = "$Name $Counter"
+                $Counter++
+            }
+
+            # -Force resolves the collision non-interactively by taking the free name
+            if ($Force) {
+                Write-IRT "Name in use; using '$Suggested' instead." -Level Warn
+                $Name = $Suggested
+                break
+            }
+
+            Write-IRT "A search named '$Name' already exists." -Level Warn
+            $Reply = (Read-Host (
+                    "Enter a new name, press Enter for '$Suggested', or 'q' to cancel")).Trim()
+            if ($Reply -match '^[Qq]$') {
+                Write-IRT 'Cancelled. No search created.' -Level Warn
                 return
             }
-            Remove-ComplianceSearch -Identity $Name -Confirm:$false
+            if ($Reply -eq '') {
+                $Name = $Suggested
+            }
+            else {
+                $Name = ($Reply -replace '[*?<>\\/|"]', '').Trim()
+            }
         }
 
-        if (-not $PSCmdlet.ShouldProcess($Name, 'Create and start compliance search')) {
+        if (-not $PSCmdlet.ShouldProcess($Name, 'Create and start email search')) {
             return
         }
 
         # always create and start together when the connection is good
-        Write-IRT "Creating compliance search: $Name"
+        Write-IRT "Creating email search: $Name"
         $NewParams = @{
             Name              = $Name
             ExchangeLocation  = $ExchangeLocation
             ContentMatchQuery = $Query
         }
-        $Search = New-ComplianceSearch @NewParams
+        try {
+            $Search = New-ComplianceSearch @NewParams -ErrorAction Stop
+        }
+        catch {
+            $_
+            Write-IRT "Failed to create email search: $Name" -Level Error
+            return
+        }
 
-        Write-IRT "Starting compliance search: $Name"
-        Start-ComplianceSearch -Identity $Search.Identity
-        $Started = $true
+        Write-IRT "Starting email search: $Name"
+        try {
+            Start-ComplianceSearch -Identity $Search.Identity -ErrorAction Stop
+            $Started = $true
+        }
+        catch {
+            $_
+            Write-IRT "Created but failed to start: $Name" -Level Error
+        }
     }
     else {
         Write-IRT 'Not connected to IPPS. Search not created or started.' -Level Warn

@@ -1,7 +1,7 @@
 function Build-EmailSearchName {
     <#
     .SYNOPSIS
-    Builds a human-readable compliance search name from email search criteria.
+    Builds a human-readable email search name from email search criteria.
 
     .DESCRIPTION
     Pure helper for New-IRTEmailSearch. Generates a search name from the recipient
