@@ -85,7 +85,9 @@ function Get-IRTEntraSignInLog {
     None. Results are exported to an Excel workbook.
 
     .NOTES
-    Version: 1.2.1
+    Version: 1.2.2
+    1.2.2 - Fixed chunk-boundary off-by-one that produced a degenerate zero-width
+            trailing chunk when the date range was an exact multiple of ChunkDays.
     1.2.1 - Throttle handling: honor and print Retry-After, exponential backoff
             when absent, and an inter-chunk delay to avoid tripping limits.
     1.2.0 - Added -ChunkDays to split large queries into smaller date windows,
@@ -229,7 +231,12 @@ function Get-IRTEntraSignInLog {
         $ChunkEnd = $EndDateUtc
         while ($ChunkEnd -gt $StartDateUtc) {
             $ProposedStart = $ChunkEnd.AddDays(-$ChunkDays)
-            $ChunkStart = $ProposedStart -gt $StartDateUtc ? $ProposedStart : $StartDateUtc
+            # Snap to the range start once the proposed start lands within a second of it,
+            # so a range that is an exact multiple of ChunkDays doesn't leave a degenerate
+            # sub-second trailing chunk. Resolve-DateRange reads the clock twice (StartUtc,
+            # EndUtc), so EndDateUtc.AddDays(-ChunkDays) can sit a few ms past StartDateUtc.
+            $ReachedStart = ($ProposedStart - $StartDateUtc).TotalSeconds -le 1
+            $ChunkStart = $ReachedStart ? $StartDateUtc : $ProposedStart
             $DateChunks.Add(@{ Start = $ChunkStart; End = $ChunkEnd })
             $ChunkEnd = $ChunkStart # newest-first; halves meet at the boundary
         }

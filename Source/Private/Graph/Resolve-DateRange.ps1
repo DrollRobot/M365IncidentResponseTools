@@ -22,7 +22,10 @@ function Resolve-DateRange {
         EndString   - string formatted as "yyyy-MM-ddTHH:mm:ssZ" for API filters
 
 	.NOTES
-	Version: 1.1.0
+	Version: 1.1.1
+	1.1.1 - Read the clock once so StartUtc and EndUtc share a single instant,
+	        removing sub-second residue that produced a degenerate trailing chunk
+	        in callers that split the range into chunks.
 	#>
     [CmdletBinding()]
     [OutputType([pscustomobject])]
@@ -120,8 +123,12 @@ function Resolve-DateRange {
         if (-not $Days) {
             $Days = $DefaultDays
         }
-        $StartUtc = (Get-Date).AddDays($Days * -1).ToUniversalTime()
-        $EndUtc = (Get-Date).ToUniversalTime()
+        # read the clock once so StartUtc and EndUtc share a single instant; two
+        # reads leave a few ms of residue between them, which downstream chunking
+        # rounds into a degenerate zero-width trailing chunk.
+        $Now = Get-Date
+        $StartUtc = $Now.AddDays($Days * -1).ToUniversalTime()
+        $EndUtc = $Now.ToUniversalTime()
     }
 
     [pscustomobject]@{

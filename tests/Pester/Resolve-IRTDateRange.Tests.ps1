@@ -23,6 +23,15 @@ Describe 'Resolve-DateRange' {
             $Result = Resolve-DateRange -Days 7
             $Result.StartUtc | Should -BeLessThan $Result.EndUtc
         }
+        It 'derives StartUtc and EndUtc from a single clock read (no sub-second residue)' {
+            # One Get-Date means Start and End share the same sub-second, so the span is
+            # a whole number of seconds. Two reads would leave a few ms of residue that
+            # pushes a chunk boundary just past the range start (the degenerate-chunk bug).
+            # Robust to DST transitions, which shift by whole hours, not sub-seconds.
+            $Result = Resolve-DateRange -Days 7
+            $Span = $Result.EndUtc - $Result.StartUtc
+            ($Span.Ticks % [TimeSpan]::TicksPerSecond) | Should -Be 0
+        }
         It 'formats StartString as ISO 8601 UTC' {
             $Result = Resolve-DateRange -Days 1
             $Result.StartString | Should -Match '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$'
@@ -67,6 +76,12 @@ Describe 'Resolve-DateRange' {
         }
         It 'throws when -Start and -End resolve to the same time' {
             { Resolve-DateRange -Start '6/15/26 3:48pm' -End '6/15/26 3:48pm' } | Should -Throw
+        }
+        It 'throws when -Start is not a parseable date' {
+            { Resolve-DateRange -Start 'not-a-date' -End '01/10/2024' } | Should -Throw
+        }
+        It 'throws when -End is not a parseable date' {
+            { Resolve-DateRange -Start '01/01/2024' -End 'not-a-date' } | Should -Throw
         }
     }
 }

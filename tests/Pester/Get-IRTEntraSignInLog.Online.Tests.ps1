@@ -38,7 +38,8 @@
 -- -UserObject, interactive, 30-day query ---------------------------------
 
     Queries the test user's interactive sign-ins over the default 30-day
-    window in a single chunk.
+    window, split into 3-day chunks (ChunkDelaySeconds = 0) so each request
+    stays well under the Graph 300-second per-request HttpClient timeout.
 
     'returns at least 1 interactive sign-in for the test user'
         The test user authenticates via Connect-IRT, so an interactive sign-in
@@ -55,7 +56,8 @@
 
 -- -AllUsers, 7-day query (beta) ------------------------------------------
 
-    One tenant-wide query over 7 days. Also captures a representative source
+    A tenant-wide pull over 7 days, split into 3-day chunks to stay under the
+    Graph 300-second per-request timeout. Also captures a representative source
     IP for the -IpAddress context that follows.
 
     'returns at least 1 sign-in record'
@@ -111,7 +113,7 @@
 
     'returns at least 1 record merged across chunks'
         A zero count means chunking or the per-chunk date bounds broke the
-        query; the single-chunk AllUsers context proves data exists.
+        query; the single-chunk context proves data exists.
 
     'all records fall within the 7-day window'
         Verifies every chunk used correct bounds; a record outside the window
@@ -120,6 +122,26 @@
     'merged records are sorted newest first'
         The function sorts the accumulated results descending by
         CreatedDateTime; verifies that final sort survived the merge.
+
+-- single chunk: 1-day non-interactive query (default ChunkDays) ----------
+
+    Days = 1 sits well under the default ChunkDays (30), so the range is queried
+    as a single chunk. Exercises the no-split path live and guards the chunk-
+    boundary fix: a range smaller than ChunkDays must never emit a second
+    (degenerate, zero-width) chunk. Non-interactive is used because the auth
+    account generates background token refreshes continuously, so a 1-day window
+    reliably has data without risking the per-request timeout of a wide pull.
+
+    'returns at least 1 non-interactive sign-in for the test user'
+        The auth account is used throughout the run, so recent non-interactive
+        sign-ins always exist; zero means the single-chunk path returned nothing.
+
+    'every record belongs to the test user'
+        Confirms the UserId filter reached Graph on the single-chunk path.
+
+    'every record is non-interactive'
+        Each record's IsInteractive must be $false, confirming the event-type
+        clause survived on the no-split path.
 
 -- date range: -Start / -End absolute -------------------------------------
 
@@ -165,10 +187,12 @@ InModuleScope M365IncidentResponseTools {
                 Mock Show-IRTEntraSignInLog { param($Logs) $script:CapturedUser = $Logs }
 
                 $Params = @{
-                    UserObject = $script:TestUser
-                    Days       = 30
-                    Excel      = $true
-                    Xml        = $false
+                    UserObject        = $script:TestUser
+                    Days              = 30
+                    ChunkDays         = 3
+                    ChunkDelaySeconds = 0
+                    Excel             = $true
+                    Xml               = $false
                 }
                 Get-IRTEntraSignInLog @Params
                 $script:UserLogs = @(
@@ -211,10 +235,12 @@ InModuleScope M365IncidentResponseTools {
                 Mock Show-IRTEntraSignInLog { param($Logs) $script:CapturedAll = $Logs }
 
                 $Params = @{
-                    AllUsers = $true
-                    Days     = 7
-                    Excel    = $true
-                    Xml      = $false
+                    AllUsers          = $true
+                    Days              = 7
+                    ChunkDays         = 3
+                    ChunkDelaySeconds = 0
+                    Excel             = $true
+                    Xml               = $false
                 }
                 Get-IRTEntraSignInLog @Params
                 $script:AllLogs = @(
@@ -258,10 +284,12 @@ InModuleScope M365IncidentResponseTools {
 
                 if ($script:LiveIp) {
                     $Params = @{
-                        IpAddress = $script:LiveIp
-                        Days      = 7
-                        Excel     = $true
-                        Xml       = $false
+                        IpAddress         = $script:LiveIp
+                        Days              = 7
+                        ChunkDays         = 3
+                        ChunkDelaySeconds = 0
+                        Excel             = $true
+                        Xml               = $false
                     }
                     Get-IRTEntraSignInLog @Params
                 }
@@ -300,11 +328,13 @@ InModuleScope M365IncidentResponseTools {
                 Mock Show-IRTEntraSignInLog { param($Logs) $script:CapturedNI = $Logs }
 
                 $Params = @{
-                    AllUsers       = $true
-                    NonInteractive = $true
-                    Days           = 7
-                    Excel          = $true
-                    Xml            = $false
+                    AllUsers          = $true
+                    NonInteractive    = $true
+                    Days              = 7
+                    ChunkDays         = 3
+                    ChunkDelaySeconds = 0
+                    Excel             = $true
+                    Xml               = $false
                 }
                 Get-IRTEntraSignInLog @Params
                 $script:NILogs = @(
@@ -338,11 +368,13 @@ InModuleScope M365IncidentResponseTools {
                 Mock Show-IRTEntraSignInLog { param($Logs) $script:CapturedV1 = $Logs }
 
                 $Params = @{
-                    AllUsers = $true
-                    Beta     = $false
-                    Days     = 7
-                    Excel    = $true
-                    Xml      = $false
+                    AllUsers          = $true
+                    Beta              = $false
+                    Days              = 7
+                    ChunkDays         = 3
+                    ChunkDelaySeconds = 0
+                    Excel             = $true
+                    Xml               = $false
                 }
                 Get-IRTEntraSignInLog @Params
                 $script:V1Logs = @(
@@ -416,6 +448,53 @@ InModuleScope M365IncidentResponseTools {
         }
 
         # -------------------------------------------------------------------
+        Context 'single chunk: 1-day non-interactive query (default ChunkDays)' {
+
+            BeforeAll {
+                Mock Write-IRT { }
+                Mock Write-PSFMessage { }
+
+                $script:CapturedSingle = $null
+                Mock Show-IRTEntraSignInLog { param($Logs) $script:CapturedSingle = $Logs }
+
+                # Days (1) is well under the default ChunkDays (30), so the range is
+                # queried as a single chunk. Non-interactive guarantees data in a 1-day
+                # window (continuous token refreshes) without a wide, timeout-prone pull.
+                $Params = @{
+                    UserObject     = $script:TestUser
+                    NonInteractive = $true
+                    Days           = 1
+                    Excel          = $true
+                    Xml            = $false
+                }
+                Get-IRTEntraSignInLog @Params
+                $script:SingleLogs = @(
+                    $script:CapturedSingle | Where-Object { $_ -and -not $_.Metadata }
+                )
+            }
+
+            It 'returns at least 1 non-interactive sign-in for the test user' {
+                if ($script:SingleLogs.Count -eq 0) {
+                    throw ('No non-interactive sign-ins for the test user in the last ' +
+                        'day; the auth account is used throughout the run')
+                }
+                $script:SingleLogs.Count | Should -BeGreaterThan 0
+            }
+
+            It 'every record belongs to the test user' {
+                foreach ($Entry in $script:SingleLogs) {
+                    $Entry.UserId | Should -Be $script:TestUser.Id
+                }
+            }
+
+            It 'every record is non-interactive' {
+                foreach ($Entry in $script:SingleLogs) {
+                    $Entry.IsInteractive | Should -Be $false
+                }
+            }
+        }
+
+        # -------------------------------------------------------------------
         Context 'date range: -Start and -End absolute' {
 
             BeforeAll {
@@ -430,11 +509,13 @@ InModuleScope M365IncidentResponseTools {
                 $script:AbsEnd = [datetime]::UtcNow.AddDays(-7).ToString('yyyy-MM-dd')
 
                 $Params = @{
-                    AllUsers = $true
-                    Start    = $script:AbsStart
-                    End      = $script:AbsEnd
-                    Excel    = $true
-                    Xml      = $false
+                    AllUsers          = $true
+                    Start             = $script:AbsStart
+                    End               = $script:AbsEnd
+                    ChunkDays         = 3
+                    ChunkDelaySeconds = 0
+                    Excel             = $true
+                    Xml               = $false
                 }
                 Get-IRTEntraSignInLog @Params
                 $script:AbsLogs = @(

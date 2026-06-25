@@ -206,6 +206,39 @@ Describe 'Get-IRTEntraSignInLog' {
             Should -Invoke Get-MgBetaAuditLogSignIn -Times 1 -Exactly @IA
         }
 
+        It 'collapses a sub-second residue past an exact ChunkDays multiple into one chunk' {
+            # Production reads the clock twice, so the real span runs a few ms past an
+            # exact ChunkDays multiple. Before the boundary fix that residue produced an
+            # extra zero-width trailing chunk; with ChunkDays 30 it must stay one chunk.
+            Mock Resolve-DateRange {
+                [pscustomobject]@{
+                    RangeType = 'Absolute'
+                    Days      = 30
+                    StartUtc  = $script:RangeStart
+                    EndUtc    = $script:RangeEnd.AddMilliseconds(50)
+                }
+            } -ModuleName $script:Mod
+            Get-IRTEntraSignInLog -AllUsers -ChunkDays 30 -Excel $false -Xml $false
+            $IA = @{ ModuleName = $script:Mod }
+            Should -Invoke Get-MgBetaAuditLogSignIn -Times 1 -Exactly @IA
+        }
+
+        It 'keeps a residue-laden range at the correct chunk count (no degenerate tail)' {
+            # Same sub-second residue, but ChunkDays 10 over ~30 days must yield exactly
+            # 3 chunks, not 4 -- the residue must not spill into an extra trailing chunk.
+            Mock Resolve-DateRange {
+                [pscustomobject]@{
+                    RangeType = 'Absolute'
+                    Days      = 30
+                    StartUtc  = $script:RangeStart
+                    EndUtc    = $script:RangeEnd.AddMilliseconds(50)
+                }
+            } -ModuleName $script:Mod
+            Get-IRTEntraSignInLog -AllUsers -ChunkDays 10 -Excel $false -Xml $false
+            $IA = @{ ModuleName = $script:Mod }
+            Should -Invoke Get-MgBetaAuditLogSignIn -Times 3 -Exactly @IA
+        }
+
         It 'splits a 30-day range into 30 chunks with -ChunkDays 1' {
             Get-IRTEntraSignInLog -AllUsers -ChunkDays 1 -Excel $false -Xml $false
             $IA = @{ ModuleName = $script:Mod }
