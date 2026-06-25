@@ -254,4 +254,41 @@ Describe 'Get-IRTUnifiedAuditLog' {
             Should -Invoke Show-IRTUnifiedAuditLog -Times 1 -Exactly @InvokeArgs
         }
     }
+
+    # -------------------------------------------------------------------
+    Context 'a query that fails after all retries inserts a data-gap marker' {
+
+        BeforeEach {
+            # every attempt throws; Start-Sleep is mocked so the backoff is instant
+            Mock Search-UnifiedAuditLog {
+                throw 'simulated UAL failure'
+            } -ModuleName M365IncidentResponseTools
+            Mock Start-Sleep { } -ModuleName M365IncidentResponseTools
+        }
+
+        It 'retries MaxRetry (3) times before giving up on the query' {
+            $Params = @{
+                AllUsers             = $true
+                Excel                = $true
+                Xml                  = $false
+                ThrottleDelaySeconds = 1
+            }
+            Get-IRTUnifiedAuditLog @Params -ErrorAction SilentlyContinue
+            $InvokeArgs = @{ ModuleName = 'M365IncidentResponseTools' }
+            Should -Invoke Search-UnifiedAuditLog -Times 3 -Exactly @InvokeArgs
+        }
+
+        It 'passes a DATA MISSING marker through to Show-IRTUnifiedAuditLog' {
+            $Params = @{
+                AllUsers             = $true
+                Excel                = $true
+                Xml                  = $false
+                ThrottleDelaySeconds = 1
+            }
+            Get-IRTUnifiedAuditLog @Params -ErrorAction SilentlyContinue
+            $Filter = { $Log | Where-Object { $_.IRTDataGap } }
+            $InvokeArgs = @{ ModuleName = 'M365IncidentResponseTools'; ParameterFilter = $Filter }
+            Should -Invoke Show-IRTUnifiedAuditLog -Times 1 -Exactly @InvokeArgs
+        }
+    }
 }

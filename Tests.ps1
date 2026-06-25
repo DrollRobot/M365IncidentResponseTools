@@ -249,6 +249,11 @@ $Global:Dev_FormattingExclusions = @{
     ExcludeFolders = $CopiedFolderNames
 }
 
+# Expose the module-under-test name (resolved from the manifest, not the folder
+# name) so formatting checks that need it work in git worktrees, where the repo
+# folder is named after the branch rather than the module.
+$Global:Dev_ModuleName = $ModuleName
+
 # Map each individual formatting test name to its script file.
 $FormattingScriptMap = @{
     'TrailingWhitespace'   = 'Format-TrailingWhitespace.ps1'

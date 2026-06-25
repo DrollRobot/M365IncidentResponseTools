@@ -35,7 +35,7 @@
         StartDate/EndDate are shared across all 4 queries. A record outside the
         window means a date parameter was not propagated to Search-UnifiedAuditLog.
 
--- -SignInLog, AllUsers, 7-day query --------------------------------------
+-- -SignInLog, AllUsers, 30-day query -------------------------------------
 
     The -SignInLog switch activates the SignInLogs profile, which passes
     Operations = UserLoggedIn | UserLoggedOff | UserLoginFailed to Exchange.
@@ -182,7 +182,7 @@ InModuleScope M365IncidentResponseTools {
         }
 
         # -------------------------------------------------------------------
-        Context '-SignInLog, AllUsers, 7-day query' {
+        Context '-SignInLog, AllUsers, 30-day query' {
 
             BeforeAll {
                 Mock Write-IRT { }
@@ -194,7 +194,7 @@ InModuleScope M365IncidentResponseTools {
                 $Params = @{
                     AllUsers    = $true
                     SignInLog   = $true
-                    Days        = 7
+                    Days        = 30
                     ResultLimit = 5000
                     Excel       = $true
                     Xml         = $false

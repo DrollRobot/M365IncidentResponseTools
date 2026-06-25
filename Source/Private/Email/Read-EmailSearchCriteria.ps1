@@ -1,7 +1,7 @@
 function Read-EmailSearchCriteria {
     <#
     .SYNOPSIS
-    Interactive console builder for email compliance search criteria.
+    Interactive console builder for email search criteria.
 
     .DESCRIPTION
     Helper for New-IRTEmailSearch. Presents a redrawing panel that always shows the
@@ -170,6 +170,37 @@ function Read-EmailSearchCriteria {
                 }
 
                 'Text' {
+                    # From is matched on whole tokens, not substrings, which trips people
+                    # up - surface the behavior right where the value is entered.
+                    if ($Item.Key -eq 'From') {
+                        $TokenNote = "'From' matches whole tokens (the address is split " +
+                            "on @ . -), not substrings. 'microsoft' matches " +
+                            'anyone@microsoft.com but not microsoftonline.com. It also ' +
+                            'matches sender display names. ' +
+                            '(Microsoft Support <support@microsoftonline.com> would match)'
+                        $WildcardNote = 'Use a wildcards for partial matching, ' +
+                            "e.g. 'microsoft*' (matches microsoft.com and " +
+                            'microsoftonline.com) (only trailing wildcards allowed)'
+
+                        # wrap each note to the same 100-char limit used for source so the
+                        # hint does not overflow the terminal; 2-space hanging indent.
+                        foreach ($Note in @($TokenNote, $WildcardNote)) {
+                            $Line = '  '
+                            foreach ($Word in ($Note -split ' ')) {
+                                if ($Line -eq '  ') {
+                                    $Line = "  $Word"
+                                }
+                                elseif (($Line.Length + 1 + $Word.Length) -gt 100) {
+                                    Write-Host $Line -ForegroundColor DarkGray
+                                    $Line = "  $Word"
+                                }
+                                else {
+                                    $Line = "$Line $Word"
+                                }
+                            }
+                            Write-Host $Line -ForegroundColor DarkGray
+                        }
+                    }
                     $Prompt = "Enter $($Item.Label) (comma-separated, blank to clear)"
                     $Raw = (Read-Host $Prompt).Trim()
                     if ($Raw -eq '') {
