@@ -377,7 +377,7 @@ function Get-IRTEntraSignInLog {
                     catch {
                         $Message = $_.Exception.Message
                         $IsTimeout = $Message -match
-                            'HttpClient\.Timeout|request was canceled|task was canceled'
+                        'HttpClient\.Timeout|request was canceled|task was canceled'
                         $IsThrottle = $Message -match 'TooManyRequests|429'
 
                         if ($IsThrottle -and $RetryCount -lt $MaxRetry) {

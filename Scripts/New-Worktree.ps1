@@ -390,7 +390,7 @@ if (-not $ws) {
 $exclude = Join-Path -Path $commonDir -ChildPath 'info/exclude'
 $pattern = '*.code-workspace'
 $needExclude = -not (Test-Path -LiteralPath $exclude) -or
-    -not (Select-String -LiteralPath $exclude -Pattern $pattern -SimpleMatch -Quiet)
+-not (Select-String -LiteralPath $exclude -Pattern $pattern -SimpleMatch -Quiet)
 
 if ($needExclude) {
     Confirm-Step "Write '$wsName' and add '$pattern' to .git/info/exclude?"

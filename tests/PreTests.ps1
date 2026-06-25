@@ -38,6 +38,20 @@ if (-not $IrtConfigVar -or -not $IrtConfigVar.Value) {
 $KeyCount = ($Global:IRT_Config.PSObject.Properties.Name).Count
 Write-Host "Config loaded ($KeyCount keys)." -ForegroundColor Cyan
 
+# --- PSScriptAnalyzer config (consumed by Tests\Test-PSSA.ps1) ---------------
+# Test-PSSA.ps1 handles the generic cases (source manifest export field;
+# Write-Host under Build\, Tests\, Scripts\, Source\Private\Lib\). Only IRT's
+# specifics live here; they are merged on top of those defaults.
+$Global:Dev_PSSAConfig = @{
+    # Write-IRT is the module's user-output wrapper; allow positional parameters.
+    CommandAllowList    = @('Write-IRT')
+    # Format-Tree's internal helpers use positional parameters intentionally.
+    PerFileSuppressions = @{
+        'Source\Private\Lib\Format-Tree\Format-Tree.ps1' = @('PSAvoidUsingPositionalParameters')
+    }
+    PerPathSuppressions = @{}
+}
+
 # --- Online auth/cache setup + run -------------------------------------------
 if ('Online' -in $TestContext.Test) {
     $PesterTestsFolder = $TestContext.PesterTestsFolder

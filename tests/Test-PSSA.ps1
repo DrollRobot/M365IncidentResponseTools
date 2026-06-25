@@ -66,31 +66,62 @@ $AnalyzerSettings = @{
     Rules        = @{
         PSAvoidUsingPositionalParameters = @{
             Enable           = $true
-            CommandAllowList = @('Write-IRT', 'Write-Trace')
+            # Generic non-domain trace helper. The module's own user-output
+            # wrapper (e.g. Write-XYZ) is added per-project via PreTests.ps1
+            # ($Global:Dev_PSSAConfig.CommandAllowList); see the merge below.
+            CommandAllowList = @('Write-Trace')
         }
     }
 }
 
-# Per-file rule suppressions. Add entries here for findings that cannot be suppressed
-# in source (e.g. psd1 files) and where a global ExcludeRules entry would be too broad.
-# Key: path relative to the scan root. Value: array of rule names to suppress.
-$PerFileSuppressions = @{
-    # FunctionsToExport = '*' is intentional in the Source manifest;
-    # ModuleBuilder replaces it with the real export list on build.
-    'Source\M365IncidentResponseTools.psd1'             = @('PSUseToExportFieldsInManifest')
-    # Format-Tree internal helpers use positional parameters intentionally.
-    'Source\Private\Lib\Format-Tree\Format-Tree.ps1'   = @('PSAvoidUsingPositionalParameters')
-    # Build scripts use Write-Host for user-facing output.
-    'Build\PreBuild.ps1'                                = @('PSAvoidUsingWriteHost')
-    'Build\Add-IpAddressConditionalFormattingTemplate.ps1' = @('PSAvoidUsingWriteHost')
+# Per-file rule suppressions. Key: path relative to the repo root. Value: array
+# of rule names to suppress. Generic entries are computed below; project-specific
+# entries are supplied via PreTests.ps1 ($Global:Dev_PSSAConfig.PerFileSuppressions).
+$PerFileSuppressions = @{}
+
+# The source manifest's FunctionsToExport = '*' is intentional -- ModuleBuilder
+# replaces it with the real export list on build. Discover the manifest by name
+# (excluding Build.psd1) so this works in any repo without hardcoding the module.
+$GciManifest = @{
+    Path        = Join-Path -Path $RepoRoot -ChildPath 'Source'
+    Filter      = '*.psd1'
+    ErrorAction = 'SilentlyContinue'
+}
+$SrcManifest = Get-ChildItem @GciManifest |
+    Where-Object Name -ne 'Build.psd1' | Select-Object -First 1
+if ($SrcManifest) {
+    $ManifestRel = [System.IO.Path]::GetRelativePath($RepoRoot, $SrcManifest.FullName)
+    $PerFileSuppressions[$ManifestRel] = @('PSUseToExportFieldsInManifest')
 }
 
-# Per-path rule suppressions. Each key is a relative path prefix.
-# Any finding under that prefix is suppressed when its RuleName is listed.
+# Per-path rule suppressions. Each key is a relative path prefix; any finding
+# under that prefix is suppressed when its RuleName is listed. Non-domain folders
+# (Build, Tests, Scripts, Lib helpers) are allowed to use Write-Host.
 $PerPathSuppressions = @{
-    'Tests\'               = @('PSAvoidUsingWriteHost')
-    'Scripts\'               = @('PSAvoidUsingWriteHost')
+    'Build\'              = @('PSAvoidUsingWriteHost')
+    'Tests\'              = @('PSAvoidUsingWriteHost')
+    'Scripts\'            = @('PSAvoidUsingWriteHost')
     'Source\Private\Lib\' = @('PSAvoidUsingWriteHost')
+}
+
+# Merge project-specific analyzer config supplied by the test orchestrator
+# (set in the project's PreTests.ps1 hook). This keeps Test-PSSA.ps1 identical
+# across repos -- only the per-project values live in PreTests.ps1.
+if ($Global:Dev_PSSAConfig) {
+    if ($Global:Dev_PSSAConfig.CommandAllowList) {
+        $AnalyzerSettings.Rules.PSAvoidUsingPositionalParameters.CommandAllowList +=
+        $Global:Dev_PSSAConfig.CommandAllowList
+    }
+    if ($Global:Dev_PSSAConfig.PerFileSuppressions) {
+        foreach ($Key in $Global:Dev_PSSAConfig.PerFileSuppressions.Keys) {
+            $PerFileSuppressions[$Key] = $Global:Dev_PSSAConfig.PerFileSuppressions[$Key]
+        }
+    }
+    if ($Global:Dev_PSSAConfig.PerPathSuppressions) {
+        foreach ($Key in $Global:Dev_PSSAConfig.PerPathSuppressions.Keys) {
+            $PerPathSuppressions[$Key] = $Global:Dev_PSSAConfig.PerPathSuppressions[$Key]
+        }
+    }
 }
 
 # Formatting rules applied by Invoke-Formatter when -AutoFormat is used.

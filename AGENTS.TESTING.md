@@ -39,7 +39,7 @@ Do not move on to formatting until all Pester tests are passing.
 .\Tests.ps1 PSSA
 ```
 
-**Always go through `Tests.ps1`**
+**Always use `Tests.ps1`**
 Run all tests through the `.\Tests.ps1 <Category>` orchestrator.
 
 **Checking a single file or folder**
