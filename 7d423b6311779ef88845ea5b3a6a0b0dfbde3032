@@ -1,0 +1,80 @@
+base: wt/auth-redesign
+title: chore: resolve binary conflict on IP formatting template
+---
+# Overhaul token handling and playbook reliability
+
+## Why
+
+Token caching was non-deterministic: sometimes connecting took two browser
+sign-ins and then everything was silent, other times it took three (Graph,
+Exchange, and IPPS) and every new PowerShell session demanded a full re-auth.
+Playbook runs were similarly unreliable, with most steps silently failing on
+some runs. The root causes turned out to be layered: access tokens were cached
+in globals on top of MSAL's own cache, account selection picked an arbitrary
+cached account (a problem once the cache holds one admin account per customer
+tenant), the persistent disk cache depended on a runtime NuGet download that
+could silently fail, and playbook workers received a static token snapshot
+plus whatever module version happened to be installed.
+
+## What changed
+
+**Token handling.** A single token authority, `Get-IRTAccessToken`, now mints
+access tokens on demand from the MSAL cache. Cached accounts are tried in
+tenant-aware order (last-known-good, then accounts homed in the target tenant,
+then guests) before ever prompting. Raw token strings no longer live in
+`$Global:IRT_Session` - only the expiry of the token bound into each SDK
+context is tracked. Exchange and IPPS share one MSAL app, which makes IPPS
+sign-in always silent after an Exchange sign-in. The MSAL cache-extension DLL
+is bundled with the module (hash-pinned restore in PreBuild) instead of being
+downloaded from nuget.org mid-connect, and cache registration failures are
+loud errors instead of buried warnings.
+
+The result: first contact with a tenant costs two browser sign-ins (the second
+is an SSO click-through), and with `EnableTokenCache` on, every subsequent
+session, parallel session, and playbook runspace connects silently for the
+refresh token's lifetime.
+
+**Refresh behavior.** `Update-IRTToken` refreshes only the service whose bound
+token is stale, and Exchange/IPPS reconnects are scoped by ConnectionId so
+refreshing one never tears down the other. `Connect-IRT -Refresh` no longer
+drops scopes added via `-AdditionalScope`, and granting tenant-wide admin
+consent now force-refreshes and re-binds the Graph token instead of running on
+the pre-consent token for up to an hour.
+
+**Playbook.** Workers mint their own Exchange tokens silently from the shared
+MSAL cache per step (`Connect-IRTRunspaceExchange`), so long playbooks no
+longer die when the snapshot token expires. Workers import the parent's module
+version by path instead of whatever is installed (the cause of the mass step
+failures), `Import-Module` calls are serialized with a mutex (fixing the
+intermittent "Collection was modified" step errors), worker module loads no
+longer reset the parent terminal's title, and the dependency scan now runs
+once per session with the result shared into workers through a portable,
+module-agnostic table. `Get-IRTLicenseReport` drops the unreliable external
+Write-PSObject dependency.
+
+**Tooling.** `Tests.ps1` and `Find-ModuleRoot` now resolve the module name
+from the manifest instead of the checkout folder name, so the documented test
+flow works inside git worktrees.
+
+## Compatibility
+
+No exported command changed its signature, and existing token caches keep
+working (same format, path, and client IDs). The one incompatible surface is
+the internal `$Global:IRT_Session` shape: `.Token`, `.TokenExpiry`, and
+per-service `.PublicClientApplication` are gone. Scripts that read those
+should call `Get-IRTAccessToken` instead.
+
+## Testing
+
+- Offline Pester: 332 passed, 0 failed. All-new branch coverage for the token
+  authority, account ordering, PCA pooling, the three connectors (aud
+  validation, reconnect matrix, scoped disconnects), Update-IRTToken, and the
+  runspace helper.
+- Online Pester against the test tenant: 44 passed, 0 failed, including a new
+  end-to-end playbook test (zero step errors, all expected spreadsheets,
+  parent connection and terminal title intact) and a live runspace-pool test.
+  The cache round-trip (interactive sign-in, session cleared, silent
+  reconnect) is exercised by the harness on every online run.
+- Built-module verification: `Build.ps1` then `Tests.ps1 Offline -Built`
+  green, proving the bundled DLL resolves from the built layout.
+- Formatting battery and PSSA: clean.
