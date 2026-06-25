@@ -3,7 +3,7 @@
 
 <#
 .SYNOPSIS
-    Runs selected test categories for M365IncidentResponseTools.
+    Runs selected test categories for the PowerShell module in this repo.
 
 .DESCRIPTION
     Selects and runs one or more test categories by name. Nothing runs by
@@ -13,13 +13,23 @@
     with the same orchestrator setup (module load, exclusion globals) as a
     full Formatting run.
 
+    This orchestrator is project-agnostic: the module name is taken from the
+    source manifest (not the folder name, so it works in git worktrees), and
+    any project-specific setup/teardown lives in optional hook scripts in the
+    tests folder -- PreTests.ps1 (run after module load, before the test
+    sections) and PostTests.ps1 (always run afterward, even on failure). Both
+    are dot-sourced and receive a $TestContext hashtable (ModuleName, RepoRoot,
+    TestsFolder, PesterTestsFolder, the bound parameters, and OnlineHandled). A
+    hook owning the Online run sets $TestContext.OnlineHandled to suppress the
+    generic Online Pester run.
+
 .PARAMETER Test
     One or more test categories to run. Accepted values:
 
       Offline              -- Pester tests that do not require connectivity.
-      Online               -- Pester tests tagged Online. Requires an active
-                             Microsoft 365 session; Connect-IRT is called
-                             automatically.
+      Online               -- Pester tests tagged Online. Connectivity/auth
+                             setup is provided by the project's PreTests.ps1
+                             hook; without one, the Online-tagged tests run as-is.
       AutoFormat           -- Trailing-whitespace fix followed by PSScriptAnalyzer
                              auto-fix and format; suppresses lint findings output.
       LineLength           -- Check lines exceeding 100 characters.
@@ -44,14 +54,18 @@
                              Included in AutoFormat.
 
 
-.PARAMETER InteractiveAuth
-    Used with Online. Deletes the test token cache and prompts for interactive
-    sign-in, then immediately reconnects silently to verify the cache
-    round-trip.
+.PARAMETER Path
+    Scope the run to a single file or folder instead of the whole repo. The
+    formatting/lint checks run against this path (a file checks just that file;
+    a folder checks everything matching under it, recursively). For Offline and
+    Online, this path is what Invoke-Pester scans -- e.g. point it at a single
+    *.Tests.ps1 file. Defaults to the repo root, so omitting it is unchanged.
 
-    When omitted (default), Connect-IRT runs in silent-only mode: MSAL
-    attempts a token refresh from the test cache and fails immediately if no
-    cached credentials exist. This is the default for non-interactive runs.
+.PARAMETER InteractiveAuth
+    Passed through to the project's PreTests.ps1 hook via $TestContext for use
+    with Online runs. In this repo it deletes the test token cache and forces an
+    interactive sign-in to verify the cache round-trip; when omitted (default),
+    auth is silent-only. Projects without an Online hook ignore it.
 
     Requires Online; rejected without it.
 
@@ -86,6 +100,18 @@
     Runs only the line-length and path-building checks.
 
 .EXAMPLE
+    .\Tests.ps1 LineLength -Path .\Source\Public\Connect\Connect-IRT.ps1
+    Runs the line-length check against a single file.
+
+.EXAMPLE
+    .\Tests.ps1 PSSA -Path .\Source\Public
+    Runs PSScriptAnalyzer against just the Source\Public folder.
+
+.EXAMPLE
+    .\Tests.ps1 Offline -Path .\tests\pester\Connect-IRT.Tests.ps1
+    Runs one offline Pester test file.
+
+.EXAMPLE
     .\Tests.ps1 AutoFormat
     Fixes trailing whitespace then runs PSSA auto-fix and formatting; suppresses lint findings.
 
@@ -109,6 +135,9 @@ param(
         'FindUnwantedStrings', 'FixmeComments', 'ExplicitModuleImport', 'PSSA', 'AutoFormat'
     )]
     [string[]] $Test,
+
+    [Parameter()]
+    [string] $Path,
 
     [Parameter()]
     [switch] $InteractiveAuth,
@@ -140,9 +169,41 @@ if ($Built -and ($Test | Where-Object { $_ -in $FormattingOnlyValues })) {
     exit 1
 }
 
+# Optional: scope the run to a single file or folder instead of the whole repo.
+# $TargetPath feeds the formatting checks' -Path; defaults to the repo root so
+# behavior is unchanged when -Path is omitted.
+if ($PSBoundParameters.ContainsKey('Path')) {
+    $ResolvedTarget = Resolve-Path -Path $Path -ErrorAction SilentlyContinue
+    if (-not $ResolvedTarget) {
+        Write-Host "Path not found: $Path" -ForegroundColor Yellow
+        exit 1
+    }
+    $TargetPath = $ResolvedTarget.Path
+}
+else {
+    $TargetPath = $PSScriptRoot
+}
+
 # Import the module under test so Pester tests and PSScriptAnalyzer both have
-# access to full parameter metadata for all IRT functions and cmdlets.
-$ModuleName = Split-Path -Path $PSScriptRoot -Leaf
+# access to full parameter metadata for all of the module's functions and cmdlets.
+#
+# Module name comes from the source manifest, not the folder name, so the script
+# works in git worktrees (folder named after the branch) and ports to other
+# projects. Mirrors Build.ps1's manifest-glob approach.
+# Search Source\ first, then the repo root (built/flat layouts); fall back to the
+# folder leaf only if no manifest exists at all.
+$ManifestSearchDirs = @((Join-Path -Path $PSScriptRoot -ChildPath 'Source'), $PSScriptRoot)
+$SrcManifest = $null
+foreach ($Dir in $ManifestSearchDirs) {
+    $SrcManifest = Get-ChildItem -Path $Dir -Filter '*.psd1' -ErrorAction SilentlyContinue |
+        Where-Object Name -ne 'Build.psd1' | Select-Object -First 1
+    if ($SrcManifest) { break }
+}
+$ModuleName = if ($SrcManifest) {
+    $SrcManifest.BaseName
+} else {
+    Split-Path -Path $PSScriptRoot -Leaf
+}
 $ManifestPath = if ($Built) {
     Join-Path -Path $PSScriptRoot -ChildPath "$ModuleName.psd1"
 } else {
@@ -155,21 +216,6 @@ if (Test-Path $ManifestPath) {
     Import-Module $ManifestPath -Force
     $ModuleStopwatch.Stop()
     Write-Host "Module loaded in $($ModuleStopwatch.Elapsed.TotalSeconds)s." -ForegroundColor Cyan
-
-    # Import-IRTConfig runs automatically on module load (via suffix.ps1) and always
-    # populates $Global:IRT_Config -- either from the user's config file in $env:APPDATA
-    # or, on first run, by creating that file from the bundled template. If the variable
-    # is still unset after module import, something is wrong with the installation and
-    # tests should not proceed with silent defaults.
-    $IrtConfigVar = Get-Variable -Name 'IRT_Config' -Scope Global -ErrorAction SilentlyContinue
-    if (-not $IrtConfigVar -or -not $IrtConfigVar.Value) {
-        $ErrMsg = '$Global:IRT_Config not found. ' +
-        "If you've never run the module before, try importing to create the user config file."
-        Write-Error $ErrMsg
-        exit 1
-    }
-    $KeyCount = ($Global:IRT_Config.PSObject.Properties.Name).Count
-    Write-Host "Config loaded ($KeyCount keys)." -ForegroundColor Cyan
 }
 else {
     $ErrMsg = "Module manifest not found at $ManifestPath. " +
@@ -181,6 +227,14 @@ else {
 $TestsFolder = Join-Path -Path $PSScriptRoot -ChildPath 'tests'
 $PesterTestsFolder = Join-Path -Path $PSScriptRoot -ChildPath 'tests\pester'
 $LocalTestsFolder = Join-Path -Path $PSScriptRoot -ChildPath '.local\tests'
+
+# Where Pester looks: the whole pester folder by default, or the -Path target
+# (e.g. a single *.Tests.ps1 file) when one was given.
+$PesterTarget = if ($PSBoundParameters.ContainsKey('Path')) {
+    $TargetPath
+} else {
+    $PesterTestsFolder
+}
 
 # Compute build-artifact exclusions once; formatting scripts merge these at runtime.
 # CopyPaths in Build.psd1 land at the repo root after a build, alongside the built psm1/psd1.
@@ -214,152 +268,137 @@ $FormattingScriptMap = @{
 
 $IndividualTests = @($Test | Where-Object { $FormattingScriptMap.ContainsKey($_) })
 
-# --- Offline ---
-if ('Offline' -in $Test) {
-    Write-Host "`n=== Invoke-Pester (Offline) ===" -ForegroundColor Cyan
-    Invoke-Pester -Path $PesterTestsFolder -ExcludeTagFilter 'Online'
+# --- Project hooks: optional per-project setup/teardown ----------------------
+# PreTests.ps1 runs after module load, before the test sections; PostTests.ps1
+# always runs afterward (even on failure) for cleanup. Both are dot-sourced so
+# they can read and restore this script's variables and share state with each
+# other. They receive run details via $TestContext. A throw from PreTests aborts
+# the run, but PostTests still runs. Keeping the project-specific setup/teardown
+# in these hooks lets this orchestrator stay portable across PowerShell projects.
+$TestContext = @{
+    ModuleName        = $ModuleName
+    RepoRoot          = $PSScriptRoot
+    TestsFolder       = $TestsFolder
+    PesterTestsFolder = $PesterTestsFolder
+    # Run target: $TargetPath is a single file/folder (or the repo root by
+    # default); $PesterTarget is what Invoke-Pester should scan.
+    TargetPath        = $TargetPath
+    PesterTarget      = $PesterTarget
+    Test              = $Test
+    InteractiveAuth   = [bool] $InteractiveAuth
+    Built             = [bool] $Built
+    Quiet             = [bool] $Quiet
+    # A hook may set this true to signal it owns the Online run (auth, gating,
+    # multi-pass); the generic Online run below is then skipped.
+    OnlineHandled     = $false
 }
+$PreTestsHook = Join-Path -Path $TestsFolder -ChildPath 'PreTests.ps1'
+$PostTestsHook = Join-Path -Path $TestsFolder -ChildPath 'PostTests.ps1'
 
-# --- Individual formatting tests ---
-foreach ($IndividualTest in $IndividualTests) {
-    foreach ($ScriptsDir in @($TestsFolder, $LocalTestsFolder)) {
-        $ScriptPath = Join-Path -Path $ScriptsDir -ChildPath $FormattingScriptMap[$IndividualTest]
-        if (-not (Test-Path $ScriptPath)) { continue }
-        $RelPath = [System.IO.Path]::GetRelativePath($PSScriptRoot, $ScriptPath)
-        Write-Host "`n=== $RelPath ===" -ForegroundColor Cyan
-        # Forward -Quiet only to scripts that declare it (auto-fixers may not).
-        $SupportsQuiet = (Get-Command $ScriptPath).Parameters.ContainsKey('Quiet')
-        $QuietSplat = if ($Quiet -and $SupportsQuiet) { @{ Quiet = $true } } else { @{} }
-        switch ($IndividualTest) {
-            'PSSA' { & $ScriptPath -Path $PSScriptRoot -Recurse @QuietSplat }
-            'AutoFormat' {
-                $TwsPath = Join-Path -Path $ScriptsDir -ChildPath 'Format-TrailingWhitespace.ps1'
-                if (Test-Path $TwsPath) {
-                    $TwsRel = [System.IO.Path]::GetRelativePath($PSScriptRoot, $TwsPath)
-                    Write-Host "`n=== $TwsRel ===" -ForegroundColor Cyan
-                    & $TwsPath -Path $PSScriptRoot -Recurse
+try {
+    if (Test-Path $PreTestsHook) {
+        Write-Host "`n=== PreTests.ps1 ===" -ForegroundColor Cyan
+        . $PreTestsHook
+    }
+
+    # --- Offline ---
+    if ('Offline' -in $Test) {
+        Write-Host "`n=== Invoke-Pester (Offline) ===" -ForegroundColor Cyan
+        Invoke-Pester -Path $PesterTarget -ExcludeTagFilter 'Online'
+    }
+
+    # --- Individual formatting tests ---
+    foreach ($IndividualTest in $IndividualTests) {
+        foreach ($ScriptsDir in @($TestsFolder, $LocalTestsFolder)) {
+            $ScriptFile = $FormattingScriptMap[$IndividualTest]
+            $ScriptPath = Join-Path -Path $ScriptsDir -ChildPath $ScriptFile
+            if (-not (Test-Path $ScriptPath)) { continue }
+            $RelPath = [System.IO.Path]::GetRelativePath($PSScriptRoot, $ScriptPath)
+            Write-Host "`n=== $RelPath ===" -ForegroundColor Cyan
+            # Forward -Quiet only to scripts that declare it (auto-fixers may not).
+            $SupportsQuiet = (Get-Command $ScriptPath).Parameters.ContainsKey('Quiet')
+            $QuietSplat = if ($Quiet -and $SupportsQuiet) { @{ Quiet = $true } } else { @{} }
+            # Test-PSSA also takes -RepoRoot so repo-anchored suppressions resolve
+            # when -Path targets a subfolder/file.
+            $PssaSplat = @{ Path = $TargetPath; RepoRoot = $PSScriptRoot; Recurse = $true }
+            switch ($IndividualTest) {
+                'PSSA' { & $ScriptPath @PssaSplat @QuietSplat }
+                'AutoFormat' {
+                    $TwsFile = 'Format-TrailingWhitespace.ps1'
+                    $TwsPath = Join-Path -Path $ScriptsDir -ChildPath $TwsFile
+                    if (Test-Path $TwsPath) {
+                        $TwsRel = [System.IO.Path]::GetRelativePath($PSScriptRoot, $TwsPath)
+                        Write-Host "`n=== $TwsRel ===" -ForegroundColor Cyan
+                        & $TwsPath -Path $TargetPath -Recurse
+                    }
+                    & $ScriptPath @PssaSplat -AutoFormat -Quiet
                 }
-                & $ScriptPath -Path $PSScriptRoot -Recurse -AutoFormat -Quiet
+                default { & $ScriptPath -Path $TargetPath -Recurse @QuietSplat }
             }
-            default { & $ScriptPath -Path $PSScriptRoot -Recurse @QuietSplat }
         }
+    }
+
+    # --- Formatting ---
+    if ('Formatting' -in $Test) {
+
+        # collect all Format-*.ps1 scripts from tests/ and .local/tests/
+        $FormatScripts = [System.Collections.Generic.List[System.IO.FileInfo]](
+            Get-ChildItem -Path $TestsFolder -Filter 'Format-*.ps1' |
+                Where-Object { $_.Name -notlike '*.Tests.ps1' }
+        )
+        if (Test-Path $LocalTestsFolder) {
+            Get-ChildItem -Path $LocalTestsFolder -Filter 'Format-*.ps1' |
+                Where-Object { $_.Name -notlike '*.Tests.ps1' } |
+                ForEach-Object { $FormatScripts.Add($_) }
+        }
+        $FormatScripts = $FormatScripts | Sort-Object Name
+
+        # run each Format-*.ps1 script first, before any of the Test-*.ps1 scripts
+        foreach ($Script in $FormatScripts) {
+            $RelPath = [System.IO.Path]::GetRelativePath($PSScriptRoot, $Script.FullName)
+            Write-Host "`n=== $RelPath ===" -ForegroundColor Cyan
+            & $Script.FullName -Path $TargetPath -Recurse
+        }
+
+        # collect all Test-*.ps1 scripts from tests/ and .local/tests/, exempting Test-PSSA
+        $TestScripts = [System.Collections.Generic.List[System.IO.FileInfo]](
+            Get-ChildItem -Path $TestsFolder -Filter 'Test-*.ps1' |
+                Where-Object {
+                    $_.BaseName -ne 'Test-PSSA' -and
+                    $_.Name -notlike '*.Tests.ps1'
+                }
+        )
+        if (Test-Path $LocalTestsFolder) {
+            Get-ChildItem -Path $LocalTestsFolder -Filter 'Test-*.ps1' |
+                Where-Object { $_.Name -notlike '*.Tests.ps1' } |
+                ForEach-Object { $TestScripts.Add($_) }
+        }
+        $TestScripts = $TestScripts | Sort-Object Name
+
+        # run each Test-*.ps1 script
+        foreach ($Script in $TestScripts) {
+            $RelPath = [System.IO.Path]::GetRelativePath($PSScriptRoot, $Script.FullName)
+            Write-Host "`n=== $RelPath ===" -ForegroundColor Cyan
+            & $Script.FullName -Path $TargetPath -Recurse
+        }
+
+        Write-Host "`n=== Test-PSSA ===" -ForegroundColor Cyan
+        $AnalyzerScript = Join-Path -Path $TestsFolder -ChildPath 'Test-PSSA.ps1'
+        & $AnalyzerScript -Path $TargetPath -RepoRoot $PSScriptRoot -Recurse -AutoFormat
+    }
+
+    # --- Online ---
+    # Generic run: any Pester tests tagged Online. Projects needing auth, a token
+    # cache, or connect-gating provide that in PreTests.ps1, which sets
+    # $TestContext.OnlineHandled to take over the Online run entirely.
+    if ('Online' -in $Test -and -not $TestContext.OnlineHandled) {
+        Write-Host "`n=== Invoke-Pester (Online) ===" -ForegroundColor Cyan
+        Invoke-Pester -Path $PesterTarget -TagFilter 'Online'
     }
 }
-
-# --- Formatting ---
-if ('Formatting' -in $Test) {
-
-    # collect all Format-*.ps1 scripts from tests/ and .local/tests/
-    $FormatScripts = [System.Collections.Generic.List[System.IO.FileInfo]](
-        Get-ChildItem -Path $TestsFolder -Filter 'Format-*.ps1' |
-            Where-Object { $_.Name -notlike '*.Tests.ps1' }
-    )
-    if (Test-Path $LocalTestsFolder) {
-        Get-ChildItem -Path $LocalTestsFolder -Filter 'Format-*.ps1' |
-            Where-Object { $_.Name -notlike '*.Tests.ps1' } |
-            ForEach-Object { $FormatScripts.Add($_) }
-    }
-    $FormatScripts = $FormatScripts | Sort-Object Name
-
-    # run each Format-*.ps1 script first, before any of the Test-*.ps1 scripts
-    foreach ($Script in $FormatScripts) {
-        $RelPath = [System.IO.Path]::GetRelativePath($PSScriptRoot, $Script.FullName)
-        Write-Host "`n=== $RelPath ===" -ForegroundColor Cyan
-        & $Script.FullName -Path $PSScriptRoot -Recurse
-    }
-
-    # collect all Test-*.ps1 scripts from tests/ and .local/tests/, exempting Test-PSSA
-    $TestScripts = [System.Collections.Generic.List[System.IO.FileInfo]](
-        Get-ChildItem -Path $TestsFolder -Filter 'Test-*.ps1' |
-            Where-Object {
-                $_.BaseName -ne 'Test-PSSA' -and
-                $_.Name -notlike '*.Tests.ps1'
-            }
-    )
-    if (Test-Path $LocalTestsFolder) {
-        Get-ChildItem -Path $LocalTestsFolder -Filter 'Test-*.ps1' |
-            Where-Object { $_.Name -notlike '*.Tests.ps1' } |
-            ForEach-Object { $TestScripts.Add($_) }
-    }
-    $TestScripts = $TestScripts | Sort-Object Name
-
-    # run each Test-*.ps1 script
-    foreach ($Script in $TestScripts) {
-        $RelPath = [System.IO.Path]::GetRelativePath($PSScriptRoot, $Script.FullName)
-        Write-Host "`n=== $RelPath ===" -ForegroundColor Cyan
-        & $Script.FullName -Path $PSScriptRoot -Recurse
-    }
-
-    Write-Host "`n=== Test-PSSA ===" -ForegroundColor Cyan
-    $AnalyzerScript = Join-Path -Path $TestsFolder -ChildPath 'Test-PSSA.ps1'
-    & $AnalyzerScript -Path $PSScriptRoot -Recurse -AutoFormat
-}
-
-# --- Online ---
-if ('Online' -in $Test) {
-    # Derive the test cache path alongside the primary cache.
-    $PrimaryCache = $Global:IRT_Config.MsalCachePath
-    $CacheParentDir = Split-Path $PrimaryCache -Parent
-    $TestCachePath = Join-Path -Path $CacheParentDir -ChildPath 'irt-testing-cache.bin'
-
-    # Override config for this run: always use the test cache with caching forced on.
-    $OriginalCachePath = $Global:IRT_Config.MsalCachePath
-    $OriginalCacheEnable = $Global:IRT_Config.EnableTokenCache
-    $Global:IRT_Config.MsalCachePath = $TestCachePath
-    $Global:IRT_Config.EnableTokenCache = $true
-
-    if (-not $OriginalCacheEnable) {
-        Write-Host ''
-        Write-Host '  WARNING: Online tests override the token cache config.' -ForegroundColor Red
-        Write-Host "           Test cache : $TestCachePath" -ForegroundColor Red
-        Write-Host '         EnableTokenCache has been forced on for this run.' -ForegroundColor Red
-    }
-
-    if ($InteractiveAuth) {
-        $env:IRT_TEST_SILENT_AUTH = '0'
-        if (Test-Path $TestCachePath) {
-            Remove-Item -Path $TestCachePath -Force
-            Write-Host ''
-            $Msg = '  Deleted existing test token cache. Interactive sign-in will be required.'
-            Write-Host $Msg -ForegroundColor Cyan
-        }
-    }
-    else {
-        $env:IRT_TEST_SILENT_AUTH = '1'
-    }
-
-    # Pass 1: Connect-IRT.Tests.ps1 runs first. Its BeforeAll genuinely tests
-    # Connect-IRT by clearing $Global:IRT_Session and calling it from scratch.
-    # On success the session is populated and available to all subsequent files.
-    $ConnectTestFile = Join-Path -Path $PesterTestsFolder -ChildPath 'Connect-IRT.Tests.ps1'
-    try {
-        Write-Host "`n=== Invoke-Pester (Online: Connect-IRT) ===" -ForegroundColor Cyan
-        $ConnectResult = Invoke-Pester -Path $ConnectTestFile -TagFilter 'Online' -PassThru
-
-        # Pass 2: remaining online tests, only if the connection is now active.
-        # Skipping when the connection tests failed avoids a cascade of misleading
-        # failures in every downstream test file that relies on the session.
-        if ($ConnectResult.FailedCount -gt 0 -or -not $Global:IRT_Session) {
-            Write-Host ''
-            $Msg = '  Connect-IRT online tests failed or no session was established.'
-            Write-Host $Msg -ForegroundColor Red
-            Write-Host '  Skipping remaining online tests.' -ForegroundColor Red
-        }
-        else {
-            $RemainingTests = Get-ChildItem -Path $PesterTestsFolder -Filter '*.Tests.ps1' |
-                Where-Object { $_.Name -ne 'Connect-IRT.Tests.ps1' } |
-                Select-Object -ExpandProperty FullName
-
-            if ($RemainingTests) {
-                Write-Host "`n=== Invoke-Pester (Online: remaining) ===" -ForegroundColor Cyan
-                Invoke-Pester -Path $RemainingTests -TagFilter 'Online'
-            }
-        }
-    }
-    finally {
-        # Always restore the original config, even if Pester throws.
-        $Global:IRT_Config.MsalCachePath = $OriginalCachePath
-        $Global:IRT_Config.EnableTokenCache = $OriginalCacheEnable
-        $env:IRT_TEST_SILENT_AUTH = $null
+finally {
+    if (Test-Path $PostTestsHook) {
+        Write-Host "`n=== PostTests.ps1 ===" -ForegroundColor Cyan
+        . $PostTestsHook
     }
 }

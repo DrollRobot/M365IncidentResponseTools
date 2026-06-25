@@ -15,7 +15,12 @@
 
     When -AutoFormat is omitted, only detects and reports issues.
 .PARAMETER Path
-    Root directory to search. Defaults to the current directory.
+    File or directory to scan. Defaults to the current directory.
+.PARAMETER RepoRoot
+    Root that the built-in exclusion and per-file/per-path suppression keys are
+    relative to (they are written repo-root-relative, e.g. 'Tests\'). Defaults
+    to -Path. When scanning a subfolder or single file, set this to the repo
+    root so those keys still match; Tests.ps1 passes it automatically.
 .PARAMETER Recurse
     Search subdirectories recursively.
 .PARAMETER AutoFormat
@@ -42,6 +47,10 @@
 [CmdletBinding()]
 param(
     [string] $Path = (Get-Location).Path,
+    # Root that exclusion/suppression keys are relative to. Defaults to $Path so
+    # standalone runs are unchanged; Tests.ps1 passes the repo root so that
+    # targeting a subfolder/file still resolves repo-anchored suppressions.
+    [string] $RepoRoot = $Path,
     [switch] $Recurse,
     [switch] $AutoFormat,
     [switch] $Quiet
@@ -151,7 +160,7 @@ if ($AutoFormat) {
     $FormatFiles = Get-ChildItem @GetChildParams |
         Where-Object Extension -in '.ps1', '.psm1', '.psd1' |
         Where-Object {
-            $Rel = [System.IO.Path]::GetRelativePath($Path, $_.FullName)
+            $Rel = [System.IO.Path]::GetRelativePath($RepoRoot, $_.FullName)
             (-not ($ExcludedFiles -contains $Rel)) -and
             (-not ($ExcludedFolders | Where-Object { $Rel -like "$_\*" -or $Rel -like "*\$_\*" }))
         }
@@ -234,7 +243,7 @@ try {
     if ($PerFileSuppressions.Count -gt 0 -or $PerPathSuppressions.Count -gt 0) {
         $BeforeCount = ($Results | Measure-Object).Count
         $Results = $Results | Where-Object {
-            $Rel = [System.IO.Path]::GetRelativePath($Path, $_.ScriptPath)
+            $Rel = [System.IO.Path]::GetRelativePath($RepoRoot, $_.ScriptPath)
             $IsFileSuppressed = $PerFileSuppressions.ContainsKey($Rel) -and
             ($PerFileSuppressions[$Rel] -contains $_.RuleName)
 
@@ -254,7 +263,9 @@ try {
         $SuppressedCount = $BeforeCount - $AfterCount
         Write-Host "Suppressed $SuppressedCount issue(s) via per-file rules" -ForegroundColor Cyan
     }
-    $FileCount = ($AllOutput | Where-Object {
+    # @() guards against a single (or zero) match, where .Count on a scalar/null
+    # throws under StrictMode -- e.g. when -Path targets one file.
+    $FileCount = @($AllOutput | Where-Object {
             ($_ -is [System.Management.Automation.VerboseRecord]) -and
             ($_.Message -like 'Analyzing file: *')
         }).Count
