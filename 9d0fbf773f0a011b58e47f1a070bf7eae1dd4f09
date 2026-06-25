@@ -1,0 +1,65 @@
+base: develop
+title: feat(device): add Get-IRTAllEntraDevice
+---
+# feat(device): add Get-IRTAllEntraDevice
+
+## Summary
+
+Threat actors increasingly register their own device in Entra ID against a
+compromised identity as a persistence mechanism — a rogue device can satisfy
+device-based Conditional Access and quietly maintain a foothold. There was no
+function that dumped the full device inventory for review.
+
+This adds **`Get-IRTAllEntraDevice`**, which exports every Entra-joined/registered
+device to an Excel workbook sorted **newest registration first**, so recent and
+unexpected registrations sit at the top. It also wires the function into the
+incident-response playbook.
+
+## What's included
+
+- **`Get-IRTAllEntraDevice`** (`Source/Public/Device/`) — queries `Get-MgDevice -All`
+  with an explicit property set and expanded `RegisteredOwners`, then writes a
+  styled spreadsheet. Columns include registration date, last sign-in, display
+  name, a friendly join type (mapped from `TrustType`: Entra joined / Hybrid
+  joined / Entra registered), account-enabled state, OS/version, registered owner
+  UPN, compliance/management flags, ownership, enrollment/profile/management type,
+  MDM app id, device/object ids, and a `Raw` JSON column. Aliases:
+  `Get-IRTAllEntraDevices`, `GetAllEntraDevice`, `GetAllEntraDevices`,
+  `AllEntraDevices`.
+- **`Build-EntraDeviceRow`** (`Source/Private/Device/`) — a pure helper holding the
+  sort + row-mapping logic (newest-first with null dates last, `TrustType` →
+  friendly `JoinType`, owner-UPN resolution, local-time dates, `Raw` JSON).
+  Extracted so the data transformation is unit-testable directly, without mocking.
+- **`Start-IRTPlaybook`** — added as a parallel step. It's Graph-only (no Exchange
+  connection, no `Request-*` cache to pre-seed) and opens with the other sheets,
+  matching the playbook's open-by-default convention.
+
+## Notes & decisions
+
+- **Error surfacing:** the `Show-IRT*` house catch pattern (`$_` then a `Get-YesNo`
+  retry prompt) swallows the real export error and throws on the prompt under
+  automation. The new function's catch surfaces `$_.Exception.Message` before any
+  retry, so failures are visible.
+- **Empty management fields:** `IsManaged`, `IsRooted`, `DeviceOwnership`,
+  `EnrollmentType`, `ManagementType` are requested in `$select` but are genuinely
+  empty for devices that aren't Intune-managed — they populate only for
+  Intune-enrolled devices. Kept as columns since they're valuable when a rogue
+  device *is* enrolled.
+- **Formatting:** date columns are width 27 (autosize mis-sizes dates). The
+  conditional-formatting machinery is left in place with no active rules — the
+  initial highlight rules weren't useful.
+- **No built artifacts.** The root `.psm1`/`.psd1` are generated at release time,
+  so they're intentionally not part of this change.
+
+## Testing
+
+- **Offline:** full `.\Tests.ps1 Offline` green (264 passed). New coverage:
+  `Build-EntraDeviceRow` unit tests (sort, null placement, JoinType, owner, dates,
+  JSON, empty input) and `Get-IRTAllEntraDevice` offline tests (Graph query shape,
+  no-devices path, XML/export plumbing).
+- **Online:** `Get-IRTAllEntraDevice.Online.Tests.ps1` runs the real `Get-MgDevice`
+  query through the helper (sort / JoinType / sane dates) plus a full end-to-end
+  run, all guarded to skip if the tenant has no devices. Also verified by running
+  the function against a live tenant and reviewing the resulting spreadsheet.
+- **Lint:** ModuleSyntax, LineLength, BacktickContinuation, FormatOperator, and
+  PSScriptAnalyzer all clean on the changed files.
