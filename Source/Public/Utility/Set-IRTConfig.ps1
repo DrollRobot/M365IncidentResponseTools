@@ -190,6 +190,14 @@ function Set-IRTConfig {
             'Use -NoNewTab on Start-IRTPlaybook to override for a single run.'
             Options     = @('true', 'false')
         }
+        EmailSearchNamePrefix = @{
+            Summary     = 'Email search name prefix'
+            Description = 'Prefix prepended to every email search name created by ' +
+            'New-IRTEmailSearch (e.g. "IRT: "). Makes IRT-created searches easy to ' +
+            'identify and filter in the compliance portal. ' +
+            'Use -NamePrefix on New-IRTEmailSearch to override for a single search.'
+            Options     = $null  # free text
+        }
     }
 
     # main menu loop
