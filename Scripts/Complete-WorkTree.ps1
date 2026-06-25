@@ -31,13 +31,15 @@
     Cross-device handoff (push on one device, open the PR on another):
       - On the device with the worktree, run with -PushPRToNotes. It verifies
         and pushes the branch, then attaches PR.md (with the base and title) as
-        a git note in the 'refs/notes/pr-body' namespace and pushes that note to
+        a per-slug git note (refs/notes/pr-body-<slug>) and pushes that note to
         origin. The note rides on the commit, so it never appears in the PR
-        diff. No PR is created and gh is not required here.
+        diff; one ref per slug means concurrent PRs never collide. No PR is
+        created and gh is not required here.
       - On the other device, run with -GHFromNotes -Slug <slug> (creates the PR
         with gh) or -WebFromNotes -Slug <slug> (opens a prefilled PR form in the
         browser; no gh auth needed). Either fetches the branch and the note,
-        recovers the base/title/body, and creates the PR.
+        recovers the base/title/body, creates the PR, and then deletes the note
+        from origin.
 
 .PARAMETER Title
     PR title. Defaults to the subject line of the most recent commit (or the
@@ -62,15 +64,17 @@
 
 .PARAMETER PushPRToNotes
     Device A: verify and push the branch, then attach PR.md (with base/title) as
-    a 'pr-body' git note and push it to origin. Does not create a PR.
+    a per-slug 'pr-body-<slug>' git note and push it to origin. No PR created.
 
 .PARAMETER GHFromNotes
-    Device B: fetch the branch and 'pr-body' note for -Slug, then create the PR
-    with gh. Requires gh installed and authenticated.
+    Device B: fetch the branch and the per-slug 'pr-body-<slug>' note for -Slug,
+    create the PR with gh, then delete the note from origin. Requires gh
+    installed and authenticated.
 
 .PARAMETER WebFromNotes
-    Device B: fetch the branch and 'pr-body' note for -Slug, then open a
-    prefilled PR form in the browser. No gh authentication required.
+    Device B: fetch the branch and the per-slug 'pr-body-<slug>' note for -Slug,
+    open a prefilled PR form in the browser, then offer to delete the note from
+    origin. No gh authentication required.
 
 .PARAMETER Slug
     The worktree slug (the part after 'wt/'), used by -GHFromNotes/-WebFromNotes
@@ -89,9 +93,8 @@
     .\Complete-WorkTree.ps1 -WebFromNotes -Slug issue-42
 
 .NOTES
-    Script version 1.1.0. Ports complete_worktree.py (1.0.0); 1.1.0 adds the
-    -PushPRToNotes/-GHFromNotes/-WebFromNotes cross-device handoff, a
-    PowerShell-side extension not in the Python source.
+    Script version 1.1.0, which adds the
+    -PushPRToNotes/-GHFromNotes/-WebFromNotes cross-device handoff.
 
     Requirements:
       - PowerShell 7.4 or later.
@@ -129,8 +132,10 @@ $PSNativeCommandUseErrorActionPreference = $true
 # breaking CLI change.
 $ScriptVersion = '1.1.0'
 
-# Notes ref namespace the PR body is stored under for the cross-device handoff.
-$NotesRef = 'pr-body'
+# The cross-device PR-body handoff stores one note per slug
+# (refs/notes/pr-body-<slug>) so concurrent PRs never share - or force-push
+# over - a single ref. See Get-NotesRef.
+$NotesRefPrefix = 'pr-body'
 
 # Answer every confirmation prompt with 'y' (set from -Yes). Script-scoped so
 # the helper functions below can read it.
@@ -311,6 +316,23 @@ function Open-WebPr {
     }
 }
 
+# Compute the per-slug notes ref (refs/notes/pr-body-<slug>). One ref per slug
+# keeps concurrent PRs from sharing - and force-pushing over - each other.
+function Get-NotesRef {
+    param([string]$Slug)
+    return "$NotesRefPrefix-$($Slug -replace '/', '-')"
+}
+
+# Delete a PR-body notes ref from origin and locally. Tolerates an already-gone
+# ref so cleanup is safe to run more than once.
+function Remove-PrNote {
+    param([string]$NotesRef)
+    Write-Run "git push origin :refs/notes/$NotesRef"
+    $null = Invoke-NativeOk git push origin ":refs/notes/$NotesRef"
+    Write-Run "git update-ref -d refs/notes/$NotesRef"
+    $null = Invoke-NativeOk git update-ref -d "refs/notes/$NotesRef"
+}
+
 # --- mode validation -------------------------------------------------------
 
 Write-Info "Script version" $ScriptVersion
@@ -334,6 +356,7 @@ if ($GHFromNotes -or $WebFromNotes) {
         throw "Specify -Slug to identify the worktree branch (e.g. -Slug issue-42)."
     }
     $branch = "wt/$Slug"
+    $notesRef = Get-NotesRef $Slug
 
     if ($GHFromNotes -and -not (Get-Command gh -ErrorAction SilentlyContinue)) {
         throw "gh not found on PATH. Use -WebFromNotes to create the PR in the browser instead."
@@ -342,12 +365,12 @@ if ($GHFromNotes -or $WebFromNotes) {
     Write-Section "Fetch branch and PR note"
     Write-Run "git fetch origin +refs/heads/${branch}:refs/remotes/origin/$branch"
     Invoke-Native git fetch origin "+refs/heads/${branch}:refs/remotes/origin/$branch"
-    Write-Run "git fetch origin +refs/notes/${NotesRef}:refs/notes/$NotesRef"
-    Invoke-Native git fetch origin "+refs/notes/${NotesRef}:refs/notes/$NotesRef"
+    Write-Run "git fetch origin +refs/notes/${notesRef}:refs/notes/$notesRef"
+    Invoke-Native git fetch origin "+refs/notes/${notesRef}:refs/notes/$notesRef"
 
-    $noteRaw = Invoke-NativeOk git notes "--ref=$NotesRef" show "origin/$branch"
+    $noteRaw = Invoke-NativeOk git notes "--ref=$notesRef" show "origin/$branch"
     if (-not $noteRaw) {
-        $ErrMsg = "No '$NotesRef' note found on origin/$branch. " +
+        $ErrMsg = "No '$notesRef' note found on origin/$branch. " +
         'Run -PushPRToNotes on the device that has the worktree first.'
         throw $ErrMsg
     }
@@ -385,6 +408,18 @@ if ($GHFromNotes -or $WebFromNotes) {
             Body      = $parsed.Body
         }
         Open-WebPr @WebParams
+
+        Write-Section "Step: clean up PR body note"
+        $CleanPrompt = "Once you've created the PR in the browser, delete the " +
+        "'$notesRef' note from origin?"
+        if (Confirm-Step $CleanPrompt) {
+            Remove-PrNote -NotesRef $notesRef
+            Write-Host "  Removed the PR body note from origin." -ForegroundColor Green
+        }
+        else {
+            Write-Host "  Left the note in place. Remove it later with:" -ForegroundColor DarkGray
+            Write-Host "    git push origin :refs/notes/$notesRef" -ForegroundColor DarkGray
+        }
         return
     }
 
@@ -404,6 +439,17 @@ if ($GHFromNotes -or $WebFromNotes) {
     finally {
         Remove-Item -LiteralPath $tempBody -Force -ErrorAction SilentlyContinue
     }
+
+    Write-Section "Step: clean up PR body note"
+    if (Confirm-Step "Delete the '$notesRef' note from origin now the PR is created?") {
+        Remove-PrNote -NotesRef $notesRef
+        Write-Host "  Removed the PR body note from origin." -ForegroundColor Green
+    }
+    else {
+        Write-Host "  Left the note in place. Remove it later with:" -ForegroundColor DarkGray
+        Write-Host "    git push origin :refs/notes/$notesRef" -ForegroundColor DarkGray
+    }
+
     Write-Section "Done"
     Write-Host "  Pull request opened." -ForegroundColor Green
     Write-Info "PR" $prUrl
@@ -550,20 +596,21 @@ Invoke-Step "Push '$branch' to origin (with -u)?" {
 # --- device A: attach the PR body as a note and stop ------------------------
 
 if ($PushPRToNotes) {
+    $slug = $branch -replace '^wt/', ''
+    $notesRef = Get-NotesRef $slug
     Write-Section "Step: attach PR body note"
     $noteBody = "base: $Base`ntitle: $Title`n---`n$bodyText"
     $tempNote = [System.IO.Path]::GetTempFileName()
-    $NotePrompt = "Attach $bodyName (with base/title) as a '$NotesRef' note and push it to origin?"
+    $NotePrompt = "Attach $bodyName (with base/title) as a '$notesRef' note and push it to origin?"
     Invoke-Step $NotePrompt {
         Set-Content -LiteralPath $tempNote -Value $noteBody -Encoding utf8
-        Write-Run "git notes --ref=$NotesRef add --force --file <note> HEAD"
-        Invoke-Native git notes "--ref=$NotesRef" add --force --file $tempNote HEAD
-        Write-Run "git push origin +refs/notes/${NotesRef}:refs/notes/$NotesRef"
-        Invoke-Native git push origin "+refs/notes/${NotesRef}:refs/notes/$NotesRef"
+        Write-Run "git notes --ref=$notesRef add --force --file <note> HEAD"
+        Invoke-Native git notes "--ref=$notesRef" add --force --file $tempNote HEAD
+        Write-Run "git push origin +refs/notes/${notesRef}:refs/notes/$notesRef"
+        Invoke-Native git push origin "+refs/notes/${notesRef}:refs/notes/$notesRef"
         Remove-Item -LiteralPath $tempNote -Force -ErrorAction SilentlyContinue
     }
 
-    $slug = $branch -replace '^wt/', ''
     Write-Section "Done"
     Write-Host "  Pushed branch and PR body note for '$slug'." -ForegroundColor Green
     Write-Info "Branch" $branch
