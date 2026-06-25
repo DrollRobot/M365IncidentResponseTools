@@ -1,0 +1,71 @@
+base: wt/ualimprovements2
+title: chore: updated complete-worktree dev helper.
+---
+# feat: chunk and retry UAL queries, flag data gaps
+
+## Summary
+
+Large Unified Audit Log pulls (wide date ranges, `-AllUsers`, the 180-day
+sign-in/risky-operation profiles) can fail partway through when Exchange
+times out, throttles, or drops the session — and until now those failures
+were easy to miss, leaving a quietly incomplete dataset.
+
+This brings `Get-IRTUnifiedAuditLog` in line with the resilience work
+already done in `Get-IRTEntraSignInLog`, and goes one step further: when a
+query can't be recovered, the gap is written into the data itself so it's
+impossible to overlook in the exported workbook.
+
+## What changed
+
+**`Get-IRTUnifiedAuditLog`**
+
+- **`-ChunkDays`** is now a real parameter (default 182) instead of a
+  hardcoded value, so you can shrink the per-request window when a pull
+  keeps timing out.
+- **Per-chunk token refresh** — a long multi-chunk run no longer outlives
+  the token's refresh window and starts failing with auth errors.
+- **`-ChunkDelaySeconds`** (default 2) adds a small pause between chunks to
+  stay under Exchange throttling limits.
+- **`-ThrottleDelaySeconds`** (default 60) drives retry-with-backoff around
+  every `Search-UnifiedAuditLog` call. Because Exchange reports transient
+  failures with inconsistent error text, this retries on *any* terminal
+  error rather than pattern-matching messages, refreshes the token between
+  attempts, and records the full exception to the PSFramework debug log for
+  later troubleshooting.
+- **Visible "DATA MISSING" marker** — if a query still fails after all
+  retries, the function raises an error *and* inserts a marker row into the
+  results rather than silently returning partial data. The marker is shaped
+  like a real UAL record so it flows through dedup, sorting, and the sheet
+  builders; it sorts to the failed time window, shouts in the UserIds and
+  Operation columns, and carries the failed query, window, and exception in
+  its Raw column. The run continues so the rest of the data is still
+  collected around the gap.
+
+**`Show-IRTUnifiedAuditLog`**
+
+- Data-gap markers always bypass operation-based sheet filtering, so a gap
+  shows up on every sheet — including the SignInLogs profile, which is
+  exactly the kind of long pull prone to these failures.
+
+## Behavior notes
+
+- A failed query no longer aborts the whole run; you get the maximum data
+  available plus a flagged gap. (If a hard stop is ever preferred, it's a
+  one-line change in the catch blocks.)
+- If *every* query fails, the workbook now contains only marker rows, which
+  makes a total failure obvious too, rather than a bare "0 logs" message.
+
+## Testing
+
+- Offline Pester suite for the function passes (10/10), including two new
+  tests covering the retry count and the marker passthrough to
+  `Show-IRTUnifiedAuditLog`.
+- Formatting and PSSA checks (ModuleSyntax, LineLength, FormatOperator,
+  JoinPath, NonASCII, BacktickContinuation, WriteVerboseDebug, PSSA) are
+  clean on all three changed files.
+- Online tests were not run (they require a live Microsoft 365 session).
+
+> Note: the `Tests.ps1` orchestrator can't run in this worktree because it
+> derives the module name from the worktree folder (`ualimprovements2`)
+> rather than the manifest; the standalone `Test-*.ps1 -Path` checks were
+> used instead. Pre-existing issue, unrelated to this change.
