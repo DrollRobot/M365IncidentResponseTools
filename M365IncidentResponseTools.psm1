@@ -9,56 +9,50 @@ function Connect-IRTExchange {
     .SYNOPSIS
     Connects to Exchange Online.
 
-    .DESCRIPTION
-    Acquires an Exchange token via Get-IRTAccessToken (silent from the MSAL
-    cache when possible, interactive browser fallback otherwise), validates the
-    token audience against the target cloud, and binds it to a REST connection
-    via Connect-ExchangeOnline -AccessToken. Reconnects are scoped: the new
-    connection is established first, then the previous one is disconnected by
-    ConnectionId, so the IPPS connection (and any runspace-local connections)
-    are never torn down as a side effect.
-
     .PARAMETER TenantId
     The TenantId GUID for the environment you want to connect to.
+
+    .PARAMETER UserPrincipalName
+    Optional. The UserPrincipalName (Email) for the user account. When provided
+    with -AccessToken (e.g. in runspace re-connections), this value is passed to
+    Connect-ExchangeOnline. For interactive flows the UPN is derived from the
+    MSAL token result automatically.
 
     .PARAMETER Cloud
     Cloud to connect to. Valid values: Commercial, USGov, USGovDoD, China.
     Mandatory - Connect-IRT resolves this via OIDC discovery and passes it in.
 
-    .PARAMETER Force
-    Reconnect even when an apparently-healthy connection already exists.
-
-    .PARAMETER Silent
-    Never prompt. Token acquisition throws instead of opening a browser when no
-    cached account works.
+    .PARAMETER AccessToken
+    A pre-existing access token to use for connection. Intended for use within
+    runspaces where interactive authentication is not possible.
 
     .PARAMETER ClientId
     Override the MSAL client ID. Defaults to the EXO first-party app
     (fb78d390-0c51-40cd-8e17-fdbfab77341b).
 
-    .EXAMPLE
-    Connect-IRTExchange -TenantId $Tid -Cloud Commercial
-
-    .OUTPUTS
-    [pscustomobject] - Exchange session metadata: UserPrincipalName,
-    BoundTokenExpiry (expiry of the token bound into the SDK connection),
-    ConnectionId, TenantId.
+    .PARAMETER MsalCachePath
+    Override the path for the persistent MSAL token cache file. Defaults to
+    $Global:IRT_Config.MsalCachePath. Useful for testing with an isolated cache.
 
     .NOTES
-    Version: 4.0.0
+    Version: 3.0.0
     #>
     [CmdletBinding()]
     param (
         [Parameter(Mandatory)]
         [string] $TenantId,
+        [string] $UserPrincipalName,
         [Parameter(Mandatory)]
         [ValidateSet('Commercial', 'USGov', 'USGovDoD', 'China')]
         [string] $Cloud,
+        [string] $AccessToken,
 
         [switch] $Force,
         [switch] $Silent,
 
-        [string] $ClientId = 'fb78d390-0c51-40cd-8e17-fdbfab77341b'  # EXO first-party app
+        [string] $ClientId = 'fb78d390-0c51-40cd-8e17-fdbfab77341b',  # EXO first-party app
+
+        [string] $MsalCachePath = $Global:IRT_Config.MsalCachePath
     )
 
     begin {
@@ -74,46 +68,172 @@ function Connect-IRTExchange {
 
         $CloudConfig = $Global:IRT_Session.CloudConfig
         $ExchangeScope = $CloudConfig.Exchange
+        $Authority = "$($CloudConfig.LoginHost)/$TenantId"
+        $Scopes = [string[]]@($ExchangeScope)
+
+        # Bare login host (no scheme) used to match cached MSAL accounts to this cloud.
+        $ExpectedLoginHost = $CloudConfig.LoginHost.Replace('https://', '')
         # Expected token audience host (the Exchange resource for this cloud, e.g.
         # outlook.office365.us). Used to confirm a token is for the right cloud.
         $ExpectedExchangeHost = ([uri]($ExchangeScope -replace '/\.default$', '')).Host
 
-        # IPPS connections show up in Get-ConnectionInformation alongside EXO.
-        # Distinguish by ConnectionUri matching the compliance endpoint - which differs
-        # per cloud (outlook.com commercial, office365.us for USGov/DoD), so match both.
-        $IppsUriPattern = 'compliance\.protection\.(outlook\.com|office365\.us)'
+        $ExoClientId = $ClientId
+        $App = $null  # built lazily; not needed when -AccessToken provided
 
         Write-PSFMessage -Level 8 -Message (
             "Connect-IRTExchange: TenantId=$TenantId, Cloud=$Cloud, " +
-            "Force=$Force, Silent=$Silent")
+            "Authority=$Authority, Force=$Force, Silent=$Silent")
     }
 
     process {
         #region PROCESS
 
-        # ---------- Phase 1: token ----------
-        # Get-IRTAccessToken is the single token authority: it mints from the MSAL
-        # cache (trying every cached account for this cloud before prompting) and
-        # falls back to interactive browser auth unless -Silent.
+        # ---------- Setup: scope, authority ----------
 
-        $TokenParams = @{
-            Service  = 'Exchange'
-            Silent   = $Silent
-            ClientId = $ClientId
+        # Local helper - reads $App, $Scopes, $Silent, and $ExpectedLoginHost from the
+        # enclosing scope. Tries silent refresh first, then interactive auth.
+        function Get-ExchangeToken {
+            [OutputType('Microsoft.Identity.Client.AuthenticationResult')]
+            param()
+            $Cached = $App.GetAccountsAsync().GetAwaiter().GetResult()
+            Write-PSFMessage -Level 8 -Message "MSAL cached accounts: $($Cached.Count)"
+            # Select the account that belongs to the cloud we're connecting to. The shared
+            # persistent cache can hold accounts for several clouds; picking by environment
+            # keeps silent acquisition cloud-correct. MSAL handles expiry/refresh.
+            $Match = $Cached |
+                Where-Object { $_.Environment -eq $ExpectedLoginHost } |
+                Select-Object -First 1
+            if ($Match) {
+                try {
+                    Write-PSFMessage -Level 8 -Message (
+                        "Attempting silent Exchange token acquisition for: " +
+                        "$($Match.Username) (env: $($Match.Environment))")
+                    return $App.AcquireTokenSilent($Scopes, $Match).
+                    ExecuteAsync().GetAwaiter().GetResult()
+                } catch {
+                    Write-PSFMessage -Level 8 -Message (
+                        "Silent Exchange token acquisition failed: $_")
+                }
+            } else {
+                Write-PSFMessage -Level 8 -Message (
+                    "No cached account matches expected environment " +
+                    "'$ExpectedLoginHost'; will authenticate interactively.")
+            }
+
+            if ($Silent) {
+                throw ('Silent Exchange token refresh failed and ' +
+                    'interactive auth is not allowed (-Silent).')
+            }
+
+            $Msg = 'A browser window has been opened for interactive sign-in. ' +
+            'Please complete authentication to continue.'
+            Write-IRT $Msg -Level Warn
+            try {
+                $Cts = [System.Threading.CancellationTokenSource]::new()
+                $Task = $App.AcquireTokenInteractive($Scopes).ExecuteAsync($Cts.Token)
+                try {
+                    while (-not $Task.IsCompleted) { Start-Sleep -Milliseconds 250 }
+                } finally {
+                    $Cts.Cancel()
+                    $Cts.Dispose()
+                }
+                $Result = $Task.GetAwaiter().GetResult()
+                Write-PSFMessage -Level 8 -Message (
+                    'Interactive Exchange token acquisition succeeded. ' +
+                    "Account: $($Result.Account.Username), " +
+                    "Expiry: $($Result.ExpiresOn)")
+                return $Result
+            } catch {
+                throw "Interactive token acquisition failed: $_"
+            }
         }
-        $TokenResult = Get-IRTAccessToken @TokenParams
-        if (-not $TokenResult.AccessToken) {
-            throw 'Failed to acquire Exchange access token.'
+
+        # ---------- Phase 1: token ----------
+        # Three sources, in priority order:
+        #   1. -AccessToken parameter (caller already has one - runspace reconnect)
+        #   2. cached session token (if not forced, same tenant, not expired)
+        #   3. fresh acquisition (silent refresh inside the helper if possible)
+
+        $NeedNewToken = $false
+
+        if ($AccessToken) {
+            Write-PSFMessage -Level 8 -Message "Using caller-supplied Exchange access token."
+            $Token = $AccessToken
+            $Upn = $UserPrincipalName
+        } elseif (-not $Force -and
+            $Global:IRT_Session -and
+            $Global:IRT_Session.Exchange -and
+            $Global:IRT_Session.TenantId -eq $TenantId -and
+            $Global:IRT_Session.Exchange.Token -and
+            -not (Test-TokenExpired -Token $Global:IRT_Session.Exchange.Token)) {
+            $Token = $Global:IRT_Session.Exchange.Token
+            $Upn = $Global:IRT_Session.Exchange.UserPrincipalName
+            $App = $Global:IRT_Session.Exchange.PublicClientApplication
+            Write-PSFMessage -Level 8 -Message (
+                "Using cached Exchange token from session (account: $Upn).")
+        } else {
+            $null = Import-MsalAssembly
+
+            $AppClientId = $Global:IRT_Session.Exchange.PublicClientApplication?.AppConfig?.ClientId
+            $SameClient =
+            $Global:IRT_Session -and
+            $Global:IRT_Session.Exchange -and
+            $Global:IRT_Session.Exchange.PublicClientApplication -and
+            $Global:IRT_Session.TenantId -eq $TenantId -and
+            $AppClientId -eq $ClientId
+            if ($SameClient) {
+                Write-PSFMessage -Level 8 -Message (
+                    "Reusing existing MSAL public client app " +
+                    "(ClientId: $ClientId).")
+                $App = $Global:IRT_Session.Exchange.PublicClientApplication
+            } else {
+                Write-PSFMessage -Level 8 -Message (
+                    "Building new MSAL public client app " +
+                    "(ClientId: $ExoClientId, Authority: $Authority).")
+                $PcaBuilder = [Microsoft.Identity.Client.PublicClientApplicationBuilder]
+                $NewApp = $PcaBuilder::Create($ExoClientId).
+                WithAuthority($Authority).
+                WithRedirectUri('http://localhost').
+                Build()
+                if ($Global:IRT_Config.EnableTokenCache) {
+                    try {
+                        Register-MsalCache -App $NewApp -CachePath $MsalCachePath
+                        Write-PSFMessage -Level 8 -Message (
+                            "MSAL persistent token cache " +
+                            "registered at: $MsalCachePath")
+                    }
+                    catch { Write-IRT "Persistent token cache unavailable: $_" -Level Warn }
+                }
+                $App = $NewApp
+            }
+
+            if (
+                -not $AccessToken -and
+                $Global:IRT_Session -and
+                $Global:IRT_Session.Exchange -and
+                $Global:IRT_Session.Exchange.Token
+            ) {
+                Write-IRT "Refreshing expired Exchange token for tenant $TenantId..." -Level Warn
+            }
+            Write-PSFMessage -Level 8 -Message (
+                'Acquiring Exchange token (silent from MSAL ' +
+                'cache, else interactive).')
+            $TokenResult = Get-ExchangeToken
+            if (-not $TokenResult.AccessToken) {
+                throw 'Failed to acquire Exchange access token.'
+            }
+            $Token = $TokenResult.AccessToken
+            $Upn = $TokenResult.Account.Username
+            $NeedNewToken = $true
+            Write-PSFMessage -Level 8 -Message "Exchange token acquired for account: $Upn"
         }
-        $Token = $TokenResult.AccessToken
-        $Upn = $TokenResult.Account.Username
-        Write-PSFMessage -Level 8 -Message "Exchange token acquired for account: $Upn"
 
         # ---------- Phase 1b: cloud validation ----------
         # Confirm the token's audience (aud) is the Exchange endpoint for this cloud (e.g.
         # outlook.office365.us for USGov). A wrong-cloud token passes expiry checks but is
-        # rejected at use time. Env-filtered account selection already prevents the MSAL
-        # cache from returning a wrong-cloud token; this is a final assertion.
+        # rejected at use time. Env-filtered silent selection already prevents the MSAL
+        # cache from returning a wrong-cloud token; this guards the caller-supplied and
+        # session-cached paths.
         $TokenAud = (Get-TokenPayload -Token $Token).aud
         Write-PSFMessage -Level 8 -Message (
             "Exchange token audience: $TokenAud | " +
@@ -130,17 +250,23 @@ function Connect-IRTExchange {
                 'skipping cloud validation.')
         }
         elseif (([uri]$TokenAud).Host -ne $ExpectedExchangeHost) {
+            if (-not $App) {
+                # Caller-supplied token (runspace reconnect) - we can't re-acquire here.
+                throw ("Exchange token audience '$TokenAud' does not match expected host " +
+                    "'$ExpectedExchangeHost' for cloud '$Cloud'.")
+            }
             Write-IRT (
                 "Exchange token audience '$TokenAud' " +
                 'does not match the expected ' +
                 "host '$ExpectedExchangeHost'. " +
                 'Re-authenticating for the correct cloud.') -Level Warn
-            $TokenResult = Get-IRTAccessToken @TokenParams -ForceRefresh
+            $TokenResult = Get-ExchangeToken
             if (-not $TokenResult.AccessToken) {
                 throw 'Failed to acquire Exchange access token after cloud mismatch.'
             }
             $Token = $TokenResult.AccessToken
             $Upn = $TokenResult.Account.Username
+            $NeedNewToken = $true
             $TokenAud = (Get-TokenPayload -Token $Token).aud
             if (([uri]$TokenAud).Host -ne $ExpectedExchangeHost) {
                 throw (
@@ -156,25 +282,15 @@ function Connect-IRTExchange {
         }
 
         # ---------- Phase 2: Connect-ExchangeOnline ----------
-        # Connect if no existing EXO connection (IPPS connections are excluded by URI),
-        # the bound token is stale, MSAL handed us a newer token than the bound one,
-        # or -Force.
+        # Connect if no existing connection, wrong tenant, or -Force.
 
         $ExistingConnection = Get-ConnectionInformation -ErrorAction SilentlyContinue |
-            Where-Object {
-                $_.State -eq 'Connected' -and
-                $_.TenantID -eq $TenantId -and
-                $_.ConnectionUri -notmatch $IppsUriPattern
-            }
+            Where-Object { $_.State -eq 'Connected' -and $_.TenantID -eq $TenantId }
 
-        $BoundTokenExpiry = $Global:IRT_Session.Exchange?.BoundTokenExpiry ??
-        [datetime]::MinValue
-        $NeedConnect = $Force -or
-        (-not $ExistingConnection) -or
-        ($BoundTokenExpiry -lt [datetime]::UtcNow.AddMinutes(5)) -or
-        ($TokenResult.ExpiresOn.UtcDateTime -gt $BoundTokenExpiry)
-
-        Write-PSFMessage -Level 8 -Message "NeedConnect: $NeedConnect (pre-verify)"
+        $NeedConnect = $Force -or -not $ExistingConnection
+        Write-PSFMessage -Level 8 -Message (
+            "NeedNewToken: $NeedNewToken | " +
+            "NeedConnect: $NeedConnect (pre-verify)")
 
         # Trust but verify: Get-ConnectionInformation reflects local session state, which
         # can report "Connected" while the session is actually dead. If we think we're
@@ -194,11 +310,12 @@ function Connect-IRTExchange {
         }
 
         if ($NeedConnect) {
-            # Connect the new session first, then disconnect the old one by
-            # ConnectionId - this avoids a no-connection window and never touches
-            # the IPPS connection.
-            $PreIds = @(Get-ConnectionInformation -ErrorAction SilentlyContinue).ConnectionId
-
+            if ($ExistingConnection) {
+                Write-PSFMessage -Level 8 -Message (
+                    'Disconnecting existing Exchange ' +
+                    'connection before reconnect.')
+                Disconnect-ExchangeOnline -Confirm:$false -ErrorAction SilentlyContinue
+            }
             $Params = @{
                 AccessToken       = $Token
                 UserPrincipalName = $Upn
@@ -210,61 +327,32 @@ function Connect-IRTExchange {
                 "(ExchangeEnvironmentName: $($CloudConfig.ExchangeEnv)).")
             Connect-ExchangeOnline @Params
             Write-PSFMessage -Level 8 -Message "Connect-ExchangeOnline completed."
+        }
 
-            $NewConnection = Get-ConnectionInformation -ErrorAction SilentlyContinue |
-                Where-Object {
-                    $_.State -eq 'Connected' -and
-                    $_.ConnectionUri -notmatch $IppsUriPattern -and
-                    $_.ConnectionId -notin $PreIds
-                } | Select-Object -First 1
-            $ConnectionId = $NewConnection.ConnectionId
-
-            # Scoped cleanup of the connection we replaced.
-            $OldId = $Global:IRT_Session.Exchange?.ConnectionId
-            if (-not $OldId -and $ExistingConnection) {
-                $OldId = ($ExistingConnection | Select-Object -First 1).ConnectionId
-            }
-            if ($OldId -and $OldId -ne $ConnectionId -and $OldId -in $PreIds) {
-                Write-PSFMessage -Level 8 -Message (
-                    "Disconnecting replaced Exchange connection: $OldId")
-                $DcParams = @{
-                    ConnectionId = $OldId
-                    Confirm      = $false
-                    ErrorAction  = 'SilentlyContinue'
-                }
-                Disconnect-ExchangeOnline @DcParams
-            }
-        } else {
-            $ConnectionId = ($ExistingConnection | Select-Object -First 1).ConnectionId
+        if (-not $NeedNewToken -and -not $NeedConnect) {
             Write-IRT "Already connected to Exchange Online for tenant $TenantId." -Level Warn
         }
 
         $Result = [pscustomobject]@{
-            UserPrincipalName = $Upn
-            BoundTokenExpiry  = $TokenResult.ExpiresOn.UtcDateTime
-            ConnectionId      = $ConnectionId
-            TenantId          = $TenantId
+            Token                   = $Token
+            TokenExpiry             = Get-TokenExpiry -Token $Token
+            UserPrincipalName       = $Upn
+            TenantId                = $TenantId
+            PublicClientApplication = $App
         }
         Write-PSFMessage -Level 8 -Message (
             "Connect-IRTExchange complete. Account: " +
-            "$Upn, BoundTokenExpiry: $($Result.BoundTokenExpiry)")
+            "$Upn, TokenExpiry: $($Result.TokenExpiry)")
         return $Result
     }
 }
-#EndRegion '.\Private\Connect\Connect-IRTExchange.ps1' 248
+#EndRegion '.\Private\Connect\Connect-IRTExchange.ps1' 343
 #Region '.\Private\Connect\Connect-IRTGraph.ps1' -1
 
 function Connect-IRTGraph {
     <#
     .SYNOPSIS
     Connects to Microsoft Graph with default incident response scopes.
-
-    .DESCRIPTION
-    Acquires a Graph token via Get-IRTAccessToken (silent from the MSAL cache
-    when possible, interactive browser fallback otherwise), validates the token
-    audience against the target cloud, binds it into the Graph SDK context via
-    Connect-MgGraph -AccessToken, and verifies tenant-wide admin consent for the
-    requested scopes.
 
     .PARAMETER TenantId
     The TenantId GUID for the environment you want to connect to.
@@ -282,30 +370,19 @@ function Connect-IRTGraph {
     .PARAMETER Private
     Open the browser in private/incognito mode.
 
-    .PARAMETER Force
-    Reconnect even when an apparently-healthy Graph context already exists.
-
-    .PARAMETER Silent
-    Never prompt. Token acquisition throws instead of opening a browser when no
-    cached account works.
-
     .PARAMETER ClientId
     Override the MSAL client ID. Defaults to the Microsoft Graph CLI Tools
     first-party app (14d82eec-204b-4c2f-b7e8-296a70dab67e).
 
-    .EXAMPLE
-    Connect-IRTGraph -TenantId $Tid -Cloud Commercial
-
-    .OUTPUTS
-    [pscustomobject] - Graph session metadata: Account, Scopes,
-    BoundTokenExpiry (expiry of the token bound into the SDK), TenantId.
+    .PARAMETER MsalCachePath
+    Override the path for the persistent MSAL token cache file. Defaults to
+    $Global:IRT_Config.MsalCachePath. Useful for testing with an isolated cache.
 
     .NOTES
-    Version: 4.0.0
+    Version: 3.0.0
     #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
-        'PSAvoidUsingConvertToSecureStringWithPlainText', '',
-        Justification = 'Connect-MgGraph requires a SecureString; the token is already in memory.')]
+        'PSAvoidUsingConvertToSecureStringWithPlainText', '')]
     [CmdletBinding()]
     param (
         [Parameter(Mandatory)]
@@ -323,7 +400,9 @@ function Connect-IRTGraph {
         [switch] $Force,
         [switch] $Silent,
 
-        [string] $ClientId = '14d82eec-204b-4c2f-b7e8-296a70dab67e'  # Microsoft Graph CLI Tools
+        [string] $ClientId = '14d82eec-204b-4c2f-b7e8-296a70dab67e',  # Microsoft Graph CLI Tools
+
+        [string] $MsalCachePath = $Global:IRT_Config.MsalCachePath
     )
 
     begin {
@@ -332,42 +411,249 @@ function Connect-IRTGraph {
         # import modules
         Import-IRTModule -Name 'Microsoft.Graph.Authentication', 'PSFramework'
 
-        # Plain scope names (no resource prefix) - used for MgContext scope checks
-        # and the admin-consent flow. Get-IRTAccessToken builds the MSAL scope URLs.
+        $DefaultScopes = @(
+            'Application.ReadWrite.All'
+            'AuditLog.Read.All'
+            'AuditLogsQuery.Read.All'
+            'BitLockerKey.Read.All'
+            'CrossTenantInformation.ReadBasic.All'
+            'DelegatedPermissionGrant.ReadWrite.All'
+            'Device.ReadWrite.All'
+            'DeviceLocalCredential.Read.All'
+            'DeviceManagementApps.ReadWrite.All'
+            'DeviceManagementConfiguration.ReadWrite.All'
+            'DeviceManagementManagedDevices.ReadWrite.All'
+            'DeviceManagementServiceConfig.ReadWrite.All'
+            'Directory.AccessAsUser.All'
+            'Directory.ReadWrite.All'
+            'Domain.Read.All'
+            'Group.ReadWrite.All'
+            'GroupMember.ReadWrite.All'
+            'IdentityRiskEvent.ReadWrite.All'
+            'IdentityRiskyServicePrincipal.ReadWrite.All'
+            'IdentityRiskyUser.ReadWrite.All'
+            'Mail.ReadBasic.Shared'
+            'Organization.Read.All'
+            'Policy.Read.All'
+            'Policy.Read.ConditionalAccess'
+            'Policy.ReadWrite.Authorization'
+            'RoleManagement.ReadWrite.Directory'
+            'SecurityEvents.ReadWrite.All'
+            'SecurityIncident.ReadWrite.All'
+            'User-Mail.ReadWrite.All'
+            'User-PasswordProfile.ReadWrite.All'
+            'User-Phone.ReadWrite.All'
+            'User.EnableDisableAccount.All'
+            'User.ManageIdentities.All'
+            'User.ReadWrite.All'
+            'User.RevokeSessions.All'
+            'UserAuthenticationMethod.ReadWrite'
+            'UserAuthenticationMethod.ReadWrite.All'
+            'UserAuthMethod-Passkey.ReadWrite.All'
+        )
         $Scopes = if ($AdditionalScope) {
-            @(Get-IRTGraphDefaultScope) + $AdditionalScope | Select-Object -Unique
+            $DefaultScopes + $AdditionalScope | Select-Object -Unique
         } else {
-            Get-IRTGraphDefaultScope
+            $DefaultScopes
         }
 
         $CloudConfig = $Global:IRT_Session.CloudConfig
         $GraphBaseUrl = $CloudConfig.Graph
+        $Authority = "$($CloudConfig.LoginHost)/$TenantId"
+        # Bare login host (no scheme) used to match cached MSAL accounts and token issuers
+        # to the cloud we're connecting to.
+        $ExpectedLoginHost = $CloudConfig.LoginHost.Replace('https://', '')
 
         Write-PSFMessage -Level 8 -Message (
             "Connect-IRTGraph: TenantId=$TenantId, Cloud=$Cloud, " +
-            "Scopes=$($Scopes.Count), Force=$Force, Silent=$Silent")
+            "Authority=$Authority, Scopes=$($Scopes.Count), " +
+            "Force=$Force, Silent=$Silent")
     }
 
     process {
 
-        # ---------- Phase 1: token ----------
-        # Get-IRTAccessToken is the single token authority: it mints from the MSAL
-        # cache (trying every cached account for this cloud before prompting) and
-        # falls back to interactive browser auth unless -Silent.
+        $null = Import-MsalAssembly
 
-        $TokenParams = @{
-            Service  = 'Graph'
-            Silent   = $Silent
-            ClientId = $ClientId
+        # build scopes urls
+        $MsalScopes = [string[]]($Scopes | ForEach-Object { "$GraphBaseUrl/$_" })
+
+        # test whether there's already a valid client. if not create one
+        $SameClient =
+        $Global:IRT_Session -and
+        $Global:IRT_Session.Graph -and
+        $Global:IRT_Session.Graph.PublicClientApplication -and
+        $Global:IRT_Session.TenantId -eq $TenantId -and
+        $Global:IRT_Session.Graph.PublicClientApplication.AppConfig.ClientId -eq $ClientId
+        if ($SameClient) {
+            Write-PSFMessage -Level 8 -Message (
+                "Reusing existing MSAL public client app " +
+                "(ClientId: $ClientId).")
+            $App = $Global:IRT_Session.Graph.PublicClientApplication
+        } else {
+            Write-PSFMessage -Level 8 -Message (
+                "Building new MSAL public client app " +
+                "(ClientId: $ClientId, Authority: $Authority).")
+            $PcaBuilder = [Microsoft.Identity.Client.PublicClientApplicationBuilder]
+            $NewApp = $PcaBuilder::Create($ClientId).WithAuthority($Authority).
+            WithRedirectUri('http://localhost').Build()
+            if ($Global:IRT_Config.EnableTokenCache) {
+                try {
+                    Register-MsalCache -App $NewApp -CachePath $MsalCachePath
+                    Write-PSFMessage -Level 8 -Message (
+                        "MSAL persistent token cache " +
+                        "registered at: $MsalCachePath")
+                }
+                catch {
+                    Write-IRT "Persistent token cache unavailable: $_" -Level Warn
+                }
+            }
+            $App = $NewApp
         }
-        if ($AdditionalScope) { $TokenParams['AdditionalScope'] = $AdditionalScope }
-        $TokenResult = Get-IRTAccessToken @TokenParams
-        if (-not $TokenResult.AccessToken) {
-            throw 'Failed to acquire Graph access token.'
+
+        # Local helper - reads $App, $MsalScopes, and $Silent from the enclosing scope.
+        # Tries silent refresh first, then interactive auth.
+        # -RequireConsent skips the silent path and forces a consent prompt.
+        function Get-GraphToken {
+            param(
+                [switch] $RequireConsent,
+                [Microsoft.Identity.Client.IAccount] $Account
+            )
+            if (-not $RequireConsent) {
+                $Cached = $App.GetAccountsAsync().GetAwaiter().GetResult()
+                Write-PSFMessage -Level 8 -Message "MSAL cached accounts: $($Cached.Count)"
+                # Select the account that belongs to the cloud we're connecting to. The
+                # shared persistent cache can hold accounts for several clouds, so picking
+                # by environment keeps silent acquisition cloud-correct without mutating the
+                # cache. AcquireTokenSilent handles access-token expiry/refresh internally.
+                $Match = $Cached |
+                    Where-Object { $_.Environment -eq $ExpectedLoginHost } |
+                    Select-Object -First 1
+                if ($Match) {
+                    try {
+                        Write-PSFMessage -Level 8 -Message (
+                            "Attempting silent token acquisition for: " +
+                            "$($Match.Username) " +
+                            "(env: $($Match.Environment))")
+                        $Result = $App.AcquireTokenSilent($MsalScopes, $Match).
+                        ExecuteAsync().GetAwaiter().GetResult()
+                        Write-PSFMessage -Level 8 -Message (
+                            'Silent token acquisition succeeded. ' +
+                            "Expiry: $($Result.ExpiresOn)")
+                        return $Result
+                    } catch {
+                        Write-PSFMessage -Level 8 -Message "Silent token acquisition failed: $_"
+                    }
+                } else {
+                    Write-PSFMessage -Level 8 -Message (
+                        "No cached account matches expected environment " +
+                        "'$ExpectedLoginHost'; " +
+                        'will authenticate interactively.')
+                }
+            }
+
+            if ($Silent) {
+                throw ('Silent Graph token refresh failed and ' +
+                    'interactive auth is not allowed (-Silent).')
+            }
+
+            $Msg = 'A browser window has been opened for interactive sign-in. ' +
+            'Please complete authentication to continue.'
+            Write-IRT $Msg -Level Warn
+            try {
+                $Builder = $App.AcquireTokenInteractive($MsalScopes)
+                if ($RequireConsent) {
+                    $Builder = $Builder.WithPrompt([Microsoft.Identity.Client.Prompt]::Consent)
+                }
+                if ($Account) {
+                    $Builder = $Builder.WithAccount($Account)
+                }
+                $Cts = [System.Threading.CancellationTokenSource]::new()
+                $Task = $Builder.ExecuteAsync($Cts.Token)
+                try {
+                    while (-not $Task.IsCompleted) { Start-Sleep -Milliseconds 250 }
+                } finally {
+                    $Cts.Cancel()
+                    $Cts.Dispose()
+                }
+                $Result = $Task.GetAwaiter().GetResult()
+                Write-PSFMessage -Level 8 -Message (
+                    'Interactive token acquisition succeeded. ' +
+                    "Account: $($Result.Account.Username), " +
+                    "Expiry: $($Result.ExpiresOn)")
+                return $Result
+            } catch {
+                throw "Interactive token acquisition failed: $_"
+            }
         }
-        $Token = $TokenResult.AccessToken
-        $Account = $TokenResult.Account.Username
-        Write-PSFMessage -Level 8 -Message "Token acquired for account: $Account"
+
+        # ---------- Phase 1: token ----------
+        # Use cached if: not forced, same tenant, not expired, has all requested scopes.
+        # Otherwise acquire a new one (silent refresh inside the helper if possible).
+        # Cloud validation happens in Phase 1b below, after the token is in hand - that
+        # way it covers BOTH the session token and one pulled from the MSAL cache.
+
+        $NeedNewToken = $true
+
+        if (-not $Force -and
+            $Global:IRT_Session -and
+            $Global:IRT_Session.Graph -and
+            $Global:IRT_Session.TenantId -eq $TenantId -and
+            $Global:IRT_Session.Graph.Token -and
+            -not (Test-TokenExpired -Token $Global:IRT_Session.Graph.Token)) {
+
+            # Verify cached token covers all requested scopes via MgContext.
+            $Ctx = Get-MgContext -ErrorAction SilentlyContinue
+            $TokenScopeMissing = if ($Ctx -and $Ctx.TenantId -eq $TenantId) {
+                $Scopes | Where-Object { $Ctx.Scopes -notcontains $_ }
+            } else {
+                $Scopes
+            }
+
+            if (-not $TokenScopeMissing) {
+                $NeedNewToken = $false
+                $Token = $Global:IRT_Session.Graph.Token
+                $Account = $Global:IRT_Session.Graph.Account
+                Write-PSFMessage -Level 8 -Message (
+                    'Using cached Graph token from session ' +
+                    "(cloud: $Cloud, account: $Account).")
+            } else {
+                Write-PSFMessage -Level 8 -Message (
+                    "Cached token missing scopes " +
+                    "($($TokenScopeMissing.Count)): " +
+                    "$($TokenScopeMissing -join ', ')")
+            }
+        } else {
+            $TokenExpiredStatus = if ($Global:IRT_Session.Graph.Token) {
+                Test-TokenExpired -Token $Global:IRT_Session.Graph.Token
+            } else {
+                'n/a'
+            }
+            Write-PSFMessage -Level 8 -Message (
+                'Session cache check skipped - ' +
+                "Force=$Force, " +
+                "SessionExists=$([bool]$Global:IRT_Session), " +
+                "TokenExpired=$TokenExpiredStatus")
+        }
+
+        if ($NeedNewToken) {
+            if ($Global:IRT_Session -and
+                $Global:IRT_Session.Graph -and
+                $Global:IRT_Session.Graph.Token
+            ) {
+                Write-IRT "Refreshing expired Graph token for tenant $TenantId." -Level Warn
+            }
+            # Pulls from the MSAL persistent cache (silent) first, then interactive.
+            Write-PSFMessage -Level 8 -Message (
+                'Acquiring Graph token (silent from MSAL ' +
+                'cache, else interactive).')
+            $TokenResult = Get-GraphToken
+            if (-not $TokenResult.AccessToken) {
+                throw 'Failed to acquire Graph access token.'
+            }
+            $Token = $TokenResult.AccessToken
+            $Account = $TokenResult.Account.Username
+            Write-PSFMessage -Level 8 -Message "Token acquired for account: $Account"
+        }
 
         # ---------- Phase 1b: cloud validation ----------
         # Confirm the token's audience (aud) is the Graph endpoint for the cloud we're
@@ -377,9 +663,10 @@ function Connect-IRTGraph {
         # v1.0 Graph access tokens use https://sts.windows.net/{tenant}/ in every cloud.)
         #
         # A wrong-cloud token passes expiry/scope checks but fails at the Graph API with
-        # InvalidCloudInstance / 401. Get-IRTAccessToken already selects cached accounts
-        # by environment, so silent acquisition can't hand back a wrong-cloud token; this
-        # is a final assertion. On mismatch, force-refresh once for the correct cloud.
+        # InvalidCloudInstance / 401. Get-GraphToken already selects cached accounts by
+        # environment, so silent acquisition can't hand back a wrong-cloud token; this
+        # guards the session-token path and acts as a final assertion. On mismatch, a
+        # clean re-acquire falls through to interactive sign-in for the correct cloud.
         $TokenAud = (Get-TokenPayload -Token $Token).aud
         Write-PSFMessage -Level 8 -Message "Token audience: $TokenAud | expected: $GraphBaseUrl"
 
@@ -401,12 +688,13 @@ function Connect-IRTGraph {
             Write-IRT ("Graph token audience '$TokenAud' does not match the expected " +
                 "endpoint '$GraphBaseUrl'. Re-authenticating for the correct cloud.") -Level Warn
 
-            $TokenResult = Get-IRTAccessToken @TokenParams -ForceRefresh
+            $TokenResult = Get-GraphToken
             if (-not $TokenResult.AccessToken) {
                 throw 'Failed to acquire Graph access token after cloud mismatch.'
             }
             $Token = $TokenResult.AccessToken
             $Account = $TokenResult.Account.Username
+            $NeedNewToken = $true  # force Phase 2 to reconnect with the corrected token
 
             # Re-validate. If it's still wrong, the authority itself is misconfigured.
             $TokenAud = (Get-TokenPayload -Token $Token).aud
@@ -420,9 +708,8 @@ function Connect-IRTGraph {
         }
 
         # ---------- Phase 2: Connect-MgGraph ----------
-        # Connect if no context, wrong tenant, wrong cloud, missing scopes, or MSAL
-        # handed us a newer token than the one currently bound (the existing MgContext
-        # is still holding the old one).
+        # Connect if no context, wrong tenant, wrong cloud, missing scopes, or we just
+        # acquired a fresh token (the existing MgContext is still bound to the old one).
 
         $Ctx = Get-MgContext -ErrorAction SilentlyContinue
         Write-PSFMessage -Level 8 -Message (
@@ -432,15 +719,15 @@ function Connect-IRTGraph {
             "(expected: $($CloudConfig.GraphEnv)), " +
             "Account: $($Ctx.Account)")
 
-        $BoundTokenExpiry = $Global:IRT_Session.Graph?.BoundTokenExpiry ?? [datetime]::MinValue
-        $NeedConnect = $Force -or
+        $NeedConnect = $NeedNewToken -or
         (-not $Ctx) -or # not connected
         ($Ctx.TenantId -ne $TenantId) -or # wrong tenant
         ($Ctx.Environment -ne $CloudConfig.GraphEnv) -or # wrong cloud
-        [bool]($Scopes | Where-Object { $Ctx.Scopes -notcontains $_ }) -or # missing scopes
-        ($TokenResult.ExpiresOn.UtcDateTime -gt $BoundTokenExpiry) # newer token in hand
+        [bool]($Scopes | Where-Object { $Ctx.Scopes -notcontains $_ }) # missing scopes
 
-        Write-PSFMessage -Level 8 -Message "NeedConnect: $NeedConnect (pre-verify)"
+        Write-PSFMessage -Level 8 -Message (
+            "NeedNewToken: $NeedNewToken | " +
+            "NeedConnect: $NeedConnect (pre-verify)")
 
         # Trust but verify: the metadata checks above can all pass while the connection is
         # actually dead (e.g. a token the API rejects). Confirm with a real, lightweight
@@ -467,7 +754,6 @@ function Connect-IRTGraph {
         }
 
         if ($NeedConnect) {
-            $Ctx = Get-MgContext -ErrorAction SilentlyContinue
             if ($Ctx) {
                 Write-PSFMessage -Level 8 -Message (
                     'Disconnecting existing MgGraph ' +
@@ -527,49 +813,26 @@ function Connect-IRTGraph {
             # No point polling here - just inform the operator and continue.
             Write-IRT ('Admin consent browser flow completed. ' +
                 'Tenant-wide grant may take up to 2 minutes to replicate.') -Level Warn
-
-            # Re-acquire with a forced refresh and re-bind: the token bound above was
-            # issued BEFORE the grant, so its scope claim lacks the new scopes and the
-            # session would otherwise limp on it for the rest of its ~1h lifetime
-            # (MSAL keeps returning the cached pre-consent token). Replication lag can
-            # still delay the new scopes a couple of minutes, but that beats an hour.
-            try {
-                $TokenResult = Get-IRTAccessToken @TokenParams -ForceRefresh
-                $Token = $TokenResult.AccessToken
-                $Account = $TokenResult.Account.Username
-                $Secure = ConvertTo-SecureString -String $Token -AsPlainText -Force
-                $RebindParams = @{
-                    AccessToken = $Secure
-                    NoWelcome   = $true
-                    Environment = $CloudConfig.GraphEnv
-                }
-                $null = Disconnect-MgGraph -ErrorAction SilentlyContinue
-                $null = Connect-MgGraph @RebindParams
-                Write-PSFMessage -Level 8 -Message (
-                    'Post-consent Graph token re-acquired and re-bound.')
-            } catch {
-                Write-IRT ("Post-consent token refresh failed: $_ - the current " +
-                    'session keeps the pre-consent token until it expires.') -Level Warn
-            }
         }
 
-        if (-not $NeedConnect) {
+        if (-not $NeedNewToken -and -not $NeedConnect) {
             Write-IRT "Already connected to Graph for tenant $TenantId." -Level Warn
         }
 
         $Result = [pscustomobject]@{
-            Account          = $Account
-            Scopes           = [string[]]$Scopes
-            BoundTokenExpiry = $TokenResult.ExpiresOn.UtcDateTime
-            TenantId         = $TenantId
+            Token                   = $Token
+            TokenExpiry             = Get-TokenExpiry -Token $Token
+            Account                 = $Account
+            TenantId                = $TenantId
+            PublicClientApplication = $App
         }
         Write-PSFMessage -Level 8 -Message (
             "Connect-IRTGraph complete. Account: $Account, " +
-            "BoundTokenExpiry: $($Result.BoundTokenExpiry)")
+            "TokenExpiry: $($Result.TokenExpiry)")
         return $Result
     }
 }
-#EndRegion '.\Private\Connect\Connect-IRTGraph.ps1' 316
+#EndRegion '.\Private\Connect\Connect-IRTGraph.ps1' 484
 #Region '.\Private\Connect\Connect-IRTIPPS.ps1' -1
 
 function Connect-IRTIPPS {
@@ -578,20 +841,11 @@ function Connect-IRTIPPS {
     Connects to Security & Compliance PowerShell (IPPS).
 
     .DESCRIPTION
-    Acquires a portable access token via Get-IRTAccessToken using EXO's
-    first-party client ID and the IPPS audience, then passes it to
-    Connect-IPPSSession via -AccessToken. This bypasses IPPS's internal MSAL
-    token-acquisition path, which fails with an assembly version mismatch when
-    the Microsoft.Graph.Authentication MSAL has been pre-loaded.
-
-    Because Exchange and IPPS share one client ID, they share one MSAL app and
-    token cache - after any Exchange sign-in, the IPPS token is always minted
-    silently (the refresh token is redeemed for the IPPS audience without a
-    prompt). Reconnects are scoped by ConnectionId and never tear down the
-    Exchange connection.
-
-    .PARAMETER TenantId
-    The TenantId GUID for the environment you want to connect to.
+    Acquires a portable access token via MSAL using EXO's first-party client ID
+    and the IPPS audience, then passes it to Connect-IPPSSession via -AccessToken.
+    This bypasses IPPS's internal MSAL token-acquisition path, which fails with
+    an assembly version mismatch when the Microsoft.Graph.Authentication MSAL
+    has been pre-loaded.
 
     .PARAMETER Cloud
     Cloud to connect to. Valid values: Commercial, USGov, USGovDoD, China.
@@ -603,42 +857,35 @@ function Connect-IRTIPPS {
     eDiscovery and retention cmdlets (New-ComplianceSearchAction,
     Set-RetentionCompliancePolicy, etc.). Defaults to $true.
 
-    .PARAMETER Force
-    Reconnect even when an apparently-healthy connection already exists.
-
-    .PARAMETER Silent
-    Never prompt. Token acquisition throws instead of opening a browser when no
-    cached account works.
-
     .PARAMETER ClientId
     Override the MSAL client ID. Defaults to the EXO/IPPS first-party app
     (fb78d390-0c51-40cd-8e17-fdbfab77341b).
 
-    .EXAMPLE
-    Connect-IRTIPPS -TenantId $Tid -Cloud Commercial
-
-    .OUTPUTS
-    [pscustomobject] - IPPS session metadata: UserPrincipalName,
-    BoundTokenExpiry (expiry of the token bound into the SDK connection),
-    ConnectionId, SearchOnly, TenantId.
+    .PARAMETER MsalCachePath
+    Override the path for the persistent MSAL token cache file. Defaults to
+    $Global:IRT_Config.MsalCachePath. Useful for testing with an isolated cache.
 
     .NOTES
-    Version: 3.0.0
+    Version: 2.0.0
     #>
     [CmdletBinding()]
     param (
         [Parameter(Mandatory)]
         [string] $TenantId,
+        [string] $UserPrincipalName,
         [Parameter(Mandatory)]
         [ValidateSet('Commercial', 'USGov', 'USGovDoD', 'China')]
         [string] $Cloud,
+        [string] $AccessToken,
 
         [bool]   $SearchOnly = $true,
 
         [switch] $Force,
         [switch] $Silent,
 
-        [string] $ClientId = 'fb78d390-0c51-40cd-8e17-fdbfab77341b'  # EXO/IPPS first-party app
+        [string] $ClientId = 'fb78d390-0c51-40cd-8e17-fdbfab77341b',  # EXO/IPPS first-party app
+
+        [string] $MsalCachePath = $Global:IRT_Config.MsalCachePath
     )
 
     begin {
@@ -653,72 +900,214 @@ function Connect-IRTIPPS {
         Import-IRTModule -Name $Imports
 
         $CloudConfig = $Global:IRT_Session.CloudConfig
+        $IPPSScope = ($SearchOnly ? $CloudConfig.IPPSSearchOnly : $CloudConfig.Exchange)
+        $Authority = "$($CloudConfig.LoginHost)/$TenantId"
+        $Scopes = [string[]]@($IPPSScope)
 
-        # IPPS connections show up in Get-ConnectionInformation alongside EXO.
-        # Distinguish by ConnectionUri matching the compliance endpoint - which differs
-        # per cloud (outlook.com commercial, office365.us for USGov/DoD), so match both.
-        $IppsUriPattern = 'compliance\.protection\.(outlook\.com|office365\.us)'
+        # Bare login host (no scheme) used to match cached MSAL accounts to this cloud.
+        $ExpectedLoginHost = $CloudConfig.LoginHost.Replace('https://', '')
+
+        $ExoClientId = $ClientId
+        $App = $null  # built lazily; not needed when -AccessToken provided
 
         Write-PSFMessage -Level 8 -Message (
             "Connect-IRTIPPS: TenantId=$TenantId, Cloud=$Cloud, " +
-            "SearchOnly=$SearchOnly, Force=$Force, Silent=$Silent")
+            "Authority=$Authority, SearchOnly=$SearchOnly, " +
+            "Force=$Force, Silent=$Silent")
     }
 
     process {
 
+        # ---------- Setup: scope, authority ----------
+
+        # Local helper - reads $App, $Scopes, $Silent, and $ExpectedLoginHost from the
+        # enclosing scope. Tries silent refresh first, then interactive auth.
+        function Get-IppsToken {
+            [OutputType('Microsoft.Identity.Client.AuthenticationResult')]
+            param()
+            $Cached = $App.GetAccountsAsync().GetAwaiter().GetResult()
+            Write-PSFMessage -Level 8 -Message "MSAL cached accounts: $($Cached.Count)"
+            # Select the account that belongs to the cloud we're connecting to. The shared
+            # persistent cache can hold accounts for several clouds; picking by environment
+            # keeps silent acquisition cloud-correct. MSAL handles expiry/refresh.
+            $Match = $Cached |
+                Where-Object { $_.Environment -eq $ExpectedLoginHost } |
+                Select-Object -First 1
+            if ($Match) {
+                try {
+                    Write-PSFMessage -Level 8 -Message (
+                        "Attempting silent IPPS token acquisition for: " +
+                        "$($Match.Username) (env: $($Match.Environment))")
+                    return $App.AcquireTokenSilent($Scopes, $Match).
+                    ExecuteAsync().GetAwaiter().GetResult()
+                } catch {
+                    Write-PSFMessage -Level 8 -Message "Silent IPPS token acquisition failed: $_"
+                }
+            } else {
+                Write-PSFMessage -Level 8 -Message (
+                    "No cached account matches expected environment " +
+                    "'$ExpectedLoginHost'; will authenticate interactively.")
+            }
+
+            if ($Silent) {
+                throw ('Silent IPPS token refresh failed and ' +
+                    'interactive auth is not allowed (-Silent).')
+            }
+
+            $Msg = 'A browser window has been opened for interactive sign-in. ' +
+            'Please complete authentication to continue.'
+            Write-IRT $Msg -Level Warn
+            try {
+                $Cts = [System.Threading.CancellationTokenSource]::new()
+                $Task = $App.AcquireTokenInteractive($Scopes).ExecuteAsync($Cts.Token)
+                try {
+                    while (-not $Task.IsCompleted) { Start-Sleep -Milliseconds 250 }
+                } finally {
+                    $Cts.Cancel()
+                    $Cts.Dispose()
+                }
+                $Result = $Task.GetAwaiter().GetResult()
+                Write-PSFMessage -Level 8 -Message (
+                    'Interactive IPPS token acquisition succeeded. ' +
+                    "Account: $($Result.Account.Username), " +
+                    "Expiry: $($Result.ExpiresOn)")
+                return $Result
+            } catch {
+                throw "Interactive token acquisition failed: $_"
+            }
+        }
+
         # ---------- Phase 1: token ----------
-        # Get-IRTAccessToken mints from the MSAL cache. Exchange and IPPS share a
-        # client ID, so after any Exchange auth this is always a silent audience
-        # swap - no prompt.
+        # Three sources, in priority order:
+        #   1. -AccessToken parameter (caller already has one - runspace reconnect)
+        #   2. cached session token (same tenant, same SearchOnly mode, not expired)
+        #   3. fresh acquisition (silent refresh inside the helper if possible -
+        #      reuses EXO's MSAL cache when present, swapping audience silently)
+        #
+        # The SearchOnly check on the cached path matters: a token issued for
+        # the search-only audience won't authenticate against the full audience
+        # and vice versa.
         #
         # Note: there is no Phase 1b cloud (aud) validation here as in Graph/Exchange.
         # The search-only audience (dataservice.o365filtering.com) is identical across
         # all clouds, so aud can't distinguish cloud. Cloud-correctness is enforced by
-        # the environment-filtered account selection in Get-IRTAccessToken instead.
+        # the environment-filtered account selection in Get-IppsToken instead.
 
-        $TokenParams = @{
-            Service    = 'IPPS'
-            SearchOnly = $SearchOnly
-            Silent     = $Silent
-            ClientId   = $ClientId
+        $NeedNewToken = $false
+
+        if ($AccessToken) {
+            Write-PSFMessage -Level 8 -Message "Using caller-supplied IPPS access token."
+            $Token = $AccessToken
+            $Upn = $UserPrincipalName
         }
-        $TokenResult = Get-IRTAccessToken @TokenParams
-        if (-not $TokenResult.AccessToken) {
-            throw 'Failed to acquire IPPS access token.'
+        elseif (
+            -not $Force -and
+            $Global:IRT_Session -and
+            $Global:IRT_Session.IPPS -and
+            $Global:IRT_Session.TenantId -eq $TenantId -and
+            $Global:IRT_Session.IPPS.SearchOnly -eq $SearchOnly -and
+            $Global:IRT_Session.IPPS.Token -and
+            -not (Test-TokenExpired -Token $Global:IRT_Session.IPPS.Token)
+        ) {
+            $Token = $Global:IRT_Session.IPPS.Token
+            $Upn = $Global:IRT_Session.IPPS.UserPrincipalName
+            $App = $Global:IRT_Session.IPPS.PublicClientApplication
+            Write-PSFMessage -Level 8 -Message (
+                "Using cached IPPS token from session (account: $Upn).")
         }
-        $Token = $TokenResult.AccessToken
-        $Upn = $TokenResult.Account.Username
-        Write-PSFMessage -Level 8 -Message "IPPS token acquired for account: $Upn"
+        else {
+            $null = Import-MsalAssembly
+
+            # Prefer EXO's MSAL app if available - same client ID = same token
+            # cache = silent audience swap with no prompt. Fall back to IPPS's
+            # cached app, then build a new one.
+            $AppClientId = $Global:IRT_Session.Exchange.PublicClientApplication?.AppConfig?.ClientId
+            $UseExoApp =
+            $Global:IRT_Session -and
+            $Global:IRT_Session.Exchange -and
+            $Global:IRT_Session.Exchange.PublicClientApplication -and
+            $Global:IRT_Session.TenantId -eq $TenantId -and
+            $AppClientId -eq $ClientId
+            $UseIppsApp =
+            $Global:IRT_Session -and
+            $Global:IRT_Session.IPPS -and
+            $Global:IRT_Session.IPPS.PublicClientApplication -and
+            $Global:IRT_Session.TenantId -eq $TenantId -and
+            $Global:IRT_Session.IPPS.PublicClientApplication.AppConfig.ClientId -eq $ClientId
+            $App = if ($UseExoApp) {
+                Write-PSFMessage -Level 8 -Message (
+                    'Reusing Exchange MSAL app for ' +
+                    'silent IPPS audience swap.')
+                $Global:IRT_Session.Exchange.PublicClientApplication
+            } elseif ($UseIppsApp) {
+                Write-PSFMessage -Level 8 -Message (
+                    "Reusing existing IPPS MSAL app " +
+                    "(ClientId: $ClientId).")
+                $Global:IRT_Session.IPPS.PublicClientApplication
+            } else {
+                Write-PSFMessage -Level 8 -Message (
+                    "Building new MSAL public client app " +
+                    "(ClientId: $ExoClientId, Authority: $Authority).")
+                $PcaBuilder = [Microsoft.Identity.Client.PublicClientApplicationBuilder]
+                $NewApp = $PcaBuilder::Create($ExoClientId).
+                WithAuthority($Authority).
+                WithRedirectUri('http://localhost').
+                Build()
+                if ($Global:IRT_Config.EnableTokenCache) {
+                    try {
+                        Register-MsalCache -App $NewApp -CachePath $MsalCachePath
+                        Write-PSFMessage -Level 8 -Message (
+                            "MSAL persistent token cache " +
+                            "registered at: $MsalCachePath")
+                    }
+                    catch { Write-IRT "Persistent token cache unavailable: $_" -Level Warn }
+                }
+                $NewApp
+            }
+
+            if (
+                -not $AccessToken -and
+                $Global:IRT_Session -and
+                $Global:IRT_Session.IPPS -and
+                $Global:IRT_Session.IPPS.Token
+            ) {
+                Write-IRT "Refreshing expired IPPS token for tenant $TenantId..." -Level Warn
+            }
+            Write-PSFMessage -Level 8 -Message (
+                'Acquiring IPPS token (silent from MSAL ' +
+                'cache, else interactive).')
+            $TokenResult = Get-IppsToken
+            if (-not $TokenResult.AccessToken) {
+                throw 'Failed to acquire IPPS access token.'
+            }
+            $Token = $TokenResult.AccessToken
+            $Upn = $TokenResult.Account.Username
+            $NeedNewToken = $true
+            Write-PSFMessage -Level 8 -Message "IPPS token acquired for account: $Upn"
+        }
 
         # ---------- Phase 2: Connect-IPPSSession ----------
-        # Connect if no existing IPPS connection for this tenant, the SearchOnly mode
-        # changed (a token issued for the search-only audience won't authenticate
-        # against the full audience and vice versa), the bound token is stale, MSAL
-        # handed us a newer token than the bound one, or -Force.
+        # IPPS connections show up in Get-ConnectionInformation alongside EXO.
+        # Distinguish by ConnectionUri matching the compliance endpoint - which differs
+        # per cloud (outlook.com commercial, office365.us for USGov/DoD), so match both.
 
         $ExistingConnection = Get-ConnectionInformation -ErrorAction SilentlyContinue |
             Where-Object {
                 $_.State -eq 'Connected' -and
                 $_.TenantID -eq $TenantId -and
-                $_.ConnectionUri -match $IppsUriPattern
+                $_.ConnectionUri -match 'compliance\.protection\.(outlook\.com|office365\.us)'
             }
 
-        $BoundTokenExpiry = $Global:IRT_Session.IPPS?.BoundTokenExpiry ??
-        [datetime]::MinValue
-        $NeedConnect = $Force -or
-        (-not $ExistingConnection) -or
-        ($Global:IRT_Session.IPPS?.SearchOnly -ne $SearchOnly) -or
-        ($BoundTokenExpiry -lt [datetime]::UtcNow.AddMinutes(5)) -or
-        ($TokenResult.ExpiresOn.UtcDateTime -gt $BoundTokenExpiry)
-
-        Write-PSFMessage -Level 8 -Message "NeedConnect: $NeedConnect"
+        $NeedConnect = $Force -or -not $ExistingConnection
+        Write-PSFMessage -Level 8 -Message "NeedNewToken: $NeedNewToken | NeedConnect: $NeedConnect"
 
         if ($NeedConnect) {
-            # Connect the new session first, then disconnect the old one by
-            # ConnectionId - this avoids a no-connection window and never touches
-            # the Exchange connection.
-            $PreIds = @(Get-ConnectionInformation -ErrorAction SilentlyContinue).ConnectionId
-
+            if ($ExistingConnection) {
+                Write-PSFMessage -Level 8 -Message (
+                    'Disconnecting existing IPPS ' +
+                    'connection before reconnect.')
+                Disconnect-ExchangeOnline -Confirm:$false -ErrorAction SilentlyContinue
+            }
             $Params = @{
                 AccessToken       = $Token
                 UserPrincipalName = $Upn
@@ -734,219 +1123,27 @@ function Connect-IRTIPPS {
                 "SearchOnly: $SearchOnly).")
             Connect-IPPSSession @Params
             Write-PSFMessage -Level 8 -Message "Connect-IPPSSession completed."
+        }
 
-            $NewConnection = Get-ConnectionInformation -ErrorAction SilentlyContinue |
-                Where-Object {
-                    $_.State -eq 'Connected' -and
-                    $_.ConnectionUri -match $IppsUriPattern -and
-                    $_.ConnectionId -notin $PreIds
-                } | Select-Object -First 1
-            $ConnectionId = $NewConnection.ConnectionId
-
-            # Scoped cleanup of the connection we replaced.
-            $OldId = $Global:IRT_Session.IPPS?.ConnectionId
-            if (-not $OldId -and $ExistingConnection) {
-                $OldId = ($ExistingConnection | Select-Object -First 1).ConnectionId
-            }
-            if ($OldId -and $OldId -ne $ConnectionId -and $OldId -in $PreIds) {
-                Write-PSFMessage -Level 8 -Message (
-                    "Disconnecting replaced IPPS connection: $OldId")
-                $DcParams = @{
-                    ConnectionId = $OldId
-                    Confirm      = $false
-                    ErrorAction  = 'SilentlyContinue'
-                }
-                Disconnect-ExchangeOnline @DcParams
-            }
-        } else {
-            $ConnectionId = ($ExistingConnection | Select-Object -First 1).ConnectionId
+        if (-not $NeedNewToken -and -not $NeedConnect) {
             Write-IRT "Already connected to IPPS for tenant $TenantId." -Level Warn
         }
 
         $Result = [pscustomobject]@{
-            UserPrincipalName = $Upn
-            BoundTokenExpiry  = $TokenResult.ExpiresOn.UtcDateTime
-            ConnectionId      = $ConnectionId
-            SearchOnly        = [bool]$SearchOnly
-            TenantId          = $TenantId
+            Token                   = $Token
+            TokenExpiry             = Get-TokenExpiry -Token $Token
+            UserPrincipalName       = $Upn
+            TenantId                = $TenantId
+            PublicClientApplication = $App
+            SearchOnly              = [bool]$SearchOnly
         }
         Write-PSFMessage -Level 8 -Message (
             "Connect-IRTIPPS complete. Account: $Upn, " +
-            "BoundTokenExpiry: $($Result.BoundTokenExpiry)")
+            "TokenExpiry: $($Result.TokenExpiry)")
         return $Result
     }
 }
-#EndRegion '.\Private\Connect\Connect-IRTIPPS.ps1' 205
-#Region '.\Private\Connect\Get-IRTGraphDefaultScope.ps1' -1
-
-function Get-IRTGraphDefaultScope {
-    <#
-    .SYNOPSIS
-    Returns the default Microsoft Graph delegated scopes requested for incident response.
-
-    .DESCRIPTION
-    Internal helper. Single source of truth for the default Graph scope set used by
-    Get-IRTAccessToken and Connect-IRTGraph. Returns plain scope names (no resource
-    URL prefix); callers prefix with the cloud-specific Graph base URL when building
-    MSAL scope strings.
-
-    .EXAMPLE
-    Get-IRTGraphDefaultScope
-
-    .OUTPUTS
-    [string[]] - the default Graph scope names.
-
-    .NOTES
-    Version: 1.0.0
-    #>
-    [OutputType([string[]])]
-    [CmdletBinding()]
-    [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
-        'PSUseSingularNouns', '',
-        Justification = 'Returns a scope list; singular noun reads as the scope set.')]
-    param()
-
-    Import-IRTModule -Name 'PSFramework'
-
-    Write-PSFMessage -Level 9 -Message 'Get-IRTGraphDefaultScope: returning default scope set.'
-
-    return [string[]]@(
-        'Application.ReadWrite.All'
-        'AuditLog.Read.All'
-        'AuditLogsQuery.Read.All'
-        'BitLockerKey.Read.All'
-        'CrossTenantInformation.ReadBasic.All'
-        'DelegatedPermissionGrant.ReadWrite.All'
-        'Device.ReadWrite.All'
-        'DeviceLocalCredential.Read.All'
-        'DeviceManagementApps.ReadWrite.All'
-        'DeviceManagementConfiguration.ReadWrite.All'
-        'DeviceManagementManagedDevices.ReadWrite.All'
-        'DeviceManagementServiceConfig.ReadWrite.All'
-        'Directory.AccessAsUser.All'
-        'Directory.ReadWrite.All'
-        'Domain.Read.All'
-        'Group.ReadWrite.All'
-        'GroupMember.ReadWrite.All'
-        'IdentityRiskEvent.ReadWrite.All'
-        'IdentityRiskyServicePrincipal.ReadWrite.All'
-        'IdentityRiskyUser.ReadWrite.All'
-        'Mail.ReadBasic.Shared'
-        'Organization.Read.All'
-        'Policy.Read.All'
-        'Policy.Read.ConditionalAccess'
-        'Policy.ReadWrite.Authorization'
-        'RoleManagement.ReadWrite.Directory'
-        'SecurityEvents.ReadWrite.All'
-        'SecurityIncident.ReadWrite.All'
-        'User-Mail.ReadWrite.All'
-        'User-PasswordProfile.ReadWrite.All'
-        'User-Phone.ReadWrite.All'
-        'User.EnableDisableAccount.All'
-        'User.ManageIdentities.All'
-        'User.ReadWrite.All'
-        'User.RevokeSessions.All'
-        'UserAuthenticationMethod.ReadWrite'
-        'UserAuthenticationMethod.ReadWrite.All'
-        'UserAuthMethod-Passkey.ReadWrite.All'
-    )
-}
-#EndRegion '.\Private\Connect\Get-IRTGraphDefaultScope.ps1' 73
-#Region '.\Private\Connect\Get-IRTPublicClient.ps1' -1
-
-function Get-IRTPublicClient {
-    <#
-    .SYNOPSIS
-    Returns the session's MSAL public client app for a client ID, building it if needed.
-
-    .DESCRIPTION
-    Internal helper. Maintains one PublicClientApplication per client ID in
-    $Global:IRT_Session.Apps, so every service that shares a client ID (Exchange
-    and IPPS share the EXO first-party app) deterministically shares one token
-    cache. Apps are built with the session's cloud authority and, when
-    EnableTokenCache is set, the persistent on-disk cache is registered at build
-    time - exactly once per client ID per session.
-
-    Cache registration failures are surfaced loudly (error-level) because the
-    operator consequence is concrete: every new PowerShell session will require
-    full interactive re-authentication.
-
-    .PARAMETER ClientId
-    The application (client) ID to return an MSAL app for.
-
-    .PARAMETER MsalCachePath
-    Override the path for the persistent MSAL token cache file. Defaults to
-    $Global:IRT_Config.MsalCachePath. Useful for testing with an isolated cache.
-
-    .EXAMPLE
-    Get-IRTPublicClient -ClientId 'fb78d390-0c51-40cd-8e17-fdbfab77341b'
-
-    .OUTPUTS
-    Microsoft.Identity.Client.IPublicClientApplication
-
-    .NOTES
-    Version: 1.0.0
-    #>
-    [OutputType('Microsoft.Identity.Client.IPublicClientApplication')]
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)]
-        [string] $ClientId,
-
-        [string] $MsalCachePath = $Global:IRT_Config.MsalCachePath
-    )
-
-    Import-IRTModule -Name 'Microsoft.Graph.Authentication', 'PSFramework'
-
-    if (-not $Global:IRT_Session -or
-        -not $Global:IRT_Session.TenantId -or
-        -not $Global:IRT_Session.CloudConfig) {
-        throw 'No active IRT session. Run Connect-IRT first.'
-    }
-    if ($null -eq $Global:IRT_Session.Apps) {
-        throw 'IRT session has no Apps store. Run Connect-IRT to initialize the session.'
-    }
-
-    $Existing = $Global:IRT_Session.Apps[$ClientId]
-    if ($Existing) {
-        Write-PSFMessage -Level 8 -Message (
-            "Get-IRTPublicClient: Reusing MSAL app for ClientId $ClientId.")
-        return $Existing
-    }
-
-    $null = Import-MsalAssembly
-
-    $TenantId = $Global:IRT_Session.TenantId
-    $Authority = "$($Global:IRT_Session.CloudConfig.LoginHost)/$TenantId"
-    Write-PSFMessage -Level 8 -Message (
-        "Get-IRTPublicClient: Building new MSAL public client app " +
-        "(ClientId: $ClientId, Authority: $Authority).")
-
-    $PcaBuilder = [Microsoft.Identity.Client.PublicClientApplicationBuilder]
-    $NewApp = $PcaBuilder::Create($ClientId).
-    WithAuthority($Authority).
-    WithRedirectUri('http://localhost').
-    Build()
-
-    if ($Global:IRT_Config.EnableTokenCache) {
-        try {
-            Register-MsalCache -App $NewApp -CachePath $MsalCachePath
-            Write-PSFMessage -Level 8 -Message (
-                "Get-IRTPublicClient: Persistent token cache " +
-                "registered at: $MsalCachePath")
-        } catch {
-            Write-IRT ("Persistent token cache could NOT be attached for client " +
-                "${ClientId}: $_") -Level Error
-            Write-IRT ('You WILL be prompted to sign in again in every new PowerShell ' +
-                "session. Check write access to '$MsalCachePath', or set " +
-                'EnableTokenCache to false in config.json to silence this error.') -Level Error
-        }
-    }
-
-    $Global:IRT_Session.Apps[$ClientId] = $NewApp
-    return $NewApp
-}
-#EndRegion '.\Private\Connect\Get-IRTPublicClient.ps1' 93
+#EndRegion '.\Private\Connect\Connect-IRTIPPS.ps1' 309
 #Region '.\Private\Connect\Get-TokenExpiry.ps1' -1
 
 function Get-TokenExpiry {
@@ -1095,38 +1292,37 @@ function Import-MsalAssembly {
         Where-Object { $_.FullName -like 'Microsoft.Identity.Client,*' }
 }
 #EndRegion '.\Private\Connect\Import-MsalAssembly.ps1' 57
-#Region '.\Private\Connect\Import-MsalExtensionAssembly.ps1' -1
+#Region '.\Private\Connect\Install-MsalExtensions.ps1' -1
 
-function Import-MsalExtensionAssembly {
+function Install-MsalExtensions {
     <#
     .SYNOPSIS
     Ensures the Microsoft.Identity.Client.Extensions.Msal assembly is loaded.
 
     .DESCRIPTION
     Internal helper. If the assembly is not already loaded into the AppDomain,
-    loads the copy bundled with the module under Data\ via Add-Type. Throws if
-    the bundled DLL is missing, or if the loaded MSAL version is older than the
-    bundled Extensions.Msal requires.
-
-    The DLL is committed to the repo and restored by Build\PreBuild.ps1 if it
-    goes missing, so there is no runtime download.
-
-    .EXAMPLE
-    Import-MsalExtensionAssembly
+    downloads the pinned .nupkg from nuget.org into the user's local app data
+    folder (one-time), extracts the netstandard2.0 DLL, and loads it via
+    Add-Type. Throws if the download or extraction fails, or if the loaded
+    MSAL version is older than the pinned Extensions.Msal requires.
 
     .OUTPUTS
     [string] - the path to the loaded Extensions DLL.
 
     .NOTES
-    Version: 2.0.0
+    Version: 1.0.0
     #>
     [OutputType([string])]
     [CmdletBinding()]
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+        'PSUseSingularNouns', '',
+        Justification = 'Internal helper; plural name reflects MSAL extensions assembly.')]
     param()
 
     Import-IRTModule -Name 'PSFramework'
 
-    # Bundled version. Bump when Graph SDK's bundled MSAL outpaces this.
+    # Pinned version. Bump when Graph SDK's bundled MSAL outpaces this.
+    $Version = '4.66.2'
     $MsalFloor = [version]'4.61.3'  # Extensions.Msal 4.66.x minimum MSAL
 
     # Already loaded?
@@ -1134,7 +1330,7 @@ function Import-MsalExtensionAssembly {
         Where-Object { $_.GetName().Name -eq 'Microsoft.Identity.Client.Extensions.Msal' }
     if ($Loaded) {
         Write-PSFMessage -Level 8 -Message (
-            "Import-MsalExtensionAssembly: Already loaded from $($Loaded.Location)")
+            "Install-MsalExtensions: Already loaded from $($Loaded.Location)")
         return $Loaded.Location
     }
 
@@ -1144,36 +1340,84 @@ function Import-MsalExtensionAssembly {
         Select-Object -First 1
     if (-not $Msal) {
         throw 'Microsoft.Identity.Client is not loaded. ' +
-        'Call Import-MsalAssembly before calling Import-MsalExtensionAssembly.'
+        'Import a connect function (which loads MSAL) before calling Install-MsalExtensions.'
     }
     $MsalVersion = [version]$Msal.GetName().Version
     Write-PSFMessage -Level 8 -Message (
-        "Import-MsalExtensionAssembly: Loaded MSAL version: $MsalVersion (floor: $MsalFloor)")
+        "Install-MsalExtensions: Loaded MSAL version: $MsalVersion (floor: $MsalFloor)")
     if ($MsalVersion -lt $MsalFloor) {
-        throw ("Loaded MSAL version $MsalVersion is older than the bundled Extensions.Msal " +
-            "requires ($MsalFloor). Update Microsoft.Graph.Authentication.")
+        throw ("Loaded MSAL version $MsalVersion is older than Extensions.Msal $Version requires " +
+            "($MsalFloor). Update Microsoft.Graph.Authentication.")
     }
 
-    # Resolve the bundled DLL relative to the module root. Works in both source
-    # mode (Source\Data\) and built mode (module root Data\).
-    $ModuleRoot = $MyInvocation.MyCommand.Module.ModuleBase
-    $DllPathParams = @{
-        Path                = $ModuleRoot
-        ChildPath           = 'Data'
-        AdditionalChildPath = 'Microsoft.Identity.Client.Extensions.Msal.dll'
+    # Target path.
+    $JpParams = @{
+        Path                = $env:LOCALAPPDATA
+        ChildPath           = 'M365IncidentResponseTools'
+        AdditionalChildPath = @('msal-extensions', $Version,
+            'Microsoft.Identity.Client.Extensions.Msal.dll')
     }
-    $DllPath = Join-Path @DllPathParams
+    $DllPath = Join-Path @JpParams
+    $DllDir = Split-Path $DllPath -Parent
 
-    Write-PSFMessage -Level 8 -Message "Import-MsalExtensionAssembly: DLL path: $DllPath"
-    if (-not (Test-Path -LiteralPath $DllPath)) {
-        throw ("Bundled MSAL extensions assembly not found at: $DllPath. " +
-            'The module build is incomplete - re-install the module or run Build.ps1.')
+    Write-PSFMessage -Level 8 -Message "Install-MsalExtensions: DLL target: $DllPath"
+    if (-not (Test-Path $DllPath)) {
+        if (-not (Test-Path $DllDir)) {
+            $null = New-Item -ItemType Directory -Path $DllDir -Force
+        }
+
+        # Download .nupkg from NuGet v3 flat container. The nupkg is just a ZIP.
+        $LowerId = 'microsoft.identity.client.extensions.msal'
+        $NupkgUrl = "https://api.nuget.org/v3-flatcontainer/$LowerId/$Version/" +
+        "$LowerId.$Version.nupkg"
+        Write-PSFMessage -Level 8 -Message "Install-MsalExtensions: Downloading from $NupkgUrl"
+        $TempDir = [System.IO.Path]::GetTempPath()
+        $TempNupkg = Join-Path -Path $TempDir -ChildPath "$LowerId.$Version.nupkg"
+        $ExtractDir = Join-Path -Path $TempDir -ChildPath "$LowerId.$Version"
+
+        Write-IRT "Downloading Microsoft.Identity.Client.Extensions.Msal $Version from nuget.org..."
+
+        try {
+            $IwrParams = @{
+                Uri             = $NupkgUrl
+                OutFile         = $TempNupkg
+                UseBasicParsing = $true
+                ErrorAction     = 'Stop'
+            }
+            Invoke-WebRequest @IwrParams
+
+            if (Test-Path $ExtractDir) {
+                Remove-Item -Path $ExtractDir -Recurse -Force -ErrorAction SilentlyContinue
+            }
+            Expand-Archive -Path $TempNupkg -DestinationPath $ExtractDir -Force
+
+            $SourceJp = @{
+                Path                = $ExtractDir
+                ChildPath           = 'lib'
+                AdditionalChildPath = @('netstandard2.0',
+                    'Microsoft.Identity.Client.Extensions.Msal.dll')
+            }
+            $SourceDll = Join-Path @SourceJp
+            if (-not (Test-Path $SourceDll)) {
+                throw "Expected DLL not found in extracted nupkg: $SourceDll"
+            }
+            Copy-Item -Path $SourceDll -Destination $DllPath -Force
+        }
+        finally {
+            if (Test-Path $TempNupkg) {
+                Remove-Item -Path $TempNupkg -Force -ErrorAction SilentlyContinue
+            }
+            if (Test-Path $ExtractDir) {
+                Remove-Item -Path $ExtractDir -Recurse -Force -ErrorAction SilentlyContinue
+            }
+        }
     }
 
+    Write-PSFMessage -Level 8 -Message "Install-MsalExtensions: Loading assembly from $DllPath"
     Add-Type -Path $DllPath
     return $DllPath
 }
-#EndRegion '.\Private\Connect\Import-MsalExtensionAssembly.ps1' 77
+#EndRegion '.\Private\Connect\Install-MsalExtensions.ps1' 124
 #Region '.\Private\Connect\Invoke-AdminConsent.ps1' -1
 
 function Invoke-AdminConsent {
@@ -1310,8 +1554,8 @@ function Register-MsalCache {
     Attaches the IRT persistent token cache to an MSAL PublicClientApplication.
 
     .DESCRIPTION
-    Internal helper. Loads the bundled Microsoft.Identity.Client.Extensions.Msal
-    assembly, then registers a DPAPI-encrypted on-disk cache against the
+    Internal helper. Loads Microsoft.Identity.Client.Extensions.Msal (downloading
+    it on first use), then registers a DPAPI-encrypted on-disk cache against the
     supplied app's UserTokenCache. After registration, MSAL automatically
     persists refresh tokens between PowerShell sessions, so subsequent
     AcquireTokenSilent calls succeed without an interactive prompt for the life
@@ -1333,9 +1577,8 @@ function Register-MsalCache {
     Register-MsalCache -App $App -CachePath 'C:\Temp\test-msal.bin'
 
     .NOTES
-    Version: 2.0.0
-    Windows-only. On non-Windows platforms the function throws so the caller
-    can surface the failure loudly.
+    Version: 1.1.0
+    Windows-only. On non-Windows platforms the function returns silently.
     #>
     [CmdletBinding()]
     param(
@@ -1350,10 +1593,11 @@ function Register-MsalCache {
     Write-PSFMessage -Level 8 -Message "Register-MsalCache: CachePath=$CachePath"
 
     if (-not $IsWindows -and $PSVersionTable.PSVersion.Major -ge 6) {
-        throw 'Persistent MSAL cache is currently Windows-only.'
+        Write-IRT 'Persistent MSAL cache is currently Windows-only.' -Level Warn
+        return
     }
 
-    $null = Import-MsalExtensionAssembly
+    $null = Install-MsalExtensions
 
     $CacheDir = Split-Path $CachePath -Parent
     $CacheFile = Split-Path $CachePath -Leaf
@@ -1384,113 +1628,6 @@ function Register-MsalCache {
     $Helper.RegisterCache($App.UserTokenCache)
 }
 #EndRegion '.\Private\Connect\Register-MsalCache.ps1' 80
-#Region '.\Private\Connect\Select-IRTMsalAccount.ps1' -1
-
-function Select-IRTMsalAccount {
-    <#
-    .SYNOPSIS
-    Orders cached MSAL accounts by how likely they are to work for a target tenant.
-
-    .DESCRIPTION
-    Internal helper. The shared persistent MSAL cache accumulates one account per
-    customer tenant (plus any guest/B2B accounts), all in the same cloud
-    environment. Picking an arbitrary account makes AcquireTokenSilent fail and
-    falls through to a spurious interactive prompt, so callers instead try every
-    candidate this function returns, in order, before going interactive.
-
-    Ordering, after filtering to the expected cloud environment:
-      1. The sticky account - the one that last succeeded for this client ID in
-         this session.
-      2. Accounts homed in the target tenant (HomeAccountId.TenantId match) -
-         the per-customer-tenant admin account fast path.
-      3. Remaining accounts in the same environment (guest/B2B operators homed
-         in a different tenant).
-
-    Pure function: no MSAL calls, no global state. Returns an empty array when
-    nothing matches the environment.
-
-    .PARAMETER Account
-    The cached accounts to order (from IPublicClientApplication.GetAccountsAsync).
-
-    .PARAMETER TenantId
-    The target tenant GUID.
-
-    .PARAMETER ExpectedLoginHost
-    The bare login host for the target cloud (e.g. login.microsoftonline.com).
-    Accounts from other clouds are excluded.
-
-    .PARAMETER StickyAccountId
-    Optional HomeAccountId.Identifier of the account that last succeeded for this
-    client ID. Ordered first when present.
-
-    .EXAMPLE
-    Select-IRTMsalAccount -Account $Cached -TenantId $Tid -ExpectedLoginHost $Host
-
-    .OUTPUTS
-    [object[]] - ordered IAccount candidates (possibly empty).
-
-    .NOTES
-    Version: 1.0.0
-    #>
-    [OutputType([object[]])]
-    [CmdletBinding()]
-    param(
-        [AllowEmptyCollection()]
-        [AllowNull()]
-        [object[]] $Account,
-
-        [Parameter(Mandatory)]
-        [string] $TenantId,
-
-        [Parameter(Mandatory)]
-        [string] $ExpectedLoginHost,
-
-        [string] $StickyAccountId
-    )
-
-    Import-IRTModule -Name 'PSFramework'
-
-    $EnvMatch = @($Account | Where-Object { $_.Environment -eq $ExpectedLoginHost })
-    Write-PSFMessage -Level 8 -Message (
-        "Select-IRTMsalAccount: $(@($Account).Count) cached account(s), " +
-        "$($EnvMatch.Count) match environment '$ExpectedLoginHost'.")
-
-    $Sticky = @()
-    if ($StickyAccountId) {
-        $Sticky = @($EnvMatch |
-                Where-Object { $_.HomeAccountId.Identifier -eq $StickyAccountId })
-    }
-
-    $HomeTenant = @($EnvMatch |
-            Where-Object {
-                $_.HomeAccountId.TenantId -eq $TenantId -and
-                $_.HomeAccountId.Identifier -notin $Sticky.HomeAccountId.Identifier
-            } |
-            Sort-Object -Property Username)
-
-    $Picked = @($Sticky.HomeAccountId.Identifier) + @($HomeTenant.HomeAccountId.Identifier)
-    $Rest = @($EnvMatch |
-            Where-Object { $_.HomeAccountId.Identifier -notin $Picked } |
-            Sort-Object -Property Username)
-
-    $Ordered = @($Sticky) + @($HomeTenant) + @($Rest)
-
-    $Summary = foreach ($Acct in $Ordered) {
-        $Tier = if ($Acct.HomeAccountId.Identifier -in $Sticky.HomeAccountId.Identifier) {
-            'sticky'
-        } elseif ($Acct.HomeAccountId.TenantId -eq $TenantId) {
-            'home-tenant'
-        } else {
-            'other'
-        }
-        "$($Acct.Username) [$Tier]"
-    }
-    Write-PSFMessage -Level 8 -Message (
-        "Select-IRTMsalAccount: candidate order: $($Summary -join ', ')")
-
-    return $Ordered
-}
-#EndRegion '.\Private\Connect\Select-IRTMsalAccount.ps1' 105
 #Region '.\Private\Connect\Test-GraphAdminConsent.ps1' -1
 
 function Test-GraphAdminConsent {
@@ -3206,6 +3343,18 @@ function Resolve-DateRange {
             $EndDate = $Temp
         }
 
+        # reject a zero-length range (e.g. identical -Start and -End)
+        if ($StartUtc -ge $EndUtc) {
+            $SameTime = $StartUtc.ToLocalTime().ToString('M/d/yy h:mmtt')
+            $ErrorParams = @{
+                Category    = 'InvalidArgument'
+                Message     = "-Start and -End resolve to the same time (${SameTime})." +
+                ' Specify a range with a non-zero duration.'
+                ErrorAction = 'Stop'
+            }
+            Write-Error @ErrorParams
+        }
+
         # calculate days from absolute range
         $Days = [Int]([Math]::Ceiling(($EndDate - $StartDate).TotalDays))
     }
@@ -3229,7 +3378,7 @@ function Resolve-DateRange {
         EndString   = $EndUtc.ToString('yyyy-MM-ddTHH:mm:ssZ')
     }
 }
-#EndRegion '.\Private\Graph\Resolve-DateRange.ps1' 124
+#EndRegion '.\Private\Graph\Resolve-DateRange.ps1' 136
 #Region '.\Private\Lib\Build-Menu.ps1' -1
 
 function Build-Menu {
@@ -4636,6 +4785,243 @@ function Set-TerminalTitle {
     }
 }
 #EndRegion '.\Private\Lib\Set-TerminalTitle.ps1' 44
+#Region '.\Private\Lib\Test-PythonPackage.ps1' -1
+
+function Test-PythonPackage {
+    <#
+    .SYNOPSIS
+    Tests whether a python package is available via python import or uv tool install.
+
+    .PARAMETER Name
+    The python module name to import (e.g., 'requests' or 'pandas').
+
+    .PARAMETER MinVersion
+    Optional minimum version requirement (nuget-style: 1.2.3).
+
+    .PARAMETER PythonPath
+    Optional explicit path to python interpreter. if omitted, tries python, python3, then py -3.
+
+    .OUTPUTS
+    [pscustomobject] with Present (bool), Source (string), Version (string),
+    Python (string path/command)
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory, Position = 0)]
+        [string] $Name,
+
+        [Parameter()]
+        [string] $MinVersion,
+
+        [Parameter()]
+        [string] $PythonPath
+    )
+
+    begin {
+
+        function Find-PythonInterpreter {
+            param(
+                [string]$ExplicitPath
+            )
+
+            # if explicit path provided and exists, use it
+            if ($ExplicitPath -and (Test-Path -LiteralPath $ExplicitPath)) {
+                return @{ Cmd = $ExplicitPath; PrefixArgs = @() }
+            }
+
+            # prefer 'python', then 'python3', then 'py -3' on windows
+            $Candidates = @(
+                @{
+                    Cmd = (Get-Command -Name 'python' -ErrorAction Ignore)?.Source
+                    PrefixArgs = @()
+                }
+                @{
+                    Cmd = (Get-Command -Name 'python3' -ErrorAction Ignore)?.Source
+                    PrefixArgs = @()
+                }
+                @{
+                    Cmd = (Get-Command -Name 'py' -ErrorAction Ignore)?.Source
+                    PrefixArgs = @('-3')
+                }
+            ) | Where-Object { $_.Cmd }
+
+            if (($Candidates | Measure-Object).Count -gt 0) { return $Candidates[0] }
+
+            return $null
+        }
+
+        function Find-UvTool {
+            param([string]$ToolName)
+
+            $uvCmd = Get-Command -Name 'uv' -ErrorAction Ignore
+            if (-not $uvCmd) { return $null }
+
+            # normalize per PEP 503: lowercase, collapse runs of [-_.] to a single hyphen
+            $normalizedName = ($ToolName -replace '[_.\-]+', '-').ToLower()
+
+            try {
+                # Detection probe: a non-zero exit just means "not installed",
+                # so the captured stderr is intentionally discarded (silent probe).
+                $ListArgs = @('tool', 'list', '--no-color')
+                $ListResult = Invoke-IRTNativeCommand -FilePath $uvCmd.Source -Arguments $ListArgs
+                if ($ListResult.ExitCode -ne 0) { return $null }
+                $listOutput = $ListResult.StdOut
+
+                $version = $null
+                $distName = $null
+                foreach ($line in $listOutput) {
+                    if ($line -match '^(\S+)\s+v(.+)$') {
+                        $candidate = ($Matches[1] -replace '[_.\-]+', '-').ToLower()
+                        if ($candidate -eq $normalizedName) {
+                            $distName = $Matches[1]
+                            $version = $Matches[2].Trim()
+                            break
+                        }
+                    }
+                }
+
+                if (-not $version) { return $null }
+
+                # locate the venv python inside the tool environment
+                $DirArgs = @('tool', 'dir')
+                $DirResult = Invoke-IRTNativeCommand -FilePath $uvCmd.Source -Arguments $DirArgs
+                $toolDir = @($DirResult.StdOut) |
+                    Where-Object { $_.Trim() } | Select-Object -First 1
+                if ($DirResult.ExitCode -ne 0 -or -not $toolDir) {
+                    return @{ Version = $version; Python = $null }
+                }
+                $toolDir = $toolDir.Trim()
+
+                # try likely directory names for the tool's venv
+                $dirCandidates = @($distName, $ToolName, $normalizedName) | Select-Object -Unique
+
+                $pythonPath = $null
+                foreach ($dir in $dirCandidates) {
+                    $JpParams = @{
+                        Path      = $toolDir
+                        ChildPath = $dir
+                    }
+                    $testPath = if ($IsWindows -or $env:OS -match 'Windows') {
+                        Join-Path @JpParams -AdditionalChildPath 'Scripts', 'python.exe'
+                    } else {
+                        Join-Path @JpParams -AdditionalChildPath 'bin', 'python'
+                    }
+                    if (Test-Path -LiteralPath $testPath) {
+                        $pythonPath = $testPath
+                        break
+                    }
+                }
+
+                return @{ Version = $version; Python = $pythonPath }
+            } catch {
+                return $null
+            }
+        }
+
+        # python snippet: try import, then try to resolve a version
+        # - prefers importlib.metadata (py>=3.8) using the package (distribution)
+        #   name equal to module name
+        # - falls back to module.__version__ if metadata not found
+        $PyCode = @"
+import sys, importlib
+name=sys.argv[1]
+try:
+    m = importlib.import_module(name)
+    ver = ""
+    try:
+        try:
+            from importlib.metadata import version, PackageNotFoundError
+        except Exception:
+            from importlib_metadata import version, PackageNotFoundError  # backport if installed
+        try:
+            ver = version(name)
+        except PackageNotFoundError:
+            ver = getattr(m, "__version__", "") or ""
+    except Exception:
+        ver = getattr(m, "__Version__", "") or ""
+    print(ver)
+    sys.exit(0)
+except Exception:
+    sys.exit(1)
+"@.Trim()
+    }
+
+    process {
+
+        # === python import check ===
+        $Py = Find-PythonInterpreter -ExplicitPath $PythonPath
+        $PyPresent = $false
+        $PyVersion = $null
+        $PyCmd = $null
+
+        if ($Py) {
+            $Arguments = @()
+            if ($Py.PrefixArgs) { $Arguments += $Py.PrefixArgs }
+            $Arguments += @('-c', $PyCode, $Name)
+
+            $PyResult = Invoke-IRTNativeCommand -FilePath $Py.Cmd -Arguments $Arguments
+            $Exit = $PyResult.ExitCode
+
+            $PyPresent = ($Exit -eq 0)
+            if ($PyPresent) {
+                $PyVersion = @($PyResult.StdOut)[0]
+                if ($null -ne $PyVersion) { $PyVersion = $PyVersion.Trim() }
+            } else {
+                # Silent probe: a failed import just means "not installed".
+                $PyVersion = $null
+            }
+            $PrefixStr = if ($Py.PrefixArgs.Count) { ' ' + ($Py.PrefixArgs -join ' ') } else { '' }
+            $PyCmd = $Py.Cmd + $PrefixStr
+        }
+
+        # === uv tool check ===
+        $UvTool = Find-UvTool -ToolName $Name
+        $UvPresent = $null -ne $UvTool
+        $UvVersion = if ($UvPresent) { $UvTool.Version } else { $null }
+        $UvPython = if ($UvPresent) { $UvTool.Python } else { $null }
+
+        # overall result
+        $Present = $PyPresent -or $UvPresent
+
+        $Source = if ($PyPresent -and $UvPresent) { 'both' }
+        elseif ($PyPresent) { 'python' }
+        elseif ($UvPresent) { 'uv-tool' }
+        else { $null }
+
+        # effective version (prefer python import, fall back to uv tool)
+        $Version = if ($PyVersion) { $PyVersion } elseif ($UvVersion) { $UvVersion } else { $null }
+
+        # effective python interpreter
+        # if found via import, use that interpreter; if only via uv tool, use the venv python
+        $Python = if ($PyPresent) { $PyCmd }
+        elseif ($UvPython) { $UvPython }
+        elseif ($PyCmd) { $PyCmd }
+        else { $null }
+
+        # optional min version check
+        $MeetsMin = $true
+        if ($Present -and $MinVersion -and $Version) {
+            try {
+                # attempt semantic comparison; if parse fails, treat as not comparable
+                $vA = [Version]($Version -replace '[^0-9\.].*$', '')
+                $vB = [Version]($MinVersion -replace '[^0-9\.].*$', '')
+                $MeetsMin = ($vA -ge $vB)
+            } catch {
+                $MeetsMin = $false
+            }
+        }
+
+        Write-Output ([pscustomobject]@{
+                Present         = $Present
+                Source          = $Source
+                Version         = $Version
+                MeetsMinVersion = if ($MinVersion) { $MeetsMin } else { $null }
+                Name            = $Name
+                Python          = $Python
+            })
+    }
+}
+#EndRegion '.\Private\Lib\Test-PythonPackage.ps1' 235
 #Region '.\Private\MessageTrace\Build-TraceContinuation.ps1' -1
 
 function Build-TraceContinuation {
@@ -7605,7 +7991,7 @@ function Add-IpInfoToSheet {
     Add-IpInfoToSheet -Worksheet $Worksheet -ColumnName 'FromIP', 'ToIP'
 
     .NOTES
-    Version: 1.0.0
+    Version: 1.1.0
     #>
     [CmdletBinding()]
     param (
@@ -7658,22 +8044,43 @@ function Add-IpInfoToSheet {
     $IpInfoTable = $Global:IRT_IpInfo
     $UnseenIps = @($AllIps | Where-Object { -not $IpInfoTable.ContainsKey($_) })
     if ($UnseenIps.Count -gt 0) {
-        $env:PYTHONUTF8 = '1'
-        $RawOutput = @(& ip_info --apis bulk --output_format jsontable --ip_addresses $UnseenIps)
-        if ($LASTEXITCODE -ne 0) {
-            Write-IRT "ip_info query failed (exit $LASTEXITCODE)." -Level Error
-            return
-        }
-        $JsonStart = -1
-        for ($i = 0; $i -lt $RawOutput.Length; $i++) {
-            if ($RawOutput[$i] -match '^\{') { $JsonStart = $i; break }
-        }
-        if ($JsonStart -ge 0) {
-            $JsonText = ($RawOutput[$JsonStart..($RawOutput.Length - 1)]) -join "`n"
-            $JsonData = $JsonText | ConvertFrom-Json -ErrorAction SilentlyContinue
-            if ($JsonData) {
-                foreach ($Prop in $JsonData.PSObject.Properties) {
-                    $IpInfoTable[$Prop.Name] = $Prop.Value
+        # ip_info.exe is a uv trampoline that re-spawns python via CreateProcessW,
+        # which caps the command line near 32,767 chars. A large log pull can push
+        # enough unique IPs past that limit (os error 87), so query in batches.
+        $BatchSize = 100
+        for ($Start = 0; $Start -lt $UnseenIps.Count; $Start += $BatchSize) {
+            $End = [Math]::Min($Start + $BatchSize, $UnseenIps.Count) - 1
+            $Batch = @($UnseenIps[$Start..$End])
+
+            $InvokeParams = @{
+                FilePath    = 'ip_info'
+                Arguments   = @('--apis', 'bulk', '--output_format', 'jsontable',
+                    '--ip_addresses') + $Batch
+                # Force python to emit UTF-8 to match the wrapper's UTF-8 decoding.
+                Environment = @{ PYTHONUTF8 = '1' }
+            }
+            $Result = Invoke-IRTNativeCommand @InvokeParams
+
+            # On failure, surface the tool's stderr and keep going so one bad
+            # batch does not discard enrichment for the rest.
+            if ($Result.ExitCode -ne 0) {
+                $Detail = if ($Result.StdErr) { ": $($Result.StdErr.Trim())" } else { '.' }
+                Write-IRT "ip_info query failed (exit $($Result.ExitCode))$Detail" -Level Error
+                continue
+            }
+
+            $RawOutput = $Result.StdOut
+            $JsonStart = -1
+            for ($i = 0; $i -lt $RawOutput.Length; $i++) {
+                if ($RawOutput[$i] -match '^\{') { $JsonStart = $i; break }
+            }
+            if ($JsonStart -ge 0) {
+                $JsonText = ($RawOutput[$JsonStart..($RawOutput.Length - 1)]) -join "`n"
+                $JsonData = $JsonText | ConvertFrom-Json -ErrorAction SilentlyContinue
+                if ($JsonData) {
+                    foreach ($Prop in $JsonData.PSObject.Properties) {
+                        $IpInfoTable[$Prop.Name] = $Prop.Value
+                    }
                 }
             }
         }
@@ -7732,7 +8139,7 @@ function Add-IpInfoToSheet {
         }
     }
 }
-#EndRegion '.\Private\Utility\Add-IpInfoToSheet.ps1' 156
+#EndRegion '.\Private\Utility\Add-IpInfoToSheet.ps1' 177
 #Region '.\Private\Utility\Convert-DecimalToExcelColumn.ps1' -1
 
 function Convert-DecimalToExcelColumn {
@@ -8487,32 +8894,7 @@ function Import-IRTModule {
         [string[]] $Name
     )
 
-    # Serialize Import-Module across runspaces. Module state is per-runspace,
-    # but PowerShell's module-analysis caches are process-wide, and concurrent
-    # imports (15 playbook workers lazy-loading dependencies at step start)
-    # intermittently throw "Collection was modified; enumeration operation may
-    # not execute". The mutex is process-local; uncontended acquisition costs
-    # microseconds, so single-threaded callers are unaffected.
-    function Import-LockedModule {
-        param([string] $ModuleName)
-        $Mutex = [System.Threading.Mutex]::new($false, 'Local\ImportIRTModuleLock')
-        try {
-            try {
-                $null = $Mutex.WaitOne()
-            } catch [System.Threading.AbandonedMutexException] {
-                # A runspace died while holding the mutex; ownership still
-                # transfers to us, so it is safe to continue.
-            }
-            Import-Module -Name $ModuleName -ErrorAction Stop
-        } finally {
-            $null = $Mutex.ReleaseMutex()
-            $Mutex.Dispose()
-        }
-    }
-
-    if (-not (Get-Module -Name 'PSFramework')) {
-        Import-LockedModule -ModuleName 'PSFramework'
-    }
+    Import-Module -Name 'PSFramework'
 
     foreach ($module in $Name) {
         if (Get-Module -Name $module) {
@@ -8521,10 +8903,10 @@ function Import-IRTModule {
         }
 
         Write-PSFMessage -Level 8 -Message "Importing module: $module"
-        Import-LockedModule -ModuleName $module
+        Import-Module -Name $module -ErrorAction Stop
     }
 }
-#EndRegion '.\Private\Utility\Import-IRTModule.ps1' 71
+#EndRegion '.\Private\Utility\Import-IRTModule.ps1' 46
 #Region '.\Private\Utility\Import-ReferenceData.ps1' -1
 
 function Import-ReferenceData {
@@ -8629,234 +9011,152 @@ function Import-ReferenceData {
         "TenantCache=$($Global:IRT_TenantInfoTable.Count)")
 }
 #EndRegion '.\Private\Utility\Import-ReferenceData.ps1' 102
-#Region '.\Private\Utility\Test-PythonPackage.ps1' -1
+#Region '.\Private\Utility\Invoke-IRTNativeCommand.ps1' -1
 
-function Test-PythonPackage {
+function Invoke-IRTNativeCommand {
     <#
     .SYNOPSIS
-    Tests whether a python package is available via python import or uv tool install.
+    Runs an external CLI tool and returns its stdout, stderr, and exit code.
 
-    .PARAMETER Name
-    The python module name to import (e.g., 'requests' or 'pandas').
+    .DESCRIPTION
+    Central wrapper for invoking external executables (e.g. ip_info, python, uv).
+    Uses System.Diagnostics.Process with both standard streams redirected and
+    decoded as UTF-8, so the caller always gets the tool's stdout and stderr as
+    data instead of it printing raw to the console disconnected from IRT logging.
 
-    .PARAMETER MinVersion
-    Optional minimum version requirement (nuget-style: 1.2.3).
+    Because both streams are captured (rather than inherited by the console) the
+    tool's output is not streamed live -- live streaming would require writing to
+    the host from background reader threads. Instead the captured stdout and
+    stderr, the resolved path, argument count, command-line length, and exit code
+    are written to the debug log via Write-PSFMessage -Level 8.
 
-    .PARAMETER PythonPath
-    Optional explicit path to python interpreter. if omitted, tries python, python3, then py -3.
+    Redirecting BOTH streams explicitly also avoids the
+    "StandardOutputEncoding is only supported when standard output is redirected"
+    error that PowerShell throws when only stderr is redirected (e.g. naive 2>).
+
+    stdout and stderr are drained concurrently (stderr via ReadToEndAsync) to
+    avoid the classic pipe-buffer deadlock when a tool fills one stream while the
+    caller blocks reading the other.
+
+    If the process cannot be started at all, ExitCode is -1 and StdErr carries the
+    exception message, so callers can branch on ExitCode uniformly.
+
+    .PARAMETER FilePath
+    The executable to run. A bare command name (e.g. 'ip_info') is resolved to a
+    full path via Get-Command, because Process.Start with UseShellExecute = $false
+    does not reliably search PATH on all platforms.
+
+    .PARAMETER Arguments
+    Arguments passed to the executable. Supplied via ArgumentList, so each element
+    is escaped individually and values are never re-parsed as a single string.
+
+    .PARAMETER Environment
+    Optional extra environment variables to set for the child process only (does
+    not mutate the caller's session). For example, @{ PYTHONUTF8 = '1' } forces a
+    Python tool to write UTF-8 to match this wrapper's UTF-8 decoding.
+
+    .EXAMPLE
+    $Result = Invoke-IRTNativeCommand -FilePath 'ip_info' -Arguments @(
+        '--apis', 'bulk', '--output_format', 'jsontable', '--ip_addresses', '1.1.1.1')
+    if ($Result.ExitCode -ne 0) { Write-IRT $Result.StdErr -Level Error }
 
     .OUTPUTS
-    [pscustomobject] with Present (bool), Source (string), Version (string),
-    Python (string path/command)
+    [pscustomobject] with StdOut ([string[]] of lines), StdErr ([string]), and
+    ExitCode ([int]).
+
+    .NOTES
+    Version: 1.2.0
     #>
     [CmdletBinding()]
     param(
         [Parameter(Mandatory, Position = 0)]
-        [string] $Name,
+        [string] $FilePath,
 
-        [Parameter()]
-        [string] $MinVersion,
+        [Parameter(Position = 1)]
+        [string[]] $Arguments = @(),
 
-        [Parameter()]
-        [string] $PythonPath
+        [hashtable] $Environment
     )
 
-    begin {
+    Import-IRTModule -Name 'PSFramework'
 
-        function Find-PythonInterpreter {
-            param(
-                [string]$ExplicitPath
-            )
-
-            # if explicit path provided and exists, use it
-            if ($ExplicitPath -and (Test-Path -LiteralPath $ExplicitPath)) {
-                return @{ Cmd = $ExplicitPath; PrefixArgs = @() }
-            }
-
-            # prefer 'python', then 'python3', then 'py -3' on windows
-            $Candidates = @(
-                @{
-                    Cmd = (Get-Command -Name 'python' -ErrorAction SilentlyContinue)?.Source
-                    PrefixArgs = @()
-                }
-                @{
-                    Cmd = (Get-Command -Name 'python3' -ErrorAction SilentlyContinue)?.Source
-                    PrefixArgs = @()
-                }
-                @{
-                    Cmd = (Get-Command -Name 'py' -ErrorAction SilentlyContinue)?.Source
-                    PrefixArgs = @('-3')
-                }
-            ) | Where-Object { $_.Cmd }
-
-            if (($Candidates | Measure-Object).Count -gt 0) { return $Candidates[0] }
-
-            return $null
-        }
-
-        function Find-UvTool {
-            param([string]$ToolName)
-
-            $uvCmd = Get-Command -Name 'uv' -ErrorAction SilentlyContinue
-            if (-not $uvCmd) { return $null }
-
-            # normalize per PEP 503: lowercase, collapse runs of [-_.] to a single hyphen
-            $normalizedName = ($ToolName -replace '[_.\-]+', '-').ToLower()
-
-            try {
-                $listOutput = & $uvCmd.Source tool list --no-color 2>$null
-                if ($LASTEXITCODE -ne 0) { return $null }
-
-                $version = $null
-                $distName = $null
-                foreach ($line in $listOutput) {
-                    if ($line -match '^(\S+)\s+v(.+)$') {
-                        $candidate = ($Matches[1] -replace '[_.\-]+', '-').ToLower()
-                        if ($candidate -eq $normalizedName) {
-                            $distName = $Matches[1]
-                            $version = $Matches[2].Trim()
-                            break
-                        }
-                    }
-                }
-
-                if (-not $version) { return $null }
-
-                # locate the venv python inside the tool environment
-                $toolDir = (& $uvCmd.Source tool dir 2>$null)
-                if ($LASTEXITCODE -ne 0 -or -not $toolDir) {
-                    return @{ Version = $version; Python = $null }
-                }
-                $toolDir = $toolDir.Trim()
-
-                # try likely directory names for the tool's venv
-                $dirCandidates = @($distName, $ToolName, $normalizedName) | Select-Object -Unique
-
-                $pythonPath = $null
-                foreach ($dir in $dirCandidates) {
-                    $JpParams = @{
-                        Path      = $toolDir
-                        ChildPath = $dir
-                    }
-                    $testPath = if ($IsWindows -or $env:OS -match 'Windows') {
-                        Join-Path @JpParams -AdditionalChildPath 'Scripts', 'python.exe'
-                    } else {
-                        Join-Path @JpParams -AdditionalChildPath 'bin', 'python'
-                    }
-                    if (Test-Path -LiteralPath $testPath) {
-                        $pythonPath = $testPath
-                        break
-                    }
-                }
-
-                return @{ Version = $version; Python = $pythonPath }
-            } catch {
-                return $null
-            }
-        }
-
-        # python snippet: try import, then try to resolve a version
-        # - prefers importlib.metadata (py>=3.8) using the package (distribution)
-        #   name equal to module name
-        # - falls back to module.__version__ if metadata not found
-        $PyCode = @"
-import sys, importlib
-name=sys.argv[1]
-try:
-    m = importlib.import_module(name)
-    ver = ""
-    try:
-        try:
-            from importlib.metadata import version, PackageNotFoundError
-        except Exception:
-            from importlib_metadata import version, PackageNotFoundError  # backport if installed
-        try:
-            ver = version(name)
-        except PackageNotFoundError:
-            ver = getattr(m, "__version__", "") or ""
-    except Exception:
-        ver = getattr(m, "__Version__", "") or ""
-    print(ver)
-    sys.exit(0)
-except Exception:
-    sys.exit(1)
-"@.Trim()
+    # Resolve a bare command name to its full executable path.
+    $ResolvedPath = $FilePath
+    if (-not (Test-Path -LiteralPath $FilePath)) {
+        $Cmd = Get-Command -Name $FilePath -CommandType Application -ErrorAction Ignore |
+            Select-Object -First 1
+        if ($Cmd) { $ResolvedPath = $Cmd.Source }
     }
 
-    process {
+    $CmdLineLength = $ResolvedPath.Length + ($Arguments -join ' ').Length + 1
+    Write-PSFMessage -Level 8 -Message (
+        "Invoke-IRTNativeCommand: $ResolvedPath -- $($Arguments.Count) arg(s), " +
+        "~$CmdLineLength char command line.")
 
-        # === python import check ===
-        $Py = Find-PythonInterpreter -ExplicitPath $PythonPath
-        $PyPresent = $false
-        $PyVersion = $null
-        $PyCmd = $null
-
-        if ($Py) {
-            $Arguments = @()
-            if ($Py.PrefixArgs) { $Arguments += $Py.PrefixArgs }
-            $Arguments += @('-c', $PyCode, $Name)
-
-            $Output = & $Py.Cmd @Arguments 2>$null
-            $Exit = $LASTEXITCODE
-
-            $PyPresent = ($Exit -eq 0)
-            if ($PyPresent) {
-                $PyVersion = ($Output | Select-Object -First 1).ToString().Trim()
-            } else {
-                $PyVersion = $null
-            }
-            $PrefixStr = if ($Py.PrefixArgs.Count) { ' ' + ($Py.PrefixArgs -join ' ') } else { '' }
-            $PyCmd = $Py.Cmd + $PrefixStr
+    $StartInfo = [System.Diagnostics.ProcessStartInfo]::new()
+    $StartInfo.FileName = $ResolvedPath
+    $StartInfo.UseShellExecute = $false
+    $StartInfo.CreateNoWindow = $true
+    $StartInfo.RedirectStandardOutput = $true
+    $StartInfo.RedirectStandardError = $true
+    $StartInfo.StandardOutputEncoding = [System.Text.Encoding]::UTF8
+    $StartInfo.StandardErrorEncoding = [System.Text.Encoding]::UTF8
+    foreach ($Arg in $Arguments) { $StartInfo.ArgumentList.Add($Arg) }
+    if ($Environment) {
+        foreach ($Key in $Environment.Keys) {
+            $StartInfo.Environment[$Key] = [string]$Environment[$Key]
         }
+    }
 
-        # === uv tool check ===
-        $UvTool = Find-UvTool -ToolName $Name
-        $UvPresent = $null -ne $UvTool
-        $UvVersion = if ($UvPresent) { $UvTool.Version } else { $null }
-        $UvPython = if ($UvPresent) { $UvTool.Python } else { $null }
+    $Process = [System.Diagnostics.Process]::new()
+    $Process.StartInfo = $StartInfo
 
-        # overall result
-        $Present = $PyPresent -or $UvPresent
-
-        $Source = if ($PyPresent -and $UvPresent) { 'both' }
-        elseif ($PyPresent) { 'python' }
-        elseif ($UvPresent) { 'uv-tool' }
-        else { $null }
-
-        # effective version (prefer python import, fall back to uv tool)
-        $Version = if ($PyVersion) { $PyVersion } elseif ($UvVersion) { $UvVersion } else { $null }
-
-        # effective python interpreter
-        # if found via import, use that interpreter; if only via uv tool, use the venv python
-        $Python = if ($PyPresent) { $PyCmd }
-        elseif ($UvPython) { $UvPython }
-        elseif ($PyCmd) { $PyCmd }
-        else { $null }
-
-        # optional min version check
-        $MeetsMin = $true
-        if ($Present -and $MinVersion -and $Version) {
-            try {
-                # attempt semantic comparison; if parse fails, treat as not comparable
-                $vA = [Version]($Version -replace '[^0-9\.].*$', '')
-                $vB = [Version]($MinVersion -replace '[^0-9\.].*$', '')
-                $MeetsMin = ($vA -ge $vB)
-            } catch {
-                $MeetsMin = $false
-            }
+    try {
+        $null = $Process.Start()
+    } catch {
+        $Process.Dispose()
+        $Message = $_.Exception.Message
+        Write-PSFMessage -Level 8 -Message (
+            "Invoke-IRTNativeCommand: failed to start '$ResolvedPath': $Message")
+        return [pscustomobject]@{
+            StdOut   = @()
+            StdErr   = $Message
+            ExitCode = -1
         }
+    }
 
-        Write-Output ([pscustomobject]@{
-                Present         = $Present
-                Source          = $Source
-                Version         = $Version
-                MeetsMinVersion = if ($MinVersion) { $MeetsMin } else { $null }
-                Name            = $Name
-                Python          = $Python
-            })
+    # Drain stderr asynchronously while reading stdout to end, then join.
+    $StdErrTask = $Process.StandardError.ReadToEndAsync()
+    $StdOutText = $Process.StandardOutput.ReadToEnd()
+    $Process.WaitForExit()
+    $StdErrText = $StdErrTask.GetAwaiter().GetResult()
+    $ExitCode = $Process.ExitCode
+    $Process.Dispose()
+
+    # The tool's output is captured rather than streamed, so route it to the debug
+    # log where it is available without polluting normal command output.
+    Write-PSFMessage -Level 8 -Message (
+        "Invoke-IRTNativeCommand: exit $ExitCode -- stdout $($StdOutText.Length) " +
+        "char(s), stderr $($StdErrText.Length) char(s).")
+    if ($StdOutText.Trim()) {
+        Write-PSFMessage -Level 8 -Message (
+            "Invoke-IRTNativeCommand stdout: $($StdOutText.TrimEnd())")
+    }
+    if ($StdErrText.Trim()) {
+        Write-PSFMessage -Level 8 -Message (
+            "Invoke-IRTNativeCommand stderr: $($StdErrText.TrimEnd())")
+    }
+
+    # Normalize stdout to a line array so callers can scan/slice it.
+    $StdOutLines = $StdOutText.Replace("`r`n", "`n").Split("`n")
+
+    [pscustomobject]@{
+        StdOut   = $StdOutLines
+        StdErr   = $StdErrText
+        ExitCode = $ExitCode
     }
 }
-#EndRegion '.\Private\Utility\Test-PythonPackage.ps1' 226
+#EndRegion '.\Private\Utility\Invoke-IRTNativeCommand.ps1' 144
 #Region '.\Private\Utility\Write-IRT.ps1' -1
 
 function Write-IRT {
@@ -8984,12 +9284,10 @@ function Clear-IRTTokenCache {
     MSAL writes refresh tokens to disk so the user is not re-prompted in every
     new PowerShell session. This command:
 
-      1. Removes every account from each PublicClientApplication currently held
-         in $Global:IRT_Session.Apps. Removal also strips their tokens from the
-         on-disk cache via the registered cache helper.
-      2. Clears the sticky per-client account memory so the next acquisition
-         starts fresh.
-      3. Deletes the on-disk cache file as a belt-and-suspenders measure in
+      1. Removes every account from any PublicClientApplication currently held
+         in $Global:IRT_Session (Graph, Exchange, IPPS). Removal also strips
+         their tokens from the on-disk cache via the registered cache helper.
+      2. Deletes the on-disk cache file as a belt-and-suspenders measure in
          case no MSAL app is currently registered against it.
 
     Use this after a credential rotation, when sharing a workstation, or to
@@ -9012,7 +9310,8 @@ function Clear-IRTTokenCache {
     # Sign out in-process accounts first. This invokes the cache helper's
     # write callback and removes the entries from the file cleanly.
     if ($Global:IRT_Session) {
-        foreach ($App in @($Global:IRT_Session.Apps?.Values)) {
+        foreach ($svc in 'Graph', 'Exchange', 'IPPS') {
+            $App = $Global:IRT_Session.$svc.PublicClientApplication
             if (-not $App) { continue }
             try {
                 $Accounts = $App.GetAccountsAsync().GetAwaiter().GetResult()
@@ -9021,12 +9320,8 @@ function Clear-IRTTokenCache {
                 }
             }
             catch {
-                $AppId = $App.AppConfig.ClientId
-                Write-IRT "Failed to remove MSAL accounts for client ${AppId}: $_" -Level Warn
+                Write-IRT "Failed to remove $svc MSAL accounts: $_" -Level Warn
             }
-        }
-        if ($null -ne $Global:IRT_Session.StickyAccount) {
-            $Global:IRT_Session.StickyAccount.Clear()
         }
     }
 
@@ -9042,7 +9337,7 @@ function Clear-IRTTokenCache {
         Write-IRT 'No token cache file found.'
     }
 }
-#EndRegion '.\Public\Connect\Clear-IRTTokenCache.ps1' 69
+#EndRegion '.\Public\Connect\Clear-IRTTokenCache.ps1' 64
 #Region '.\Public\Connect\Connect-IRT.ps1' -1
 
 function Connect-IRT {
@@ -9162,11 +9457,6 @@ function Connect-IRT {
             if ($Global:IRT_Session.ClientId) {
                 $RefreshParams['ClientId'] = $Global:IRT_Session.ClientId
             }
-            # Re-request any extra Graph scopes granted in this session, so a refresh
-            # doesn't silently drop scopes added via -AdditionalScope.
-            $ScopeDelta = @($Global:IRT_Session.Graph?.Scopes |
-                    Where-Object { $_ -notin (Get-IRTGraphDefaultScope) })
-            if ($ScopeDelta) { $RefreshParams['AdditionalScope'] = $ScopeDelta }
             if ($Global:IRT_Session.Graph) { $RefreshParams['Graph'] = $true }
             if ($Global:IRT_Session.Exchange) { $RefreshParams['Exchange'] = $true }
             if ($Global:IRT_Session.IPPS) { $RefreshParams['IPPS'] = $true }
@@ -9215,19 +9505,14 @@ function Connect-IRT {
         }
 
         if (-not $Global:IRT_Session) {
-            # Apps holds one MSAL PublicClientApplication per client ID (Exchange and
-            # IPPS share one); StickyAccount remembers which cached account last worked
-            # per client ID. Synchronized so playbook runspaces can share them safely.
             $Global:IRT_Session = [pscustomobject]@{
-                TenantId      = $TenantId
-                ClientId      = $ClientId
-                Cloud         = $DetectedCloud
-                CloudConfig   = $CloudConfig
-                Apps          = [hashtable]::Synchronized(@{})
-                StickyAccount = [hashtable]::Synchronized(@{})
-                Graph         = $null
-                Exchange      = $null
-                IPPS          = $null
+                TenantId    = $TenantId
+                ClientId    = $ClientId
+                Cloud       = $DetectedCloud
+                CloudConfig = $CloudConfig
+                Graph       = $null
+                Exchange    = $null
+                IPPS        = $null
             }
         } else {
             $AddMemberParams = @{
@@ -9236,19 +9521,6 @@ function Connect-IRT {
                 Force             = $true
             }
             $Global:IRT_Session | Add-Member @AddMemberParams
-
-            # Backfill the app/sticky stores when reusing an older session object, so
-            # reconnects keep the existing PCA pool instead of failing.
-            foreach ($StoreName in 'Apps', 'StickyAccount') {
-                if ($null -eq $Global:IRT_Session.$StoreName) {
-                    $StoreParams = @{
-                        NotePropertyName  = $StoreName
-                        NotePropertyValue = [hashtable]::Synchronized(@{})
-                        Force             = $true
-                    }
-                    $Global:IRT_Session | Add-Member @StoreParams
-                }
-            }
         }
 
         # --- Graph ---
@@ -9325,134 +9597,7 @@ function Connect-IRT {
         }
     }
 }
-#EndRegion '.\Public\Connect\Connect-IRT.ps1' 281
-#Region '.\Public\Connect\Connect-IRTRunspaceExchange.ps1' -1
-
-function Connect-IRTRunspaceExchange {
-    <#
-    .SYNOPSIS
-    Establishes (or refreshes) a runspace-local Exchange Online connection.
-
-    .DESCRIPTION
-    Intended for playbook runspace workers. Mints a fresh Exchange token
-    silently from the shared MSAL cache (the parent session's
-    PublicClientApplication is injected via $Global:IRT_Session and is
-    thread-safe) and binds it with Connect-ExchangeOnline. The resulting
-    ConnectionId and token expiry are tracked in the runspace-local
-    $Global:IRT_RunspaceExo, so repeated calls are cheap no-ops until the
-    bound token nears expiry.
-
-    This function never prompts: token acquisition is always silent. If the
-    refresh token has been revoked mid-playbook, it throws with instructions
-    to re-run Connect-IRT rather than popping a hidden browser window inside
-    a worker.
-
-    Safe to call in the parent session too, but the parent normally uses
-    Connect-IRT / Update-IRTToken instead.
-
-    .EXAMPLE
-    Connect-IRTRunspaceExchange
-    Inside a playbook step: ensures this runspace has a live Exchange
-    connection with a fresh token.
-
-    .OUTPUTS
-    None.
-
-    .NOTES
-    Version: 1.0.0
-    #>
-    [CmdletBinding()]
-    param ()
-
-    # import modules
-    $Imports = @(
-        'ExchangeOnlineManagement'
-        'Microsoft.Graph.Authentication'
-        'PSFramework'
-    )
-    Import-IRTModule -Name $Imports
-
-    if (-not $Global:IRT_Session -or -not $Global:IRT_Session.CloudConfig) {
-        throw 'No active IRT session. Run Connect-IRT in the parent session first.'
-    }
-    $TenantId = $Global:IRT_Session.TenantId
-
-    # IPPS connections show up in Get-ConnectionInformation alongside EXO.
-    $IppsUriPattern = 'compliance\.protection\.(outlook\.com|office365\.us)'
-
-    # Fast path: this runspace already has a live connection with a fresh token.
-    $Existing = $Global:IRT_RunspaceExo
-    if ($Existing.ConnectionId -and $Existing.BoundTokenExpiry) {
-        $MinutesLeft = [int](($Existing.BoundTokenExpiry - [datetime]::UtcNow).TotalMinutes)
-        $GciParams = @{
-            ConnectionId = $Existing.ConnectionId
-            ErrorAction  = 'SilentlyContinue'
-        }
-        $Conn = Get-ConnectionInformation @GciParams
-        if ($Conn.State -eq 'Connected' -and
-            $Conn.TenantID -eq $TenantId -and
-            $MinutesLeft -ge 5) {
-            Write-PSFMessage -Level 8 -Message (
-                'Connect-IRTRunspaceExchange: existing runspace connection healthy ' +
-                "($MinutesLeft min remaining); no-op.")
-            return
-        }
-        Write-PSFMessage -Level 8 -Message (
-            'Connect-IRTRunspaceExchange: runspace connection stale or dead ' +
-            "(state: $($Conn.State), $MinutesLeft min remaining); reconnecting.")
-    }
-
-    # Mint silently from the shared MSAL cache - never prompts inside a worker.
-    $TokenResult = Get-IRTAccessToken -Service Exchange -Silent
-    if (-not $TokenResult.AccessToken) {
-        throw ('Failed to silently acquire an Exchange token for this runspace. ' +
-            'Re-run Connect-IRT in the parent session, then restart the playbook.')
-    }
-
-    $PreIds = @(Get-ConnectionInformation -ErrorAction SilentlyContinue).ConnectionId
-
-    $Params = @{
-        AccessToken       = $TokenResult.AccessToken
-        UserPrincipalName = $TokenResult.Account.Username
-        ShowBanner        = $false
-    }
-    $Params['ExchangeEnvironmentName'] = $Global:IRT_Session.CloudConfig.ExchangeEnv
-    Write-PSFMessage -Level 8 -Message (
-        'Connect-IRTRunspaceExchange: calling Connect-ExchangeOnline ' +
-        "(account: $($TokenResult.Account.Username)).")
-    Connect-ExchangeOnline @Params
-
-    $NewConnection = Get-ConnectionInformation -ErrorAction SilentlyContinue |
-        Where-Object {
-            $_.State -eq 'Connected' -and
-            $_.ConnectionUri -notmatch $IppsUriPattern -and
-            $_.ConnectionId -notin $PreIds
-        } | Select-Object -First 1
-
-    # Scoped cleanup of the connection this runspace replaced.
-    $OldId = $Existing.ConnectionId
-    if ($OldId -and $OldId -ne $NewConnection.ConnectionId -and $OldId -in $PreIds) {
-        Write-PSFMessage -Level 8 -Message (
-            "Connect-IRTRunspaceExchange: disconnecting replaced connection: $OldId")
-        $DcParams = @{
-            ConnectionId = $OldId
-            Confirm      = $false
-            ErrorAction  = 'SilentlyContinue'
-        }
-        Disconnect-ExchangeOnline @DcParams
-    }
-
-    # Runspace-local tracking (plain global; intentionally NOT shared between runspaces).
-    $Global:IRT_RunspaceExo = @{
-        ConnectionId     = $NewConnection.ConnectionId
-        BoundTokenExpiry = $TokenResult.ExpiresOn.UtcDateTime
-    }
-    Write-PSFMessage -Level 8 -Message (
-        'Connect-IRTRunspaceExchange: connected. ' +
-        "ConnectionId: $($NewConnection.ConnectionId), " +
-        "BoundTokenExpiry: $($TokenResult.ExpiresOn.UtcDateTime)")
-}
-#EndRegion '.\Public\Connect\Connect-IRTRunspaceExchange.ps1' 125
+#EndRegion '.\Public\Connect\Connect-IRT.ps1' 258
 #Region '.\Public\Connect\Connect-IRTTenant.ps1' -1
 
 function Connect-IRTTenant {
@@ -9725,230 +9870,6 @@ function Disconnect-IRT {
     }
 }
 #EndRegion '.\Public\Connect\Disconnect-IRT.ps1' 110
-#Region '.\Public\Connect\Get-IRTAccessToken.ps1' -1
-
-function Get-IRTAccessToken {
-    <#
-    .SYNOPSIS
-    Acquires an access token for Graph, Exchange Online, or IPPS from the MSAL cache.
-
-    .DESCRIPTION
-    The single token authority for the module. Mints tokens on demand from the
-    session's MSAL public client apps: cached access tokens are returned in
-    microseconds, expired ones are silently renewed via the refresh token, and
-    only when no cached account works does it fall back to interactive browser
-    sign-in (unless -Silent).
-
-    Cached accounts are tried in smart order (Select-IRTMsalAccount): the
-    account that last worked for this client ID, then accounts homed in the
-    target tenant, then any other account in the same cloud. Every candidate is
-    tried before prompting, so a cache full of other customers' accounts never
-    causes a spurious sign-in prompt.
-
-    Tokens are never stored by this function - callers use the result
-    immediately (e.g. to bind an SDK connection or call a REST API). Inside
-    playbook runspace workers ($Global:IRT_IsRunspaceWorker) the function is
-    always silent, so a worker can never pop a hidden browser prompt.
-
-    .PARAMETER Service
-    Which service to acquire a token for: Graph, Exchange, or IPPS.
-
-    .PARAMETER SearchOnly
-    IPPS only. Use the search-only audience (dataservice.o365filtering.com)
-    instead of the full Exchange audience. Defaults to $true, matching
-    Connect-IRTIPPS.
-
-    .PARAMETER AdditionalScope
-    Graph only. Additional delegated scopes to request beyond the default
-    incident-response set.
-
-    .PARAMETER Silent
-    Never prompt. If no cached account yields a token silently, throw instead
-    of opening a browser.
-
-    .PARAMETER ForceRefresh
-    Bypass the cached access token and force MSAL to redeem the refresh token.
-    Used after audience-validation failures.
-
-    .PARAMETER ClientId
-    Override the MSAL client ID. Defaults to the session override if set,
-    otherwise the service's first-party app (Graph CLI Tools for Graph, the EXO
-    app for Exchange and IPPS).
-
-    .EXAMPLE
-    Get-IRTAccessToken -Service Exchange -Silent
-    Returns a fresh Exchange token from the cache without ever prompting.
-
-    .EXAMPLE
-    (Get-IRTAccessToken -Service Graph).AccessToken
-    Returns just the bearer token string for a manual Graph REST call.
-
-    .OUTPUTS
-    Microsoft.Identity.Client.AuthenticationResult. Callers typically use
-    .AccessToken, .ExpiresOn, and .Account.Username.
-
-    .NOTES
-    Version: 1.0.0
-    Requires ExchangeOnlineManagement >= 3.2.0 module-wide for token-based
-    connections (the enforced floor is 3.6.0).
-    #>
-    [OutputType('Microsoft.Identity.Client.AuthenticationResult')]
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)]
-        [ValidateSet('Graph', 'Exchange', 'IPPS')]
-        [string] $Service,
-
-        [bool] $SearchOnly = $true,
-
-        [Alias('AdditionalScopes')]
-        [string[]] $AdditionalScope,
-
-        [switch] $Silent,
-        [switch] $ForceRefresh,
-
-        [string] $ClientId
-    )
-
-    begin {
-        #region BEGIN
-
-        # import modules
-        Import-IRTModule -Name 'Microsoft.Graph.Authentication', 'PSFramework'
-
-        if (-not $Global:IRT_Session -or
-            -not $Global:IRT_Session.TenantId -or
-            -not $Global:IRT_Session.CloudConfig) {
-            throw 'No active IRT session. Run Connect-IRT first.'
-        }
-
-        # Runspace workers must never pop a (hidden) browser prompt.
-        if ($Global:IRT_IsRunspaceWorker) {
-            $Silent = $true
-        }
-
-        $TenantId = $Global:IRT_Session.TenantId
-        $CloudConfig = $Global:IRT_Session.CloudConfig
-
-        # Resolve client ID: parameter > session override > service default.
-        $ServiceDefaultClientId = switch ($Service) {
-            'Graph' { '14d82eec-204b-4c2f-b7e8-296a70dab67e' }  # Microsoft Graph CLI Tools
-            default { 'fb78d390-0c51-40cd-8e17-fdbfab77341b' }  # EXO/IPPS first-party app
-        }
-        $ResolvedClientId = if ($ClientId) {
-            $ClientId
-        } elseif ($Global:IRT_Session.ClientId) {
-            $Global:IRT_Session.ClientId
-        } else {
-            $ServiceDefaultClientId
-        }
-
-        # Resolve MSAL scope strings for the service.
-        $MsalScopes = switch ($Service) {
-            'Graph' {
-                $PlainScopes = $Global:IRT_Session.Graph?.Scopes ?? (Get-IRTGraphDefaultScope)
-                if ($AdditionalScope) {
-                    $PlainScopes = @($PlainScopes) + $AdditionalScope | Select-Object -Unique
-                }
-                [string[]]($PlainScopes | ForEach-Object { "$($CloudConfig.Graph)/$_" })
-            }
-            'Exchange' {
-                [string[]]@($CloudConfig.Exchange)
-            }
-            'IPPS' {
-                [string[]]@($SearchOnly ? $CloudConfig.IPPSSearchOnly : $CloudConfig.Exchange)
-            }
-        }
-        # The switch statement enumerates its output into object[], which does not
-        # bind to MSAL's IEnumerable[string] scope parameters - re-type explicitly.
-        $MsalScopes = [string[]]$MsalScopes
-
-        # Bare login host (no scheme) used to match cached MSAL accounts to this cloud.
-        $ExpectedLoginHost = $CloudConfig.LoginHost.Replace('https://', '')
-
-        Write-PSFMessage -Level 8 -Message (
-            "Get-IRTAccessToken: Service=$Service, TenantId=$TenantId, " +
-            "ClientId=$ResolvedClientId, Scopes=$($MsalScopes.Count), " +
-            "Silent=$Silent, ForceRefresh=$ForceRefresh")
-    }
-
-    process {
-        #region PROCESS
-
-        $App = Get-IRTPublicClient -ClientId $ResolvedClientId
-
-        # ---------- Silent acquisition: try every candidate account ----------
-
-        $Cached = $App.GetAccountsAsync().GetAwaiter().GetResult()
-        $SelectParams = @{
-            Account           = $Cached
-            TenantId          = $TenantId
-            ExpectedLoginHost = $ExpectedLoginHost
-            StickyAccountId   = $Global:IRT_Session.StickyAccount?[$ResolvedClientId]
-        }
-        $Candidates = Select-IRTMsalAccount @SelectParams
-
-        foreach ($Candidate in $Candidates) {
-            try {
-                Write-PSFMessage -Level 8 -Message (
-                    "Attempting silent $Service token acquisition for: " +
-                    "$($Candidate.Username) (env: $($Candidate.Environment))")
-                $Builder = $App.AcquireTokenSilent($MsalScopes, $Candidate)
-                if ($ForceRefresh) {
-                    $Builder = $Builder.WithForceRefresh($true)
-                }
-                $Result = $Builder.ExecuteAsync().GetAwaiter().GetResult()
-                Write-PSFMessage -Level 8 -Message (
-                    "Silent $Service token acquisition succeeded for " +
-                    "$($Result.Account.Username). Expiry: $($Result.ExpiresOn)")
-                if ($null -ne $Global:IRT_Session.StickyAccount) {
-                    $Global:IRT_Session.StickyAccount[$ResolvedClientId] =
-                    $Result.Account.HomeAccountId.Identifier
-                }
-                return $Result
-            } catch {
-                Write-PSFMessage -Level 8 -Message (
-                    "Silent $Service token acquisition failed for " +
-                    "$($Candidate.Username): $_")
-            }
-        }
-
-        # ---------- Interactive fallback ----------
-
-        if ($Silent) {
-            throw ("Silent $Service token acquisition failed for tenant $TenantId " +
-                "($($Candidates.Count) cached account(s) tried) and interactive auth " +
-                'is not allowed (-Silent). Run Connect-IRT to sign in interactively.')
-        }
-
-        $Msg = 'A browser window has been opened for interactive sign-in. ' +
-        'Please complete authentication to continue.'
-        Write-IRT $Msg -Level Warn
-        try {
-            $Cts = [System.Threading.CancellationTokenSource]::new()
-            $Task = $App.AcquireTokenInteractive($MsalScopes).ExecuteAsync($Cts.Token)
-            try {
-                while (-not $Task.IsCompleted) { Start-Sleep -Milliseconds 250 }
-            } finally {
-                $Cts.Cancel()
-                $Cts.Dispose()
-            }
-            $Result = $Task.GetAwaiter().GetResult()
-            Write-PSFMessage -Level 8 -Message (
-                "Interactive $Service token acquisition succeeded. " +
-                "Account: $($Result.Account.Username), " +
-                "Expiry: $($Result.ExpiresOn)")
-            if ($null -ne $Global:IRT_Session.StickyAccount) {
-                $Global:IRT_Session.StickyAccount[$ResolvedClientId] =
-                $Result.Account.HomeAccountId.Identifier
-            }
-            return $Result
-        } catch {
-            throw "Interactive token acquisition failed: $_"
-        }
-    }
-}
-#EndRegion '.\Public\Connect\Get-IRTAccessToken.ps1' 222
 #Region '.\Public\Connect\Open-IRTTab.ps1' -1
 
 function Open-IRTTab {
@@ -10187,20 +10108,12 @@ function Update-IRTToken {
 
     .DESCRIPTION
     Intended to be called at the start of any domain function that requires a live
-    Graph, Exchange, or IPPS connection (and inside long-running loops). For each
-    requested service it reads the bound-token expiry stored in $Global:IRT_Session
-    and:
+    Graph, Exchange, or IPPS connection. For each requested service it reads the
+    token expiry stored in $Global:IRT_Session and:
 
       - Writes an error message and returns if the service is not connected.
-      - Re-binds ONLY that service (via its private connector) when the token bound
-        into the SDK context expires within 5 minutes. Exchange/IPPS re-binds are
-        scoped by ConnectionId, so refreshing one service never tears down another.
-      - Does nothing when the bound token is healthy.
-
-    Inside playbook runspace workers ($Global:IRT_IsRunspaceWorker) behavior differs:
-    Graph is a no-op (the parent keeps the process-wide Graph binding fresh), and
-    Exchange delegates to Connect-IRTRunspaceExchange, which maintains a
-    runspace-local connection minted silently from the shared MSAL cache.
+      - Calls Connect-IRT -Refresh when the token expires within 5 minutes.
+      - Does nothing when the token is healthy.
 
     The 5-minute window aligns with MSAL's internal silent-refresh threshold so
     that AcquireTokenSilent uses the refresh token and returns genuinely new tokens
@@ -10212,22 +10125,22 @@ function Update-IRTToken {
 
     .PARAMETER SkipIfNeverConnected
     When set, silently skips any service that has no active session rather than
-    writing an error. Intended for callers that run regardless of whether the user
-    has called Connect-IRT.
+    writing an error. Intended for use in the prompt function, which runs regardless
+    of whether the user has called Connect-IRT.
 
     .PARAMETER PassThru
     When set, returns a hashtable keyed by each requested service name with a boolean
-    value indicating whether the bound token is currently valid (not expired). The
-    status reflects the state after any refresh that was performed.
+    value indicating whether the token is currently valid (not expired). The status
+    reflects the state after any refresh that was performed.
 
     .EXAMPLE
     Update-IRTToken -Service 'Graph'
-    Checks and re-binds the Graph token if it is expiring within 5 minutes.
+    Checks and refreshes the Graph token if it is expiring within 5 minutes.
     Writes an error if the Graph session does not exist.
 
     .EXAMPLE
     Update-IRTToken -Service 'Graph', 'Exchange'
-    Checks both Graph and Exchange tokens and refreshes whichever is expiring soon.
+    Checks both Graph and Exchange tokens and refreshes if either is expiring soon.
 
     .EXAMPLE
     Update-IRTToken
@@ -10240,7 +10153,7 @@ function Update-IRTToken {
     Returns nothing otherwise.
 
     .NOTES
-    Version: 2.0.0
+    Version: 1.0.0
     #>
     [CmdletBinding()]
     [OutputType([hashtable])]
@@ -10260,8 +10173,7 @@ function Update-IRTToken {
 
     Write-PSFMessage -Level 8 -Message (
         "Update-IRTToken: Services=[$($Service -join ', ')], " +
-        "SkipIfNeverConnected=$SkipIfNeverConnected, " +
-        "Worker=$([bool]$Global:IRT_IsRunspaceWorker)")
+        "SkipIfNeverConnected=$SkipIfNeverConnected")
 
     if (-not $Global:IRT_Session) {
         Write-PSFMessage -Level 8 -Message 'Update-IRTToken: No session - not connected.'
@@ -10273,120 +10185,40 @@ function Update-IRTToken {
         return
     }
 
-    # ---------- Runspace worker path ----------
-    # Workers never re-bind shared session state: Graph is process-wide and kept
-    # fresh by the parent's wait loop; Exchange uses a runspace-local connection.
-    if ($Global:IRT_IsRunspaceWorker) {
-        foreach ($svc in $Service) {
-            switch ($svc) {
-                'Graph' {
-                    Write-PSFMessage -Level 8 -Message (
-                        'Update-IRTToken: worker - Graph binding is ' +
-                        'maintained by the parent; no-op.')
-                }
-                'Exchange' {
-                    $ExpiresAt = $Global:IRT_RunspaceExo.BoundTokenExpiry
-                    $MinutesLeft = if ($ExpiresAt) {
-                        [int](($ExpiresAt - [datetime]::UtcNow).TotalMinutes)
-                    } else {
-                        -1
-                    }
-                    Write-PSFMessage -Level 8 -Message (
-                        "Update-IRTToken: worker Exchange - $MinutesLeft min remaining.")
-                    if ($MinutesLeft -lt 5) {
-                        try {
-                            Connect-IRTRunspaceExchange -ErrorAction Stop
-                        } catch {
-                            Write-IRT "Token refresh failed: $_" -Level Error
-                        }
-                    }
-                }
-                'IPPS' {
-                    Write-PSFMessage -Level 8 -Message (
-                        'Update-IRTToken: worker - IPPS refresh is not ' +
-                        'supported inside runspaces; skipping.')
-                }
-            }
-        }
-
-        if ($PassThru) {
-            $status = @{}
-            foreach ($svc in $Service) {
-                $ExpiresAt = if ($svc -eq 'Exchange') {
-                    $Global:IRT_RunspaceExo.BoundTokenExpiry
-                } else {
-                    $Global:IRT_Session.$svc.BoundTokenExpiry
-                }
-                $status[$svc] = [bool](
-                    $ExpiresAt -and
-                    ($ExpiresAt - [datetime]::UtcNow).TotalMinutes -gt 0
-                )
-            }
-            return $status
-        }
-        return
-    }
-
-    # ---------- Parent path: per-service scoped refresh ----------
+    $needsRefresh = $false
     foreach ($svc in $Service) {
         $svcObj = $Global:IRT_Session.$svc
-        if (-not $svcObj -or -not $svcObj.BoundTokenExpiry) {
+        if (-not $svcObj -or -not $svcObj.Token -or -not $svcObj.TokenExpiry) {
             Write-PSFMessage -Level 8 -Message "Update-IRTToken: $svc - no token present."
             if (-not $SkipIfNeverConnected) {
                 Write-IRT "Not connected to $svc. Run Connect-IRT first." -Level Error
             }
             continue
         }
-        $MinutesLeft = [int](($svcObj.BoundTokenExpiry - [datetime]::UtcNow).TotalMinutes)
+        $MinutesLeft = [int](($svcObj.TokenExpiry - [datetime]::UtcNow).TotalMinutes)
         Write-PSFMessage -Level 8 -Message (
-            "Update-IRTToken: $svc - expires $($svcObj.BoundTokenExpiry) UTC " +
+            "Update-IRTToken: $svc - expires $($svcObj.TokenExpiry) UTC " +
             "($MinutesLeft min remaining)")
-        if ($MinutesLeft -ge 5) {
-            continue
+        if ($MinutesLeft -lt 5) {
+            $needsRefresh = $true
         }
+    }
 
+    if ($needsRefresh) {
         Write-PSFMessage -Level 8 -Message (
-            "Update-IRTToken: $svc token expiring soon - refreshing.")
-        Write-IRT "$svc token expiring soon - refreshing..."
-
-        $ConnectParams = @{
-            TenantId    = $Global:IRT_Session.TenantId
-            Cloud       = $Global:IRT_Session.Cloud
-            Force       = $true
-            ErrorAction = 'Stop'
-        }
-        if ($Global:IRT_Session.ClientId) {
-            $ConnectParams['ClientId'] = $Global:IRT_Session.ClientId
-        }
-
+            'Update-IRTToken: Token expiring soon - triggering refresh.')
+        Write-IRT 'Token expiring soon - refreshing...'
         try {
-            $Fresh = switch ($svc) {
-                'Graph' {
-                    # Re-request any extra scopes granted in this session.
-                    $ScopeDelta = @($svcObj.Scopes |
-                            Where-Object { $_ -notin (Get-IRTGraphDefaultScope) })
-                    if ($ScopeDelta) { $ConnectParams['AdditionalScope'] = $ScopeDelta }
-                    Connect-IRTGraph @ConnectParams
-                }
-                'Exchange' {
-                    Connect-IRTExchange @ConnectParams
-                }
-                'IPPS' {
-                    $ConnectParams['SearchOnly'] = [bool]$svcObj.SearchOnly
-                    Connect-IRTIPPS @ConnectParams
-                }
-            }
-            # Only replace the slot when the connector returned metadata - never
-            # wipe a service slot because of an empty return.
-            if ($Fresh) {
-                $Global:IRT_Session.$svc = $Fresh | Select-Object -Last 1
-            }
-            Write-PSFMessage -Level 8 -Message (
-                "Update-IRTToken: $svc refresh completed successfully.")
+            $null = Connect-IRT -Refresh -ErrorAction Stop
+            Write-PSFMessage -Level 8 -Message 'Update-IRTToken: Refresh completed successfully.'
         }
         catch {
             Write-IRT "Token refresh failed: $_" -Level Error
         }
+    }
+    else {
+        Write-PSFMessage -Level 8 -Message (
+            'Update-IRTToken: All tokens healthy - no refresh needed.')
     }
 
     if ($PassThru) {
@@ -10394,14 +10226,14 @@ function Update-IRTToken {
         foreach ($svc in $Service) {
             $svcObj = $Global:IRT_Session.$svc
             $status[$svc] = [bool](
-                $svcObj -and $svcObj.BoundTokenExpiry -and
-                ($svcObj.BoundTokenExpiry - [datetime]::UtcNow).TotalMinutes -gt 0
+                $svcObj -and $svcObj.TokenExpiry -and
+                ($svcObj.TokenExpiry - [datetime]::UtcNow).TotalMinutes -gt 0
             )
         }
         return $status
     }
 }
-#EndRegion '.\Public\Connect\Update-IRTToken.ps1' 223
+#EndRegion '.\Public\Connect\Update-IRTToken.ps1' 134
 #Region '.\Public\Device\Disable-IRTDevice.ps1' -1
 
 function Disable-IRTDevice {
@@ -12165,6 +11997,25 @@ function Get-IRTEntraSignInLog {
     .PARAMETER End
     End of date range (parseable date string). Used with -Start for an absolute range.
 
+    .PARAMETER ChunkDays
+    Splits the requested date range into sub-queries of this many days each, querying
+    newest to oldest and merging the results. Default: 30 (a default 30-day pull is a
+    single chunk). Graph applies its 300-second HttpClient timeout per request, so very
+    large pulls (e.g. -AllUsers over a wide range) can time out while the server computes
+    a single page. Pass a smaller value (e.g. -ChunkDays 1) to break the request into
+    windows small enough to return in time.
+
+    .PARAMETER ChunkDelaySeconds
+    Seconds to pause between chunk queries. A small pause reduces the chance of
+    tripping Graph throttling limits on large multi-chunk pulls. Default: 2.
+    Set to 0 to disable. Only applies when the range spans more than one chunk.
+
+    .PARAMETER ThrottleDelaySeconds
+    Base backoff (seconds) used when Graph throttles a request but does not return a
+    Retry-After value. Backoff grows exponentially per retry (base, base*2, base*4...).
+    When Graph does return Retry-After, that value is honored and printed instead.
+    Default: 60.
+
     .PARAMETER NonInteractive
     Retrieve non-interactive sign-in logs instead of interactive logs.
 
@@ -12199,7 +12050,12 @@ function Get-IRTEntraSignInLog {
     None. Results are exported to an Excel workbook.
 
     .NOTES
-    Version: 1.1.2
+    Version: 1.2.1
+    1.2.1 - Throttle handling: honor and print Retry-After, exponential backoff
+            when absent, and an inter-chunk delay to avoid tripping limits.
+    1.2.0 - Added -ChunkDays to split large queries into smaller date windows,
+            with per-chunk token refresh and retry on timeout/throttle, to work
+            around the Graph 300s per-request HttpClient timeout.
     1.1.2 - Added graceful exit when no logs are found.
     1.1.1 - Added test timers.
     #>
@@ -12221,6 +12077,18 @@ function Get-IRTEntraSignInLog {
         # absolute date range
         [string] $Start,
         [string] $End,
+
+        # split the date range into sub-queries of this many days each
+        [ValidateRange(1, 3650)]
+        [int] $ChunkDays = 30,
+
+        # seconds to pause between chunk queries to avoid tripping throttle limits
+        [ValidateRange(0, 3600)]
+        [int] $ChunkDelaySeconds = 2,
+
+        # base seconds for throttle backoff when Graph sends no Retry-After
+        [ValidateRange(1, 3600)]
+        [int] $ThrottleDelaySeconds = 60,
 
         [switch] $NonInteractive,
 
@@ -12317,10 +12185,30 @@ function Get-IRTEntraSignInLog {
             DefaultDays = $DefaultDays
         }
         $DateRange = Resolve-DateRange @DateRangeParams
-        $DateRangeType = $DateRange.RangeType
         $Days = $DateRange.Days
         $StartDateUtc = $DateRange.StartUtc
         $EndDateUtc = $DateRange.EndUtc
+
+        # build non-overlapping date chunks, newest to oldest, clamped to the range
+        $DateChunks = [System.Collections.Generic.List[hashtable]]::new()
+        $ChunkEnd = $EndDateUtc
+        while ($ChunkEnd -gt $StartDateUtc) {
+            $ProposedStart = $ChunkEnd.AddDays(-$ChunkDays)
+            $ChunkStart = $ProposedStart -gt $StartDateUtc ? $ProposedStart : $StartDateUtc
+            $DateChunks.Add(@{ Start = $ChunkStart; End = $ChunkEnd })
+            $ChunkEnd = $ChunkStart # newest-first; halves meet at the boundary
+        }
+        $ChunkCount = $DateChunks.Count
+        $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+        if ($ChunkCount -gt 1) {
+            $ChunkMsg = "Date range is $Days days, split into $ChunkCount ${ChunkDays}-day chunks."
+            Write-IRT $ChunkMsg
+            Write-PSFMessage -Level 8 -Message "${FunctionName}: $ChunkMsg [$Elapsed]"
+        }
+        else {
+            Write-PSFMessage -Level 8 -Message (
+                "${FunctionName}: Date range is $Days days (single chunk). [$Elapsed]")
+        }
     }
 
     process {
@@ -12369,22 +12257,12 @@ function Get-IRTEntraSignInLog {
             $SheetTitle = "${TitleType} sign-in logs for ${Target}." +
             " Covers ${Days} days, ${TitleStartDate} to ${TitleEndDate}."
 
-            # time range
-            if ($DateRangeType -eq 'Relative') {
-                if ($Days -ne 30) { # don't use filter if date range is maximum
-                    $FilterStrings.Add( "createdDateTime ge $($DateRange.StartString)" )
-                }
-            }
-            elseif ($DateRangeType -eq 'Absolute') {
-                $FilterStrings.Add( "createdDateTime ge $($DateRange.StartString)" )
-                $FilterStrings.Add( "createdDateTime le $($DateRange.EndString)" )
-            }
-
             # non interactive
             if ( $NonInteractive ) {
                 $FilterStrings.Add( "signInEventTypes/any(t: t eq 'NonInteractiveUser')" )
             }
-            $FilterString = $FilterStrings -join " and "
+            # base filters are constant per user; date bounds are added per chunk
+            $BaseFilterStrings = $FilterStrings
 
             #region QUERY LOGS
             # user messages
@@ -12394,63 +12272,147 @@ function Get-IRTEntraSignInLog {
             else {
                 Write-IRT "Retrieving ${Days} days of sign-in logs for ${Target}."
             }
-            Write-PSFMessage -Level 8 -Message (
-                "${FunctionName}: Filter string: '${FilterString}'")
-            $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-            Write-PSFMessage -Level 8 -Message (
-                "${FunctionName}: Get-MgAuditLogSignIn [$Elapsed]")
 
-            # query logs
-            if ($Beta) { # default is to use beta, which returns more information
-                # $GetProperties = @( # FIXME going to see how much slower pulling all properties is
-                #     'AppDisplayName'
-                #     'AuthenticationProtocol'
-                #     'CorrelationID'
-                #     'CreatedDateTime'
-                #     'DeviceDetail'
-                #     'IpAddress'
-                #     'Location'
-                #     'ResourceId'
-                #     'Status'
-                #     # 'UniqueTokenIdentifier'
-                #     'UserAgent'
-                #     'UserPrincipalName'
-                # )
+            # $GetProperties = @( # FIXME going to see how much slower pulling all properties is
+            #     'AppDisplayName'
+            #     'AuthenticationProtocol'
+            #     'CorrelationID'
+            #     'CreatedDateTime'
+            #     'DeviceDetail'
+            #     'IpAddress'
+            #     'Location'
+            #     'ResourceId'
+            #     'Status'
+            #     # 'UniqueTokenIdentifier'
+            #     'UserAgent'
+            #     'UserPrincipalName'
+            # )
+
+            # accumulate logs across all date chunks
+            $Logs = [System.Collections.Generic.List[PSObject]]::new()
+            $MaxRetry = 3
+            $ChunkIndex = 0
+            foreach ($Chunk in $DateChunks) {
+                $ChunkIndex++
+
+                # refresh token each chunk; a long multi-chunk run can outlive the
+                # token's 5-minute refresh window and start failing with 401s
+                Update-IRTToken -Service 'Graph'
+
+                # build this chunk's filter: base filters + explicit date bounds
+                $ChunkFilterStrings = [System.Collections.Generic.List[string]]::new()
+                foreach ( $f in $BaseFilterStrings ) { $ChunkFilterStrings.Add( $f ) }
+                $ChunkStartString = $Chunk.Start.ToString('yyyy-MM-ddTHH:mm:ssZ')
+                $ChunkEndString = $Chunk.End.ToString('yyyy-MM-ddTHH:mm:ssZ')
+                $ChunkFilterStrings.Add( "createdDateTime ge $ChunkStartString" )
+                $ChunkFilterStrings.Add( "createdDateTime le $ChunkEndString" )
+                $FilterString = $ChunkFilterStrings -join " and "
+
+                # chunk progress message
+                if ( $ChunkCount -gt 1 ) {
+                    $ChunkStartLocal = $Chunk.Start.ToLocalTime().ToString('M/d/yy h:mmtt')
+                    $ChunkEndLocal = $Chunk.End.ToLocalTime().ToString('M/d/yy h:mmtt')
+                    Write-IRT ("Chunk ${ChunkIndex} of ${ChunkCount}:" +
+                        " ${ChunkStartLocal} to ${ChunkEndLocal}.")
+                }
+                Write-PSFMessage -Level 8 -Message (
+                    "${FunctionName}: Filter string: '${FilterString}'")
+                $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+                Write-PSFMessage -Level 8 -Message (
+                    "${FunctionName}: Get-MgAuditLogSignIn [$Elapsed]")
+
                 $GetParams = @{
                     Filter = $FilterString
                     # Property = $GetProperties
                     All = $true
                 }
-                [System.Collections.Generic.List[PSObject]]$Logs =
-                Get-MgBetaAuditLogSignIn @GetParams  # | Select-Object $GetProperties
-            }
-            else { # if $Beta = $false
-                # $GetProperties = @( # FIXME going to see how much slower pulling all properties is
-                #     'AppDisplayName'
-                #     'CorrelationID'
-                #     'CreatedDateTime'
-                #     'DeviceDetail'
-                #     'IpAddress'
-                #     'Location'
-                #     'ResourceId'
-                #     'Status'
-                #     'UniqueTokenIdentifier'
-                #     'UserAgent'
-                #     'UserPrincipalName'
-                # )
-                $GetParams = @{
-                    Filter = $FilterString
-                    # Property = $GetProperties
-                    All = $true
+
+                # query logs, retrying on Graph timeout / throttling
+                $RetryCount = 0
+                while ($true) {
+                    try {
+                        if ($Beta) { # default is beta, which returns more information
+                            $ChunkLogs = Get-MgBetaAuditLogSignIn @GetParams
+                        }
+                        else {
+                            $ChunkLogs = Get-MgAuditLogSignIn @GetParams
+                        }
+                        break
+                    }
+                    catch {
+                        $Message = $_.Exception.Message
+                        $IsTimeout = $Message -match
+                            'HttpClient\.Timeout|request was canceled|task was canceled'
+                        $IsThrottle = $Message -match 'TooManyRequests|429'
+
+                        if ($IsThrottle -and $RetryCount -lt $MaxRetry) {
+                            $RetryCount++
+
+                            # determine server-requested Retry-After, if any: prefer the
+                            # response header object, then fall back to the message text
+                            $RetryAfter = $null
+                            try {
+                                $Delta = $_.Exception.Response.Headers.RetryAfter.Delta
+                                if ($null -ne $Delta) { $RetryAfter = [int]$Delta.TotalSeconds }
+                            }
+                            catch { $RetryAfter = $null }
+                            if (-not $RetryAfter -and
+                                $Message -match 'try again (?:in|after)[^0-9]*([0-9]+)\s*second') {
+                                $RetryAfter = [int]$Matches[1]
+                            }
+
+                            if ($RetryAfter) {
+                                # honor and surface the server's requested delay
+                                $Wait = $RetryAfter
+                                Write-IRT ("Throttled by Graph. Honoring Retry-After of" +
+                                    " ${Wait}s (retry ${RetryCount}/${MaxRetry})...") -Level Warn
+                            }
+                            else {
+                                # no Retry-After: exponential backoff from the base
+                                $Factor = [Math]::Pow(2, $RetryCount - 1)
+                                $Wait = [int]($ThrottleDelaySeconds * $Factor)
+                                Write-IRT ("Throttled by Graph (no Retry-After). Backing off" +
+                                    " ${Wait}s (retry ${RetryCount}/${MaxRetry})...") -Level Warn
+                            }
+                            Start-Sleep -Seconds $Wait
+                            continue
+                        }
+                        elseif ($IsTimeout -and $RetryCount -lt $MaxRetry) {
+                            $RetryCount++
+                            Write-IRT ("Request timed out. Retrying" +
+                                " (${RetryCount}/${MaxRetry})...") -Level Warn
+                            Start-Sleep -Seconds 5
+                            continue
+                        }
+                        elseif ($IsTimeout) {
+                            Write-IRT ("Chunk still timing out after ${MaxRetry} retries." +
+                                " Skipping - re-run with a smaller -ChunkDays.") -Level Error
+                            $ChunkLogs = $null
+                            break
+                        }
+                        else {
+                            throw
+                        }
+                    }
                 }
-                [System.Collections.Generic.List[PSObject]]$Logs =
-                Get-MgAuditLogSignIn @GetParams  # | Select-Object $GetProperties
+
+                # accumulate this chunk's results
+                foreach ( $l in $ChunkLogs ) { $Logs.Add( $l ) }
+
+                # brief pause between chunks to avoid tripping throttle limits
+                if ( $ChunkDelaySeconds -gt 0 -and $ChunkIndex -lt $ChunkCount ) {
+                    Start-Sleep -Seconds $ChunkDelaySeconds
+                }
             }
 
             if (($Logs | Measure-Object).Count -eq 0 ) {
                 Write-IRT "No logs found for ${Target} for past ${Days} days. Exiting." -Level Error
                 continue
             }
+
+            # sort newest first (chunks are concatenated newest-first; safety net)
+            $Logs = [System.Collections.Generic.List[PSObject]](
+                $Logs | Sort-Object -Property CreatedDateTime -Descending)
 
             # add metadata to results
             $Logs.Insert(0,
@@ -12496,7 +12458,7 @@ function Get-IRTEntraSignInLog {
         }
     }
 }
-#EndRegion '.\Public\Entra\Get-IRTEntraSignInLog.ps1' 366
+#EndRegion '.\Public\Entra\Get-IRTEntraSignInLog.ps1' 496
 #Region '.\Public\Entra\Get-IRTNonInteractiveSignIn.ps1' -1
 
 function Get-IRTNonInteractiveSignIn {
@@ -19119,10 +19081,6 @@ function Get-IRTUnifiedAuditLog {
 
                     if ($AllLogs.Count -ge $ResultLimit) { $LimitReached = $true; break }
 
-                    # Multi-chunk/multi-query searches can outlive the ~1h access token.
-                    # Cheap no-op while the bound token is healthy.
-                    $null = Update-IRTToken -Service 'Exchange'
-
                     # build final params
                     $FirstPageParams = @{}
                     $BaseParams.GetEnumerator() |
@@ -19160,10 +19118,6 @@ function Get-IRTUnifiedAuditLog {
 
                     # retrieve pages until exhausted or ResultLimit reached
                     while ($LogCount -eq 5000 -and $AllLogs.Count -lt $ResultLimit) {
-
-                        # Large searches can outlive the ~1h access token. Cheap no-op
-                        # while the bound token is healthy; silent re-bind when not.
-                        $null = Update-IRTToken -Service 'Exchange'
 
                         Write-IRT "Requesting page ${PageCount}."
                         $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
@@ -19289,7 +19243,7 @@ function Get-IRTUnifiedAuditLog {
         }
     }
 }
-#EndRegion '.\Public\UnifiedAuditLog\Get-IRTUnifiedAuditLog.ps1' 643
+#EndRegion '.\Public\UnifiedAuditLog\Get-IRTUnifiedAuditLog.ps1' 635
 #Region '.\Public\UnifiedAuditLog\Open-IRTAllOperationsSheet.ps1' -1
 
 function Open-IRTAllOperationsSheet {
@@ -20924,6 +20878,7 @@ function Copy-IRTFunction {
             'Find-IRTDomainController'
             'Get-IRTAdAdminUser'
             'Get-AdGlobalUserObject'
+            'Import-IRTModule'
             'Push-IRTAdSync'
             'Reset-IRTAdUserPassword'
             'Set-AdUserEnabled'
@@ -21032,7 +20987,7 @@ if (-not `$Global:IRT_Config) {
         Write-IRT "Copied $Resolved function(s) to clipboard."
     }
 }
-#EndRegion '.\Public\Utility\Copy-IRTFunction.ps1' 179
+#EndRegion '.\Public\Utility\Copy-IRTFunction.ps1' 180
 #Region '.\Public\Utility\Find-IRTDirectoryObject.ps1' -1
 
 function Find-IRTDirectoryObject {
@@ -21167,8 +21122,8 @@ function Get-IRTLicenseReport {
     displaying the formatted table. Useful for piping to further processing.
 
     .PARAMETER Runspace
-    Deprecated. Output is always a plain Format-Table now; the switch is retained
-    so existing callers do not break.
+    Switch to Format-Table -AutoSize output instead of Write-PSObject color formatting.
+    Set automatically when called from a runspace (e.g., the incident response playbook).
 
     .EXAMPLE
     Get-IRTLicenseReport
@@ -21183,16 +21138,11 @@ function Get-IRTLicenseReport {
     Microsoft.Graph.PowerShell.Models.MicrosoftGraphSubscribedSku[] when -Objects is used.
 
     .NOTES
-    Version: 1.2.0
-    1.2.0 - Removed the Write-PSObject dependency; output is always plain
-            Format-Table. -Runspace is now a no-op kept for compatibility.
+    Version: 1.1.3
     1.1.3 - Added optional output formatting for runspaces.
     #>
     [Alias('LicenseReport')]
     [CmdletBinding()]
-    [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
-        'PSReviewUnusedParameter', 'Runspace',
-        Justification = 'Deprecated no-op retained for backward compatibility.')]
     param (
         [switch] $Objects,
         [switch] $Runspace
@@ -21260,11 +21210,26 @@ function Get-IRTLicenseReport {
             )
             $OutputTable = $OutputTable | Sort-Object $SortOrder
 
-            return $OutputTable | Format-Table -AutoSize | Out-Host
+            if ( $RunSpace ) {
+                # output formatting if being run in a runspace
+                return $OutputTable | Format-Table -AutoSize
+            }
+            else {
+
+                # output formatting if being run directly in terminal
+                $WriteParams = @{
+                    HeadersForeColor = 'Green'
+                    MatchMethod      = 'Match', 'Match'
+                    Column           = 'LicenseName', 'LicenseName'
+                    Value            = 'E3', 'E5'
+                    ValueForeColor   = 'Magenta', 'Magenta'
+                }
+                Write-PSObject $OutputTable @WriteParams
+            }
         }
     }
 }
-#EndRegion '.\Public\Utility\Get-IRTLicenseReport.ps1' 114
+#EndRegion '.\Public\Utility\Get-IRTLicenseReport.ps1' 124
 #Region '.\Public\Utility\Import-IRT.ps1' -1
 
 function Import-IRT {
@@ -21975,9 +21940,8 @@ function Start-IRTPlaybook {
         #region PLAYBOOK STEPS
 
         # Each step relies on the shared references injected into the runspace globals
-        # (see the InitialSessionState setup below): $WorkingPath plus the IRT_* caches.
-        # Exchange steps call Connect-IRTRunspaceExchange, which mints a fresh token
-        # silently from the shared MSAL cache per step. No per-step arguments.
+        # (see the InitialSessionState setup below): $IRT_PlaybookWorkingPath and
+        # $IRT_PlaybookExoConnectParams plus the IRT_* caches. No per-step arguments.
         $Steps = @(
 
             @{  Name   = 'Get-IRTLicenseReport'
@@ -22037,7 +22001,7 @@ function Start-IRTPlaybook {
             @{  Name   = 'Get-IRTMessageTrace'
                 Script = {
                     Set-Location -Path $WorkingPath
-                    Connect-IRTRunspaceExchange
+                    Connect-ExchangeOnline @ExoConnectParams
                     $Params = @{
                         UserObject = $Global:IRT_UserObjects
                         Days       = 90
@@ -22050,7 +22014,7 @@ function Start-IRTPlaybook {
             @{  Name   = 'Get-IRTInboxRule'
                 Script = {
                     Set-Location -Path $WorkingPath
-                    Connect-IRTRunspaceExchange
+                    Connect-ExchangeOnline @ExoConnectParams
                     Get-IRTInboxRule
                 }
             }
@@ -22072,7 +22036,7 @@ function Start-IRTPlaybook {
             @{  Name   = 'Get-IRTUnifiedAuditLog'
                 Script = {
                     Set-Location -Path $WorkingPath
-                    Connect-IRTRunspaceExchange
+                    Connect-ExchangeOnline @ExoConnectParams
                     $UAParams = @{
                         UserObject         = $Global:IRT_UserObjects
                         WaitOnMessageTrace = $true
@@ -22085,7 +22049,7 @@ function Start-IRTPlaybook {
             @{  Name   = 'UALRiskyOperations'
                 Script = {
                     Set-Location -Path $WorkingPath
-                    Connect-IRTRunspaceExchange
+                    Connect-ExchangeOnline @ExoConnectParams
                     $UAParams = @{
                         UserObject      = $Global:IRT_UserObjects
                         RiskyOperations = $true
@@ -22099,7 +22063,7 @@ function Start-IRTPlaybook {
             @{  Name   = 'UALSignInLogs'
                 Script = {
                     Set-Location -Path $WorkingPath
-                    Connect-IRTRunspaceExchange
+                    Connect-ExchangeOnline @ExoConnectParams
                     $UAParams = @{
                         UserObject = $Global:IRT_UserObjects
                         SignInLogs = $true
@@ -22119,7 +22083,7 @@ function Start-IRTPlaybook {
             @{  Name   = 'Get-IRTMessageTrace -AllUsers'
                 Script = {
                     Set-Location -Path $WorkingPath
-                    Connect-IRTRunspaceExchange
+                    Connect-ExchangeOnline @ExoConnectParams
                     $Params = @{
                         AllUsers = $true
                         Days     = 10
@@ -22146,12 +22110,17 @@ function Start-IRTPlaybook {
                     MessageTraceAllUsersDone = $false
                 })
 
+            # build Exchange connection params once for all runspaces
+            $ExoConnectParams = @{
+                AccessToken       = $Global:IRT_Session.Exchange.Token
+                UserPrincipalName = $Global:IRT_Session.Exchange.UserPrincipalName
+                ShowBanner        = $false
+            }
+            $ExoConnectParams['ExchangeEnvironmentName'] =
+            $Global:IRT_Session.CloudConfig.ExchangeEnv
+
             # pack references for injection into child runspace globals. Keys become global
-            # variable names inside each runspace. IRT_Session carries the shared MSAL
-            # apps (thread-safe), so workers mint their own Exchange tokens silently via
-            # Connect-IRTRunspaceExchange instead of receiving a static token snapshot
-            # that would expire mid-playbook. IRT_IsRunspaceWorker forces Get-IRTAccessToken
-            # to silent mode so a worker can never pop a hidden browser prompt.
+            # variable names inside each runspace.
             $SharedRefs = @{
                 IRT_Banner                     = $Global:IRT_Banner
                 IRT_IpInfo                     = $Global:IRT_IpInfo
@@ -22176,7 +22145,7 @@ function Start-IRTPlaybook {
                 IRT_TenantInfoTable            = $Global:IRT_TenantInfoTable
                 IRT_Session                    = $Global:IRT_Session
                 IRT_UserObjects                = $ScriptUserObjects
-                IRT_IsRunspaceWorker           = $true
+                ExoConnectParams               = $ExoConnectParams
                 WorkingPath                    = $WorkingPath
             }
 
@@ -22192,27 +22161,23 @@ function Start-IRTPlaybook {
                 $InitialSessionState.Variables.Add($SsveType::new($Key, $SharedRefs[$Key], ''))
             }
 
-            # Seed the dependency-check table too. Confirm-Dependencies.ps1
-            # (ScriptsToProcess) records each verified module root in the generic
-            # $Global:ModuleDependenciesChecked hashtable; passing it down lets the
-            # parallel runspaces skip the Get-Module -ListAvailable scan the parent
-            # already passed. The table is module-agnostic (keyed by module root
-            # path) because the dependency scripts are portable across projects.
-            if ($Global:ModuleDependenciesChecked -is [hashtable]) {
-                $InitialSessionState.Variables.Add(
-                    $SsveType::new(
-                        'ModuleDependenciesChecked', $Global:ModuleDependenciesChecked, '')
-                )
+            # Seed the dependency-check flag too. Confirm-Dependencies.ps1
+            # (ScriptsToProcess) reads it and skips its Get-Module -ListAvailable scan, so
+            # the parallel runspaces don't each repeat the check the parent already pasbuised.
+            $GvParams = @{
+                Name        = 'IRT_DependenciesChecked'
+                Scope       = 'Global'
+                ValueOnly   = $true
+                ErrorAction = 'SilentlyContinue'
             }
+            $ParentDepsChecked = [bool](Get-Variable @GvParams)
+            $InitialSessionState.Variables.Add(
+                $SsveType::new('IRT_DependenciesChecked', $ParentDepsChecked, '')
+            )
 
-            # Import this module into workers BY PATH, not by name: name resolution
-            # would load whatever version is installed under PSModulePath, which can
-            # be older than the module instance the parent session is running (e.g.
-            # source/dev mode or a worktree) and miss functions the steps depend on.
-            $IrtModulePath = (Get-Module -Name 'M365IncidentResponseTools').Path
             $InitialSessionState.ImportPSModule(
                 'ExchangeOnlineManagement',
-                $IrtModulePath,
+                'M365IncidentResponseTools',
                 'Microsoft.Graph.Authentication'
             )
             $Global:IRT_Playbook_RunspacePool = [RunspaceFactory]::CreateRunspacePool(
@@ -22274,11 +22239,6 @@ function Start-IRTPlaybook {
                     PercentComplete = $PercentComplete
                 }
                 Write-Progress @WpParams
-
-                # Keep the process-wide Graph binding fresh for the workers - they share
-                # the parent's MgContext and cannot re-bind it themselves.
-                $null = Update-IRTToken -Service Graph -SkipIfNeverConnected
-
                 Start-Sleep -Seconds 10
             }
             Write-Progress -Activity 'Playbook Running' -Completed
@@ -22308,7 +22268,7 @@ function Start-IRTPlaybook {
             "${FunctionName}: Playbook complete. Total elapsed: $TotalElapsed")
     }
 }
-#EndRegion '.\Public\Utility\Start-IRTPlaybook.ps1' 496
+#EndRegion '.\Public\Utility\Start-IRTPlaybook.ps1' 491
 #Region '.\Suffix.ps1' -1
 
 # ModuleBuilder Notes: Code in this file will be appended to the built .psm1 file.
@@ -22326,7 +22286,9 @@ $ExecutionContext.SessionState.Module.OnRemove = {
 # Using Synchronized everywhere costs nothing measurable and is safe for runspace sharing.
 # Existing data is preserved on module re-import (-Force).
 foreach ($VarName in 'IRT_IpInfo', 'IRT_MessageTraceTable') {
-    $Current = Get-Variable -Name $VarName -Scope Global -ValueOnly -ErrorAction SilentlyContinue
+    # -ErrorAction Ignore (not SilentlyContinue): on first import the global does
+    # not exist yet, and Ignore keeps that expected miss out of $Error.
+    $Current = Get-Variable -Name $VarName -Scope Global -ValueOnly -ErrorAction Ignore
     if (-not ($Current -is [hashtable] -and $Current.IsSynchronized)) {
         $Existing = if ($Current -is [hashtable]) { $Current } else { @{} }
         Set-Variable -Name $VarName -Scope Global -Value ([hashtable]::Synchronized($Existing))
@@ -22367,12 +22329,8 @@ $Global:IRT_Config.IpInfoAvailable = (Test-PythonPackage -Name 'ip_info').Presen
 # Load static reference data (error codes, UAL operation metadata, UAL user types).
 Import-ReferenceData
 
-# Set terminal title on module load - but not when loading inside a playbook
-# worker runspace: workers share the parent's host, so this would stomp the
-# domain-suffixed title Connect-IRT set in the parent terminal.
-if (-not $Global:IRT_IsRunspaceWorker) {
-    Set-TerminalTitle '[IRT]'
-}
+# Set terminal title on module load.
+Set-TerminalTitle '[IRT]'
 
 # debug: output module load time
 if ($Global:IRT_LoadStopwatch) {
@@ -22381,5 +22339,5 @@ if ($Global:IRT_LoadStopwatch) {
     Write-PSFMessage -Level 8 -Message "Module loaded in $($Elapsed.ToString('N2'))s."
     Remove-Variable -Name 'IRT_LoadStopwatch' -Scope Global
 }
-#EndRegion '.\Suffix.ps1' 71
+#EndRegion '.\Suffix.ps1' 69
 

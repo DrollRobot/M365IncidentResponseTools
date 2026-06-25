@@ -11,9 +11,10 @@ if ($env:TERM_PROGRAM -ne 'vscode') {
     # On a -Force reimport the current prompt is already the IRT prompt, so we must not
     # overwrite $Global:IRT_OriginalPrompt with our own scriptblock.
     # Use Get-Variable to avoid strict-mode errors when the variable is not yet set.
-    $_irtPromptVar = Get-Variable -Name 'IRT_OriginalPrompt' -Scope Global -ErrorAction SilentlyContinue
+    # -ErrorAction Ignore keeps these expected "not set yet" misses out of $Error.
+    $_irtPromptVar = Get-Variable -Name 'IRT_OriginalPrompt' -Scope Global -ErrorAction Ignore
     if ($null -eq $_irtPromptVar -or $_irtPromptVar.Value -isnot [scriptblock]) {
-        $Global:IRT_OriginalPrompt = (Get-Command prompt -ErrorAction SilentlyContinue).ScriptBlock
+        $Global:IRT_OriginalPrompt = (Get-Command prompt -ErrorAction Ignore).ScriptBlock
         if (-not $Global:IRT_OriginalPrompt) {
             $Global:IRT_OriginalPrompt = {
                 "PS $($executionContext.SessionState.Path.CurrentLocation)" +
@@ -46,7 +47,9 @@ if ($env:TERM_PROGRAM -ne 'vscode') {
         $irt_domain = $null
 
         try {
-            $GraphCtx = Get-MgContext -ErrorAction SilentlyContinue
+            # Ignore (not SilentlyContinue): this runs on every prompt draw, so a
+            # disconnected-session miss must not accumulate in $Error.
+            $GraphCtx = Get-MgContext -ErrorAction Ignore
             if ($GraphCtx -and $GraphCtx.Account) {
                 try {
                     $null = Invoke-MgGraphRequest -Uri 'v1.0/organization?$select=id&$top=1' -ErrorAction Stop
@@ -64,7 +67,7 @@ if ($env:TERM_PROGRAM -ne 'vscode') {
 
         try {
             $IppsPattern = 'compliance\.protection\.(outlook\.com|office365\.us)'
-            $AllExoConns = Get-ConnectionInformation -ErrorAction SilentlyContinue |
+            $AllExoConns = Get-ConnectionInformation -ErrorAction Ignore |
                 Where-Object { $_.State -eq 'Connected' }
             $ExoConn = $AllExoConns |
                 Where-Object { $_.ConnectionUri -notmatch $IppsPattern } |
