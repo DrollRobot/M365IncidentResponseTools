@@ -1,0 +1,64 @@
+base: develop
+title: y
+---
+# test: add online tests for Get-IRTEntraSignInLog
+
+## Summary
+
+`Get-IRTEntraSignInLog` had thorough offline tests but no live coverage. This
+adds an Online-tagged Pester suite that runs the function against the real
+Microsoft Graph sign-in logs endpoint, exercising the query/chunk/merge/sort
+pipeline end-to-end rather than against mocks.
+
+The guiding constraint was to mock as little as possible. Only three things are
+mocked, and none of them sit on the data path:
+
+- `Show-IRTEntraSignInLog` — captures the records the function produces so the
+  tests can assert on them, without writing an Excel workbook or invoking the
+  `ip_info` enrichment tool.
+- `Write-IRT` / `Write-PSFMessage` — suppress console noise.
+
+Everything else runs for real: the Graph SDK cmdlets
+(`Get-MgBetaAuditLogSignIn`, `Get-MgAuditLogSignIn`) and the internal helpers
+(`Update-IRTToken`, `Import-IRTModule`, `Get-DefaultDomain`,
+`Resolve-DateRange`).
+
+The file follows the structure already established by
+`Get-IRTUnifiedAuditLog.Paths.Online.Tests.ps1`: each Context issues one cached
+live query in its `BeforeAll` and shares the result across its `It` blocks to
+keep the number of live Graph calls low.
+
+## What's covered
+
+- **`-UserObject` (interactive, 30 days)** — confirms the `UserId eq '<guid>'`
+  filter reached Graph (every record belongs to the test user) and that the
+  date window is honored.
+- **`-AllUsers` (beta, 7 days)** — tenant-wide query; also captures a live
+  source IP for the next context.
+- **`-IpAddress`** — reuses the IP observed in the AllUsers result, so the
+  originating record guarantees a hit; verifies the `ipAddress eq` filter.
+  Skips cleanly if no IP was available.
+- **`-NonInteractive`** — verifies the `signInEventTypes` clause reached Graph
+  (`IsInteractive` is `$false` on every record).
+- **`-Beta $false`** — exercises the v1.0 endpoint branch.
+- **Date chunking** (`-Days 7 -ChunkDays 1`) — exercises the multi-chunk
+  accumulate/merge/sort path and asserts newest-first ordering.
+- **Absolute `-Start` / `-End` range**.
+
+## Notes / assumptions
+
+- The suite treats `IRT_TEST_USER_ID` as the authenticating account, so it
+  always has recent interactive and non-interactive sign-in activity. This
+  matches how the existing UAL online tests use the same variable.
+- Assertions read the `UserId`, `IpAddress`, `IsInteractive`, and
+  `CreatedDateTime` properties of the live records.
+
+## Testing
+
+- All applicable formatting checks pass against the new file (LineLength,
+  ModuleSyntax, FormatOperator, NonASCIICharacters, BacktickContinuation,
+  JoinPath, WriteVerboseDebug, PSSA).
+- The online suite itself has not been run here, since it requires a live
+  tenant session (`Connect-IRT`) and a valid `IRT_TEST_USER_ID`. Run with
+  `.\Tests.ps1 Online` (add `-InteractiveAuth` if the test token cache is
+  empty).
