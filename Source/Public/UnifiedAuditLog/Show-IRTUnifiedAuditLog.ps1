@@ -4,7 +4,9 @@ function Show-IRTUnifiedAuditLog {
 	Parse and show unified audit logs.
 
 	.NOTES
-	Version: 1.0.1
+	Version: 1.0.2
+    1.0.2 - Data-gap marker rows (IRTDataGap) always pass operation filtering so
+            missing-data markers appear on every sheet.
     1.0.1 - Added option pass raw log objects, not just import from file.
 	#>
     [CmdletBinding(DefaultParameterSetName = 'Objects')]
@@ -182,7 +184,10 @@ function Show-IRTUnifiedAuditLog {
             if ($SheetEntry.Operations.Count -gt 0) {
                 $FilteredLogs = [System.Collections.Generic.List[PSObject]]::new()
                 foreach ($LogEntry in $Log) {
-                    if ($LogEntry.AuditData.Operation -in $SheetEntry.Operations) {
+                    # always keep data-gap markers so missing-data is visible on
+                    # every sheet, regardless of operation-based filtering
+                    if ($LogEntry.IRTDataGap -or
+                        $LogEntry.AuditData.Operation -in $SheetEntry.Operations) {
                         $FilteredLogs.Add($LogEntry)
                     }
                 }

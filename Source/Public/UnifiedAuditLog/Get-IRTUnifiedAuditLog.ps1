@@ -33,6 +33,24 @@ function Get-IRTUnifiedAuditLog {
     .PARAMETER End
     End of date range (parseable date string). Used with -Start for an absolute range.
 
+    .PARAMETER ChunkDays
+    Splits the requested date range into sub-queries of this many days each, querying
+    newest to oldest and merging the results. Default: 182. Search-UnifiedAuditLog
+    degrades and times out on wide ranges, so large pulls (e.g. -AllUsers over a long
+    range) are broken into windows small enough to return reliably. Pass a smaller
+    value to further reduce the chance of failed queries due to timeouts.
+
+    .PARAMETER ChunkDelaySeconds
+    Seconds to pause between chunk queries. A small pause reduces the chance of
+    tripping Exchange throttling limits on large multi-chunk pulls. Default: 2.
+    Set to 0 to disable. Only applies when the range spans more than one chunk.
+
+    .PARAMETER ThrottleDelaySeconds
+    Base backoff (seconds) used when a Search-UnifiedAuditLog query fails (timeout,
+    throttling, or a dropped session). Backoff grows exponentially per retry
+    (base, base*2, base*4...) and the token is refreshed between attempts. The full
+    exception is written to the PSFramework debug log for troubleshooting. Default: 60.
+
     .PARAMETER ResultLimit
     Maximum total records to retrieve across all queries and date chunks. Stops at the
     next 5000-record page boundary after the limit is reached. Since queries run from
@@ -79,7 +97,14 @@ function Get-IRTUnifiedAuditLog {
     None. Results are exported to an Excel workbook.
 
     .NOTES
-    Version: 1.8.0
+    Version: 1.9.0
+    1.9.0 - Exposed -ChunkDays to control date-chunk size, added per-chunk token
+    refresh so long multi-chunk runs don't outlive the token's refresh window, an
+    inter-chunk delay (-ChunkDelaySeconds), and retry-with-backoff
+    (-ThrottleDelaySeconds) on failed queries, with full exceptions logged to debug.
+    A query that still fails after all retries now raises an error and inserts a
+    visible "DATA MISSING" marker row into the results so incomplete pulls are
+    obvious in the exported workbook, rather than silently returning partial data.
     1.8.0 - Added date chunking for ranges over 182 days; ResultLimit now caps total
     records across all queries rather than per-query.
     1.7.0 - Added -ResultLimit to cap records pulled per query before paging stops.
@@ -107,6 +132,18 @@ function Get-IRTUnifiedAuditLog {
         [string] $Start,
         [string] $End,
 
+        # split the date range into sub-queries of this many days each
+        [ValidateRange(1, 3650)]
+        [int] $ChunkDays = 182,
+
+        # seconds to pause between chunk queries to avoid tripping throttle limits
+        [ValidateRange(0, 3600)]
+        [int] $ChunkDelaySeconds = 2,
+
+        # base seconds for retry backoff when a query fails (timeout/throttle/session)
+        [ValidateRange(1, 3600)]
+        [int] $ThrottleDelaySeconds = 60,
+
         [int] $ResultLimit = 50000,
 
         [Alias('Operations')]
@@ -130,6 +167,92 @@ function Get-IRTUnifiedAuditLog {
         $FunctionName = $MyInvocation.MyCommand.Name
         $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
         $ParameterSet = $PSCmdlet.ParameterSetName
+
+        # max attempts per Search-UnifiedAuditLog call before giving up on it
+        $MaxRetry = 3
+
+        # helper: run a Search-UnifiedAuditLog call with retry. Exchange/UAL surfaces
+        # transient failures (throttling, timeouts, dropped sessions) with varied and
+        # unstable error text, so rather than match specific messages we retry on ANY
+        # terminal error, refreshing the token between attempts, and record the full
+        # exception to the debug log for future troubleshooting. Returns the cmdlet's
+        # output, or rethrows the last error if every attempt failed so the caller
+        # can surface it and insert a visible data-gap marker.
+        function Invoke-IRTUalSearchWithRetry {
+            param(
+                [hashtable] $SearchParams,
+                [string]    $Label,
+                [int]       $MaxRetry,
+                [int]       $ThrottleDelaySeconds
+            )
+            $Attempt = 0
+            while ($true) {
+                $Attempt++
+                try {
+                    return Search-UnifiedAuditLog @SearchParams -ErrorAction Stop
+                }
+                catch {
+                    $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+                    # record full exception details for future troubleshooting
+                    Write-PSFMessage -Level Warning -ErrorRecord $_ -Message (
+                        "${FunctionName}: ${Label} failed on attempt " +
+                        "${Attempt}/${MaxRetry}: $($_.Exception.GetType().FullName): " +
+                        "$($_.Exception.Message) [$Elapsed]")
+
+                    if ($Attempt -ge $MaxRetry) {
+                        Write-PSFMessage -Level Warning -ErrorRecord $_ -Message (
+                            "${FunctionName}: ${Label} gave up after ${MaxRetry} " +
+                            "attempts; rethrowing. [$Elapsed]")
+                        # rethrow so the caller surfaces the error and drops a
+                        # visible data-gap marker into the results
+                        throw
+                    }
+
+                    # exponential backoff, then refresh the token in case the
+                    # failure was an expired or dropped Exchange session
+                    $Wait = [int]($ThrottleDelaySeconds * [Math]::Pow(2, $Attempt - 1))
+                    Write-IRT ("${Label} error. Backing off ${Wait}s then retrying " +
+                        "(${Attempt}/${MaxRetry})...") -Level Warn
+                    Start-Sleep -Seconds $Wait
+                    Update-IRTToken -Service 'Exchange'
+                }
+            }
+        }
+
+        # helper: build a visible "data missing" marker row to insert when a query
+        # fails after all retries. It mimics a UAL record closely enough to flow
+        # through dedup, sort, and the sheet builders, so an incomplete dataset is
+        # obvious in the spreadsheet itself - not just in the console/debug error.
+        # The full failure detail (window, query, exception) lands in the Raw column
+        # via AuditData.
+        function New-IRTUalGapMarker {
+            [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+                'PSUseShouldProcessForStateChangingFunctions', '',
+                Justification = 'Builds an in-memory marker object; changes no state.')]
+            param(
+                [hashtable] $DateChunk,
+                [string]    $Label,
+                [System.Management.Automation.ErrorRecord] $ErrorRecord
+            )
+            $GapAuditData = [ordered]@{
+                Operation      = '*** DATA MISSING - query failed; results incomplete ***'
+                Workload       = 'IRT'
+                ResultStatus   = 'Failed'
+                FailedQuery    = $Label
+                WindowStartUtc = $DateChunk.Start.ToString('yyyy-MM-dd HH:mm:ssZ')
+                WindowEndUtc   = $DateChunk.End.ToString('yyyy-MM-dd HH:mm:ssZ')
+                Error          = $ErrorRecord.Exception.Message
+            } | ConvertTo-Json -Compress
+            return [pscustomobject]@{
+                Identity     = "IRT-DATA-GAP-$([guid]::NewGuid())"
+                IRTDataGap   = $true
+                CreationDate = $DateChunk.End
+                RecordType   = 'IRT_QUERY_FAILURE'
+                Operations   = 'DataMissing'
+                UserIds      = '*** DATA MISSING - INCOMPLETE RESULTS ***'
+                AuditData    = $GapAuditData
+            }
+        }
 
         # query profiles - add new entries here to support additional modes
         $ProfileTable = [ordered]@{
@@ -226,8 +349,7 @@ function Get-IRTUnifiedAuditLog {
         $StartDateUtc = $DateRange.StartUtc
         $EndDateUtc = $DateRange.EndUtc
 
-        # build 182-day chunks, most recent first
-        $ChunkDays = 182
+        # build date chunks, most recent first
         $DateChunks = [System.Collections.Generic.List[hashtable]]::new()
         $ChunkEnd = $EndDateUtc
         while ($ChunkEnd -gt $StartDateUtc) {
@@ -239,7 +361,7 @@ function Get-IRTUnifiedAuditLog {
         $ChunkCount = $DateChunks.Count
         $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
         if ($ChunkCount -gt 1) {
-            $ChunkMsg = "Date range is $Days days, split into $ChunkCount 182-day chunks."
+            $ChunkMsg = "Date range is $Days days, split into $ChunkCount ${ChunkDays}-day chunks."
             Write-IRT $ChunkMsg
             Write-PSFMessage -Level 8 -Message "${FunctionName}: $ChunkMsg [$Elapsed]"
         }
@@ -453,6 +575,11 @@ function Get-IRTUnifiedAuditLog {
             foreach ($DateChunk in $DateChunks) {
                 if ($LimitReached) { break }
                 $ChunkIndex++
+
+                # refresh token each chunk; a long multi-chunk run can outlive the
+                # token's 5-minute refresh window and start failing with auth errors
+                Update-IRTToken -Service 'Exchange'
+
                 $BaseParams['StartDate'] = $DateChunk.Start
                 $BaseParams['EndDate'] = $DateChunk.End
 
@@ -485,7 +612,29 @@ function Get-IRTUnifiedAuditLog {
                     $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
                     Write-PSFMessage -Level 8 -Message (
                         "${FunctionName}: Search-UnifiedAuditLog query $QueryKey [$Elapsed]")
-                    $Page = Search-UnifiedAuditLog @FirstPageParams
+                    $RetryParams = @{
+                        SearchParams         = $FirstPageParams
+                        Label                = "Query $QueryKey"
+                        MaxRetry             = $MaxRetry
+                        ThrottleDelaySeconds = $ThrottleDelaySeconds
+                    }
+                    try {
+                        $Page = Invoke-IRTUalSearchWithRetry @RetryParams
+                    }
+                    catch {
+                        # surface the failure loudly and leave a visible breadcrumb
+                        # in the data, then move on so other queries still run
+                        Write-IRT ("Query $QueryKey failed after retries. Inserting " +
+                            "DATA MISSING marker and continuing.") -Level Error
+                        Write-Error -ErrorRecord $_
+                        $MarkerParams = @{
+                            DateChunk   = $DateChunk
+                            Label       = "Query $QueryKey"
+                            ErrorRecord = $_
+                        }
+                        $AllLogs.Add( (New-IRTUalGapMarker @MarkerParams) )
+                        continue
+                    }
                     $LogCount = ($Page | Measure-Object).Count
 
                     if ($LogCount -gt 0) {
@@ -513,7 +662,30 @@ function Get-IRTUnifiedAuditLog {
                         Write-PSFMessage -Level 9 -Message (
                             "${FunctionName}: Search-UnifiedAuditLog page $PageCount " +
                             "(total so far: $($AllLogs.Count)) [$Elapsed]")
-                        $Page = Search-UnifiedAuditLog @NextPageParams
+                        $RetryParams = @{
+                            SearchParams         = $NextPageParams
+                            Label                = "Query $QueryKey page $PageCount"
+                            MaxRetry             = $MaxRetry
+                            ThrottleDelaySeconds = $ThrottleDelaySeconds
+                        }
+                        try {
+                            $Page = Invoke-IRTUalSearchWithRetry @RetryParams
+                        }
+                        catch {
+                            # paging failed partway: surface it, mark the gap, and
+                            # stop paging this query while keeping the pages we got
+                            Write-IRT ("Query $QueryKey page $PageCount failed after " +
+                                "retries. Inserting DATA MISSING marker; partial " +
+                                "pages kept.") -Level Error
+                            Write-Error -ErrorRecord $_
+                            $MarkerParams = @{
+                                DateChunk   = $DateChunk
+                                Label       = "Query $QueryKey page $PageCount"
+                                ErrorRecord = $_
+                            }
+                            $AllLogs.Add( (New-IRTUalGapMarker @MarkerParams) )
+                            break
+                        }
                         $LogCount = @($Page).Count
 
                         if ( $LogCount -gt 0 ) {
@@ -541,6 +713,12 @@ function Get-IRTUnifiedAuditLog {
                     Write-PSFMessage -Level 8 -Message (
                         "${FunctionName}: Chunk $ChunkIndex complete. " +
                         "Total logs accumulated: $($AllLogs.Count) [$Elapsed]")
+                }
+
+                # brief pause between chunks to avoid tripping throttle limits
+                if ($ChunkDelaySeconds -gt 0 -and $ChunkIndex -lt $ChunkCount -and
+                    -not $LimitReached) {
+                    Start-Sleep -Seconds $ChunkDelaySeconds
                 }
             }
 
