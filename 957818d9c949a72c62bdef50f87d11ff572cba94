@@ -1,0 +1,60 @@
+base: develop
+title: y
+---
+# fix(tests): finish worktree-safety for the test orchestrator
+
+## Summary
+
+Follow-up to the recent work that made `Tests.ps1` portable and
+worktree-safe. While verifying every test variation from
+`AGENTS.TESTING.md` inside a worktree (repo folder named `tests`, not the
+module), the `ExplicitModuleImport` check was the one remaining piece that
+still assumed the repo folder matched the module name. This PR fixes that
+and widens the `-SignInLog` audit-log test window.
+
+## What changed
+
+**Worktree-safe module-name resolution in ExplicitModuleImport**
+
+`Test-ExplicitModuleImport.ps1` resolved the module-under-test name with
+`Find-ModuleRoot`, which walks up the tree looking for a `<folder>.psd1`
+whose name matches its directory. In a worktree the repo folder is named
+after the branch, so no matching manifest is ever found:
+`Find-ModuleRoot` returns `$null` and `.Name` throws, taking the whole
+check down before it scans a single file.
+
+The orchestrator already resolves the module name from the manifest (the
+worktree-safe approach used everywhere else in `Tests.ps1`). It now
+exports that as `$Global:Dev_ModuleName`, and the check prefers it,
+falling back to `Find-ModuleRoot` for standalone runs and erroring
+clearly when neither yields a name.
+
+**Wider SignInLog audit-log query**
+
+The `-SignInLog` parameter-path test queried only the last 7 days of the
+unified audit log; the window is now 30 days, with the context name and
+header comment updated to match.
+
+## Testing
+
+All `Tests.ps1` variations were run in the worktree:
+
+- `Offline` — 246 passed, 0 failed, 2 skipped.
+- `Online` / `Online -InteractiveAuth` — Connect-IRT passes and the silent
+  cache round-trip is verified; the orchestrator loads the module from the
+  manifest name, confirming worktree portability.
+- `AutoFormat`, `ModuleSyntax`, `ExplicitModuleImport`, `FormatOperator`,
+  `JoinPath`, `NonASCIICharacters`, `FindUnwantedStrings`,
+  `WriteVerboseDebug`, `LineLength`, `BacktickContinuation`, `PSSA` — all
+  clean. `ExplicitModuleImport` now passes (155 files) where it previously
+  threw.
+- `-Path` targeting (`LineLength -Path .\Source\Public`) scopes correctly.
+
+## Known issue (not addressed here)
+
+The `-SignInLog` UAL test still fails in the test tenant even at 30 days:
+that tenant produces no `UserLoggedIn`/`UserLoggedOff`/`UserLoginFailed`
+UAL operations (modern Entra sign-ins land in the Entra sign-in logs).
+Every other UAL parameter-path assertion passes, so this is a test-tenant
+data characteristic rather than a code regression. Left for a follow-up
+decision (skip-on-empty vs. generating the data).
