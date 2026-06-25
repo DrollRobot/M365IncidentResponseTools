@@ -10,7 +10,7 @@ function Start-IRTPlaybook {
 
     Steps include: license report, user info, app assignments, mailbox details, admin roles,
     risky applications, MFA state, message trace, inbox rules, Entra audit log, sign-in logs,
-    non-interactive sign-in logs, and Unified Audit Log (UAL).
+    non-interactive sign-in logs, Entra registered/joined devices, and Unified Audit Log (UAL).
 
     If -UserObject is omitted the function falls back to $Global:IRT_UserObjects populated
     by Find-User.
@@ -297,6 +297,13 @@ function Start-IRTPlaybook {
                 Script = {
                     Set-Location -Path $WorkingPath
                     Get-IRTNonInteractiveSignIn
+                }
+            }
+
+            @{  Name   = 'Get-IRTAllEntraDevice'
+                Script = {
+                    Set-Location -Path $WorkingPath
+                    Get-IRTAllEntraDevice
                 }
             }
 
