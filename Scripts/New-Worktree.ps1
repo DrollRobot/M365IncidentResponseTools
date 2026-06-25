@@ -49,7 +49,7 @@
     .\New-Worktree.ps1 issue-42 -Yes
 
 .NOTES
-    Script version 1.2.0.
+    Script version 1.3.0.
 #>
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '')]
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingPositionalParameters', '')]
@@ -84,7 +84,7 @@ $ErrorActionPreference = 'Stop'
 # Version of this helper script itself. Bump on every change so copies in other
 # repos can be compared: patch = bugfix, minor = new flag/behavior, major =
 # breaking CLI change.
-$ScriptVersion = '1.2.0'
+$ScriptVersion = '1.3.0'
 
 # --- output helpers ---------------------------------------------------------
 
@@ -448,6 +448,21 @@ if (-not $NoBootstrap) {
             Src   = $envFile.FullName
             Dst   = Join-Path -Path $wtPath -ChildPath $envFile.Name
             Label = $envFile.Name
+        }
+    }
+
+    # Link the testing env file (Tests/.env.ps1, gitignored test secrets) so each
+    # worktree shares the repo's single copy. The .example template is committed,
+    # so the worktree already checks it out; only the real file needs linking.
+    $srcTestsDir = Join-Path -Path $repoRoot -ChildPath 'Tests'
+    $dstTestsDir = Join-Path -Path $wtPath -ChildPath 'Tests'
+    $testEnvSrc = Join-Path -Path $srcTestsDir -ChildPath '.env.ps1'
+    $testEnvDst = Join-Path -Path $dstTestsDir -ChildPath '.env.ps1'
+    if ((Test-Path -LiteralPath $testEnvSrc) -and -not (Test-Path -LiteralPath $testEnvDst)) {
+        $links += [pscustomobject]@{
+            Src   = $testEnvSrc
+            Dst   = $testEnvDst
+            Label = 'Tests/.env.ps1'
         }
     }
 
