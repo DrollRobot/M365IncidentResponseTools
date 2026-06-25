@@ -11,7 +11,7 @@ function Open-IRTAllOperationsSheet {
     .NOTES
     Version: 1.0.0
     #>
-    [Alias('Open-AllOperationsSheet', 'IRTAllOperationsSheet')]
+    [Alias('Open-AllOperationsSheet', 'OpenIRTAllOperationsSheet', 'IRTAllOperationsSheet')]
     [CmdletBinding()]
     param ()
 
