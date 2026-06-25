@@ -302,7 +302,7 @@ InModuleScope M365IncidentResponseTools {
         }
 
         # -------------------------------------------------------------------
-        Context '-FreeText with AllUsers, 7-day query' {
+        Context '-FreeText with AllUsers, 30-day query' {
 
             BeforeAll {
                 Mock Write-IRT { }
@@ -314,7 +314,7 @@ InModuleScope M365IncidentResponseTools {
                 $Params = @{
                     AllUsers    = $true
                     FreeText    = @('Microsoft', 'Graph', 'Exchange')
-                    Days        = 7
+                    Days        = 30
                     ResultLimit = 5000
                     Excel       = $true
                     Xml         = $false
