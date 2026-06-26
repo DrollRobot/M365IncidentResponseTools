@@ -49,7 +49,9 @@
     .\New-Worktree.ps1 issue-42 -Yes
 
 .NOTES
-    Script version 1.3.0.
+    Script version 1.3.1, which records the integration base as
+    branch.<branch>.prBase so Complete-WorkTree.ps1 can recover the PR base even
+    after `git push -u` repoints the branch's upstream.
 #>
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '')]
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingPositionalParameters', '')]
@@ -84,7 +86,7 @@ $ErrorActionPreference = 'Stop'
 # Version of this helper script itself. Bump on every change so copies in other
 # repos can be compared: patch = bugfix, minor = new flag/behavior, major =
 # breaking CLI change.
-$ScriptVersion = '1.3.0'
+$ScriptVersion = '1.3.1'
 
 # --- output helpers ---------------------------------------------------------
 
@@ -355,6 +357,11 @@ Write-Section 'Step: create worktree'
 Confirm-Step "Create worktree at '$wtPath' on new branch '$branch' from 'origin/$Base'?"
 New-Item -ItemType Directory -Path $wtHome -Force | Out-Null
 Invoke-Run git worktree add -b $branch $wtPath "origin/$Base"
+
+# Record the integration base durably. A later `git push -u` repoints the
+# branch's upstream (branch.<branch>.merge) to the branch itself, so
+# Complete-WorkTree.ps1 reads this custom key first to recover the real PR base.
+Invoke-Run git config "branch.$branch.prBase" $Base
 
 # --- step: generate the workspace -------------------------------------------
 
