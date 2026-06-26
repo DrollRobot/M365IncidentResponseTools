@@ -66,7 +66,12 @@ function Test-IRTConnection {
             Where-Object { $_.ConnectionUri -match $IppsPattern } |
             Select-Object -First 1
 
-        $GraphConnected = $GraphCtx -and $GraphCtx.Account -and $GraphTokenValid
+        # Account is null when Graph is bound via Connect-MgGraph -AccessToken, so
+        # it cannot gate "connected" - doing so makes every token-bound Graph
+        # session read as disconnected. The live call above already proved the
+        # token works; require a context carrying a TenantId (populated in token
+        # mode) plus that successful call.
+        $GraphConnected = $GraphCtx -and $GraphCtx.TenantId -and $GraphTokenValid
         $ExoConnected = $null -ne $ExoConn
         $IppsConnected = $null -ne $IppsConn
 
@@ -81,8 +86,14 @@ function Test-IRTConnection {
         }
 
         # --- Verbose display ---
-        $graphDomain = if ($GraphConnected) {
-            ($GraphCtx.Account -split '@')[-1]
+        # Get-MgContext.Account is null in -AccessToken mode, so the displayed
+        # account/domain come from the session's recorded Graph account (the one
+        # actually bound), not the SDK context.
+        $graphAccount = if ($GraphConnected) {
+            $Global:IRT_Session.Graph?.Account
+        } else { $null }
+        $graphDomain = if ($graphAccount) {
+            ($graphAccount -split '@')[-1]
         } else { $null }
 
         $exoDomain = if ($ExoConnected) {
@@ -98,7 +109,7 @@ function Test-IRTConnection {
                 Service   = 'Graph'
                 Connected = $GraphConnected
                 Domain    = if ($graphDomain) { $graphDomain } else { '-' }
-                Account   = if ($GraphConnected) { $GraphCtx.Account } else { '-' }
+                Account   = if ($graphAccount) { $graphAccount } else { '-' }
             }
             [pscustomobject]@{
                 Service   = 'Exchange'
