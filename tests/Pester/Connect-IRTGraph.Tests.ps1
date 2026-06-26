@@ -256,6 +256,17 @@ InModuleScope M365IncidentResponseTools {
                 }
             }
 
+            It 'preserves the bound account instead of a fresh unbound acquisition' {
+                # No reconnect happens, so a token minted for a different account
+                # must NOT be stamped onto the session - the label has to track
+                # whatever is actually bound (here, the prior admin@customer.com).
+                Mock Get-IRTAccessToken {
+                    New-TokenResult -Username 'new@fresh.com' -ExpiresOn $script:FixedExpiresOn
+                }
+                $Result = Connect-IRTGraph -TenantId $script:TestTenant -Cloud Commercial
+                $Result.Account | Should -Be 'admin@customer.com'
+            }
+
             It 'reconnects when the live verification fails' {
                 Mock Invoke-MgGraphRequest { throw '401 InvalidAuthenticationToken' }
                 $null = Connect-IRTGraph -TenantId $script:TestTenant -Cloud Commercial

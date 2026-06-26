@@ -111,13 +111,15 @@ InModuleScope M365IncidentResponseTools {
                 [string] $ConnectionId = ([guid]::NewGuid().ToString()),
                 [string] $TenantID = $script:TestTenant,
                 [string] $ConnectionUri = 'https://outlook.office365.com',
-                [string] $State = 'Connected'
+                [string] $State = 'Connected',
+                [string] $UserPrincipalName = 'admin@customer.com'
             )
             [pscustomobject]@{
-                ConnectionId  = $ConnectionId
-                TenantID      = $TenantID
-                ConnectionUri = $ConnectionUri
-                State         = $State
+                ConnectionId      = $ConnectionId
+                TenantID          = $TenantID
+                ConnectionUri     = $ConnectionUri
+                State             = $State
+                UserPrincipalName = $UserPrincipalName
             }
         }
     }
@@ -263,6 +265,18 @@ InModuleScope M365IncidentResponseTools {
             It 'returns the existing ConnectionId' {
                 $Result = Connect-IRTExchange -TenantId $script:TestTenant -Cloud Commercial
                 $Result.ConnectionId | Should -Be $script:ExistingId
+            }
+
+            It 'reports the live connection account, not a freshly-acquired token' {
+                # No rebind: the session still holds the previously-bound token, so
+                # the reported UPN must come from the live connection - not a token
+                # silently acquired as a different account (the decoupling bug).
+                $script:Connections[0].UserPrincipalName = 'bound@customer.com'
+                Mock Get-IRTAccessToken {
+                    New-TokenResult -Username 'fresh@customer.com' -ExpiresOn $script:FixedExpiresOn
+                }
+                $Result = Connect-IRTExchange -TenantId $script:TestTenant -Cloud Commercial
+                $Result.UserPrincipalName | Should -Be 'bound@customer.com'
             }
 
             It 'reconnects when the live verification fails' {

@@ -104,13 +104,15 @@ InModuleScope M365IncidentResponseTools {
                 [string] $ConnectionId = ([guid]::NewGuid().ToString()),
                 [string] $TenantID = $script:TestTenant,
                 [string] $ConnectionUri = $script:IppsUri,
-                [string] $State = 'Connected'
+                [string] $State = 'Connected',
+                [string] $UserPrincipalName = 'admin@customer.com'
             )
             [pscustomobject]@{
-                ConnectionId  = $ConnectionId
-                TenantID      = $TenantID
-                ConnectionUri = $ConnectionUri
-                State         = $State
+                ConnectionId      = $ConnectionId
+                TenantID          = $TenantID
+                ConnectionUri     = $ConnectionUri
+                State             = $State
+                UserPrincipalName = $UserPrincipalName
             }
         }
     }
@@ -209,6 +211,18 @@ InModuleScope M365IncidentResponseTools {
                 Should -Invoke Write-IRT -Times 1 -ParameterFilter {
                     $Message -match 'Already connected'
                 }
+            }
+
+            It 'reports the live connection account, not a freshly-acquired token' {
+                # No rebind: the session still holds the previously-bound token, so
+                # the reported UPN must come from the live connection - not a token
+                # silently acquired as a different account (the decoupling bug).
+                $script:Connections[0].UserPrincipalName = 'bound@customer.com'
+                Mock Get-IRTAccessToken {
+                    New-TokenResult -Username 'fresh@customer.com' -ExpiresOn $script:FixedExpiresOn
+                }
+                $Result = Connect-IRTIPPS -TenantId $script:TestTenant -Cloud Commercial
+                $Result.UserPrincipalName | Should -Be 'bound@customer.com'
             }
 
             It 'reconnects when the SearchOnly mode changes' {
