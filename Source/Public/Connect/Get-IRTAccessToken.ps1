@@ -169,6 +169,25 @@ function Get-IRTAccessToken {
                     $Builder = $Builder.WithForceRefresh($true)
                 }
                 $Result = $Builder.ExecuteAsync().GetAwaiter().GetResult()
+
+                # Reject a token issued for a DIFFERENT tenant. MSAL can hand back
+                # a token in the account's home tenant even though this app's
+                # authority targets $TenantId - e.g. a cached account that has no
+                # presence in the target tenant. Nothing downstream checks the
+                # realm (only the audience/cloud is validated), so such a token
+                # would be bound and mislabeled as the target tenant. Treat it as
+                # a failed candidate and move on, leaving the sticky pointer
+                # untouched so it self-heals to the first correct-tenant account.
+                # AuthenticationResult.TenantId is the issued realm; mirror the
+                # audience-check contract and only act on a positively-wrong value
+                # (an absent one is not punished).
+                if ($Result.TenantId -and $Result.TenantId -ne $TenantId) {
+                    Write-PSFMessage -Level 8 -Message (
+                        "Discarding $Service token for $($Candidate.Username): " +
+                        "issued for tenant $($Result.TenantId), expected $TenantId.")
+                    continue
+                }
+
                 Write-PSFMessage -Level 8 -Message (
                     "Silent $Service token acquisition succeeded for " +
                     "$($Result.Account.Username). Expiry: $($Result.ExpiresOn)")
@@ -205,17 +224,29 @@ function Get-IRTAccessToken {
                 $Cts.Dispose()
             }
             $Result = $Task.GetAwaiter().GetResult()
-            Write-PSFMessage -Level 8 -Message (
-                "Interactive $Service token acquisition succeeded. " +
-                "Account: $($Result.Account.Username), " +
-                "Expiry: $($Result.ExpiresOn)")
-            if ($null -ne $Global:IRT_Session.StickyAccount) {
-                $Global:IRT_Session.StickyAccount[$ResolvedClientId] =
-                $Result.Account.HomeAccountId.Identifier
-            }
-            return $Result
         } catch {
             throw "Interactive token acquisition failed: $_"
         }
+
+        # Same tenant guard as the silent path: a wrong-tenant interactive token
+        # must not be bound and labeled as the target tenant. Interactive auth
+        # against a tenant-scoped authority shouldn't yield this, so fail loud
+        # rather than mislabel. Validated outside the try so the message isn't
+        # wrapped as an acquisition failure.
+        if ($Result.TenantId -and $Result.TenantId -ne $TenantId) {
+            throw ("Interactive sign-in token for tenant '$($Result.TenantId)' " +
+                "does not match the requested tenant '$TenantId'. " +
+                'Sign in with an account that belongs to the target tenant.')
+        }
+
+        Write-PSFMessage -Level 8 -Message (
+            "Interactive $Service token acquisition succeeded. " +
+            "Account: $($Result.Account.Username), " +
+            "Expiry: $($Result.ExpiresOn)")
+        if ($null -ne $Global:IRT_Session.StickyAccount) {
+            $Global:IRT_Session.StickyAccount[$ResolvedClientId] =
+            $Result.Account.HomeAccountId.Identifier
+        }
+        return $Result
     }
 }
