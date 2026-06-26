@@ -12,22 +12,36 @@ function Find-IRTDevice {
     Find-IRTDevice -Search bf7573a5844f   # partial device id / Entra id / Intune id
     Find-IRTDevice -Search SN1234567890   # serial number (Intune)
 
+    .EXAMPLE
+    Find-IRTDevice -FromClipboard
+    Reads the clipboard and searches for each line as a separate query.
+
+    .PARAMETER FromClipboard
+    Read one search query per line from the clipboard instead of supplying -Search. Each
+    non-empty line is treated as a separate search string. Mutually exclusive with -Search.
+
     .NOTES
-    Version: 1.2.0
+    Version: 1.3.0
+    1.3.0 - Added -FromClipboard to read one search query per clipboard line.
     1.2.0 - Added -AllMatches to collect all matching devices and deduplicate results.
     #>
     [Alias('FindDevice', 'FindDevices')]
     [OutputType([psobject[]])]
-    [CmdletBinding()]
+    [CmdletBinding( DefaultParameterSetName = 'Search' )]
     param (
-        [Parameter( Position = 0, Mandatory )]
+        [Parameter( ParameterSetName = 'Search', Position = 0, Mandatory )]
         [string[]] $Search,
+        [Parameter( ParameterSetName = 'Clipboard', Mandatory )]
+        [switch] $FromClipboard,
         [string] $VarPrefix,
         [switch] $Script,
         [switch] $AllMatches
     )
 
     begin {
+        if ( $FromClipboard ) {
+            $Search = Get-IRTClipboardSearch
+        }
         Update-IRTToken -Service 'Graph'
 
         # variables

@@ -24,6 +24,10 @@ function Find-IRTServicePrincipal {
     One or more search strings. Each is matched against DisplayName, AppDisplayName,
     AppId, and Id using -match (regex-capable, case-insensitive).
 
+    .PARAMETER FromClipboard
+    Read one search query per line from the clipboard instead of supplying -Search. Each
+    non-empty line is treated as a separate search string. Mutually exclusive with -Search.
+
     .PARAMETER VarPrefix
     Optional prefix inserted into the global variable name:
     $Global:IRT_<VarPrefix>ServicePrincipalObjects. Useful when working with multiple
@@ -63,12 +67,17 @@ function Find-IRTServicePrincipal {
     Find-IRTServicePrincipal MyApp -Script
     Return the matched object directly without console output or setting the global variable.
 
+    .EXAMPLE
+    Find-IRTServicePrincipal -FromClipboard
+    Reads the clipboard and searches for each line as a separate query.
+
     .OUTPUTS
     None by default. Sets $Global:IRT_ServicePrincipalObjects.
     With -Script: [object[]] of matched service principal objects.
 
     .NOTES
-    Version: 1.1.0
+    Version: 1.2.0
+    1.2.0 - Added -FromClipboard to read one search query per clipboard line.
     1.1.0 - Added -AllMatches to collect all matching service principals and deduplicate results.
 
     By default, fresh data is fetched from Graph on every call. Pass -Cached to
@@ -93,10 +102,12 @@ function Find-IRTServicePrincipal {
         'FindEnterpriseApplication', 'FindEnterpriseApplications'
     )]
     [OutputType([object[]])]
-    [CmdletBinding()]
+    [CmdletBinding( DefaultParameterSetName = 'Search' )]
     param (
-        [Parameter( Position = 0, Mandatory )]
+        [Parameter( ParameterSetName = 'Search', Position = 0, Mandatory )]
         [string[]] $Search,
+        [Parameter( ParameterSetName = 'Clipboard', Mandatory )]
+        [switch] $FromClipboard,
         [string] $VarPrefix,
         [switch] $Cached,
         [switch] $Script,
@@ -104,6 +115,9 @@ function Find-IRTServicePrincipal {
     )
 
     begin {
+        if ( $FromClipboard ) {
+            $Search = Get-IRTClipboardSearch
+        }
         Update-IRTToken -Service 'Graph'
         $ScriptServicePrincipalObjects = [System.Collections.Generic.List[PsObject]]::new()
         $SeenIds = [System.Collections.Generic.HashSet[string]]::new()

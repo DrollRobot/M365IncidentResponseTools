@@ -18,6 +18,10 @@ function Find-IRTAdDevice {
     One or more search strings. Each string is independently searched across all supported
     fields.
 
+    .PARAMETER FromClipboard
+    Read one search query per line from the clipboard instead of supplying -Search. Each
+    non-empty line is treated as a separate search string. Mutually exclusive with -Search.
+
     .PARAMETER VarPrefix
     Optional prefix inserted after 'IRT_' in the global variable name
     (e.g. 'Target' > $Global:IRT_TargetDeviceObject). Useful when working with multiple
@@ -40,12 +44,17 @@ function Find-IRTAdDevice {
     $Devices = Find-IRTAdDevice -Search 'DESKTOP-ABC123','LAPTOP-XYZ789' -Script
     Returns matching computer objects for two search strings without setting globals.
 
+    .EXAMPLE
+    Find-IRTAdDevice -FromClipboard
+    Reads the clipboard and searches for each line as a separate query.
+
     .OUTPUTS
     None by default (sets global variables).
     Microsoft.ActiveDirectory.Management.ADComputer[] when -Script is used.
 
     .NOTES
-    Version: 1.0.0
+    Version: 1.1.0
+    1.1.0 - Added -FromClipboard to read one search query per clipboard line.
     #>
     [Alias(
         'Find-IRTAdDevices',
@@ -54,15 +63,21 @@ function Find-IRTAdDevice {
         'FindAdDevice', 'FindAdDevices'
     )]
     [OutputType([System.Collections.Generic.List[psobject]])]
-    [CmdletBinding()]
+    [CmdletBinding( DefaultParameterSetName = 'Search' )]
     param (
-        [Parameter(Position = 0, Mandatory)]
+        [Parameter( ParameterSetName = 'Search', Position = 0, Mandatory )]
         [string[]] $Search,
+        [Parameter( ParameterSetName = 'Clipboard', Mandatory )]
+        [switch] $FromClipboard,
         [string] $VarPrefix,
         [switch] $Script
     )
 
     begin {
+
+        if ( $FromClipboard ) {
+            $Search = Get-IRTClipboardSearch
+        }
 
         if (-not (Test-AdAvailable)) {
             Write-Error 'ActiveDirectory RSAT module not available.'

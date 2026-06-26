@@ -9,8 +9,17 @@ function Find-IRTUser {
     Find-IRTUser flast@domain.com
     Find-IRTUser -Search bf7573a5844f (partial user id number)
 
+    .EXAMPLE
+    Find-IRTUser -FromClipboard
+    Reads the clipboard and searches for each line as a separate query.
+
+    .PARAMETER FromClipboard
+    Read one search query per line from the clipboard instead of supplying -Search. Each
+    non-empty line is treated as a separate search string. Mutually exclusive with -Search.
+
     .NOTES
-    Version: 1.2.0
+    Version: 1.3.0
+    1.3.0 - Added -FromClipboard to read one search query per clipboard line.
     1.2.0 - Added -AllMatches to collect all matching users and deduplicate results.
     1.1.4 - Fixed bug with $UserObjects not being a collection.
             Moved getting full object to Show-User function.
@@ -24,10 +33,12 @@ function Find-IRTUser {
         'Find-User', 'Find-Users', 'FindUser', 'FindUsers'
     )]
     [OutputType([psobject[]])]
-    [CmdletBinding()]
+    [CmdletBinding( DefaultParameterSetName = 'Search' )]
     param (
-        [Parameter( Position = 0, Mandatory )]
+        [Parameter( ParameterSetName = 'Search', Position = 0, Mandatory )]
         [string[]] $Search,
+        [Parameter( ParameterSetName = 'Clipboard', Mandatory )]
+        [switch] $FromClipboard,
         [string] $VarPrefix,
         [switch] $Cached,
         [switch] $Script,
@@ -35,6 +46,9 @@ function Find-IRTUser {
     )
 
     begin {
+        if ( $FromClipboard ) {
+            $Search = Get-IRTClipboardSearch
+        }
         Update-IRTToken -Service 'Graph'
         $ScriptUserObjects = [System.Collections.Generic.List[PsObject]]::new()
         $SeenIds = [System.Collections.Generic.HashSet[string]]::new()

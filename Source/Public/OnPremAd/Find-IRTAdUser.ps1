@@ -19,6 +19,10 @@ function Find-IRTAdUser {
     One or more search strings. Each string is independently searched across all supported
     fields.
 
+    .PARAMETER FromClipboard
+    Read one search query per line from the clipboard instead of supplying -Search. Each
+    non-empty line is treated as a separate search string. Mutually exclusive with -Search.
+
     .PARAMETER VarPrefix
     Optional prefix inserted after 'IRT_' in the global variable name
     (e.g. 'Admin' > $Global:IRT_AdminUserObject). Useful when working with multiple users
@@ -40,12 +44,17 @@ function Find-IRTAdUser {
     $Users = Find-IRTAdUser -Search 'flast','jsmith' -Script
     Returns matching user objects for two search strings without setting globals.
 
+    .EXAMPLE
+    Find-IRTAdUser -FromClipboard
+    Reads the clipboard and searches for each line as a separate query.
+
     .OUTPUTS
     None by default (sets global variables).
     Microsoft.ActiveDirectory.Management.ADUser[] when -Script is used.
 
     .NOTES
-    Version: 1.2.1
+    Version: 1.3.0
+    1.3.0 - Added -FromClipboard to read one search query per clipboard line.
     1.2.1 - Fixed bug where script was passing collections of user objects rather than user objects.
     1.2.0 - Major rewrite.
     #>
@@ -56,15 +65,21 @@ function Find-IRTAdUser {
         'FindAdUser', 'FindAdUsers'
     )]
     [OutputType([System.Collections.Generic.List[psobject]])]
-    [CmdletBinding()]
+    [CmdletBinding( DefaultParameterSetName = 'Search' )]
     param (
-        [Parameter(Position = 0, Mandatory)]
+        [Parameter( ParameterSetName = 'Search', Position = 0, Mandatory )]
         [string[]] $Search,
+        [Parameter( ParameterSetName = 'Clipboard', Mandatory )]
+        [switch] $FromClipboard,
         [string] $VarPrefix,
         [switch] $Script
     )
 
     begin {
+
+        if ( $FromClipboard ) {
+            $Search = Get-IRTClipboardSearch
+        }
 
         if (-not (Test-AdAvailable)) {
             Write-Error 'ActiveDirectory RSAT module not available.'
