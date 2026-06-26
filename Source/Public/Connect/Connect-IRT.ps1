@@ -269,6 +269,37 @@ function Connect-IRT {
             $Global:IRT_Session.IPPS
         ) {
             Test-IRTConnection
+
+            # All services in a session target one tenant, so they must also share
+            # one identity. Different accounts across services is never intentional
+            # in an IR engagement - it signals a token-selection bug (a service
+            # binding as the wrong cached account). Fail loud rather than let the
+            # operator act under an unexpected, split identity.
+            $SessionAccounts = [ordered]@{}
+            if ($Global:IRT_Session.Graph) {
+                $SessionAccounts['Graph'] = $Global:IRT_Session.Graph.Account
+            }
+            if ($Global:IRT_Session.Exchange) {
+                $SessionAccounts['Exchange'] = $Global:IRT_Session.Exchange.UserPrincipalName
+            }
+            if ($Global:IRT_Session.IPPS) {
+                $SessionAccounts['IPPS'] = $Global:IRT_Session.IPPS.UserPrincipalName
+            }
+            $DistinctAccounts = @(
+                $SessionAccounts.Values |
+                    Where-Object { $_ } |
+                    ForEach-Object { $_.ToLowerInvariant() } |
+                    Select-Object -Unique
+            )
+            if ($DistinctAccounts.Count -gt 1) {
+                $Detail = ($SessionAccounts.GetEnumerator() |
+                        ForEach-Object { "  $($_.Key): $($_.Value)" }) -join [Environment]::NewLine
+                throw ('Connected services authenticated as different accounts in tenant ' +
+                    "$($Global:IRT_Session.TenantId):" + [Environment]::NewLine + $Detail +
+                    [Environment]::NewLine + 'All services in a tenant must use one identity. ' +
+                    'Run Disconnect-IRT, then reconnect with a single account.')
+            }
+
             $DomainName = if ($Global:IRT_Session.Graph) {
                 try { Get-DefaultDomain -ErrorAction Stop } catch { $null }
             } else {

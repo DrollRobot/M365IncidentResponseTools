@@ -629,6 +629,104 @@ InModuleScope M365IncidentResponseTools {
                 $Global:IRT_Session.Apps['client-id'] | Should -Be $Marker
             }
         }
+
+        Context 'single-identity guard (mocked downstream)' {
+            # All services in a tenant must authenticate as one account. Graph and
+            # Exchange landing on DIFFERENT accounts is the original cross-account
+            # bug; Connect-IRT must hard-fail rather than leave a split identity.
+            BeforeEach {
+                $script:SavedSession = (
+                    Get-Variable -Name IRT_Session -Scope Global -ErrorAction SilentlyContinue
+                )?.Value
+                $Global:IRT_Session = $null
+                Mock Test-IRTConnection { }
+                Mock Get-DefaultDomain { $null }
+                Mock Set-TerminalTitle { }
+                Mock Connect-IRTIPPS { }
+            }
+            AfterEach {
+                $Global:IRT_Session = $script:SavedSession
+            }
+
+            It 'throws when Graph and Exchange connect as different accounts' {
+                Mock Connect-IRTGraph {
+                    [pscustomobject]@{
+                        Account          = 'admin@customer.com'
+                        Scopes           = $null
+                        BoundTokenExpiry = [datetime]::UtcNow.AddMinutes(55)
+                        TenantId         = 'cccccccc-0000-0000-0000-cccccccccccc'
+                    }
+                }
+                Mock Connect-IRTExchange {
+                    [pscustomobject]@{
+                        UserPrincipalName = 'intruder@customer.com'
+                        BoundTokenExpiry  = [datetime]::UtcNow.AddMinutes(55)
+                        ConnectionId      = 'exo-1'
+                        TenantId          = 'cccccccc-0000-0000-0000-cccccccccccc'
+                    }
+                }
+                $ConnectParams = @{
+                    TenantId = 'cccccccc-0000-0000-0000-cccccccccccc'
+                    Cloud    = 'Commercial'
+                    Graph    = $true
+                    Exchange = $true
+                }
+                { Connect-IRT @ConnectParams } |
+                    Should -Throw -ExpectedMessage '*different accounts*'
+            }
+
+            It 'does not throw when all connected services use the same account' {
+                Mock Connect-IRTGraph {
+                    [pscustomobject]@{
+                        Account          = 'admin@customer.com'
+                        Scopes           = $null
+                        BoundTokenExpiry = [datetime]::UtcNow.AddMinutes(55)
+                        TenantId         = 'cccccccc-0000-0000-0000-cccccccccccc'
+                    }
+                }
+                Mock Connect-IRTExchange {
+                    [pscustomobject]@{
+                        UserPrincipalName = 'admin@customer.com'
+                        BoundTokenExpiry  = [datetime]::UtcNow.AddMinutes(55)
+                        ConnectionId      = 'exo-1'
+                        TenantId          = 'cccccccc-0000-0000-0000-cccccccccccc'
+                    }
+                }
+                $ConnectParams = @{
+                    TenantId = 'cccccccc-0000-0000-0000-cccccccccccc'
+                    Cloud    = 'Commercial'
+                    Graph    = $true
+                    Exchange = $true
+                }
+                { Connect-IRT @ConnectParams } | Should -Not -Throw
+            }
+
+            It 'treats the same account in different case as one identity' {
+                Mock Connect-IRTGraph {
+                    [pscustomobject]@{
+                        Account          = 'Admin@Customer.com'
+                        Scopes           = $null
+                        BoundTokenExpiry = [datetime]::UtcNow.AddMinutes(55)
+                        TenantId         = 'cccccccc-0000-0000-0000-cccccccccccc'
+                    }
+                }
+                Mock Connect-IRTExchange {
+                    [pscustomobject]@{
+                        UserPrincipalName = 'admin@customer.com'
+                        BoundTokenExpiry  = [datetime]::UtcNow.AddMinutes(55)
+                        ConnectionId      = 'exo-1'
+                        TenantId          = 'cccccccc-0000-0000-0000-cccccccccccc'
+                    }
+                }
+                $ConnectParams = @{
+                    TenantId = 'cccccccc-0000-0000-0000-cccccccccccc'
+                    Cloud    = 'Commercial'
+                    Graph    = $true
+                    Exchange = $true
+                }
+                { Connect-IRT @ConnectParams } | Should -Not -Throw
+            }
+        }
     }
 } # end InModuleScope
 
@@ -790,6 +888,34 @@ Describe 'Connect-IRT session state (live)' -Tag 'Online' {
             Set-ItResult -Skipped -Because 'requires both Graph and Exchange connections'
         }
         Test-IRTConnection -Quiet | Should -BeTrue
+    }
+
+    It 'the bound Graph token is issued for the connected tenant' {
+        # Regression guard for the original defect: a cached account from an
+        # UNRELATED tenant minted a token that was bound and labeled as this
+        # tenant. This proves end-to-end that (a) MSAL's
+        # AuthenticationResult.TenantId - the exact signal Get-IRTAccessToken's
+        # tenant check relies on - carries the issued realm, (b) the raw token's
+        # own tid claim agrees, and (c) the bound MgContext agrees. Any divergence
+        # means a wrong-tenant token was accepted. This is the check the offline
+        # stubs cannot make, since they fabricate TenantId themselves.
+        if (-not $Global:IRT_Session.Graph) {
+            Set-ItResult -Skipped -Because 'Graph is not connected in this session'
+        }
+        $TenantId = $Global:IRT_Session.TenantId
+
+        $Result = Get-IRTAccessToken -Service Graph -Silent
+        $Result.TenantId | Should -Be $TenantId
+
+        # Decode the JWT tid claim directly (inlined: the private Get-TokenPayload
+        # is not visible outside InModuleScope, and this block is a live Describe).
+        $Payload = $Result.AccessToken.Split('.')[1].Replace('-', '+').Replace('_', '/')
+        switch ($Payload.Length % 4) { 2 { $Payload += '==' } 3 { $Payload += '=' } }
+        $Claims = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($Payload)) |
+            ConvertFrom-Json
+        $Claims.tid | Should -Be $TenantId
+
+        (Get-MgContext).TenantId | Should -Be $TenantId
     }
 }
 

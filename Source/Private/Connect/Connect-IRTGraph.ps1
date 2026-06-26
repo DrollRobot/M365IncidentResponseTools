@@ -210,6 +210,13 @@ function Connect-IRTGraph {
             }
         }
 
+        # Track whether a token is actually (re)bound this call. When nothing is
+        # rebound, the SDK keeps the previously-bound token, so the reported
+        # account/expiry must reflect the prior session record - not the token
+        # just acquired, which may name a different account and would mislabel the
+        # session.
+        $DidBind = $false
+
         if ($NeedConnect) {
             $Ctx = Get-MgContext -ErrorAction SilentlyContinue
             if ($Ctx) {
@@ -228,6 +235,7 @@ function Connect-IRTGraph {
                 'Calling Connect-MgGraph ' +
                 "(Environment: $($CloudConfig.GraphEnv)).")
             $null = Connect-MgGraph @Params
+            $DidBind = $true
         }
 
         # ---------- Phase 3: admin consent ----------
@@ -289,6 +297,7 @@ function Connect-IRTGraph {
                 }
                 $null = Disconnect-MgGraph -ErrorAction SilentlyContinue
                 $null = Connect-MgGraph @RebindParams
+                $DidBind = $true
                 Write-PSFMessage -Level 8 -Message (
                     'Post-consent Graph token re-acquired and re-bound.')
             } catch {
@@ -301,10 +310,21 @@ function Connect-IRTGraph {
             Write-IRT "Already connected to Graph for tenant $TenantId." -Level Warn
         }
 
+        # Nothing was rebound: report what is actually bound (the prior session
+        # record), since Get-MgContext exposes no account in -AccessToken mode and
+        # the freshly-acquired token was never bound.
+        if (-not $DidBind) {
+            $Account = $Global:IRT_Session.Graph?.Account ?? $Account
+            $BoundTokenExpiry = $Global:IRT_Session.Graph?.BoundTokenExpiry ??
+            $TokenResult.ExpiresOn.UtcDateTime
+        } else {
+            $BoundTokenExpiry = $TokenResult.ExpiresOn.UtcDateTime
+        }
+
         $Result = [pscustomobject]@{
             Account          = $Account
             Scopes           = [string[]]$Scopes
-            BoundTokenExpiry = $TokenResult.ExpiresOn.UtcDateTime
+            BoundTokenExpiry = $BoundTokenExpiry
             TenantId         = $TenantId
         }
         Write-PSFMessage -Level 8 -Message (

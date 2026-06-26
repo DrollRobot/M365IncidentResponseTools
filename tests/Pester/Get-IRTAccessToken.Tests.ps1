@@ -43,6 +43,8 @@ InModuleScope M365IncidentResponseTools {
     BeforeAll {
         $script:GraphClientId = '14d82eec-204b-4c2f-b7e8-296a70dab67e'
         $script:ExoClientId = 'fb78d390-0c51-40cd-8e17-fdbfab77341b'
+        # A tenant other than the session's target, for wrong-tenant token tests.
+        $script:WrongTenant = 'bbbbbbbb-0000-0000-0000-bbbbbbbbbbbb'
 
         # New-TestSession builds a minimal $Global:IRT_Session for the token
         # authority: tenant, cloud endpoints, app store, sticky store.
@@ -139,16 +141,21 @@ InModuleScope M365IncidentResponseTools {
                 'PSUseShouldProcessForStateChangingFunctions', '',
                 Justification = 'Test-only factory helper; ShouldProcess is not applicable.')]
             param(
-                [string] $Username
+                [string] $Username,
+                # Tenant the token was issued for (AuthenticationResult.TenantId).
+                # Defaults to the session test tenant so existing tests pass the
+                # tenant check unchanged; override to simulate a wrong-tenant token.
+                [string] $TenantId = 'aaaaaaaa-0000-0000-0000-aaaaaaaaaaaa'
             )
             [pscustomobject]@{
                 AccessToken = "token-for-$Username"
                 ExpiresOn   = [System.DateTimeOffset]::UtcNow.AddHours(1)
+                TenantId    = $TenantId
                 Account     = [pscustomobject]@{
                     Username      = $Username
                     HomeAccountId = [pscustomobject]@{
                         Identifier = "$Username.home"
-                        TenantId   = 'aaaaaaaa-0000-0000-0000-aaaaaaaaaaaa'
+                        TenantId   = $TenantId
                     }
                 }
             }
@@ -306,6 +313,45 @@ InModuleScope M365IncidentResponseTools {
                 { Get-IRTAccessToken -Service Exchange -Silent } |
                     Should -Throw -ExpectedMessage '*interactive auth is not allowed*'
             }
+
+            It 'rejects a wrong-tenant token and tries the next candidate' {
+                Mock Select-IRTMsalAccount {
+                    @(
+                        (New-TestCandidate -Username 'wrong@b.com'),
+                        (New-TestCandidate -Username 'right@a.com')
+                    )
+                }
+                $Bad = New-StubResult -Username 'wrong@b.com' -TenantId $script:WrongTenant
+                $script:SilentOutcomes['wrong@b.com'] = $Bad
+                $script:SilentOutcomes['right@a.com'] = New-StubResult -Username 'right@a.com'
+
+                $Result = Get-IRTAccessToken -Service Exchange -Silent
+                $Result.AccessToken | Should -Be 'token-for-right@a.com'
+                $script:SilentCalls | Should -Be @('wrong@b.com', 'right@a.com')
+                $Global:IRT_Session.StickyAccount[$script:ExoClientId] |
+                    Should -Be 'right@a.com.home'
+            }
+
+            It 'throws and records no sticky when every candidate is wrong-tenant' {
+                Mock Select-IRTMsalAccount { @(New-TestCandidate -Username 'wrong@b.com') }
+                $Bad = New-StubResult -Username 'wrong@b.com' -TenantId $script:WrongTenant
+                $script:SilentOutcomes['wrong@b.com'] = $Bad
+
+                { Get-IRTAccessToken -Service Exchange -Silent } |
+                    Should -Throw -ExpectedMessage '*interactive auth is not allowed*'
+                $Global:IRT_Session.StickyAccount.ContainsKey($script:ExoClientId) |
+                    Should -BeFalse
+            }
+
+            It 'accepts a token whose TenantId is absent (unverifiable, not punished)' {
+                Mock Select-IRTMsalAccount { @(New-TestCandidate -Username 'admin@a.com') }
+                $Outcome = New-StubResult -Username 'admin@a.com'
+                $Outcome.TenantId = $null
+                $script:SilentOutcomes['admin@a.com'] = $Outcome
+
+                $Result = Get-IRTAccessToken -Service Exchange -Silent
+                $Result.AccessToken | Should -Be 'token-for-admin@a.com'
+            }
         }
 
         # -------------------------------------------------------------------
@@ -424,6 +470,13 @@ InModuleScope M365IncidentResponseTools {
                 $Result = Get-IRTAccessToken -Service Exchange
                 $script:SilentCalls | Should -Be @('wrong@b.com')
                 $Result.AccessToken | Should -Be 'token-for-newuser@a.com'
+            }
+
+            It 'throws when the interactive token is for the wrong tenant' {
+                $script:InteractiveOutcome =
+                New-StubResult -Username 'newuser@b.com' -TenantId $script:WrongTenant
+                { Get-IRTAccessToken -Service Exchange } |
+                    Should -Throw -ExpectedMessage '*does not match the requested tenant*'
             }
         }
 

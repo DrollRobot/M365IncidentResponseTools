@@ -229,13 +229,27 @@ function Connect-IRTExchange {
                 Disconnect-ExchangeOnline @DcParams
             }
         } else {
-            $ConnectionId = ($ExistingConnection | Select-Object -First 1).ConnectionId
+            $Existing = $ExistingConnection | Select-Object -First 1
+            $ConnectionId = $Existing.ConnectionId
+            # No rebind: the live session still holds the previously-bound token.
+            # Report the account it actually authenticated as (exposed by
+            # Get-ConnectionInformation), not the freshly-acquired token's account.
+            if ($Existing.UserPrincipalName) { $Upn = $Existing.UserPrincipalName }
             Write-IRT "Already connected to Exchange Online for tenant $TenantId." -Level Warn
+        }
+
+        # The new token is bound only on the reconnect path; otherwise report the
+        # expiry of the token still bound (the prior session record).
+        $ReportedExpiry = if ($NeedConnect) {
+            $TokenResult.ExpiresOn.UtcDateTime
+        } else {
+            $Global:IRT_Session.Exchange?.BoundTokenExpiry ??
+            $TokenResult.ExpiresOn.UtcDateTime
         }
 
         $Result = [pscustomobject]@{
             UserPrincipalName = $Upn
-            BoundTokenExpiry  = $TokenResult.ExpiresOn.UtcDateTime
+            BoundTokenExpiry  = $ReportedExpiry
             ConnectionId      = $ConnectionId
             TenantId          = $TenantId
         }
