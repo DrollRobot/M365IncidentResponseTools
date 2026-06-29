@@ -235,13 +235,27 @@ function Connect-IRTExchange {
                 Disconnect-ExchangeOnline @DcParams
             }
         } else {
-            $ConnectionId = ($ExistingConnection | Select-Object -First 1).ConnectionId
+            $Existing = $ExistingConnection | Select-Object -First 1
+            $ConnectionId = $Existing.ConnectionId
+            # No rebind: the live session still holds the previously-bound token.
+            # Report the account it actually authenticated as (exposed by
+            # Get-ConnectionInformation), not the freshly-acquired token's account.
+            if ($Existing.UserPrincipalName) { $Upn = $Existing.UserPrincipalName }
             Write-IRT "Already connected to Exchange Online for tenant $TenantId." -Level Warn
+        }
+
+        # The new token is bound only on the reconnect path; otherwise report the
+        # expiry of the token still bound (the prior session record).
+        $ReportedExpiry = if ($NeedConnect) {
+            $TokenResult.ExpiresOn.UtcDateTime
+        } else {
+            $Global:IRT_Session.Exchange?.BoundTokenExpiry ??
+            $TokenResult.ExpiresOn.UtcDateTime
         }
 
         $Result = [pscustomobject]@{
             UserPrincipalName = $Upn
-            BoundTokenExpiry  = $TokenResult.ExpiresOn.UtcDateTime
+            BoundTokenExpiry  = $ReportedExpiry
             ConnectionId      = $ConnectionId
             TenantId          = $TenantId
         }
@@ -251,7 +265,7 @@ function Connect-IRTExchange {
         return $Result
     }
 }
-#EndRegion '.\Private\Connect\Connect-IRTExchange.ps1' 248
+#EndRegion '.\Private\Connect\Connect-IRTExchange.ps1' 262
 #Region '.\Private\Connect\Connect-IRTGraph.ps1' -1
 
 function Connect-IRTGraph {
@@ -466,6 +480,13 @@ function Connect-IRTGraph {
             }
         }
 
+        # Track whether a token is actually (re)bound this call. When nothing is
+        # rebound, the SDK keeps the previously-bound token, so the reported
+        # account/expiry must reflect the prior session record - not the token
+        # just acquired, which may name a different account and would mislabel the
+        # session.
+        $DidBind = $false
+
         if ($NeedConnect) {
             $Ctx = Get-MgContext -ErrorAction SilentlyContinue
             if ($Ctx) {
@@ -484,6 +505,7 @@ function Connect-IRTGraph {
                 'Calling Connect-MgGraph ' +
                 "(Environment: $($CloudConfig.GraphEnv)).")
             $null = Connect-MgGraph @Params
+            $DidBind = $true
         }
 
         # ---------- Phase 3: admin consent ----------
@@ -545,6 +567,7 @@ function Connect-IRTGraph {
                 }
                 $null = Disconnect-MgGraph -ErrorAction SilentlyContinue
                 $null = Connect-MgGraph @RebindParams
+                $DidBind = $true
                 Write-PSFMessage -Level 8 -Message (
                     'Post-consent Graph token re-acquired and re-bound.')
             } catch {
@@ -557,10 +580,21 @@ function Connect-IRTGraph {
             Write-IRT "Already connected to Graph for tenant $TenantId." -Level Warn
         }
 
+        # Nothing was rebound: report what is actually bound (the prior session
+        # record), since Get-MgContext exposes no account in -AccessToken mode and
+        # the freshly-acquired token was never bound.
+        if (-not $DidBind) {
+            $Account = $Global:IRT_Session.Graph?.Account ?? $Account
+            $BoundTokenExpiry = $Global:IRT_Session.Graph?.BoundTokenExpiry ??
+            $TokenResult.ExpiresOn.UtcDateTime
+        } else {
+            $BoundTokenExpiry = $TokenResult.ExpiresOn.UtcDateTime
+        }
+
         $Result = [pscustomobject]@{
             Account          = $Account
             Scopes           = [string[]]$Scopes
-            BoundTokenExpiry = $TokenResult.ExpiresOn.UtcDateTime
+            BoundTokenExpiry = $BoundTokenExpiry
             TenantId         = $TenantId
         }
         Write-PSFMessage -Level 8 -Message (
@@ -569,7 +603,7 @@ function Connect-IRTGraph {
         return $Result
     }
 }
-#EndRegion '.\Private\Connect\Connect-IRTGraph.ps1' 316
+#EndRegion '.\Private\Connect\Connect-IRTGraph.ps1' 336
 #Region '.\Private\Connect\Connect-IRTIPPS.ps1' -1
 
 function Connect-IRTIPPS {
@@ -759,13 +793,27 @@ function Connect-IRTIPPS {
                 Disconnect-ExchangeOnline @DcParams
             }
         } else {
-            $ConnectionId = ($ExistingConnection | Select-Object -First 1).ConnectionId
+            $Existing = $ExistingConnection | Select-Object -First 1
+            $ConnectionId = $Existing.ConnectionId
+            # No rebind: the live session still holds the previously-bound token.
+            # Report the account it actually authenticated as (exposed by
+            # Get-ConnectionInformation), not the freshly-acquired token's account.
+            if ($Existing.UserPrincipalName) { $Upn = $Existing.UserPrincipalName }
             Write-IRT "Already connected to IPPS for tenant $TenantId." -Level Warn
+        }
+
+        # The new token is bound only on the reconnect path; otherwise report the
+        # expiry of the token still bound (the prior session record).
+        $ReportedExpiry = if ($NeedConnect) {
+            $TokenResult.ExpiresOn.UtcDateTime
+        } else {
+            $Global:IRT_Session.IPPS?.BoundTokenExpiry ??
+            $TokenResult.ExpiresOn.UtcDateTime
         }
 
         $Result = [pscustomobject]@{
             UserPrincipalName = $Upn
-            BoundTokenExpiry  = $TokenResult.ExpiresOn.UtcDateTime
+            BoundTokenExpiry  = $ReportedExpiry
             ConnectionId      = $ConnectionId
             SearchOnly        = [bool]$SearchOnly
             TenantId          = $TenantId
@@ -776,7 +824,7 @@ function Connect-IRTIPPS {
         return $Result
     }
 }
-#EndRegion '.\Private\Connect\Connect-IRTIPPS.ps1' 205
+#EndRegion '.\Private\Connect\Connect-IRTIPPS.ps1' 219
 #Region '.\Private\Connect\Get-IRTGraphDefaultScope.ps1' -1
 
 function Get-IRTGraphDefaultScope {
@@ -1606,6 +1654,92 @@ function Test-TokenExpired {
     return $expired
 }
 #EndRegion '.\Private\Connect\Test-TokenExpired.ps1' 39
+#Region '.\Private\Device\Build-EntraDeviceRow.ps1' -1
+
+function Build-EntraDeviceRow {
+    <#
+    .SYNOPSIS
+    Converts raw Microsoft Graph device objects into display rows for the
+    Get-IRTAllEntraDevice spreadsheet.
+
+    .DESCRIPTION
+    Pure transformation (no I/O, no Graph calls). Sorts devices by registration
+    date newest-first (devices with no registration date sort to the bottom),
+    maps TrustType to a friendly JoinType, resolves the registered owner UPN(s),
+    converts the registration and last-sign-in timestamps to local time, and
+    captures the full raw device as a JSON 'Raw' column. The property order of the
+    returned objects is the spreadsheet column order.
+
+    .PARAMETER Device
+    The raw Graph device objects (from Get-MgDevice with RegisteredOwners expanded).
+
+    .OUTPUTS
+    System.Collections.Generic.List[PSCustomObject]
+    #>
+    [OutputType([System.Collections.Generic.List[PSCustomObject]])]
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [AllowEmptyCollection()]
+        [psobject[]] $Device
+    )
+
+    # newest registration first; null registration dates fall to the bottom
+    $Sorted = $Device | Sort-Object -Property RegistrationDateTime -Descending
+
+    $Rows = [System.Collections.Generic.List[PSCustomObject]]::new()
+    foreach ($d in $Sorted) {
+
+        $Raw = $d | ConvertTo-Json -Depth 10
+
+        # friendly join type
+        $JoinType = switch ($d.TrustType) {
+            'AzureAd' { 'Entra joined' }
+            'ServerAd' { 'Hybrid joined' }
+            'Workplace' { 'Entra registered' }
+            default { $d.TrustType }
+        }
+
+        # registered owner UPN(s)
+        $OwnerUpn = ($d.RegisteredOwners | ForEach-Object {
+                $_.AdditionalProperties['userPrincipalName']
+            }) -join ', '
+
+        # local-time dates
+        $RegDate = $null
+        if ($d.RegistrationDateTime) { $RegDate = $d.RegistrationDateTime.ToLocalTime() }
+        $LastSignIn = $null
+        if ($d.ApproximateLastSignInDateTime) {
+            $LastSignIn = $d.ApproximateLastSignInDateTime.ToLocalTime()
+        }
+
+        $Rows.Add([pscustomobject]@{
+                Raw                           = $Raw
+                RegistrationDateTime          = $RegDate
+                ApproximateLastSignInDateTime = $LastSignIn
+                DisplayName                   = $d.DisplayName
+                JoinType                      = $JoinType
+                TrustType                     = $d.TrustType
+                AccountEnabled                = $d.AccountEnabled
+                OperatingSystem               = $d.OperatingSystem
+                OperatingSystemVersion        = $d.OperatingSystemVersion
+                RegisteredOwnerUPN            = $OwnerUpn
+                IsCompliant                   = $d.IsCompliant
+                IsManaged                     = $d.IsManaged
+                IsRooted                      = $d.IsRooted
+                DeviceOwnership               = $d.DeviceOwnership
+                EnrollmentType                = $d.EnrollmentType
+                ProfileType                   = $d.ProfileType
+                ManagementType                = $d.ManagementType
+                MdmAppId                      = $d.MdmAppId
+                DeviceId                      = $d.DeviceId
+                Id                            = $d.Id
+            })
+    }
+
+    return $Rows
+}
+#EndRegion '.\Private\Device\Build-EntraDeviceRow.ps1' 84
 #Region '.\Private\Device\Set-IRTDeviceEnabled.ps1' -1
 
 function Set-IRTDeviceEnabled {
@@ -3257,7 +3391,10 @@ function Resolve-DateRange {
         EndString   - string formatted as "yyyy-MM-ddTHH:mm:ssZ" for API filters
 
 	.NOTES
-	Version: 1.1.0
+	Version: 1.1.1
+	1.1.1 - Read the clock once so StartUtc and EndUtc share a single instant,
+	        removing sub-second residue that produced a degenerate trailing chunk
+	        in callers that split the range into chunks.
 	#>
     [CmdletBinding()]
     [OutputType([pscustomobject])]
@@ -3355,8 +3492,12 @@ function Resolve-DateRange {
         if (-not $Days) {
             $Days = $DefaultDays
         }
-        $StartUtc = (Get-Date).AddDays($Days * -1).ToUniversalTime()
-        $EndUtc = (Get-Date).ToUniversalTime()
+        # read the clock once so StartUtc and EndUtc share a single instant; two
+        # reads leave a few ms of residue between them, which downstream chunking
+        # rounds into a degenerate zero-width trailing chunk.
+        $Now = Get-Date
+        $StartUtc = $Now.AddDays($Days * -1).ToUniversalTime()
+        $EndUtc = $Now.ToUniversalTime()
     }
 
     [pscustomobject]@{
@@ -3368,7 +3509,7 @@ function Resolve-DateRange {
         EndString   = $EndUtc.ToString('yyyy-MM-ddTHH:mm:ssZ')
     }
 }
-#EndRegion '.\Private\Graph\Resolve-DateRange.ps1' 136
+#EndRegion '.\Private\Graph\Resolve-DateRange.ps1' 143
 #Region '.\Private\Lib\Build-Menu.ps1' -1
 
 function Build-Menu {
@@ -8795,6 +8936,61 @@ function Get-GlobalUserObject {
     }
 }
 #EndRegion '.\Private\Utility\Get-GlobalUserObject.ps1' 45
+#Region '.\Private\Utility\Get-IRTClipboardSearch.ps1' -1
+
+function Get-IRTClipboardSearch {
+    <#
+    .SYNOPSIS
+    Reads the clipboard and returns one trimmed search string per non-empty line.
+
+    .DESCRIPTION
+    Internal helper that backs the -FromClipboard switch on the Find-IRT* functions.
+    Pulls the current clipboard contents, normalizes line endings, trims surrounding
+    whitespace from each line, and discards blank lines. The resulting array is suitable
+    for use as a -Search value, treating each clipboard line as a separate query.
+
+    Throws a terminating error when the clipboard is empty or contains no usable lines.
+
+    .EXAMPLE
+    $Search = Get-IRTClipboardSearch
+    Returns each non-empty clipboard line as an element of the returned array.
+
+    .OUTPUTS
+    System.String[]
+
+    .NOTES
+    Version: 1.0.0
+    #>
+    [OutputType([string[]])]
+    [CmdletBinding()]
+    param ()
+
+    begin {
+        Import-IRTModule -Name 'PSFramework'
+        $FunctionName = $MyInvocation.MyCommand.Name
+    }
+
+    process {
+
+        # Get-Clipboard returns one array element per line by default, but -Raw or
+        # programmatic copies can yield a single multi-line string; join then re-split
+        # so both shapes normalize to one element per line.
+        $Raw = @( Get-Clipboard )
+        $Lines = ( $Raw -join "`n" ) -split "`r?`n" |
+            ForEach-Object { $_.Trim() } |
+            Where-Object { $_ }
+
+        if ( @( $Lines ).Count -eq 0 ) {
+            throw 'Clipboard is empty or contains no usable search text.'
+        }
+
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: Pulled $( @( $Lines ).Count ) search term(s) from clipboard.")
+
+        return [string[]] $Lines
+    }
+}
+#EndRegion '.\Private\Utility\Get-IRTClipboardSearch.ps1' 53
 #Region '.\Private\Utility\Get-RandomPassword.ps1' -1
 
 function Get-RandomPassword {
@@ -9631,6 +9827,37 @@ function Connect-IRT {
             $Global:IRT_Session.IPPS
         ) {
             Test-IRTConnection
+
+            # All services in a session target one tenant, so they must also share
+            # one identity. Different accounts across services is never intentional
+            # in an IR engagement - it signals a token-selection bug (a service
+            # binding as the wrong cached account). Fail loud rather than let the
+            # operator act under an unexpected, split identity.
+            $SessionAccounts = [ordered]@{}
+            if ($Global:IRT_Session.Graph) {
+                $SessionAccounts['Graph'] = $Global:IRT_Session.Graph.Account
+            }
+            if ($Global:IRT_Session.Exchange) {
+                $SessionAccounts['Exchange'] = $Global:IRT_Session.Exchange.UserPrincipalName
+            }
+            if ($Global:IRT_Session.IPPS) {
+                $SessionAccounts['IPPS'] = $Global:IRT_Session.IPPS.UserPrincipalName
+            }
+            $DistinctAccounts = @(
+                $SessionAccounts.Values |
+                    Where-Object { $_ } |
+                    ForEach-Object { $_.ToLowerInvariant() } |
+                    Select-Object -Unique
+            )
+            if ($DistinctAccounts.Count -gt 1) {
+                $Detail = ($SessionAccounts.GetEnumerator() |
+                        ForEach-Object { "  $($_.Key): $($_.Value)" }) -join [Environment]::NewLine
+                throw ('Connected services authenticated as different accounts in tenant ' +
+                    "$($Global:IRT_Session.TenantId):" + [Environment]::NewLine + $Detail +
+                    [Environment]::NewLine + 'All services in a tenant must use one identity. ' +
+                    'Run Disconnect-IRT, then reconnect with a single account.')
+            }
+
             $DomainName = if ($Global:IRT_Session.Graph) {
                 try { Get-DefaultDomain -ErrorAction Stop } catch { $null }
             } else {
@@ -9640,7 +9867,7 @@ function Connect-IRT {
         }
     }
 }
-#EndRegion '.\Public\Connect\Connect-IRT.ps1' 281
+#EndRegion '.\Public\Connect\Connect-IRT.ps1' 312
 #Region '.\Public\Connect\Connect-IRTRunspaceExchange.ps1' -1
 
 function Connect-IRTRunspaceExchange {
@@ -10213,6 +10440,25 @@ function Get-IRTAccessToken {
                     $Builder = $Builder.WithForceRefresh($true)
                 }
                 $Result = $Builder.ExecuteAsync().GetAwaiter().GetResult()
+
+                # Reject a token issued for a DIFFERENT tenant. MSAL can hand back
+                # a token in the account's home tenant even though this app's
+                # authority targets $TenantId - e.g. a cached account that has no
+                # presence in the target tenant. Nothing downstream checks the
+                # realm (only the audience/cloud is validated), so such a token
+                # would be bound and mislabeled as the target tenant. Treat it as
+                # a failed candidate and move on, leaving the sticky pointer
+                # untouched so it self-heals to the first correct-tenant account.
+                # AuthenticationResult.TenantId is the issued realm; mirror the
+                # audience-check contract and only act on a positively-wrong value
+                # (an absent one is not punished).
+                if ($Result.TenantId -and $Result.TenantId -ne $TenantId) {
+                    Write-PSFMessage -Level 8 -Message (
+                        "Discarding $Service token for $($Candidate.Username): " +
+                        "issued for tenant $($Result.TenantId), expected $TenantId.")
+                    continue
+                }
+
                 Write-PSFMessage -Level 8 -Message (
                     "Silent $Service token acquisition succeeded for " +
                     "$($Result.Account.Username). Expiry: $($Result.ExpiresOn)")
@@ -10249,21 +10495,33 @@ function Get-IRTAccessToken {
                 $Cts.Dispose()
             }
             $Result = $Task.GetAwaiter().GetResult()
-            Write-PSFMessage -Level 8 -Message (
-                "Interactive $Service token acquisition succeeded. " +
-                "Account: $($Result.Account.Username), " +
-                "Expiry: $($Result.ExpiresOn)")
-            if ($null -ne $Global:IRT_Session.StickyAccount) {
-                $Global:IRT_Session.StickyAccount[$ResolvedClientId] =
-                $Result.Account.HomeAccountId.Identifier
-            }
-            return $Result
         } catch {
             throw "Interactive token acquisition failed: $_"
         }
+
+        # Same tenant guard as the silent path: a wrong-tenant interactive token
+        # must not be bound and labeled as the target tenant. Interactive auth
+        # against a tenant-scoped authority shouldn't yield this, so fail loud
+        # rather than mislabel. Validated outside the try so the message isn't
+        # wrapped as an acquisition failure.
+        if ($Result.TenantId -and $Result.TenantId -ne $TenantId) {
+            throw ("Interactive sign-in token for tenant '$($Result.TenantId)' " +
+                "does not match the requested tenant '$TenantId'. " +
+                'Sign in with an account that belongs to the target tenant.')
+        }
+
+        Write-PSFMessage -Level 8 -Message (
+            "Interactive $Service token acquisition succeeded. " +
+            "Account: $($Result.Account.Username), " +
+            "Expiry: $($Result.ExpiresOn)")
+        if ($null -ne $Global:IRT_Session.StickyAccount) {
+            $Global:IRT_Session.StickyAccount[$ResolvedClientId] =
+            $Result.Account.HomeAccountId.Identifier
+        }
+        return $Result
     }
 }
-#EndRegion '.\Public\Connect\Get-IRTAccessToken.ps1' 222
+#EndRegion '.\Public\Connect\Get-IRTAccessToken.ps1' 253
 #Region '.\Public\Connect\Open-IRTTab.ps1' -1
 
 function Open-IRTTab {
@@ -10431,7 +10689,12 @@ function Test-IRTConnection {
             Where-Object { $_.ConnectionUri -match $IppsPattern } |
             Select-Object -First 1
 
-        $GraphConnected = $GraphCtx -and $GraphCtx.Account -and $GraphTokenValid
+        # Account is null when Graph is bound via Connect-MgGraph -AccessToken, so
+        # it cannot gate "connected" - doing so makes every token-bound Graph
+        # session read as disconnected. The live call above already proved the
+        # token works; require a context carrying a TenantId (populated in token
+        # mode) plus that successful call.
+        $GraphConnected = $GraphCtx -and $GraphCtx.TenantId -and $GraphTokenValid
         $ExoConnected = $null -ne $ExoConn
         $IppsConnected = $null -ne $IppsConn
 
@@ -10446,8 +10709,14 @@ function Test-IRTConnection {
         }
 
         # --- Verbose display ---
-        $graphDomain = if ($GraphConnected) {
-            ($GraphCtx.Account -split '@')[-1]
+        # Get-MgContext.Account is null in -AccessToken mode, so the displayed
+        # account/domain come from the session's recorded Graph account (the one
+        # actually bound), not the SDK context.
+        $graphAccount = if ($GraphConnected) {
+            $Global:IRT_Session.Graph?.Account
+        } else { $null }
+        $graphDomain = if ($graphAccount) {
+            ($graphAccount -split '@')[-1]
         } else { $null }
 
         $exoDomain = if ($ExoConnected) {
@@ -10463,7 +10732,7 @@ function Test-IRTConnection {
                 Service   = 'Graph'
                 Connected = $GraphConnected
                 Domain    = if ($graphDomain) { $graphDomain } else { '-' }
-                Account   = if ($GraphConnected) { $GraphCtx.Account } else { '-' }
+                Account   = if ($graphAccount) { $graphAccount } else { '-' }
             }
             [pscustomobject]@{
                 Service   = 'Exchange'
@@ -10491,7 +10760,7 @@ function Test-IRTConnection {
         }
     }
 }
-#EndRegion '.\Public\Connect\Test-IRTConnection.ps1' 129
+#EndRegion '.\Public\Connect\Test-IRTConnection.ps1' 140
 #Region '.\Public\Connect\Update-IRTToken.ps1' -1
 
 function Update-IRTToken {
@@ -10789,22 +11058,36 @@ function Find-IRTDevice {
     Find-IRTDevice -Search bf7573a5844f   # partial device id / Entra id / Intune id
     Find-IRTDevice -Search SN1234567890   # serial number (Intune)
 
+    .EXAMPLE
+    Find-IRTDevice -FromClipboard
+    Reads the clipboard and searches for each line as a separate query.
+
+    .PARAMETER FromClipboard
+    Read one search query per line from the clipboard instead of supplying -Search. Each
+    non-empty line is treated as a separate search string. Mutually exclusive with -Search.
+
     .NOTES
-    Version: 1.2.0
+    Version: 1.3.0
+    1.3.0 - Added -FromClipboard to read one search query per clipboard line.
     1.2.0 - Added -AllMatches to collect all matching devices and deduplicate results.
     #>
     [Alias('FindDevice', 'FindDevices')]
     [OutputType([psobject[]])]
-    [CmdletBinding()]
+    [CmdletBinding( DefaultParameterSetName = 'Search' )]
     param (
-        [Parameter( Position = 0, Mandatory )]
+        [Parameter( ParameterSetName = 'Search', Position = 0, Mandatory )]
         [string[]] $Search,
+        [Parameter( ParameterSetName = 'Clipboard', Mandatory )]
+        [switch] $FromClipboard,
         [string] $VarPrefix,
         [switch] $Script,
         [switch] $AllMatches
     )
 
     begin {
+        if ( $FromClipboard ) {
+            $Search = Get-IRTClipboardSearch
+        }
         Update-IRTToken -Service 'Graph'
 
         # variables
@@ -10914,7 +11197,280 @@ function Find-IRTDevice {
         }
     }
 }
-#EndRegion '.\Public\Device\Find-IRTDevice.ps1' 140
+#EndRegion '.\Public\Device\Find-IRTDevice.ps1' 154
+#Region '.\Public\Device\Get-IRTAllEntraDevice.ps1' -1
+
+function Get-IRTAllEntraDevice {
+    <#
+    .SYNOPSIS
+    Exports every Entra ID (Azure AD) device to a spreadsheet, newest registration first.
+
+    .DESCRIPTION
+    Queries Microsoft Graph for all registered/joined Entra devices and writes them to an
+    Excel workbook sorted by registration date (newest first). Threat actors sometimes
+    register their own device against a compromised identity to persist and to satisfy
+    device-based Conditional Access, so surfacing the most recently registered devices at
+    the top of the sheet makes new, unexpected registrations easy to spot.
+
+    As much device detail as Graph exposes is included: join/trust type, registered owner,
+    operating system, compliance and management state, ownership, enrollment type, and the
+    registration and last sign-in timestamps.
+
+    .PARAMETER Open
+    Open the Excel file immediately after export. Default: $true.
+
+    .PARAMETER Xml
+    Export the raw device objects to a .xml file alongside the workbook.
+    Defaults to IRT_Config.ExportXml.
+
+    .PARAMETER TableStyle
+    Excel table style. Defaults to IRT_Config.ExcelTableStyle.
+
+    .PARAMETER Font
+    Worksheet font. Defaults to IRT_Config.ExcelFont.
+
+    .EXAMPLE
+    Get-IRTAllEntraDevice
+    Exports all Entra devices to a spreadsheet and opens it.
+
+    .EXAMPLE
+    Get-IRTAllEntraDevice -Open $false -Xml $true
+    Writes the spreadsheet and a raw XML dump without opening the workbook.
+
+    .OUTPUTS
+    None. Results are exported to an Excel workbook.
+
+    .NOTES
+    Version: 1.0.0
+    #>
+    [Alias(
+        'Get-IRTAllEntraDevices',
+        'GetAllEntraDevice', 'GetAllEntraDevices',
+        'AllEntraDevices'
+    )]
+    [CmdletBinding()]
+    param (
+        [boolean] $Open = $true,
+        [boolean] $Xml = $Global:IRT_Config.ExportXml,
+        [string] $TableStyle = $Global:IRT_Config.ExcelTableStyle,
+        [string] $Font = $Global:IRT_Config.ExcelFont
+    )
+
+    begin {
+        Update-IRTToken -Service 'Graph'
+        $Import = @(
+            'Microsoft.Graph.Identity.DirectoryManagement'
+            'ImportExcel'
+            'PSFramework'
+        )
+        Import-IRTModule -Name $Import
+
+        $FunctionName = $MyInvocation.MyCommand.Name
+        $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+        $CurrentPath = Get-Location
+        $DomainName = Get-DefaultDomain
+
+        # file names
+        $FileNamePrefix = 'EntraDevices'
+        $FileNameDateFormat = "yy-MM-dd_HH-mm"
+        $FileNameDate = (Get-Date).ToString($FileNameDateFormat)
+        $WorksheetName = 'EntraDevices'
+        $ExcelOutputPath = "${FileNamePrefix}_${DomainName}_${FileNameDate}.xlsx"
+
+        # date columns
+        $RegDateHeader = 'RegistrationDateTime'
+        $LastSignInHeader = 'ApproximateLastSignInDateTime'
+        $DateNumberFormat = 'm/d/yyyy h:mm:ss AM/PM'
+    }
+
+    process {
+
+        # --- query Entra devices ---
+        $GetProperties = @(
+            'Id'
+            'DeviceId'
+            'DisplayName'
+            'AccountEnabled'
+            'OperatingSystem'
+            'OperatingSystemVersion'
+            'TrustType'
+            'RegistrationDateTime'
+            'ApproximateLastSignInDateTime'
+            'IsCompliant'
+            'IsManaged'
+            'IsRooted'
+            'DeviceOwnership'
+            'EnrollmentType'
+            'ProfileType'
+            'ManagementType'
+            'MdmAppId'
+        )
+        Write-IRT "Retrieving all Entra devices."
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: Get-MgDevice [$($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))]")
+        $GetParams = @{
+            All            = $true
+            Property       = $GetProperties
+            ExpandProperty = 'RegisteredOwners'
+        }
+        $Devices = Get-MgDevice @GetParams
+
+        $Count = ($Devices | Measure-Object).Count
+        if ($Count -gt 0) {
+            Write-IRT "Retrieved ${Count} devices."
+        }
+        else {
+            Write-IRT "No devices found." -Level Warn
+            return
+        }
+
+        # --- optional raw xml dump ---
+        if ($Xml) {
+            $XmlFileName = "${FileNamePrefix}_Raw_${DomainName}_${FileNameDate}.xml"
+            $XmlOutputPath = Join-Path -Path $CurrentPath -ChildPath $XmlFileName
+            Write-IRT "Saving raw devices to: ${XmlFileName}"
+            $Devices | Export-Clixml -Depth 8 -Path $XmlOutputPath
+        }
+
+        # --- build display rows (sorted newest-registration-first) ---
+        $Rows = Build-EntraDeviceRow -Device $Devices
+
+        # --- export to excel ---
+        $TitleDate = (Get-Date).ToString('M/d/yy h:mmtt').ToLower()
+        $WorksheetTitle = "Entra devices for ${DomainName} as of ${TitleDate}."
+
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: Export-Excel [$($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))]")
+        $ExcelParams = @{
+            Path          = $ExcelOutputPath
+            WorkSheetname = $WorksheetName
+            Title         = $WorksheetTitle
+            TableStyle    = $TableStyle
+            FreezeTopRow  = $true
+            Passthru      = $true
+        }
+        try {
+            $Workbook = $Rows | Export-Excel @ExcelParams
+        }
+        catch {
+            # surface the real error -- a bare `$_` is easy to miss, and the retry
+            # prompt below throws under automation, masking the original cause
+            Write-IRT "Error exporting to Excel: $($_.Exception.Message)" -Level Error
+            if ( Get-YesNo "The file may be open in Excel. Close it and try again?" ) {
+                try {
+                    $Workbook = $Rows | Export-Excel @ExcelParams
+                }
+                catch {
+                    Write-IRT "Error exporting to Excel: $($_.Exception.Message)" -Level Error
+                    return
+                }
+            }
+            else {
+                return
+            }
+        }
+
+        # post-export formatting only runs when a workbook came back from Export-Excel
+        if ($Workbook) {
+            $Worksheet = $Workbook.Workbook.Worksheets[$WorksheetName]
+
+            # table ranges
+            $SheetStartColumn =
+            $Worksheet.Dimension.Start.Column | Convert-DecimalToExcelColumn
+            $SheetStartRow = $Worksheet.Dimension.Start.Row
+            $TableStartColumn = (
+                $Worksheet.Tables.Address | Select-Object -First 1
+            ).Start.Column | Convert-DecimalToExcelColumn
+            $TableStartRow = (
+                $Worksheet.Tables | Select-Object -First 1
+            ).Address.Start.Row + 1
+            $EndColumn = $Worksheet.Dimension.End.Column | Convert-DecimalToExcelColumn
+            $EndRow = $Worksheet.Dimension.End.Row
+
+            # column letters for the date columns (used by date formatting below)
+            $RegDateColumn = (
+                $Worksheet.Tables[0].Columns | Where-Object { $_.Name -eq $RegDateHeader }
+            ).Id | Convert-DecimalToExcelColumn
+            $LastSignInColumn = (
+                $Worksheet.Tables[0].Columns | Where-Object { $_.Name -eq $LastSignInHeader }
+            ).Id | Convert-DecimalToExcelColumn
+
+            $TableRange = "${TableStartColumn}${TableStartRow}:${EndColumn}${EndRow}"
+
+            # --- conditional formatting (none active) ---
+            # Machinery is left in place so rules are easy to add later: target the
+            # table body via $TableRange (and a column letter from the lookup above),
+            # then call Add-ConditionalFormatting, e.g.
+            #   Add-ConditionalFormatting -WorkSheet $Worksheet -Address $TableRange
+            #     -RuleType Expression -ConditionValue '=...' -BackgroundColor LightYellow
+
+            # column widths
+            $ColumnWidths = @{
+                'Raw'                    = 8
+                $RegDateHeader           = 27
+                $LastSignInHeader        = 27
+                'DisplayName'            = 28
+                'JoinType'               = 16
+                'TrustType'              = 12
+                'AccountEnabled'         = 14
+                'OperatingSystem'        = 16
+                'OperatingSystemVersion' = 18
+                'RegisteredOwnerUPN'     = 32
+                'DeviceOwnership'        = 16
+                'EnrollmentType'         = 18
+                'ProfileType'            = 14
+                'ManagementType'         = 16
+                'MdmAppId'               = 38
+                'DeviceId'               = 38
+                'Id'                     = 38
+            }
+            foreach ($ColName in $ColumnWidths.Keys) {
+                $Col = (
+                    $Worksheet.Tables[0].Columns | Where-Object { $_.Name -eq $ColName }
+                ).Id
+                if ($Col) { $Worksheet.Column($Col).Width = $ColumnWidths[$ColName] }
+            }
+
+            # date number format on the two date columns
+            foreach ($DateCol in @($RegDateColumn, $LastSignInColumn)) {
+                $FmtParams = @{
+                    Worksheet    = $Worksheet
+                    Range        = "${DateCol}:${DateCol}"
+                    NumberFormat = $DateNumberFormat
+                }
+                Set-ExcelRange @FmtParams
+            }
+
+            # font
+            $SetParams = @{
+                Worksheet = $Worksheet
+                Range     = "${SheetStartColumn}${SheetStartRow}:${EndColumn}${EndRow}"
+                FontName  = $Font
+            }
+            Set-ExcelRange @SetParams
+
+            # left border
+            $BorderParams = @{
+                Worksheet   = $Worksheet
+                Range       = $TableRange
+                BorderLeft  = 'Thin'
+                BorderColor = 'Black'
+            }
+            Set-ExcelRange @BorderParams
+
+            # save and open
+            Write-IRT "Exporting to: ${ExcelOutputPath}"
+            if ($Open) {
+                Write-IRT "Opening Excel."
+                $Workbook | Close-ExcelPackage -Show
+            }
+            else {
+                $Workbook | Close-ExcelPackage
+            }
+        }
+    }
+}
+#EndRegion '.\Public\Device\Get-IRTAllEntraDevice.ps1' 271
 #Region '.\Public\Device\Remove-IRTDevice.ps1' -1
 
 function Remove-IRTDevice {
@@ -12993,7 +13549,9 @@ function Get-IRTEntraSignInLog {
     None. Results are exported to an Excel workbook.
 
     .NOTES
-    Version: 1.2.1
+    Version: 1.2.2
+    1.2.2 - Fixed chunk-boundary off-by-one that produced a degenerate zero-width
+            trailing chunk when the date range was an exact multiple of ChunkDays.
     1.2.1 - Throttle handling: honor and print Retry-After, exponential backoff
             when absent, and an inter-chunk delay to avoid tripping limits.
     1.2.0 - Added -ChunkDays to split large queries into smaller date windows,
@@ -13137,7 +13695,12 @@ function Get-IRTEntraSignInLog {
         $ChunkEnd = $EndDateUtc
         while ($ChunkEnd -gt $StartDateUtc) {
             $ProposedStart = $ChunkEnd.AddDays(-$ChunkDays)
-            $ChunkStart = $ProposedStart -gt $StartDateUtc ? $ProposedStart : $StartDateUtc
+            # Snap to the range start once the proposed start lands within a second of it,
+            # so a range that is an exact multiple of ChunkDays doesn't leave a degenerate
+            # sub-second trailing chunk. Resolve-DateRange reads the clock twice (StartUtc,
+            # EndUtc), so EndDateUtc.AddDays(-ChunkDays) can sit a few ms past StartDateUtc.
+            $ReachedStart = ($ProposedStart - $StartDateUtc).TotalSeconds -le 1
+            $ChunkStart = $ReachedStart ? $StartDateUtc : $ProposedStart
             $DateChunks.Add(@{ Start = $ChunkStart; End = $ChunkEnd })
             $ChunkEnd = $ChunkStart # newest-first; halves meet at the boundary
         }
@@ -13401,7 +13964,7 @@ function Get-IRTEntraSignInLog {
         }
     }
 }
-#EndRegion '.\Public\Entra\Get-IRTEntraSignInLog.ps1' 496
+#EndRegion '.\Public\Entra\Get-IRTEntraSignInLog.ps1' 503
 #Region '.\Public\Entra\Get-IRTNonInteractiveSignIn.ps1' -1
 
 function Get-IRTNonInteractiveSignIn {
@@ -16187,6 +16750,10 @@ function Find-IRTAdDevice {
     One or more search strings. Each string is independently searched across all supported
     fields.
 
+    .PARAMETER FromClipboard
+    Read one search query per line from the clipboard instead of supplying -Search. Each
+    non-empty line is treated as a separate search string. Mutually exclusive with -Search.
+
     .PARAMETER VarPrefix
     Optional prefix inserted after 'IRT_' in the global variable name
     (e.g. 'Target' > $Global:IRT_TargetDeviceObject). Useful when working with multiple
@@ -16209,12 +16776,17 @@ function Find-IRTAdDevice {
     $Devices = Find-IRTAdDevice -Search 'DESKTOP-ABC123','LAPTOP-XYZ789' -Script
     Returns matching computer objects for two search strings without setting globals.
 
+    .EXAMPLE
+    Find-IRTAdDevice -FromClipboard
+    Reads the clipboard and searches for each line as a separate query.
+
     .OUTPUTS
     None by default (sets global variables).
     Microsoft.ActiveDirectory.Management.ADComputer[] when -Script is used.
 
     .NOTES
-    Version: 1.0.0
+    Version: 1.1.0
+    1.1.0 - Added -FromClipboard to read one search query per clipboard line.
     #>
     [Alias(
         'Find-IRTAdDevices',
@@ -16223,15 +16795,21 @@ function Find-IRTAdDevice {
         'FindAdDevice', 'FindAdDevices'
     )]
     [OutputType([System.Collections.Generic.List[psobject]])]
-    [CmdletBinding()]
+    [CmdletBinding( DefaultParameterSetName = 'Search' )]
     param (
-        [Parameter(Position = 0, Mandatory)]
+        [Parameter( ParameterSetName = 'Search', Position = 0, Mandatory )]
         [string[]] $Search,
+        [Parameter( ParameterSetName = 'Clipboard', Mandatory )]
+        [switch] $FromClipboard,
         [string] $VarPrefix,
         [switch] $Script
     )
 
     begin {
+
+        if ( $FromClipboard ) {
+            $Search = Get-IRTClipboardSearch
+        }
 
         if (-not (Test-AdAvailable)) {
             Write-Error 'ActiveDirectory RSAT module not available.'
@@ -16330,7 +16908,7 @@ function Find-IRTAdDevice {
         }
     }
 }
-#EndRegion '.\Public\OnPremAd\Find-IRTAdDevice.ps1' 164
+#EndRegion '.\Public\OnPremAd\Find-IRTAdDevice.ps1' 179
 #Region '.\Public\OnPremAd\Find-IRTAdOu.ps1' -1
 
 function Find-IRTAdOu {
@@ -16477,6 +17055,10 @@ function Find-IRTAdUser {
     One or more search strings. Each string is independently searched across all supported
     fields.
 
+    .PARAMETER FromClipboard
+    Read one search query per line from the clipboard instead of supplying -Search. Each
+    non-empty line is treated as a separate search string. Mutually exclusive with -Search.
+
     .PARAMETER VarPrefix
     Optional prefix inserted after 'IRT_' in the global variable name
     (e.g. 'Admin' > $Global:IRT_AdminUserObject). Useful when working with multiple users
@@ -16498,12 +17080,17 @@ function Find-IRTAdUser {
     $Users = Find-IRTAdUser -Search 'flast','jsmith' -Script
     Returns matching user objects for two search strings without setting globals.
 
+    .EXAMPLE
+    Find-IRTAdUser -FromClipboard
+    Reads the clipboard and searches for each line as a separate query.
+
     .OUTPUTS
     None by default (sets global variables).
     Microsoft.ActiveDirectory.Management.ADUser[] when -Script is used.
 
     .NOTES
-    Version: 1.2.1
+    Version: 1.3.0
+    1.3.0 - Added -FromClipboard to read one search query per clipboard line.
     1.2.1 - Fixed bug where script was passing collections of user objects rather than user objects.
     1.2.0 - Major rewrite.
     #>
@@ -16514,15 +17101,21 @@ function Find-IRTAdUser {
         'FindAdUser', 'FindAdUsers'
     )]
     [OutputType([System.Collections.Generic.List[psobject]])]
-    [CmdletBinding()]
+    [CmdletBinding( DefaultParameterSetName = 'Search' )]
     param (
-        [Parameter(Position = 0, Mandatory)]
+        [Parameter( ParameterSetName = 'Search', Position = 0, Mandatory )]
         [string[]] $Search,
+        [Parameter( ParameterSetName = 'Clipboard', Mandatory )]
+        [switch] $FromClipboard,
         [string] $VarPrefix,
         [switch] $Script
     )
 
     begin {
+
+        if ( $FromClipboard ) {
+            $Search = Get-IRTClipboardSearch
+        }
 
         if (-not (Test-AdAvailable)) {
             Write-Error 'ActiveDirectory RSAT module not available.'
@@ -16638,7 +17231,7 @@ function Find-IRTAdUser {
         }
     }
 }
-#EndRegion '.\Public\OnPremAd\Find-IRTAdUser.ps1' 183
+#EndRegion '.\Public\OnPremAd\Find-IRTAdUser.ps1' 198
 #Region '.\Public\OnPremAd\Find-IRTDomainController.ps1' -1
 
 function Find-IRTDomainController {
@@ -18270,6 +18863,10 @@ function Find-IRTServicePrincipal {
     One or more search strings. Each is matched against DisplayName, AppDisplayName,
     AppId, and Id using -match (regex-capable, case-insensitive).
 
+    .PARAMETER FromClipboard
+    Read one search query per line from the clipboard instead of supplying -Search. Each
+    non-empty line is treated as a separate search string. Mutually exclusive with -Search.
+
     .PARAMETER VarPrefix
     Optional prefix inserted into the global variable name:
     $Global:IRT_<VarPrefix>ServicePrincipalObjects. Useful when working with multiple
@@ -18309,12 +18906,17 @@ function Find-IRTServicePrincipal {
     Find-IRTServicePrincipal MyApp -Script
     Return the matched object directly without console output or setting the global variable.
 
+    .EXAMPLE
+    Find-IRTServicePrincipal -FromClipboard
+    Reads the clipboard and searches for each line as a separate query.
+
     .OUTPUTS
     None by default. Sets $Global:IRT_ServicePrincipalObjects.
     With -Script: [object[]] of matched service principal objects.
 
     .NOTES
-    Version: 1.1.0
+    Version: 1.2.0
+    1.2.0 - Added -FromClipboard to read one search query per clipboard line.
     1.1.0 - Added -AllMatches to collect all matching service principals and deduplicate results.
 
     By default, fresh data is fetched from Graph on every call. Pass -Cached to
@@ -18339,10 +18941,12 @@ function Find-IRTServicePrincipal {
         'FindEnterpriseApplication', 'FindEnterpriseApplications'
     )]
     [OutputType([object[]])]
-    [CmdletBinding()]
+    [CmdletBinding( DefaultParameterSetName = 'Search' )]
     param (
-        [Parameter( Position = 0, Mandatory )]
+        [Parameter( ParameterSetName = 'Search', Position = 0, Mandatory )]
         [string[]] $Search,
+        [Parameter( ParameterSetName = 'Clipboard', Mandatory )]
+        [switch] $FromClipboard,
         [string] $VarPrefix,
         [switch] $Cached,
         [switch] $Script,
@@ -18350,6 +18954,9 @@ function Find-IRTServicePrincipal {
     )
 
     begin {
+        if ( $FromClipboard ) {
+            $Search = Get-IRTClipboardSearch
+        }
         Update-IRTToken -Service 'Graph'
         $ScriptServicePrincipalObjects = [System.Collections.Generic.List[PsObject]]::new()
         $SeenIds = [System.Collections.Generic.HashSet[string]]::new()
@@ -18444,7 +19051,7 @@ function Find-IRTServicePrincipal {
         }
     }
 }
-#EndRegion '.\Public\ServicePrincipal\Find-IRTServicePrincipal.ps1' 201
+#EndRegion '.\Public\ServicePrincipal\Find-IRTServicePrincipal.ps1' 215
 #Region '.\Public\ServicePrincipal\Get-IRTServicePrincipal.ps1' -1
 
 function Get-IRTServicePrincipal {
@@ -20724,8 +21331,17 @@ function Find-IRTUser {
     Find-IRTUser flast@domain.com
     Find-IRTUser -Search bf7573a5844f (partial user id number)
 
+    .EXAMPLE
+    Find-IRTUser -FromClipboard
+    Reads the clipboard and searches for each line as a separate query.
+
+    .PARAMETER FromClipboard
+    Read one search query per line from the clipboard instead of supplying -Search. Each
+    non-empty line is treated as a separate search string. Mutually exclusive with -Search.
+
     .NOTES
-    Version: 1.2.0
+    Version: 1.3.0
+    1.3.0 - Added -FromClipboard to read one search query per clipboard line.
     1.2.0 - Added -AllMatches to collect all matching users and deduplicate results.
     1.1.4 - Fixed bug with $UserObjects not being a collection.
             Moved getting full object to Show-User function.
@@ -20739,10 +21355,12 @@ function Find-IRTUser {
         'Find-User', 'Find-Users', 'FindUser', 'FindUsers'
     )]
     [OutputType([psobject[]])]
-    [CmdletBinding()]
+    [CmdletBinding( DefaultParameterSetName = 'Search' )]
     param (
-        [Parameter( Position = 0, Mandatory )]
+        [Parameter( ParameterSetName = 'Search', Position = 0, Mandatory )]
         [string[]] $Search,
+        [Parameter( ParameterSetName = 'Clipboard', Mandatory )]
+        [switch] $FromClipboard,
         [string] $VarPrefix,
         [switch] $Cached,
         [switch] $Script,
@@ -20750,6 +21368,9 @@ function Find-IRTUser {
     )
 
     begin {
+        if ( $FromClipboard ) {
+            $Search = Get-IRTClipboardSearch
+        }
         Update-IRTToken -Service 'Graph'
         $ScriptUserObjects = [System.Collections.Generic.List[PsObject]]::new()
         $SeenIds = [System.Collections.Generic.HashSet[string]]::new()
@@ -20840,7 +21461,7 @@ function Find-IRTUser {
         }
     }
 }
-#EndRegion '.\Public\User\Find-IRTUser.ps1' 128
+#EndRegion '.\Public\User\Find-IRTUser.ps1' 142
 #Region '.\Public\User\Reset-IRTUserPassword.ps1' -1
 
 function Reset-IRTUserPassword {
@@ -22272,7 +22893,9 @@ function Get-IRTLicenseReport {
     Microsoft.Graph.PowerShell.Models.MicrosoftGraphSubscribedSku[] when -Objects is used.
 
     .NOTES
-    Version: 1.2.0
+    Version: 1.3.0
+    1.3.0 - Highlight E5 SKUs in green via $PSStyle (PS 7.2+) and print an E5
+            security-tooling callout after the table.
     1.2.0 - Removed the Write-PSObject dependency; output is always plain
             Format-Table. -Runspace is now a no-op kept for compatibility.
     1.1.3 - Added optional output formatting for runspaces.
@@ -22321,6 +22944,20 @@ function Get-IRTLicenseReport {
                 return
             }
 
+            # sort before projecting so embedded ANSI color codes can't skew
+            # LicenseName ordering
+            $SortOrder = @(
+                'CapabilityStatus'
+                'AppliesTo'
+                { if ( $_.LicenseFullName ) { $_.LicenseFullName } else { $_.SkuPartNumber } }
+            )
+            $Licenses = $Licenses | Sort-Object $SortOrder
+
+            # track E5 SKUs - they unlock additional security tooling
+            $E5Licenses = [Collections.Generic.List[string]]::new()
+            $Green = $PSStyle.Foreground.BrightGreen
+            $Reset = $PSStyle.Reset
+
             # generate report for viewing in terminal
             $OutputTable = $Licenses | ForEach-Object {
 
@@ -22329,6 +22966,14 @@ function Get-IRTLicenseReport {
                 }
                 else {
                     $_.SkuPartNumber
+                }
+
+                # highlight E5 SKUs in green - they unlock extra security tooling
+                $IsE5 = $_.LicenseFullName -match '\bE5\b' -or
+                    $_.SkuPartNumber -match 'SPE_E5|ENTERPRISEPREMIUM'
+                if ( $IsE5 ) {
+                    $E5Licenses.Add( $LicenseName )
+                    $LicenseName = "${Green}${LicenseName}${Reset}"
                 }
 
                 [pscustomobject]@{
@@ -22341,19 +22986,20 @@ function Get-IRTLicenseReport {
                 }
             }
 
-            # sort
-            $SortOrder = @(
-                'CapabilityStatus'
-                'AppliesTo'
-                'LicenseName'
-            )
-            $OutputTable = $OutputTable | Sort-Object $SortOrder
+            $OutputTable | Format-Table -AutoSize | Out-Host
 
-            return $OutputTable | Format-Table -AutoSize | Out-Host
+            # flag the extra security tooling E5 unlocks
+            if ( $E5Licenses.Count -gt 0 ) {
+                Write-IRT ( "E5 detected - additional security tooling available: " +
+                    "Defender (Endpoint/Identity/Office 365 P2), Entra ID P2 / " +
+                    "Identity Protection, Advanced Audit." ) -Level Warn
+            }
+
+            return
         }
     }
 }
-#EndRegion '.\Public\Utility\Get-IRTLicenseReport.ps1' 114
+#EndRegion '.\Public\Utility\Get-IRTLicenseReport.ps1' 139
 #Region '.\Public\Utility\Import-IRT.ps1' -1
 
 function Import-IRT {
@@ -22922,7 +23568,7 @@ function Start-IRTPlaybook {
 
     Steps include: license report, user info, app assignments, mailbox details, admin roles,
     risky applications, MFA state, message trace, inbox rules, Entra audit log, sign-in logs,
-    non-interactive sign-in logs, and Unified Audit Log (UAL).
+    non-interactive sign-in logs, Entra registered/joined devices, and Unified Audit Log (UAL).
 
     If -UserObject is omitted the function falls back to $Global:IRT_UserObjects populated
     by Find-User.
@@ -23213,6 +23859,13 @@ function Start-IRTPlaybook {
                 }
             }
 
+            @{  Name   = 'Get-IRTAllEntraDevice'
+                Script = {
+                    Set-Location -Path $WorkingPath
+                    Get-IRTAllEntraDevice
+                }
+            }
+
             @{  Name   = 'Get-IRTMessageTrace -AllUsers'
                 Script = {
                     Set-Location -Path $WorkingPath
@@ -23405,7 +24058,7 @@ function Start-IRTPlaybook {
             "${FunctionName}: Playbook complete. Total elapsed: $TotalElapsed")
     }
 }
-#EndRegion '.\Public\Utility\Start-IRTPlaybook.ps1' 496
+#EndRegion '.\Public\Utility\Start-IRTPlaybook.ps1' 503
 #Region '.\Suffix.ps1' -1
 
 # ModuleBuilder Notes: Code in this file will be appended to the built .psm1 file.
