@@ -48,7 +48,7 @@ function Get-IRTAllEntraDevice {
     )]
     [CmdletBinding()]
     param (
-        [boolean] $Open = $true,
+        [boolean] $Open = [bool]$Global:IRT_Config.OpenSpreadsheets,
         [boolean] $Xml = $Global:IRT_Config.ExportXml,
         [string] $TableStyle = $Global:IRT_Config.ExcelTableStyle,
         [string] $Font = $Global:IRT_Config.ExcelFont

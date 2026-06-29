@@ -7,6 +7,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- `OpenSpreadsheets` config setting (default `true`): controls whether Excel workbooks
+  created by IRT open automatically after export. Set it to `false` (via `Set-IRTConfig`)
+  to leave exported workbooks closed.
+- `Open-IRTSpreadsheet`: new public command that opens every `.xlsx` file in a folder
+  (the current directory by default; use `-Recurse` for subfolders). Companion to the
+  `OpenSpreadsheets` setting for users who keep auto-open turned off.
 - `Get-IRTAccessToken`: new public command that returns a fresh access token for Graph,
   Exchange, or IPPS, minted on demand from the MSAL cache (silent when possible, browser
   sign-in otherwise). Useful for manual REST calls and custom scripts.
@@ -18,6 +24,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- `PlaybookOpenNewTab` now defaults to `false`, so `Start-IRTPlaybook` no longer opens a
+  new terminal tab unless `-NewTab` is passed or the setting is enabled. In `Set-IRTConfig`
+  the setting now appears immediately after the token-cache settings.
+- The Excel commands that export workbooks (sign-in logs, UAL, message trace, inbox
+  rules, device/service-principal reports, admin roles, MFA, email search) now honor the
+  new `OpenSpreadsheets` config setting for their default auto-open behavior. Each
+  command still accepts an explicit `-Open` switch to override the setting per run.
 - Sign-in prompts are now deterministic. Cached accounts are matched to the target
   tenant (with per-tenant account memory), and every candidate account is tried before
   falling back to an interactive prompt. With `EnableTokenCache` enabled, connecting to

@@ -53,6 +53,9 @@ function Get-IRTMessageTrace {
     .PARAMETER Font
     Excel font name. Defaults to IRT_Config.ExcelFont.
 
+    .PARAMETER Open
+    Open the Excel workbook after exporting. Defaults to IRT_Config.OpenSpreadsheets.
+
     .EXAMPLE
     Get-IRTMessageTrace
     Downloads message trace for the user in the global session (last 10 days).
@@ -99,7 +102,8 @@ function Get-IRTMessageTrace {
         [switch] $Quiet,
         [boolean] $Xml = $Global:IRT_Config.ExportXml,
         [string] $TableStyle = $Global:IRT_Config.ExcelTableStyle,
-        [string] $Font = $Global:IRT_Config.ExcelFont
+        [string] $Font = $Global:IRT_Config.ExcelFont,
+        [boolean] $Open = [bool]$Global:IRT_Config.OpenSpreadsheets
     )
 
     begin {
@@ -478,6 +482,7 @@ function Get-IRTMessageTrace {
                     Messages   = $AllMessages
                     TableStyle = $TableStyle
                     Font       = $Font
+                    Open       = $Open
                 }
                 Show-IRTMessageTrace @Params
             }

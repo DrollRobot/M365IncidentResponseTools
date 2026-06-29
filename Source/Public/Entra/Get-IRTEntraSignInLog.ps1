@@ -133,7 +133,7 @@ function Get-IRTEntraSignInLog {
         [boolean] $Beta = $true,
         [boolean] $Excel = $true,
         [boolean] $IpInfo = [bool]$Global:IRT_Config.IpInfoAvailable,
-        [boolean] $Open = $true,
+        [boolean] $Open = [bool]$Global:IRT_Config.OpenSpreadsheets,
         [boolean] $Xml = $Global:IRT_Config.ExportXml
     )
 

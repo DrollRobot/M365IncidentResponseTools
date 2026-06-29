@@ -48,7 +48,7 @@ function Set-IRTConfig {
     # define settings metadata
     $Settings = [ordered]@{
         PasswordBrowser = @{
-            Summary     = 'Browser for opening password URLs in Tenants CSV'
+            Summary     = 'Browser for opening password URLs'
             Description = 'Which browser to use when opening password URLs from the Tenants CSV. ' +
             'Set to "default" to use the system default browser.'
             Options     = @('default', 'msedge', 'chrome', 'firefox', 'brave')
@@ -79,8 +79,18 @@ function Set-IRTConfig {
             'Enter any font name installed on your system.'
             Options     = $null  # free text
         }
+        OpenSpreadsheets = @{
+            Summary     = 'Auto-open spreadsheets'
+            Description = 'When enabled, Excel workbooks created by IRT ' +
+            '(sign-in logs, UAL, message trace, device/SP reports, etc.) ' +
+            'open automatically after they are exported. ' +
+            'When disabled, workbooks are saved without opening; ' +
+            'run Open-IRTSpreadsheet to open the .xlsx files in a folder. ' +
+            'Commands that accept an -Open parameter can override this per run.'
+            Options     = @('true', 'false')
+        }
         ExportXml = @{
-            Summary     = 'Export raw XML with log pulls'
+            Summary     = 'Export raw XML'
             Description = 'When enabled, log commands ' +
             '(sign-in logs, UAL, message trace) will save ' +
             'the raw XML response alongside the parsed Excel output.'
@@ -174,6 +184,13 @@ function Set-IRTConfig {
             'Takes effect on the next Connect-IRT call.'
             Options     = $null  # free text / file path
         }
+        PlaybookOpenNewTab = @{
+            Summary     = 'New tab when starting Playbook'
+            Description = 'When enabled, Start-IRTPlaybook opens a new terminal tab ' +
+            'at the start of each playbook run. ' +
+            'When disabled, use -NewTab on Start-IRTPlaybook to open a tab for a single run.'
+            Options     = @('true', 'false')
+        }
         IPConditionalFormattingTemplatePath = @{
             Summary     = 'IP address CF template path'
             Description = 'Absolute path to an Excel file whose first sheet A columncontains the ' +
@@ -182,13 +199,6 @@ function Set-IRTConfig {
             '(Data/IpAddressConditionalFormattingTemplate.xlsx). ' +
             'Replace with a custom file to change color-coding without editing code.'
             Options     = $null  # free text / file path
-        }
-        PlaybookOpenNewTab = @{
-            Summary     = 'New tab when starting Playbook'
-            Description = 'When enabled, Start-IRTPlaybook opens a new terminal tab ' +
-            'at the start of each playbook run. ' +
-            'Use -NoNewTab on Start-IRTPlaybook to override for a single run.'
-            Options     = @('true', 'false')
         }
         EmailSearchNamePrefix = @{
             Summary     = 'Email search name prefix'
@@ -281,7 +291,8 @@ function Set-IRTConfig {
         }
 
         # Convert string to bool for boolean settings
-        if ($SelectedKey -in 'ExportXml', 'EnableTokenCache', 'PlaybookOpenNewTab') {
+        $BoolKeys = @('ExportXml', 'EnableTokenCache', 'PlaybookOpenNewTab', 'OpenSpreadsheets')
+        if ($SelectedKey -in $BoolKeys) {
             $NewValue = $NewValue -eq 'true'
         }
 

@@ -52,7 +52,7 @@ function Show-IRTUserMfa {
         [string] $TableStyle = $Global:IRT_Config.ExcelTableStyle,
         [string] $Font = $Global:IRT_Config.ExcelFont,
         [boolean] $Xml = $Global:IRT_Config.ExportXml,
-        [boolean] $Open = $true
+        [boolean] $Open = [bool]$Global:IRT_Config.OpenSpreadsheets
     )
 
     begin {

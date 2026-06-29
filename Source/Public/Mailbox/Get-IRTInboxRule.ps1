@@ -52,7 +52,7 @@ function Get-IRTInboxRule {
 
         [string] $TableStyle = $Global:IRT_Config.ExcelTableStyle,
         [string] $Font = $Global:IRT_Config.ExcelFont,
-        [boolean] $Open = $true,
+        [boolean] $Open = [bool]$Global:IRT_Config.OpenSpreadsheets,
         [boolean] $Xml = $Global:IRT_Config.ExportXml
     )
 

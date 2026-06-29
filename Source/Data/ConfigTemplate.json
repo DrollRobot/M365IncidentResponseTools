@@ -3,6 +3,7 @@
     "Browser": "default",
     "ExcelTableStyle": "Dark8",
     "ExcelFont": "Consolas",
+    "OpenSpreadsheets": true,
     "ExportXml": false,
     "AllOperationsSheetPath": null,
     "TenantsSheetPath": null,
@@ -15,7 +16,7 @@
     "IpInfoAvailable": false,
     "EnableTokenCache": false,
     "MsalCachePath": null,
+    "PlaybookOpenNewTab": false,
     "IPConditionalFormattingTemplatePath": null,
-    "PlaybookOpenNewTab": true,
     "EmailSearchNamePrefix": "IRT: "
 }

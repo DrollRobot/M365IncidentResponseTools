@@ -266,6 +266,7 @@ function Get-IRTEmailSearch {
                     $Safe = ($SearchName -replace '[\\/:*?"<>|]', '_')
                     $Stamp = (Get-Date).ToString('yy-MM-dd_HH-mm')
                     $Path = "EmailSearchResults_${Safe}_${Stamp}.xlsx"
+                    $OpenSheet = [bool]$Global:IRT_Config.OpenSpreadsheets
                     $ExcelParams = @{
                         Path          = $Path
                         WorkSheetname = 'Results'
@@ -273,11 +274,16 @@ function Get-IRTEmailSearch {
                         TableStyle    = $Global:IRT_Config.ExcelTableStyle
                         AutoSize      = $true
                         FreezeTopRow  = $true
-                        Show          = $true
+                        Show          = $OpenSheet
                     }
                     try {
                         $Results | Export-Excel @ExcelParams
-                        Write-IRT "Saved and opened: $Path"
+                        if ($OpenSheet) {
+                            Write-IRT "Saved and opened: $Path"
+                        }
+                        else {
+                            Write-IRT "Saved: $Path"
+                        }
                     }
                     catch {
                         $_

@@ -17,7 +17,8 @@ function Show-IRTMessageTrace {
 
         [string] $TableStyle = $Global:IRT_Config.ExcelTableStyle,
         [string] $Font = $Global:IRT_Config.ExcelFont,
-        [boolean] $IpInfo = [bool]$Global:IRT_Config.IpInfoAvailable
+        [boolean] $IpInfo = [bool]$Global:IRT_Config.IpInfoAvailable,
+        [boolean] $Open = [bool]$Global:IRT_Config.OpenSpreadsheets
     )
 
     begin {
@@ -320,6 +321,12 @@ function Show-IRTMessageTrace {
 
         # save and close
         Write-IRT "Exporting to: ${ExcelOutputPath}"
-        $Workbook | Close-ExcelPackage -Show
+        if ($Open) {
+            Write-IRT "Opening Excel."
+            $Workbook | Close-ExcelPackage -Show
+        }
+        else {
+            $Workbook | Close-ExcelPackage
+        }
     }
 }

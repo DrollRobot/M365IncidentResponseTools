@@ -68,7 +68,7 @@ function Get-IRTEntraAuditLog {
 
         [switch] $AllUsers,
         [switch] $Beta,
-        [boolean] $Open = $true,
+        [boolean] $Open = [bool]$Global:IRT_Config.OpenSpreadsheets,
         [boolean] $Xml = $Global:IRT_Config.ExportXml,
         [switch] $Cached
     )
