@@ -1,0 +1,54 @@
+base: develop
+title: feat(config): make spreadsheet auto-open configurable
+---
+# Make spreadsheet auto-open configurable
+
+## Summary
+
+IRT opens every Excel workbook it exports the moment it finishes writing
+it. During a busy investigation that can mean a dozen windows fighting
+for focus. This change turns that behavior into a setting, and adds a
+command to open the workbooks on demand for people who turn it off.
+
+## What changed
+
+**New `OpenSpreadsheets` setting (default `true`).** Added to the config
+template and the `Set-IRTConfig` menu. Every command that exports a
+workbook now takes its default open-after-export behavior from this
+setting. Commands that expose an `-Open` parameter still accept it to
+override per run, so existing scripts keep working. Two places that used
+to always open their output -- `Get-IRTEmailSearch` and the
+`Get-IRTMessageTrace` / `Show-IRTMessageTrace` pair -- now honor the
+setting too (an `-Open` parameter was threaded through the message-trace
+pair to match the other commands).
+
+**New `Open-IRTSpreadsheet` command.** For users who keep auto-open off:
+it opens every `.xlsx` in a folder (the current directory by default,
+`-Recurse` to include subfolders) and skips Excel's `~$` lock files.
+Aliases: `Open-IRTSpreadsheets`, `IRTSpreadsheet`.
+
+**Config menu cleanup.** While in `Set-IRTConfig`:
+
+- `PlaybookOpenNewTab` now defaults to `false` and sits immediately after
+  the token-cache settings. Its description referenced a `-NoNewTab` flag
+  that does not exist; corrected to `-NewTab`.
+- Shortened the `PasswordBrowser` and `ExportXml` summaries, which
+  overstated their scope.
+
+## Notes
+
+Changing a template default only affects new `config.json` files and
+users who do not yet have the key (it is backfilled on load). Existing
+configs keep their current values until `Set-IRTConfig -Reset`.
+
+## Testing
+
+- Added an offline Pester test for `Open-IRTSpreadsheet` (file discovery,
+  lock-file filtering, `-Recurse`, and the not-found / empty-folder
+  paths).
+- Full offline Pester suite passes apart from one pre-existing, unrelated
+  failure in `Get-IRTClipboardSearch` -- confirmed it fails identically
+  on the base branch with these changes stashed.
+- Formatting checks pass: ModuleSyntax, LineLength, NonASCII,
+  FormatOperator, JoinPath, WriteVerboseDebug, ExplicitModuleImport, and
+  PSSA on the changed files.
