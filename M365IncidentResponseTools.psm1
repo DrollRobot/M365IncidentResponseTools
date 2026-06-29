@@ -13592,6 +13592,7 @@ function Get-IRTEntraSignInLog {
         [int] $ThrottleDelaySeconds = 60,
 
         [switch] $NonInteractive,
+        [switch] $DeviceCode,
 
         [boolean] $Beta = $true,
         [boolean] $Excel = $true,
@@ -13763,9 +13764,12 @@ function Get-IRTEntraSignInLog {
             $SheetTitle = "${TitleType} sign-in logs for ${Target}." +
             " Covers ${Days} days, ${TitleStartDate} to ${TitleEndDate}."
 
-            # non interactive
+            # additional filters
             if ( $NonInteractive ) {
                 $FilterStrings.Add( "signInEventTypes/any(t: t eq 'NonInteractiveUser')" )
+            }
+            if ( $DeviceCodeOnly ) {
+                $FilterStrings.Add( "authenticationProtocol eq 'devicecode'" )
             }
             # base filters are constant per user; date bounds are added per chunk
             $BaseFilterStrings = $FilterStrings
@@ -13964,7 +13968,7 @@ function Get-IRTEntraSignInLog {
         }
     }
 }
-#EndRegion '.\Public\Entra\Get-IRTEntraSignInLog.ps1' 503
+#EndRegion '.\Public\Entra\Get-IRTEntraSignInLog.ps1' 507
 #Region '.\Public\Entra\Get-IRTNonInteractiveSignIn.ps1' -1
 
 function Get-IRTNonInteractiveSignIn {
