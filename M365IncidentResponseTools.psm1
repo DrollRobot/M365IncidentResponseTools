@@ -22894,7 +22894,7 @@ function Get-IRTLicenseReport {
 
     .NOTES
     Version: 1.3.0
-    1.3.0 - Highlight E5 SKUs in green via $PSStyle (PS 7.2+) and print an E5
+    1.3.0 - Highlight E5 SKUs in yellow via $PSStyle (PS 7.2+) and print an E5
             security-tooling callout after the table.
     1.2.0 - Removed the Write-PSObject dependency; output is always plain
             Format-Table. -Runspace is now a no-op kept for compatibility.
@@ -22955,7 +22955,7 @@ function Get-IRTLicenseReport {
 
             # track E5 SKUs - they unlock additional security tooling
             $E5Licenses = [Collections.Generic.List[string]]::new()
-            $Green = $PSStyle.Foreground.BrightGreen
+            $Highlight = $PSStyle.Foreground.BrightYellow
             $Reset = $PSStyle.Reset
 
             # generate report for viewing in terminal
@@ -22968,12 +22968,12 @@ function Get-IRTLicenseReport {
                     $_.SkuPartNumber
                 }
 
-                # highlight E5 SKUs in green - they unlock extra security tooling
+                # highlight E5 SKUs in yellow - they unlock extra security tooling
                 $IsE5 = $_.LicenseFullName -match '\bE5\b' -or
                     $_.SkuPartNumber -match 'SPE_E5|ENTERPRISEPREMIUM'
                 if ( $IsE5 ) {
                     $E5Licenses.Add( $LicenseName )
-                    $LicenseName = "${Green}${LicenseName}${Reset}"
+                    $LicenseName = "${Highlight}${LicenseName}${Reset}"
                 }
 
                 [pscustomobject]@{
