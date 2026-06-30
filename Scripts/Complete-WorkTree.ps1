@@ -98,10 +98,14 @@
     .\Complete-WorkTree.ps1 -WebFromNotes -Slug issue-42
 
 .NOTES
-    Script version 1.2.1, which resolves the PR base from the worktree's
-    recorded base (branch.<branch>.prBase) and ignores an upstream that a
-    `git push -u` has repointed to the branch itself, so PRs no longer
-    occasionally target the worktree branch instead of develop.
+    Version: 1.2.2
+    1.2.2 - Fixes owner/repo parsing to handle custom SSH host aliases
+        (e.g. git@github_alias:owner/repo.git), not just github.com.
+    1.2.1 - Resolves the PR base from the worktree's recorded base 
+        (branch.<branch>.prBase) and ignores an upstream that a
+        `git push -u` has repointed to the branch itself, so PRs no longer
+        occasionally target the worktree branch instead of develop.
+    1.1.0 - Adds -PushPRToNotes/-GHFromNotes/-WebFromNotes cross-device handoff.
 
     Requirements:
       - PowerShell 7.4 or later.
@@ -137,7 +141,7 @@ $PSNativeCommandUseErrorActionPreference = $true
 # Version of this helper script itself. Bump on every change so copies in other
 # repos can be compared: patch = bugfix, minor = new flag/behavior, major =
 # breaking CLI change.
-$ScriptVersion = '1.2.1'
+$ScriptVersion = '1.2.2'
 
 # The cross-device PR-body handoff stores one note per slug
 # (refs/notes/pr-body-<slug>) so concurrent PRs never share - or force-push
@@ -287,10 +291,11 @@ function ConvertFrom-PrNote {
 }
 
 # Parse 'owner/repo' from origin's URL (SSH or HTTPS), for building a github.com
-# compare URL.
+# compare URL. Matches the trailing 'owner/repo' regardless of host, so custom
+# SSH host aliases (e.g. 'git@github_drollrobot:owner/repo.git') still parse.
 function Get-OriginSlug {
     $url = (git remote get-url origin).Trim()
-    if ($url -match 'github\.com[:/]+([^/]+)/(.+?)(?:\.git)?/?$') {
+    if ($url -match '[:/]([^/:]+)/([^/]+?)(?:\.git)?/?$') {
         return "$($Matches[1])/$($Matches[2])"
     }
     throw "Could not parse owner/repo from origin URL: $url"
