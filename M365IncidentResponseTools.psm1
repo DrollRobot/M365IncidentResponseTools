@@ -9222,6 +9222,86 @@ function Import-ReferenceData {
         "TenantCache=$($Global:IRT_TenantInfoTable.Count)")
 }
 #EndRegion '.\Private\Utility\Import-ReferenceData.ps1' 102
+#Region '.\Private\Utility\Initialize-IRTFileLogging.ps1' -1
+
+function Initialize-IRTFileLogging {
+    <#
+    .SYNOPSIS
+    Enables or disables PSFramework file logging from the LogFolderPath config value.
+
+    .DESCRIPTION
+    Reads $Global:IRT_Config.LogFolderPath and configures the PSFramework 'logfile'
+    logging provider to match:
+
+      - When LogFolderPath is set, the provider is enabled and every Write-PSFMessage
+        call (all levels) is written to <LogFolderPath>\IRT-<date>.log. A new file is
+        written per day and files older than 30 days are deleted automatically. There
+        is no size limit and no compression.
+      - When LogFolderPath is blank/null, the provider is disabled.
+
+    Called at module import (from Suffix.ps1) and again by Set-IRTConfig whenever the
+    log folder setting changes, so a change takes effect immediately without reimporting
+    the module. Wrapped so a bad path cannot break module import or the config menu.
+
+    The caller skips this for runspace workers: PSFramework's logging queue is process
+    wide, so the main session's provider already captures worker messages.
+
+    .EXAMPLE
+    Initialize-IRTFileLogging
+    Applies the current LogFolderPath setting to the logfile provider.
+
+    .NOTES
+    Version: 1.0.0
+    #>
+    [CmdletBinding()]
+    param()
+
+    Import-IRTModule -Name 'PSFramework'
+
+    $InstanceName = 'M365IRT'
+    $LogFolder = $Global:IRT_Config.LogFolderPath
+
+    # No folder configured: make sure file logging is off, then done.
+    if ([string]::IsNullOrWhiteSpace($LogFolder)) {
+        try {
+            Set-PSFLoggingProvider -Name logfile -InstanceName $InstanceName -Enabled $false
+        }
+        catch {
+            # The instance was never created - nothing to disable.
+        }
+        return
+    }
+
+    try {
+        # The provider creates the folder if able, but create it up front so a bad
+        # path surfaces here as a warning rather than silently producing no logs.
+        if (-not (Test-Path -Path $LogFolder)) {
+            $null = New-Item -ItemType Directory -Path $LogFolder -Force
+        }
+
+        # One file per day (%Date% resolves to yyyy-MM-dd). The glob matches every
+        # dated file and feeds the age-based cleanup (LogRetentionTime).
+        $DatedLogPath = Join-Path -Path $LogFolder -ChildPath 'IRT-%Date%.log'
+        $LogRotateGlob = Join-Path -Path $LogFolder -ChildPath 'IRT-*.log'
+
+        $LoggingParams = @{
+            Name             = 'logfile'
+            InstanceName     = $InstanceName
+            FilePath         = $DatedLogPath
+            FileType         = 'TXT'
+            Enabled          = $true
+            LogRotatePath    = $LogRotateGlob
+            LogRetentionTime = '30d'
+            MutexName        = 'M365IRT-LogFile'
+        }
+        Set-PSFLoggingProvider @LoggingParams
+    }
+    catch {
+        Write-PSFMessage -Level Warning -Message (
+            "Failed to enable file logging in '$LogFolder': $_")
+    }
+}
+#EndRegion '.\Private\Utility\Initialize-IRTFileLogging.ps1' 78
 #Region '.\Private\Utility\Invoke-IRTNativeCommand.ps1' -1
 
 function Invoke-IRTNativeCommand {
@@ -23441,6 +23521,18 @@ function Set-IRTConfig {
             'Replace with a custom file to change color-coding without editing code.'
             Options     = $null  # free text / file path
         }
+        LogFolderPath = @{
+            Summary     = 'Debug log folder'
+            Description = 'Folder where IRT writes its PSFramework diagnostic log ' +
+            '(every Write-PSFMessage call, all levels). ' +
+            'Enter a FOLDER path, not a file - for example C:\IRLogs. ' +
+            'Leave blank to disable file logging. ' +
+            'When set, a new plain-text file named IRT-<date>.log is written to the ' +
+            'folder each day (e.g. IRT-2026-06-30.log), and files older than 30 days ' +
+            'are deleted automatically (no size limit or zipping). ' +
+            'The change takes effect immediately.'
+            Options     = $null  # free text / folder path
+        }
         PlaybookOpenNewTab = @{
             Summary     = 'New tab when starting Playbook'
             Description = 'When enabled, Start-IRTPlaybook opens a new terminal tab ' +
@@ -23521,7 +23613,7 @@ function Set-IRTConfig {
         }
         else {
             # Free text input; for path settings blank clears back to null (restores default)
-            if ($SelectedKey -in 'AllOperationsSheetPath', 'TenantsSheetPath') {
+            if ($SelectedKey -in 'AllOperationsSheetPath', 'TenantsSheetPath', 'LogFolderPath') {
                 $NewValue = Read-Host "Enter new value (blank to clear and use module default)"
             }
             else {
@@ -23534,7 +23626,7 @@ function Set-IRTConfig {
         }
 
         # Convert blank/null path settings back to null
-        if ($SelectedKey -in 'AllOperationsSheetPath', 'TenantsSheetPath') {
+        if ($SelectedKey -in 'AllOperationsSheetPath', 'TenantsSheetPath', 'LogFolderPath') {
             if ([string]::IsNullOrWhiteSpace($NewValue)) { $NewValue = $null }
         }
 
@@ -23553,11 +23645,16 @@ function Set-IRTConfig {
         if ($PSCmdlet.ShouldProcess($ConfigPath, "Set $SelectedKey = $NewValue")) {
             $Config | ConvertTo-Json -Depth 10 | Set-Content -Path $ConfigPath -Encoding utf8
             Import-IRTConfig -Force
+            # Apply a logging-folder change to the running session right away so the
+            # user does not have to reimport the module to start/stop file logging.
+            if ($SelectedKey -eq 'LogFolderPath') {
+                Initialize-IRTFileLogging
+            }
             Write-IRT "$SelectedKey updated to: $NewValue"
         }
     }
 }
-#EndRegion '.\Public\Utility\Set-IRTConfig.ps1' 302
+#EndRegion '.\Public\Utility\Set-IRTConfig.ps1' 319
 #Region '.\Public\Utility\Start-IRTPlaybook.ps1' -1
 
 function Start-IRTPlaybook {
@@ -24117,6 +24214,15 @@ if (-not $Global:IRT_Config.IPConditionalFormattingTemplatePath) {
     $Global:IRT_Config.IPConditionalFormattingTemplatePath = Join-Path @IpcftJoin
 }
 
+# Apply PSFramework file logging from the LogFolderPath config value (blank = off).
+# Initialize-IRTFileLogging routes every Write-PSFMessage call to a per-day TXT file
+# in that folder and prunes files older than 30 days. Skipped in runspace workers:
+# they share the parent process, so the main session's provider already captures
+# their messages.
+if (-not $Global:IRT_IsRunspaceWorker) {
+    Initialize-IRTFileLogging
+}
+
 # Check ip_info availability once at module load and cache in config.
 $Global:IRT_Config.IpInfoAvailable = (Test-PythonPackage -Name 'ip_info').Present
 
@@ -24137,5 +24243,5 @@ if ($Global:IRT_LoadStopwatch) {
     Write-PSFMessage -Level 8 -Message "Module loaded in $($Elapsed.ToString('N2'))s."
     Remove-Variable -Name 'IRT_LoadStopwatch' -Scope Global
 }
-#EndRegion '.\Suffix.ps1' 73
+#EndRegion '.\Suffix.ps1' 82
 

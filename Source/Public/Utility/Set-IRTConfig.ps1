@@ -183,6 +183,18 @@ function Set-IRTConfig {
             'Replace with a custom file to change color-coding without editing code.'
             Options     = $null  # free text / file path
         }
+        LogFolderPath = @{
+            Summary     = 'Debug log folder'
+            Description = 'Folder where IRT writes its PSFramework diagnostic log ' +
+            '(every Write-PSFMessage call, all levels). ' +
+            'Enter a FOLDER path, not a file - for example C:\IRLogs. ' +
+            'Leave blank to disable file logging. ' +
+            'When set, a new plain-text file named IRT-<date>.log is written to the ' +
+            'folder each day (e.g. IRT-2026-06-30.log), and files older than 30 days ' +
+            'are deleted automatically (no size limit or zipping). ' +
+            'The change takes effect immediately.'
+            Options     = $null  # free text / folder path
+        }
         PlaybookOpenNewTab = @{
             Summary     = 'New tab when starting Playbook'
             Description = 'When enabled, Start-IRTPlaybook opens a new terminal tab ' +
@@ -263,7 +275,7 @@ function Set-IRTConfig {
         }
         else {
             # Free text input; for path settings blank clears back to null (restores default)
-            if ($SelectedKey -in 'AllOperationsSheetPath', 'TenantsSheetPath') {
+            if ($SelectedKey -in 'AllOperationsSheetPath', 'TenantsSheetPath', 'LogFolderPath') {
                 $NewValue = Read-Host "Enter new value (blank to clear and use module default)"
             }
             else {
@@ -276,7 +288,7 @@ function Set-IRTConfig {
         }
 
         # Convert blank/null path settings back to null
-        if ($SelectedKey -in 'AllOperationsSheetPath', 'TenantsSheetPath') {
+        if ($SelectedKey -in 'AllOperationsSheetPath', 'TenantsSheetPath', 'LogFolderPath') {
             if ([string]::IsNullOrWhiteSpace($NewValue)) { $NewValue = $null }
         }
 
@@ -295,6 +307,11 @@ function Set-IRTConfig {
         if ($PSCmdlet.ShouldProcess($ConfigPath, "Set $SelectedKey = $NewValue")) {
             $Config | ConvertTo-Json -Depth 10 | Set-Content -Path $ConfigPath -Encoding utf8
             Import-IRTConfig -Force
+            # Apply a logging-folder change to the running session right away so the
+            # user does not have to reimport the module to start/stop file logging.
+            if ($SelectedKey -eq 'LogFolderPath') {
+                Initialize-IRTFileLogging
+            }
             Write-IRT "$SelectedKey updated to: $NewValue"
         }
     }

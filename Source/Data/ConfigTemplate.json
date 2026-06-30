@@ -16,6 +16,7 @@
     "EnableTokenCache": false,
     "MsalCachePath": null,
     "IPConditionalFormattingTemplatePath": null,
+    "LogFolderPath": null,
     "PlaybookOpenNewTab": true,
     "EmailSearchNamePrefix": "IRT: "
 }
