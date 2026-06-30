@@ -2,7 +2,7 @@
 
 <#
 .SYNOPSIS
-    Online tests for Get-IRTEntraSignInLog.
+    Online tests for Get-IRTEntraUserSignInLog.
 
 .DESCRIPTION
     These tests require an active Microsoft Graph session established by
@@ -15,7 +15,7 @@
 
     Only three things are mocked, and only to avoid side effects unrelated to
     the data path:
-      - Show-IRTEntraSignInLog captures the -Logs argument so the test can
+      - Show-IRTEntraUserSignInLog captures the -Logs argument so the test can
         inspect the records without writing an Excel workbook or invoking the
         ip_info enrichment tool.
       - Write-IRT and Write-PSFMessage suppress console noise.
@@ -31,7 +31,7 @@
     live query in its BeforeAll and caches the result in $script: variables so
     every It block in that Context shares the same data, keeping live Graph
     calls to a minimum. Sign-in records are captured with Excel = $true (the
-    only path that calls Show-IRTEntraSignInLog) and Xml = $false. The first
+    only path that calls Show-IRTEntraUserSignInLog) and Xml = $false. The first
     captured object is the metadata header inserted by the function; it is
     filtered out via -not $_.Metadata before assertions.
 
@@ -82,16 +82,18 @@
 
 -- -AllUsers, -NonInteractive, 7-day query --------------------------------
 
-    Exercises the non-interactive path, which adds the
-    "signInEventTypes/any(t: t eq 'NonInteractiveUser')" clause.
+    Exercises the non-interactive path, which now returns BOTH interactive and
+    non-interactive sign-ins via the
+    "(signInEventTypes/any(t: t eq 'interactiveUser') or
+      signInEventTypes/any(t: t eq 'nonInteractiveUser'))" clause.
 
-    'returns at least 1 non-interactive sign-in'
-        Background token refreshes generate non-interactive sign-ins
+    'returns at least 1 sign-in'
+        Background token refreshes generate non-interactive activity
         continuously in any active tenant.
 
-    'every record is non-interactive'
-        Each record's IsInteractive must be $false, confirming the event-type
-        filter reached Graph. A $true here means the clause was dropped.
+    'includes non-interactive sign-ins'
+        At least one record must have IsInteractive = $false, confirming the
+        non-interactive event type reached Graph alongside interactive ones.
 
 -- -Beta $false (v1.0 endpoint), AllUsers, 7-day query --------------------
 
@@ -139,9 +141,9 @@
     'every record belongs to the test user'
         Confirms the UserId filter reached Graph on the single-chunk path.
 
-    'every record is non-interactive'
-        Each record's IsInteractive must be $false, confirming the event-type
-        clause survived on the no-split path.
+    'includes non-interactive sign-ins'
+        At least one record must have IsInteractive = $false, confirming the
+        non-interactive event type survived on the no-split path.
 
 -- date range: -Start / -End absolute -------------------------------------
 
@@ -158,11 +160,11 @@
 
 InModuleScope M365IncidentResponseTools {
 
-    Describe 'Get-IRTEntraSignInLog (live)' -Tag 'Online' {
+    Describe 'Get-IRTEntraUserSignInLog (live)' -Tag 'Online' {
 
         BeforeAll {
             if (-not ($Global:IRT_Session -and $Global:IRT_Session.Graph)) {
-                throw ('Get-IRTEntraSignInLog online tests require an active Graph ' +
+                throw ('Get-IRTEntraUserSignInLog online tests require an active Graph ' +
                     'session. Ensure Connect-IRT ran successfully first.')
             }
             if (-not $env:IRT_TEST_USER_ID) {
@@ -184,7 +186,7 @@ InModuleScope M365IncidentResponseTools {
                 Mock Write-PSFMessage { }
 
                 $script:CapturedUser = $null
-                Mock Show-IRTEntraSignInLog { param($Logs) $script:CapturedUser = $Logs }
+                Mock Show-IRTEntraUserSignInLog { param($Logs) $script:CapturedUser = $Logs }
 
                 $Params = @{
                     UserObject        = $script:TestUser
@@ -194,7 +196,7 @@ InModuleScope M365IncidentResponseTools {
                     Excel             = $true
                     Xml               = $false
                 }
-                Get-IRTEntraSignInLog @Params
+                Get-IRTEntraUserSignInLog @Params
                 $script:UserLogs = @(
                     $script:CapturedUser | Where-Object { $_ -and -not $_.Metadata }
                 )
@@ -232,7 +234,7 @@ InModuleScope M365IncidentResponseTools {
                 Mock Write-PSFMessage { }
 
                 $script:CapturedAll = $null
-                Mock Show-IRTEntraSignInLog { param($Logs) $script:CapturedAll = $Logs }
+                Mock Show-IRTEntraUserSignInLog { param($Logs) $script:CapturedAll = $Logs }
 
                 $Params = @{
                     AllUsers          = $true
@@ -242,7 +244,7 @@ InModuleScope M365IncidentResponseTools {
                     Excel             = $true
                     Xml               = $false
                 }
-                Get-IRTEntraSignInLog @Params
+                Get-IRTEntraUserSignInLog @Params
                 $script:AllLogs = @(
                     $script:CapturedAll | Where-Object { $_ -and -not $_.Metadata }
                 )
@@ -280,7 +282,7 @@ InModuleScope M365IncidentResponseTools {
                 Mock Write-PSFMessage { }
 
                 $script:CapturedIp = $null
-                Mock Show-IRTEntraSignInLog { param($Logs) $script:CapturedIp = $Logs }
+                Mock Show-IRTEntraUserSignInLog { param($Logs) $script:CapturedIp = $Logs }
 
                 if ($script:LiveIp) {
                     $Params = @{
@@ -291,7 +293,7 @@ InModuleScope M365IncidentResponseTools {
                         Excel             = $true
                         Xml               = $false
                     }
-                    Get-IRTEntraSignInLog @Params
+                    Get-IRTEntraUserSignInLog @Params
                 }
                 $script:IpLogs = @(
                     $script:CapturedIp | Where-Object { $_ -and -not $_.Metadata }
@@ -325,7 +327,7 @@ InModuleScope M365IncidentResponseTools {
                 Mock Write-PSFMessage { }
 
                 $script:CapturedNI = $null
-                Mock Show-IRTEntraSignInLog { param($Logs) $script:CapturedNI = $Logs }
+                Mock Show-IRTEntraUserSignInLog { param($Logs) $script:CapturedNI = $Logs }
 
                 $Params = @{
                     AllUsers          = $true
@@ -336,24 +338,27 @@ InModuleScope M365IncidentResponseTools {
                     Excel             = $true
                     Xml               = $false
                 }
-                Get-IRTEntraSignInLog @Params
+                Get-IRTEntraUserSignInLog @Params
                 $script:NILogs = @(
                     $script:CapturedNI | Where-Object { $_ -and -not $_.Metadata }
                 )
             }
 
-            It 'returns at least 1 non-interactive sign-in' {
+            It 'returns at least 1 sign-in' {
                 if ($script:NILogs.Count -eq 0) {
-                    throw ('No non-interactive sign-ins found; background token ' +
-                        'refreshes generate these continuously')
+                    throw ('No sign-ins found; background token refreshes generate ' +
+                        'non-interactive activity continuously')
                 }
                 $script:NILogs.Count | Should -BeGreaterThan 0
             }
 
-            It 'every record is non-interactive' {
-                foreach ($Entry in $script:NILogs) {
-                    $Entry.IsInteractive | Should -Be $false
-                }
+            It 'includes non-interactive sign-ins' {
+                # -NonInteractive now returns BOTH interactive and non-interactive;
+                # confirm the non-interactive event type is present in the pull.
+                $NonInteractiveOnly = @(
+                    $script:NILogs | Where-Object { -not $_.IsInteractive }
+                )
+                $NonInteractiveOnly.Count | Should -BeGreaterThan 0
             }
         }
 
@@ -365,7 +370,7 @@ InModuleScope M365IncidentResponseTools {
                 Mock Write-PSFMessage { }
 
                 $script:CapturedV1 = $null
-                Mock Show-IRTEntraSignInLog { param($Logs) $script:CapturedV1 = $Logs }
+                Mock Show-IRTEntraUserSignInLog { param($Logs) $script:CapturedV1 = $Logs }
 
                 $Params = @{
                     AllUsers          = $true
@@ -376,7 +381,7 @@ InModuleScope M365IncidentResponseTools {
                     Excel             = $true
                     Xml               = $false
                 }
-                Get-IRTEntraSignInLog @Params
+                Get-IRTEntraUserSignInLog @Params
                 $script:V1Logs = @(
                     $script:CapturedV1 | Where-Object { $_ -and -not $_.Metadata }
                 )
@@ -407,7 +412,7 @@ InModuleScope M365IncidentResponseTools {
                 Mock Write-PSFMessage { }
 
                 $script:CapturedChunked = $null
-                Mock Show-IRTEntraSignInLog { param($Logs) $script:CapturedChunked = $Logs }
+                Mock Show-IRTEntraUserSignInLog { param($Logs) $script:CapturedChunked = $Logs }
 
                 $Params = @{
                     AllUsers          = $true
@@ -417,7 +422,7 @@ InModuleScope M365IncidentResponseTools {
                     Excel             = $true
                     Xml               = $false
                 }
-                Get-IRTEntraSignInLog @Params
+                Get-IRTEntraUserSignInLog @Params
                 $script:ChunkedLogs = @(
                     $script:CapturedChunked | Where-Object { $_ -and -not $_.Metadata }
                 )
@@ -455,7 +460,7 @@ InModuleScope M365IncidentResponseTools {
                 Mock Write-PSFMessage { }
 
                 $script:CapturedSingle = $null
-                Mock Show-IRTEntraSignInLog { param($Logs) $script:CapturedSingle = $Logs }
+                Mock Show-IRTEntraUserSignInLog { param($Logs) $script:CapturedSingle = $Logs }
 
                 # Days (1) is well under the default ChunkDays (30), so the range is
                 # queried as a single chunk. Non-interactive guarantees data in a 1-day
@@ -467,7 +472,7 @@ InModuleScope M365IncidentResponseTools {
                     Excel          = $true
                     Xml            = $false
                 }
-                Get-IRTEntraSignInLog @Params
+                Get-IRTEntraUserSignInLog @Params
                 $script:SingleLogs = @(
                     $script:CapturedSingle | Where-Object { $_ -and -not $_.Metadata }
                 )
@@ -487,10 +492,11 @@ InModuleScope M365IncidentResponseTools {
                 }
             }
 
-            It 'every record is non-interactive' {
-                foreach ($Entry in $script:SingleLogs) {
-                    $Entry.IsInteractive | Should -Be $false
-                }
+            It 'includes non-interactive sign-ins' {
+                $NonInteractiveOnly = @(
+                    $script:SingleLogs | Where-Object { -not $_.IsInteractive }
+                )
+                $NonInteractiveOnly.Count | Should -BeGreaterThan 0
             }
         }
 
@@ -502,7 +508,7 @@ InModuleScope M365IncidentResponseTools {
                 Mock Write-PSFMessage { }
 
                 $script:CapturedAbs = $null
-                Mock Show-IRTEntraSignInLog { param($Logs) $script:CapturedAbs = $Logs }
+                Mock Show-IRTEntraUserSignInLog { param($Logs) $script:CapturedAbs = $Logs }
 
                 # 14 days ago to 7 days ago -- fully in the past, stable boundary
                 $script:AbsStart = [datetime]::UtcNow.AddDays(-14).ToString('yyyy-MM-dd')
@@ -517,7 +523,7 @@ InModuleScope M365IncidentResponseTools {
                     Excel             = $true
                     Xml               = $false
                 }
-                Get-IRTEntraSignInLog @Params
+                Get-IRTEntraUserSignInLog @Params
                 $script:AbsLogs = @(
                     $script:CapturedAbs | Where-Object { $_ -and -not $_.Metadata }
                 )

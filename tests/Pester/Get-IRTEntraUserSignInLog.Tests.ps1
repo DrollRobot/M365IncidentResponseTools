@@ -2,14 +2,14 @@
 
 <#
 .SYNOPSIS
-    Offline tests for Get-IRTEntraSignInLog: user resolution, date chunking,
+    Offline tests for Get-IRTEntraUserSignInLog: user resolution, date chunking,
     filter construction, throttle/timeout retry, and output plumbing.
 
 .DESCRIPTION
     All tests are offline. The Microsoft Graph SDK cmdlets (Get-MgBetaAuditLogSignIn,
     Get-MgAuditLogSignIn) and internal IRT helpers (Update-IRTToken, Import-IRTModule,
     Write-IRT, Write-PSFMessage, Get-DefaultDomain, Get-GlobalUserObject,
-    Resolve-DateRange, Show-IRTEntraSignInLog) are mocked so no network I/O occurs.
+    Resolve-DateRange, Show-IRTEntraUserSignInLog) are mocked so no network I/O occurs.
     Start-Sleep and Export-Clixml are mocked so retry/backoff paths and the XML
     export run instantly without real waits or file writes.
 
@@ -87,7 +87,7 @@ AfterAll {
         ForEach-Object { Remove-Item -Path "Function:\$_" -ErrorAction SilentlyContinue }
 }
 
-Describe 'Get-IRTEntraSignInLog' {
+Describe 'Get-IRTEntraUserSignInLog' {
 
     BeforeEach {
         $Mod = 'M365IncidentResponseTools'
@@ -104,7 +104,9 @@ Describe 'Get-IRTEntraSignInLog' {
         # captured side effects
         $script:CapturedFilters = [System.Collections.Generic.List[string]]::new()
         $script:CapturedLogs = $null
-        Mock Show-IRTEntraSignInLog { param($Logs) $script:CapturedLogs = $Logs } -ModuleName $Mod
+        Mock Show-IRTEntraUserSignInLog {
+            param($Logs) $script:CapturedLogs = $Logs
+        } -ModuleName $Mod
 
         # deterministic 30-day absolute range
         Mock Resolve-DateRange {
@@ -131,7 +133,7 @@ Describe 'Get-IRTEntraSignInLog' {
     Context 'user resolution' {
 
         It 'uses an explicitly passed -UserObject' {
-            Get-IRTEntraSignInLog -UserObject $script:TestUser -Excel $false -Xml $false
+            Get-IRTEntraUserSignInLog -UserObject $script:TestUser -Excel $false -Xml $false
             Should -Invoke Get-GlobalUserObject -Times 0 -ModuleName $script:Mod
             $F = { $Filter -match "UserId eq '$($script:TestUser.Id)'" }
             $IA = @{ ModuleName = $script:Mod; ParameterFilter = $F }
@@ -139,13 +141,13 @@ Describe 'Get-IRTEntraSignInLog' {
         }
 
         It 'falls back to Get-GlobalUserObject when -UserObject is omitted' {
-            Get-IRTEntraSignInLog -Excel $false -Xml $false
+            Get-IRTEntraUserSignInLog -Excel $false -Xml $false
             Should -Invoke Get-GlobalUserObject -Times 1 -ModuleName $script:Mod
         }
 
         It 'writes an error and runs no query when no users are found' {
             Mock Get-GlobalUserObject { } -ModuleName $script:Mod
-            Get-IRTEntraSignInLog -Excel $false -Xml $false
+            Get-IRTEntraUserSignInLog -Excel $false -Xml $false
             $F = { $Level -eq 'Error' -and $Message -match 'No user objects' }
             $IA = @{ ModuleName = $script:Mod; ParameterFilter = $F }
             Should -Invoke Write-IRT @IA
@@ -153,7 +155,7 @@ Describe 'Get-IRTEntraSignInLog' {
         }
 
         It 'queries once per IP address in the IpAddress parameter set' {
-            Get-IRTEntraSignInLog -IpAddress '1.2.3.4', '5.6.7.8' -Excel $false -Xml $false
+            Get-IRTEntraUserSignInLog -IpAddress '1.2.3.4', '5.6.7.8' -Excel $false -Xml $false
             $IA = @{ ModuleName = $script:Mod }
             Should -Invoke Get-MgBetaAuditLogSignIn -Times 2 -Exactly @IA
             $Hit1 = $script:CapturedFilters | Where-Object { $_ -match "ipAddress eq '1.2.3.4'" }
@@ -168,13 +170,13 @@ Describe 'Get-IRTEntraSignInLog' {
                 UserPrincipalName = 'bob@contoso.com'
             }
             $Users = @($script:TestUser, $User2)
-            Get-IRTEntraSignInLog -UserObject $Users -Excel $false -Xml $false
+            Get-IRTEntraUserSignInLog -UserObject $Users -Excel $false -Xml $false
             $IA = @{ ModuleName = $script:Mod }
             Should -Invoke Get-MgBetaAuditLogSignIn -Times 2 -Exactly @IA
         }
 
         It 'adds no user filter in the AllUsers parameter set' {
-            Get-IRTEntraSignInLog -AllUsers -Excel $false -Xml $false
+            Get-IRTEntraUserSignInLog -AllUsers -Excel $false -Xml $false
             $script:CapturedFilters.Count | Should -Be 1
             $script:CapturedFilters[0] | Should -Not -Match 'UserId eq'
             $script:CapturedFilters[0] | Should -Not -Match 'ipAddress eq'
@@ -185,13 +187,13 @@ Describe 'Get-IRTEntraSignInLog' {
     Context 'date range and DefaultDays' {
 
         It 'requests a 30-day default for interactive logs' {
-            Get-IRTEntraSignInLog -AllUsers -Excel $false -Xml $false
+            Get-IRTEntraUserSignInLog -AllUsers -Excel $false -Xml $false
             $IA = @{ ModuleName = $script:Mod; ParameterFilter = { $DefaultDays -eq 30 } }
             Should -Invoke Resolve-DateRange @IA
         }
 
         It 'requests a 3-day default for non-interactive logs' {
-            Get-IRTEntraSignInLog -AllUsers -NonInteractive -Excel $false -Xml $false
+            Get-IRTEntraUserSignInLog -AllUsers -NonInteractive -Excel $false -Xml $false
             $IA = @{ ModuleName = $script:Mod; ParameterFilter = { $DefaultDays -eq 3 } }
             Should -Invoke Resolve-DateRange @IA
         }
@@ -201,7 +203,7 @@ Describe 'Get-IRTEntraSignInLog' {
     Context 'date chunking' {
 
         It 'runs a single query when ChunkDays covers the whole range' {
-            Get-IRTEntraSignInLog -AllUsers -ChunkDays 30 -Excel $false -Xml $false
+            Get-IRTEntraUserSignInLog -AllUsers -ChunkDays 30 -Excel $false -Xml $false
             $IA = @{ ModuleName = $script:Mod }
             Should -Invoke Get-MgBetaAuditLogSignIn -Times 1 -Exactly @IA
         }
@@ -218,7 +220,7 @@ Describe 'Get-IRTEntraSignInLog' {
                     EndUtc    = $script:RangeEnd.AddMilliseconds(50)
                 }
             } -ModuleName $script:Mod
-            Get-IRTEntraSignInLog -AllUsers -ChunkDays 30 -Excel $false -Xml $false
+            Get-IRTEntraUserSignInLog -AllUsers -ChunkDays 30 -Excel $false -Xml $false
             $IA = @{ ModuleName = $script:Mod }
             Should -Invoke Get-MgBetaAuditLogSignIn -Times 1 -Exactly @IA
         }
@@ -234,25 +236,25 @@ Describe 'Get-IRTEntraSignInLog' {
                     EndUtc    = $script:RangeEnd.AddMilliseconds(50)
                 }
             } -ModuleName $script:Mod
-            Get-IRTEntraSignInLog -AllUsers -ChunkDays 10 -Excel $false -Xml $false
+            Get-IRTEntraUserSignInLog -AllUsers -ChunkDays 10 -Excel $false -Xml $false
             $IA = @{ ModuleName = $script:Mod }
             Should -Invoke Get-MgBetaAuditLogSignIn -Times 3 -Exactly @IA
         }
 
         It 'splits a 30-day range into 30 chunks with -ChunkDays 1' {
-            Get-IRTEntraSignInLog -AllUsers -ChunkDays 1 -Excel $false -Xml $false
+            Get-IRTEntraUserSignInLog -AllUsers -ChunkDays 1 -Excel $false -Xml $false
             $IA = @{ ModuleName = $script:Mod }
             Should -Invoke Get-MgBetaAuditLogSignIn -Times 30 -Exactly @IA
         }
 
         It 'splits a 30-day range into 5 chunks with -ChunkDays 7' {
-            Get-IRTEntraSignInLog -AllUsers -ChunkDays 7 -Excel $false -Xml $false
+            Get-IRTEntraUserSignInLog -AllUsers -ChunkDays 7 -Excel $false -Xml $false
             $IA = @{ ModuleName = $script:Mod }
             Should -Invoke Get-MgBetaAuditLogSignIn -Times 5 -Exactly @IA
         }
 
         It 'produces contiguous, gap-free chunks covering the full range' {
-            Get-IRTEntraSignInLog -AllUsers -ChunkDays 7 -Excel $false -Xml $false
+            Get-IRTEntraUserSignInLog -AllUsers -ChunkDays 7 -Excel $false -Xml $false
 
             # parse the ge/le bounds out of each chunk filter
             $Pattern = 'createdDateTime ge (\S+) and createdDateTime le (\S+)'
@@ -275,7 +277,7 @@ Describe 'Get-IRTEntraSignInLog' {
         }
 
         It 'every chunk filter carries explicit createdDateTime bounds' {
-            Get-IRTEntraSignInLog -AllUsers -ChunkDays 7 -Excel $false -Xml $false
+            Get-IRTEntraUserSignInLog -AllUsers -ChunkDays 7 -Excel $false -Xml $false
             foreach ($f in $script:CapturedFilters) {
                 $f | Should -Match 'createdDateTime ge '
                 $f | Should -Match 'createdDateTime le '
@@ -288,19 +290,37 @@ Describe 'Get-IRTEntraSignInLog' {
 
         It 'filters by UserId in the UserObject parameter set' {
             $P = @{ UserObject = $script:TestUser; ChunkDays = 30; Excel = $false; Xml = $false }
-            Get-IRTEntraSignInLog @P
+            Get-IRTEntraUserSignInLog @P
             $script:CapturedFilters[0] | Should -Match "UserId eq '$($script:TestUser.Id)'"
         }
 
-        It 'adds the non-interactive event-type clause with -NonInteractive' {
+        It 'includes both interactive and non-interactive event types with -NonInteractive' {
             $P = @{ AllUsers = $true; NonInteractive = $true; ChunkDays = 30 }
-            Get-IRTEntraSignInLog @P -Excel $false -Xml $false
-            $script:CapturedFilters[0] | Should -Match 'signInEventTypes/any'
+            Get-IRTEntraUserSignInLog @P -Excel $false -Xml $false
+            $script:CapturedFilters[0] | Should -Match "t eq 'interactiveUser'"
+            $script:CapturedFilters[0] | Should -Match "t eq 'nonInteractiveUser'"
         }
 
         It 'omits the non-interactive clause for interactive logs' {
-            Get-IRTEntraSignInLog -AllUsers -ChunkDays 30 -Excel $false -Xml $false
+            Get-IRTEntraUserSignInLog -AllUsers -ChunkDays 30 -Excel $false -Xml $false
             $script:CapturedFilters[0] | Should -Not -Match 'signInEventTypes'
+        }
+    }
+
+    # -------------------------------------------------------------------
+    Context 'device code filter' {
+
+        It 'adds both device code clauses to the filter with -DeviceCode' {
+            $P = @{ AllUsers = $true; DeviceCode = $true; ChunkDays = 30 }
+            Get-IRTEntraUserSignInLog @P -Excel $false -Xml $false
+            $script:CapturedFilters[0] | Should -Match "authenticationProtocol eq 'devicecode'"
+            $script:CapturedFilters[0] | Should -Match "originalTransferMethod eq 'deviceCodeFlow'"
+        }
+
+        It 'omits the device code clause without -DeviceCode' {
+            Get-IRTEntraUserSignInLog -AllUsers -ChunkDays 30 -Excel $false -Xml $false
+            $script:CapturedFilters[0] | Should -Not -Match 'authenticationProtocol'
+            $script:CapturedFilters[0] | Should -Not -Match 'originalTransferMethod'
         }
     }
 
@@ -308,14 +328,14 @@ Describe 'Get-IRTEntraSignInLog' {
     Context 'endpoint selection' {
 
         It 'uses the beta endpoint by default' {
-            Get-IRTEntraSignInLog -AllUsers -ChunkDays 30 -Excel $false -Xml $false
+            Get-IRTEntraUserSignInLog -AllUsers -ChunkDays 30 -Excel $false -Xml $false
             $IA = @{ ModuleName = $script:Mod }
             Should -Invoke Get-MgBetaAuditLogSignIn -Times 1 -Exactly @IA
             Should -Invoke Get-MgAuditLogSignIn -Times 0 -ModuleName $script:Mod
         }
 
         It 'uses the v1.0 endpoint when -Beta $false' {
-            Get-IRTEntraSignInLog -AllUsers -Beta $false -ChunkDays 30 -Excel $false -Xml $false
+            Get-IRTEntraUserSignInLog -AllUsers -Beta $false -ChunkDays 30 -Excel $false -Xml $false
             $IA = @{ ModuleName = $script:Mod }
             Should -Invoke Get-MgAuditLogSignIn -Times 1 -Exactly @IA
             Should -Invoke Get-MgBetaAuditLogSignIn -Times 0 -ModuleName $script:Mod
@@ -327,7 +347,7 @@ Describe 'Get-IRTEntraSignInLog' {
 
         It 'refreshes the token once in begin plus once per chunk' {
             # 30-day range / ChunkDays 10 = 3 chunks; begin(1) + 3 = 4 refreshes
-            Get-IRTEntraSignInLog -AllUsers -ChunkDays 10 -Excel $false -Xml $false
+            Get-IRTEntraUserSignInLog -AllUsers -ChunkDays 10 -Excel $false -Xml $false
             $IA = @{ ModuleName = $script:Mod }
             Should -Invoke Update-IRTToken -Times 4 -Exactly @IA
         }
@@ -346,7 +366,7 @@ Describe 'Get-IRTEntraSignInLog' {
                 New-SignInRecord
             } -ModuleName $script:Mod
 
-            Get-IRTEntraSignInLog -AllUsers -ChunkDays 30 -Excel $false -Xml $false
+            Get-IRTEntraUserSignInLog -AllUsers -ChunkDays 30 -Excel $false -Xml $false
 
             $IA = @{ ModuleName = $script:Mod; ParameterFilter = { $Seconds -eq 5 } }
             Should -Invoke Start-Sleep -Times 1 -Exactly @IA
@@ -364,7 +384,7 @@ Describe 'Get-IRTEntraSignInLog' {
             } -ModuleName $script:Mod
 
             $P = @{ AllUsers = $true; ChunkDays = 30; ThrottleDelaySeconds = 60 }
-            Get-IRTEntraSignInLog @P -Excel $false -Xml $false
+            Get-IRTEntraUserSignInLog @P -Excel $false -Xml $false
 
             # retry 1 -> 60s, retry 2 -> 120s
             $I60 = @{ ModuleName = $script:Mod; ParameterFilter = { $Seconds -eq 60 } }
@@ -376,7 +396,7 @@ Describe 'Get-IRTEntraSignInLog' {
         It 'rethrows once throttle retries are exhausted' {
             Mock Get-MgBetaAuditLogSignIn { throw '429 TooManyRequests' } -ModuleName $script:Mod
             $P = @{ AllUsers = $true; ChunkDays = 30; Excel = $false; Xml = $false }
-            { Get-IRTEntraSignInLog @P } | Should -Throw
+            { Get-IRTEntraUserSignInLog @P } | Should -Throw
         }
     }
 
@@ -393,7 +413,7 @@ Describe 'Get-IRTEntraSignInLog' {
                 New-SignInRecord
             } -ModuleName $script:Mod
 
-            Get-IRTEntraSignInLog -AllUsers -ChunkDays 30 -Excel $false -Xml $false
+            Get-IRTEntraUserSignInLog -AllUsers -ChunkDays 30 -Excel $false -Xml $false
 
             $IA = @{ ModuleName = $script:Mod; ParameterFilter = { $Seconds -eq 5 } }
             Should -Invoke Start-Sleep -Times 1 -Exactly @IA
@@ -408,11 +428,11 @@ Describe 'Get-IRTEntraSignInLog' {
             } -ModuleName $script:Mod
 
             $P = @{ AllUsers = $true; ChunkDays = 30; Excel = $false; Xml = $false }
-            { Get-IRTEntraSignInLog @P } | Should -Not -Throw
+            { Get-IRTEntraUserSignInLog @P } | Should -Not -Throw
             $F = { $Level -eq 'Error' -and $Message -match 'Skipping' }
             $IA = @{ ModuleName = $script:Mod; ParameterFilter = $F }
             Should -Invoke Write-IRT @IA
-            Should -Invoke Show-IRTEntraSignInLog -Times 0 -ModuleName $script:Mod
+            Should -Invoke Show-IRTEntraUserSignInLog -Times 0 -ModuleName $script:Mod
         }
     }
 
@@ -424,7 +444,7 @@ Describe 'Get-IRTEntraSignInLog' {
                 throw 'Some unexpected failure'
             } -ModuleName $script:Mod
             $P = @{ AllUsers = $true; ChunkDays = 30; Excel = $false; Xml = $false }
-            { Get-IRTEntraSignInLog @P } | Should -Throw
+            { Get-IRTEntraUserSignInLog @P } | Should -Throw
         }
     }
 
@@ -434,14 +454,14 @@ Describe 'Get-IRTEntraSignInLog' {
         It 'pauses between chunks but not after the last one' {
             # 3 chunks -> 2 inter-chunk pauses
             $P = @{ AllUsers = $true; ChunkDays = 10; ChunkDelaySeconds = 2 }
-            Get-IRTEntraSignInLog @P -Excel $false -Xml $false
+            Get-IRTEntraUserSignInLog @P -Excel $false -Xml $false
             $IA = @{ ModuleName = $script:Mod; ParameterFilter = { $Seconds -eq 2 } }
             Should -Invoke Start-Sleep -Times 2 -Exactly @IA
         }
 
         It 'does not pause between chunks when -ChunkDelaySeconds is 0' {
             $P = @{ AllUsers = $true; ChunkDays = 10; ChunkDelaySeconds = 0 }
-            Get-IRTEntraSignInLog @P -Excel $false -Xml $false
+            Get-IRTEntraUserSignInLog @P -Excel $false -Xml $false
             Should -Invoke Start-Sleep -Times 0 -ModuleName $script:Mod
         }
     }
@@ -451,40 +471,73 @@ Describe 'Get-IRTEntraSignInLog' {
 
         It 'writes a no-logs error and skips export when nothing is returned' {
             Mock Get-MgBetaAuditLogSignIn { @() } -ModuleName $script:Mod
-            Get-IRTEntraSignInLog -AllUsers -ChunkDays 30 -Excel $true -Xml $false
+            Get-IRTEntraUserSignInLog -AllUsers -ChunkDays 30 -Excel $true -Xml $false
             $F = { $Level -eq 'Error' -and $Message -match 'No logs found' }
             $IA = @{ ModuleName = $script:Mod; ParameterFilter = $F }
             Should -Invoke Write-IRT @IA
-            Should -Invoke Show-IRTEntraSignInLog -Times 0 -ModuleName $script:Mod
+            Should -Invoke Show-IRTEntraUserSignInLog -Times 0 -ModuleName $script:Mod
         }
 
-        It 'calls Show-IRTEntraSignInLog once when logs are found and -Excel is on' {
-            Get-IRTEntraSignInLog -AllUsers -ChunkDays 30 -Excel $true -Xml $false
+        It 'calls Show-IRTEntraUserSignInLog once when logs are found and -Excel is on' {
+            Get-IRTEntraUserSignInLog -AllUsers -ChunkDays 30 -Excel $true -Xml $false
             $IA = @{ ModuleName = $script:Mod }
-            Should -Invoke Show-IRTEntraSignInLog -Times 1 -Exactly @IA
+            Should -Invoke Show-IRTEntraUserSignInLog -Times 1 -Exactly @IA
         }
 
-        It 'does not call Show-IRTEntraSignInLog when -Excel is off' {
-            Get-IRTEntraSignInLog -AllUsers -ChunkDays 30 -Excel $false -Xml $false
-            Should -Invoke Show-IRTEntraSignInLog -Times 0 -ModuleName $script:Mod
+        It 'does not call Show-IRTEntraUserSignInLog when -Excel is off' {
+            Get-IRTEntraUserSignInLog -AllUsers -ChunkDays 30 -Excel $false -Xml $false
+            Should -Invoke Show-IRTEntraUserSignInLog -Times 0 -ModuleName $script:Mod
         }
 
         It 'exports XML when -Xml is on' {
-            Get-IRTEntraSignInLog -AllUsers -ChunkDays 30 -Excel $false -Xml $true
+            Get-IRTEntraUserSignInLog -AllUsers -ChunkDays 30 -Excel $false -Xml $true
             Should -Invoke Export-Clixml -ModuleName $script:Mod
         }
 
         It 'inserts a metadata object at the head of the results' {
-            Get-IRTEntraSignInLog -AllUsers -ChunkDays 30 -Excel $true -Xml $false
+            Get-IRTEntraUserSignInLog -AllUsers -ChunkDays 30 -Excel $true -Xml $false
             $script:CapturedLogs[0].Metadata | Should -BeTrue
-            $script:CapturedLogs[0].FileName | Should -Match 'SignInLogs_'
+            # interactive all-users: no filter flags, AllUsers subject token
+            $script:CapturedLogs[0].FileName | Should -Match '^EntraSignInLog_'
+            $script:CapturedLogs[0].FileName | Should -Not -Match '_NI_|_DC_'
+            $script:CapturedLogs[0].FileName | Should -Match '_AllUsers_'
+            # title: base label, then the subject phrase (no interactive flag by default)
+            $script:CapturedLogs[0].Title | Should -Match '^Entra sign in logs\. All Users in '
+            $script:CapturedLogs[0].Title | Should -Not -Match 'Non-Interactive|Device Code'
         }
 
         It 'uses non-interactive naming and title metadata with -NonInteractive' {
             $P = @{ AllUsers = $true; NonInteractive = $true; ChunkDays = 30 }
-            Get-IRTEntraSignInLog @P -Excel $true -Xml $false
-            $script:CapturedLogs[0].FileName | Should -Match 'NonInteractiveLogs_'
-            $script:CapturedLogs[0].Title | Should -Match 'Non-Interactive'
+            Get-IRTEntraUserSignInLog @P -Excel $true -Xml $false
+            $script:CapturedLogs[0].FileName | Should -Match '^EntraSignInLog_NI_'
+            $script:CapturedLogs[0].Title | Should -Match 'Incl\. Non-Interactive'
+        }
+
+        It 'uses device-code naming and title metadata with -DeviceCode' {
+            $P = @{ AllUsers = $true; DeviceCode = $true; ChunkDays = 30 }
+            Get-IRTEntraUserSignInLog @P -Excel $true -Xml $false
+            $script:CapturedLogs[0].FileName | Should -Match '^EntraSignInLog_DC_'
+            $script:CapturedLogs[0].Title | Should -Match 'Device Code'
+        }
+
+        It 'builds an absolute-range title when the range is absolute' {
+            # the default Resolve-DateRange mock returns RangeType 'Absolute'
+            Get-IRTEntraUserSignInLog -AllUsers -ChunkDays 30 -Excel $true -Xml $false
+            $script:CapturedLogs[0].Title | Should -Match ' to '
+            $script:CapturedLogs[0].Title | Should -Not -Match 'days from'
+        }
+
+        It 'builds a relative-range title when the range is relative' {
+            Mock Resolve-DateRange {
+                [pscustomobject]@{
+                    RangeType = 'Relative'
+                    Days      = 30
+                    StartUtc  = $script:RangeStart
+                    EndUtc    = $script:RangeEnd
+                }
+            } -ModuleName $script:Mod
+            Get-IRTEntraUserSignInLog -AllUsers -ChunkDays 30 -Excel $true -Xml $false
+            $script:CapturedLogs[0].Title | Should -Match '30 days from '
         }
 
         It 'sorts merged results newest first' {
@@ -496,7 +549,7 @@ Describe 'Get-IRTEntraSignInLog' {
                 New-SignInRecord -CreatedDateTime ([datetime]'2024-01-05T00:00:00Z')
             } -ModuleName $script:Mod
 
-            Get-IRTEntraSignInLog -AllUsers -ChunkDays 30 -Excel $true -Xml $false
+            Get-IRTEntraUserSignInLog -AllUsers -ChunkDays 30 -Excel $true -Xml $false
 
             # index 0 is metadata; the rest are sorted descending by CreatedDateTime
             $Records = $script:CapturedLogs | Select-Object -Skip 1

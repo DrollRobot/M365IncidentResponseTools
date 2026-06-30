@@ -34,8 +34,25 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `Get-IRTLicenseReport`: output is now a plain table. This removes the dependency on
   the external Write-PSObject script, which produced corrupted output and errors when
   run inside playbook runspaces. `-Runspace` is retained as a no-op for compatibility.
+- Sign-in log commands were consolidated onto a shared private engine
+  (`Invoke-IRTSignInLogQuery`) that owns chunking, throttle/timeout retry, and export.
+  `Get-IRTEntraSignInLog` was renamed to `Get-IRTEntraUserSignInLog` and
+  `Get-IRTServicePrincipalSignInLog` to `Get-IRTEntraSPSignInLog`; both are now thin
+  per-type wrappers, so service principal pulls gain date chunking and throttle/retry.
+  Short aliases (`GetSILog`, `GetSPSILog`, etc.) are unchanged. The companion Show-
+  functions were renamed to match: `Show-IRTEntraSignInLog` to
+  `Show-IRTEntraUserSignInLog` and `Show-IRTServicePrincipalSignIn` to
+  `Show-IRTEntraSPSignInLog`.
+- Removed the `Get-IRTNonInteractiveSignIn` wrapper. Use
+  `Get-IRTEntraUserSignInLog -NonInteractive` instead, which now returns both
+  interactive and non-interactive sign-ins (told apart by the SignInEventTypes column).
 
 ### Fixed
+
+- `Get-IRTEntraUserSignInLog`: `-IpAddress` no longer leaks a single-element array as the
+  subject label. The `[string[]]`-typed parameter, reused as a `foreach` loop variable,
+  re-coerced each IP back into a one-element `String[]`; the engine's strict typing
+  surfaced it. Resolution now uses a distinct loop variable.
 
 - Spurious interactive sign-in prompts when the token cache held accounts from multiple
   customer tenants.

@@ -5,7 +5,7 @@ online version:
 schema: 2.0.0
 ---
 
-# Get-IRTServicePrincipalSignInLog
+# Get-IRTEntraSPSignInLog
 
 ## SYNOPSIS
 Downloads service principal sign-in logs.
@@ -14,14 +14,14 @@ Downloads service principal sign-in logs.
 
 ### ServicePrincipalObject (Default)
 ```
-Get-IRTServicePrincipalSignInLog [[-ServicePrincipalObject] <PSObject[]>] [-Days <Int32>] [-Start <String>]
+Get-IRTEntraSPSignInLog [[-ServicePrincipalObject] <PSObject[]>] [-Days <Int32>] [-Start <String>]
  [-End <String>] [-Beta <Boolean>] [-Excel <Boolean>] [-IpInfo <Boolean>] [-Open <Boolean>] [-Xml <Boolean>]
  [-ProgressAction <ActionPreference>] [<CommonParameters>]
 ```
 
 ### AllServicePrincipals
 ```
-Get-IRTServicePrincipalSignInLog [-AllServicePrincipals] [-Days <Int32>] [-Start <String>] [-End <String>]
+Get-IRTEntraSPSignInLog [-AllServicePrincipals] [-Days <Int32>] [-Start <String>] [-End <String>]
  [-Beta <Boolean>] [-Excel <Boolean>] [-IpInfo <Boolean>] [-Open <Boolean>] [-Xml <Boolean>]
  [-ProgressAction <ActionPreference>] [<CommonParameters>]
 ```
@@ -44,19 +44,19 @@ Use Find-ServicePrincipal first to populate that global variable.
 ### EXAMPLE 1
 ```
 Find-ServicePrincipal MyApp
-Get-IRTServicePrincipalSignInLog
+Get-IRTEntraSPSignInLog
 Two-step workflow: find the SP then download its sign-in logs.
 ```
 
 ### EXAMPLE 2
 ```
-Get-IRTServicePrincipalSignInLog -ServicePrincipalObject $SP -Days 90
+Get-IRTEntraSPSignInLog -ServicePrincipalObject $SP -Days 90
 Downloads 90 days of sign-in logs for a specific service principal.
 ```
 
 ### EXAMPLE 3
 ```
-Get-IRTServicePrincipalSignInLog -AllServicePrincipals -Days 7
+Get-IRTEntraSPSignInLog -AllServicePrincipals -Days 7
 Downloads 7 days of sign-in logs for all service principals in the tenant.
 ```
 

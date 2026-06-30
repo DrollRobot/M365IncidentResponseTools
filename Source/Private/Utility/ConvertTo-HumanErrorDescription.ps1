@@ -9,7 +9,7 @@ function ConvertTo-HumanErrorDescription {
     data file and returns a formatted string in the form "CODE:Description". The lookup
     table is cached in $Global:IRT_EntraErrorTable after the first call for performance.
 
-    Used internally by Get-IRTEntraSignIn and Get-IRTNonInteractiveSignIn to annotate each log row.
+    Used internally by Get-IRTEntraUserSignInLog and Get-IRTEntraSPSignInLog to annotate each row.
 
     .PARAMETER ErrorCode
     The integer Entra sign-in error code to look up.

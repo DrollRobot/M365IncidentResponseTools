@@ -247,10 +247,10 @@ function Start-IRTPlaybook {
                 }
             }
 
-            @{  Name   = 'Get-IRTEntraSignInLog'
+            @{  Name   = 'Get-IRTEntraUserSignInLog'
                 Script = {
                     Set-Location -Path $WorkingPath
-                    Get-IRTEntraSignInLog
+                    Get-IRTEntraUserSignInLog
                 }
             }
 
@@ -294,10 +294,10 @@ function Start-IRTPlaybook {
                 }
             }
 
-            @{  Name   = 'Get-IRTNonInteractiveSignIn'
+            @{  Name   = 'Get-IRTEntraUserSignInLog -NonInteractive'
                 Script = {
                     Set-Location -Path $WorkingPath
-                    Get-IRTNonInteractiveSignIn
+                    Get-IRTEntraUserSignInLog -NonInteractive
                 }
             }
 
@@ -318,6 +318,18 @@ function Start-IRTPlaybook {
                         Quiet    = $true
                     }
                     Get-IRTMessageTrace @Params
+                }
+            }
+
+            @{  Name   = 'Get-IRTEntraUserSignInLog -AllUsers -DeviceCode'
+                Script = {
+                    Set-Location -Path $WorkingPath
+                    $Params = @{
+                        AllUsers   = $true
+                        DeviceCode = $true
+                        Days       = 30
+                    }
+                    Get-IRTEntraUserSignInLog @Params
                 }
             }
         )

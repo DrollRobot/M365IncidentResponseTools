@@ -5,7 +5,7 @@ online version:
 schema: 2.0.0
 ---
 
-# Show-IRTEntraSignInLog
+# Show-IRTEntraUserSignInLog
 
 ## SYNOPSIS
 Processes Sign in log .XML file into Excel spreadsheet.
@@ -14,14 +14,14 @@ Processes Sign in log .XML file into Excel spreadsheet.
 
 ### Objects (Default)
 ```
-Show-IRTEntraSignInLog [-Log] <System.Collections.Generic.List`1[System.Management.Automation.PSObject]>
+Show-IRTEntraUserSignInLog [-Log] <System.Collections.Generic.List`1[System.Management.Automation.PSObject]>
  [-TableStyle <String>] [-Font <String>] [-IpInfo <Boolean>] [-Open <Boolean>]
  [-ProgressAction <ActionPreference>] [<CommonParameters>]
 ```
 
 ### Xml
 ```
-Show-IRTEntraSignInLog -XmlPath <String> [-TableStyle <String>] [-Font <String>] [-IpInfo <Boolean>]
+Show-IRTEntraUserSignInLog -XmlPath <String> [-TableStyle <String>] [-Font <String>] [-IpInfo <Boolean>]
  [-Open <Boolean>] [-ProgressAction <ActionPreference>] [<CommonParameters>]
 ```
 

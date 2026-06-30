@@ -5,7 +5,7 @@ online version:
 schema: 2.0.0
 ---
 
-# Show-IRTServicePrincipalSignIn
+# Show-IRTEntraSPSignInLog
 
 ## SYNOPSIS
 Processes service principal sign-in log objects into an Excel spreadsheet.
@@ -14,7 +14,7 @@ Processes service principal sign-in log objects into an Excel spreadsheet.
 
 ### Objects (Default)
 ```
-Show-IRTServicePrincipalSignIn
+Show-IRTEntraSPSignInLog
  [-Log] <System.Collections.Generic.List`1[System.Management.Automation.PSObject]> [-TableStyle <String>]
  [-Font <String>] [-IpInfo <Boolean>] [-Open <Boolean>] [-ProgressAction <ActionPreference>]
  [<CommonParameters>]
@@ -22,12 +22,12 @@ Show-IRTServicePrincipalSignIn
 
 ### Xml
 ```
-Show-IRTServicePrincipalSignIn -XmlPath <String> [-TableStyle <String>] [-Font <String>] [-IpInfo <Boolean>]
+Show-IRTEntraSPSignInLog -XmlPath <String> [-TableStyle <String>] [-Font <String>] [-IpInfo <Boolean>]
  [-Open <Boolean>] [-ProgressAction <ActionPreference>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
-Takes service principal sign-in log objects produced by Get-IRTServicePrincipalSignInLog
+Takes service principal sign-in log objects produced by Get-IRTEntraSPSignInLog
 (or imported from a raw XML export) and renders them into a formatted Excel workbook.
 Enriches IP addresses with geolocation data when -IpInfo is enabled.
 
@@ -44,7 +44,7 @@ PS C:\> {{ Add example code here }}
 
 ### -Log
 A list of service principal sign-in log objects with a metadata entry at index 0.
-Produced by Get-IRTServicePrincipalSignInLog.
+Produced by Get-IRTEntraSPSignInLog.
 Mutually exclusive with -XmlPath.
 
 ```yaml
@@ -60,7 +60,7 @@ Accept wildcard characters: False
 ```
 
 ### -XmlPath
-Path to a raw XML file exported by Get-IRTServicePrincipalSignInLog.
+Path to a raw XML file exported by Get-IRTEntraSPSignInLog.
 Mutually
 exclusive with -Log.
 

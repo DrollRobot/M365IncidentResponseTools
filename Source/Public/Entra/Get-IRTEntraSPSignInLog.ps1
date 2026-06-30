@@ -1,4 +1,4 @@
-function Get-IRTServicePrincipalSignInLog {
+function Get-IRTEntraSPSignInLog {
     <#
     .SYNOPSIS
     Downloads service principal sign-in logs.
@@ -8,6 +8,10 @@ function Get-IRTServicePrincipalSignInLog {
     service principals or all service principals in the tenant. Enriches each log entry
     with IP geolocation data and human-readable Entra error descriptions, then exports
     results to an Excel workbook.
+
+    A thin wrapper that resolves the target service principals, builds the SP-specific
+    filter and naming, and hands off to the shared Invoke-IRTSignInLogQuery engine
+    (chunking, throttle/retry, export). For user sign-ins, see Get-IRTEntraUserSignInLog.
 
     Date range defaults to the last 30 days when no -Days, -Start, or -End is specified.
 
@@ -31,6 +35,19 @@ function Get-IRTServicePrincipalSignInLog {
     .PARAMETER End
     End of date range (parseable date string). Used with -Start for an absolute range.
 
+    .PARAMETER ChunkDays
+    Splits the requested date range into sub-queries of this many days each, querying
+    newest to oldest and merging the results. Default: 30. Pass a smaller value to break
+    large pulls into windows small enough to return before Graph's per-request timeout.
+
+    .PARAMETER ChunkDelaySeconds
+    Seconds to pause between chunk queries to reduce throttling on multi-chunk pulls.
+    Default: 2. Only applies when the range spans more than one chunk.
+
+    .PARAMETER ThrottleDelaySeconds
+    Base backoff (seconds) used when Graph throttles a request but does not return a
+    Retry-After value. Backoff grows exponentially per retry. Default: 60.
+
     .PARAMETER Beta
     Use the Microsoft Graph beta endpoint. Default: $true.
 
@@ -43,30 +60,32 @@ function Get-IRTServicePrincipalSignInLog {
     .PARAMETER Open
     Open the Excel file immediately after export. Default: $true.
 
-    .PARAMETER Test
-    Enable stopwatch timing output.
-
     .PARAMETER Xml
     Export raw XML alongside the Excel file. Defaults to IRT_Config.ExportXml.
 
     .EXAMPLE
     Find-IRTServicePrincipal MyApp
-    Get-IRTServicePrincipalSignInLog
+    Get-IRTEntraSPSignInLog
     Two-step workflow: find the SP then download its sign-in logs.
 
     .EXAMPLE
-    Get-IRTServicePrincipalSignInLog -ServicePrincipalObject $SP -Days 90
+    Get-IRTEntraSPSignInLog -ServicePrincipalObject $SP -Days 90
     Downloads 90 days of sign-in logs for a specific service principal.
 
     .EXAMPLE
-    Get-IRTServicePrincipalSignInLog -AllServicePrincipals -Days 7
+    Get-IRTEntraSPSignInLog -AllServicePrincipals -Days 7
     Downloads 7 days of sign-in logs for all service principals in the tenant.
 
     .OUTPUTS
     None. Results are exported to an Excel workbook.
 
     .NOTES
-    Version: 1.0.0
+    Version: 2.0.0
+    2.0.0 - Renamed from Get-IRTServicePrincipalSignInLog. Now a thin wrapper over the
+            shared Invoke-IRTSignInLogQuery engine (parallel to Get-IRTEntraUserSignInLog),
+            gaining chunking and throttle/timeout retry. Resolution falls back to globals
+            via the new Get-GlobalServicePrincipalObject helper.
+    1.0.0 - Initial version.
     #>
     [Alias('GetSPSILog', 'GetSPSILogs', 'SPSILog', 'SPSILogs')]
     [CmdletBinding(DefaultParameterSetName = 'ServicePrincipalObject')]
@@ -83,6 +102,18 @@ function Get-IRTServicePrincipalSignInLog {
         # absolute date range
         [string] $Start,
         [string] $End,
+
+        # split the date range into sub-queries of this many days each
+        [ValidateRange(1, 3650)]
+        [int] $ChunkDays = 30,
+
+        # seconds to pause between chunk queries to avoid tripping throttle limits
+        [ValidateRange(0, 3600)]
+        [int] $ChunkDelaySeconds = 2,
+
+        # base seconds for throttle backoff when Graph sends no Retry-After
+        [ValidateRange(1, 3600)]
+        [int] $ThrottleDelaySeconds = 60,
 
         [boolean] $Beta = $true,
         [boolean] $Excel = $true,
@@ -105,8 +136,6 @@ function Get-IRTServicePrincipalSignInLog {
 
         #region BEGIN
 
-        $FunctionName = $MyInvocation.MyCommand.Name
-        $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
         $ParameterSet = $PSCmdlet.ParameterSetName
 
         # resolve service principal objects
@@ -116,7 +145,7 @@ function Get-IRTServicePrincipalSignInLog {
                     $ScriptSPObjects = $ServicePrincipalObject
                 }
                 else {
-                    $ScriptSPObjects = @($Global:IRT_ServicePrincipalObjects)
+                    $ScriptSPObjects = @(Get-GlobalServicePrincipalObject)
                     if (-not $ScriptSPObjects -or $ScriptSPObjects.Count -eq 0) {
                         $Msg = 'No service principal objects passed or found in global variables.'
                         Write-IRT $Msg -Level Error
@@ -125,7 +154,7 @@ function Get-IRTServicePrincipalSignInLog {
                 }
             }
             'AllServicePrincipals' {
-                $null = $AllServicePrincipals
+                $null = $AllServicePrincipals  # switch controls parameter set
                 $ScriptSPObjects = @(
                     [pscustomobject]@{
                         DisplayName = 'AllServicePrincipals'
@@ -149,7 +178,6 @@ function Get-IRTServicePrincipalSignInLog {
             DefaultDays = $DefaultDays
         }
         $DateRange = Resolve-DateRange @DateRangeParams
-        $DateRangeType = $DateRange.RangeType
         $Days = $DateRange.Days
         $StartDateUtc = $DateRange.StartUtc
         $EndDateUtc = $DateRange.EndUtc
@@ -170,17 +198,18 @@ function Get-IRTServicePrincipalSignInLog {
                 }
                 'AllServicePrincipals' {
                     $Target = $DomainName
-                    # no SP filter
+                    # don't add a service principal filter
                 }
             }
 
+            # restrict to service principal sign-in events
+            $FilterStrings.Add( "signInEventTypes/any(t: t eq 'servicePrincipal')" )
+
             # build file names -- must be after target is set
             $FileNamePrefix = 'SPSignInLogs'
-            $FileNameDateFormat = 'yy-MM-dd_HH-mm'
-            $FileNameDateString = Get-Date -Format $FileNameDateFormat
+            $FileNameDateString = Get-Date -Format 'yy-MM-dd_HH-mm'
             $FileNameBase =
             "${FileNamePrefix}_${Days}Days_${DomainName}_${Target}_${FileNameDateString}"
-            $XmlOutputPath = "${FileNameBase}.xml"
 
             # build spreadsheet title
             $TitleDateFormat = 'M/d/yy h:mmtt'
@@ -189,92 +218,30 @@ function Get-IRTServicePrincipalSignInLog {
             $SheetTitle = "Service principal sign-in logs for ${Target}." +
             " Covers ${Days} days, ${TitleStartDate} to ${TitleEndDate}."
 
-            # sign-in event type filter
-            $FilterStrings.Add( "signInEventTypes/any(t: t eq 'servicePrincipal')" )
-
-            # time range
-            if ($DateRangeType -eq 'Relative') {
-                if ($Days -ne 30) {
-                    $FilterStrings.Add( "createdDateTime ge $($DateRange.StartString)" )
-                }
-            }
-            elseif ($DateRangeType -eq 'Absolute') {
-                $FilterStrings.Add( "createdDateTime ge $($DateRange.StartString)" )
-                $FilterStrings.Add( "createdDateTime le $($DateRange.EndString)" )
-            }
-
-            $FilterString = $FilterStrings -join ' and '
-
             #region QUERY LOGS
 
-            Write-IRT "Retrieving ${Days} days of service principal sign-in logs for ${Target}."
-            Write-PSFMessage -Level 8 -Message (
-                "${FunctionName}: Filter string: '${FilterString}'")
-            $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-            Write-PSFMessage -Level 8 -Message (
-                "${FunctionName}: Get-MgAuditLogSignIn [$Elapsed]")
-
-            if ($Beta) {
-                $GetParams = @{
-                    Filter = $FilterString
-                    All    = $true
-                }
-                [System.Collections.Generic.List[PSObject]]$Logs =
-                Get-MgBetaAuditLogSignIn @GetParams
+            # hand off to the shared engine (chunking, throttle/retry, export, Show)
+            $QueryParams = @{
+                BaseFilter           = $FilterStrings
+                StartDateUtc         = $StartDateUtc
+                EndDateUtc           = $EndDateUtc
+                Days                 = $Days
+                Target               = $Target
+                LogTypeLabel         = 'service principal sign-in'
+                FileNamePrefix       = $FileNamePrefix
+                FileNameBase         = $FileNameBase
+                Title                = $SheetTitle
+                ShowCommand          = 'Show-IRTEntraSPSignInLog'
+                ChunkDays            = $ChunkDays
+                ChunkDelaySeconds    = $ChunkDelaySeconds
+                ThrottleDelaySeconds = $ThrottleDelaySeconds
+                Beta                 = $Beta
+                Excel                = $Excel
+                IpInfo               = $IpInfo
+                Open                 = $Open
+                Xml                  = $Xml
             }
-            else {
-                $GetParams = @{
-                    Filter = $FilterString
-                    All    = $true
-                }
-                [System.Collections.Generic.List[PSObject]]$Logs = Get-MgAuditLogSignIn @GetParams
-            }
-
-            if (($Logs | Measure-Object).Count -eq 0) {
-                Write-IRT "No logs found for ${Target} for past ${Days} days. Exiting." -Level Error
-                continue
-            }
-
-            # add metadata to results
-            $Logs.Insert(0,
-                [pscustomobject]@{
-                    Metadata       = $true
-                    FileNamePrefix = $FileNamePrefix
-                    FileName       = $FileNameBase
-                    Title          = $SheetTitle
-                }
-            )
-
-            #region OUTPUT
-
-            $LogCount = ($Logs | Measure-Object).Count
-            if ($LogCount -gt 0) {
-                Write-IRT "Retrieved ${LogCount} logs."
-
-                # export to xml
-                if ($Xml) {
-                    $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-                    Write-PSFMessage -Level 8 -Message "${FunctionName}: Export-Clixml [$Elapsed]"
-                    Write-IRT "Saving logs to: ${XmlOutputPath}"
-                    $Logs | Export-Clixml -Depth 10 -Path $XmlOutputPath
-                }
-
-                # export excel spreadsheet
-                if ($Excel) {
-                    $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-                    Write-PSFMessage -Level 8 -Message (
-                        "${FunctionName}: Show-IRTServicePrincipalSignIn [$Elapsed]")
-                    $Params = @{
-                        Logs   = $Logs
-                        IpInfo = $IpInfo
-                        Open   = $Open
-                    }
-                    Show-IRTServicePrincipalSignIn @Params
-                }
-            }
-            else {
-                Write-IRT "Retrieved 0 logs." -Level Error
-            }
+            Invoke-IRTSignInLogQuery @QueryParams
         }
     }
 }

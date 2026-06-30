@@ -5,7 +5,7 @@ online version:
 schema: 2.0.0
 ---
 
-# Get-IRTEntraSignInLog
+# Get-IRTEntraUserSignInLog
 
 ## SYNOPSIS
 Downloads user sign in logs.
@@ -14,21 +14,21 @@ Downloads user sign in logs.
 
 ### UserObject (Default)
 ```
-Get-IRTEntraSignInLog [[-UserObject] <PSObject[]>] [-Days <Int32>] [-Start <String>] [-End <String>]
+Get-IRTEntraUserSignInLog [[-UserObject] <PSObject[]>] [-Days <Int32>] [-Start <String>] [-End <String>]
  [-NonInteractive] [-Beta <Boolean>] [-Excel <Boolean>] [-IpInfo <Boolean>] [-Open <Boolean>] [-Xml <Boolean>]
  [-ProgressAction <ActionPreference>] [<CommonParameters>]
 ```
 
 ### AllUsers
 ```
-Get-IRTEntraSignInLog [-AllUsers] [-Days <Int32>] [-Start <String>] [-End <String>] [-NonInteractive]
+Get-IRTEntraUserSignInLog [-AllUsers] [-Days <Int32>] [-Start <String>] [-End <String>] [-NonInteractive]
  [-Beta <Boolean>] [-Excel <Boolean>] [-IpInfo <Boolean>] [-Open <Boolean>] [-Xml <Boolean>]
  [-ProgressAction <ActionPreference>] [<CommonParameters>]
 ```
 
 ### IpAddress
 ```
-Get-IRTEntraSignInLog [-IpAddress <String[]>] [-Days <Int32>] [-Start <String>] [-End <String>]
+Get-IRTEntraUserSignInLog [-IpAddress <String[]>] [-Days <Int32>] [-Start <String>] [-End <String>]
  [-NonInteractive] [-Beta <Boolean>] [-Excel <Boolean>] [-IpInfo <Boolean>] [-Open <Boolean>] [-Xml <Boolean>]
  [-ProgressAction <ActionPreference>] [<CommonParameters>]
 ```
@@ -46,19 +46,19 @@ Date range defaults to the last 30 days when no -Days, -Start, or -End is specif
 
 ### EXAMPLE 1
 ```
-Get-IRTEntraSignInLog
+Get-IRTEntraUserSignInLog
 Downloads the last 30 days of sign-in logs for the user in the global session.
 ```
 
 ### EXAMPLE 2
 ```
-Get-IRTEntraSignInLog -UserObject $User -Days 90
+Get-IRTEntraUserSignInLog -UserObject $User -Days 90
 Downloads 90 days of sign-in logs for a specific user.
 ```
 
 ### EXAMPLE 3
 ```
-Get-IRTEntraSignInLog -IpAddress '203.0.113.5' -Days 14
+Get-IRTEntraUserSignInLog -IpAddress '203.0.113.5' -Days 14
 Finds all sign-ins from a specific IP over the last 14 days.
 ```
 

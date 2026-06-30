@@ -36,7 +36,7 @@ Unless `-NoFolder` is specified, the playbook creates a folder at the current pa
 ..\
   <domain>_<username>_<ticket>_<datetime>_Investigation\
     InboxRules*.xlsx
-    SignInLogs*.xlsx
+    EntraSignInLog*.xlsx
     ...
 ```
 
@@ -56,12 +56,13 @@ The following steps run in parallel.
 | [Get-IRTMessageTrace](commands/Get-IRTMessageTrace.md) (user, 90 days) | Retrieves and exports Exchange Online message trace records for the user over 90 days. |
 | [Get-IRTInboxRule](commands/Get-IRTInboxRule.md) | Fetches and exports all inbox rules for the user. |
 | [Get-IRTEntraAuditLog](commands/Get-IRTEntraAuditLog.md) | Queries and exports Entra ID directory audit log activity for the user. |
-| [Get-IRTEntraSignInLog](commands/Get-IRTEntraSignInLog.md) | Retrieves and exports interactive Entra ID sign-in logs enriched with geolocation and error descriptions. |
+| [Get-IRTEntraUserSignInLog](commands/Get-IRTEntraUserSignInLog.md) | Retrieves and exports interactive Entra ID user sign-in logs enriched with geolocation and error descriptions. |
 | [Get-IRTUnifiedAuditLog](commands/Get-IRTUnifiedAuditLog.md) (all records) | Queries and exports all Unified Audit Log records for the user. (1 day) |
 | [Get-IRTUnifiedAuditLog](commands/Get-IRTUnifiedAuditLog.md) (risky operations) | Queries UAL for a curated set of high-risk operations. (180 days) |
 | [Get-IRTUnifiedAuditLog](commands/Get-IRTUnifiedAuditLog.md) (UAL sign-in logs) | Retrieves sign-in events from the Unified Audit Log. (180 days) |
-| [Get-IRTNonInteractiveSignIn](commands/Get-IRTNonInteractiveSignIn.md) | Retrieves non-interactive sign-in logs including token refreshes and service-to-service calls. (30 days) |
+| [Get-IRTEntraUserSignInLog](commands/Get-IRTEntraUserSignInLog.md) (-NonInteractive) | Retrieves interactive and non-interactive sign-in logs, including token refreshes and service-to-service calls. (3 days) |
 | [Get-IRTMessageTrace](commands/Get-IRTMessageTrace.md) (all users) | Retrieves message trace records for all tenant users. (10 days) |
+| [Get-IRTEntraUserSignInLog](commands/Get-IRTEntraUserSignInLog.md) (all users, device code) | Retrieves device code authentication events for all tenant users. (30 days) |
 
 ## Other Investigation Commands
 

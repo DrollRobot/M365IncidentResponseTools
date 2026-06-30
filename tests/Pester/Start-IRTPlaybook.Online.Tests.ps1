@@ -127,8 +127,8 @@ Describe 'Start-IRTPlaybook end-to-end (live)' -Tag 'Online' {
             'MFAMethods_*.xlsx'             # Show-IRTUserMfa
             'InboxRules_*.xlsx'             # Get-IRTInboxRule
             'EntraAuditLogs_*.xlsx'         # Get-IRTEntraAuditLog
-            'SignInLogs_*.xlsx'             # Get-IRTEntraSignInLog
-            'NonInteractiveLogs_*.xlsx'     # Get-IRTNonInteractiveSignIn
+            'EntraSignInLog_NI_*.xlsx'      # Get-IRTEntraUserSignInLog -NonInteractive
+            'EntraSignInLog_DC_AllUsers_*.xlsx' # Get-IRTEntraUserSignInLog -AllUsers -DeviceCode
             'MessageTrace_*_AllUsers_*.xlsx' # Get-IRTMessageTrace -AllUsers
             'MessageTrace_90Days_*.xlsx'    # Get-IRTMessageTrace (user)
             'UnifiedAuditLogs_*.xlsx'       # Get-IRTUnifiedAuditLog
@@ -141,6 +141,18 @@ Describe 'Start-IRTPlaybook end-to-end (live)' -Tag 'Online' {
             $Match.Count | Should -BeGreaterOrEqual 1 -Because (
                 "the step writing '$Pattern' must complete (found: $FileList)")
         }
+
+        # The bare Get-IRTEntraUserSignInLog step produces an interactive single-user file
+        # with no filter flags. A plain 'EntraSignInLog_*' glob would also match the
+        # _NI_ and _DC_ variants above, so match it as an EntraSignInLog file that is
+        # neither the non-interactive nor the device-code variant.
+        $Interactive = @($script:Spreadsheets | Where-Object {
+                $_.Name -like 'EntraSignInLog_*.xlsx' -and
+                $_.Name -notlike 'EntraSignInLog_NI_*' -and
+                $_.Name -notlike 'EntraSignInLog_DC_*'
+            })
+        $Interactive.Count | Should -BeGreaterOrEqual 1 -Because (
+            "the bare Get-IRTEntraUserSignInLog step must complete (found: $FileList)")
     }
 
     It 'parent Exchange connection survives the playbook' {
