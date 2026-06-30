@@ -15,8 +15,8 @@ Builds, creates, and starts an Exchange compliance search for email.
 ```
 New-IRTEmailSearch [[-Start] <String>] [[-End] <String>] [[-From] <String[]>] [[-To] <String[]>]
  [[-Participants] <String[]>] [[-Recipients] <String[]>] [[-Subject] <String[]>] [[-Body] <String[]>]
- [[-AttachmentName] <String[]>] [[-Name] <String>] [[-ExchangeLocation] <String[]>] [-Force]
- [-ProgressAction <ActionPreference>] [-WhatIf] [-Confirm] [<CommonParameters>]
+ [[-AttachmentName] <String[]>] [[-Name] <String>] [[-NamePrefix] <String>] [[-ExchangeLocation] <String[]>]
+ [-Force] [-ProgressAction <ActionPreference>] [-WhatIf] [-Confirm] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -214,6 +214,23 @@ Accept pipeline input: False
 Accept wildcard characters: False
 ```
 
+### -NamePrefix
+String prepended to the search name (whether auto-generated or supplied via -Name).
+Defaults to IRT_Config.EmailSearchNamePrefix ('IRT: '). The prefix is not re-applied
+if the resolved name already starts with it. Pass '' to omit the prefix.
+
+```yaml
+Type: String
+Parameter Sets: (All)
+Aliases:
+
+Required: False
+Position: 11
+Default value: $Global:IRT_Config.EmailSearchNamePrefix
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
 ### -ExchangeLocation
 Mailboxes to search.
 Default: All.
@@ -224,7 +241,7 @@ Parameter Sets: (All)
 Aliases:
 
 Required: False
-Position: 11
+Position: 12
 Default value: All
 Accept pipeline input: False
 Accept wildcard characters: False

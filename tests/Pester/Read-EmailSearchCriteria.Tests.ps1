@@ -12,11 +12,11 @@
 #>
 
 BeforeAll {
-    $Root = Join-Path -Path $PSScriptRoot -ChildPath '..\..'
-    . (Join-Path -Path $Root -ChildPath 'source\Private\Lib\ConvertTo-TimeSpan.ps1')
-    . (Join-Path -Path $Root -ChildPath 'source\Private\Email\Build-EmailSearchQuery.ps1')
-    . (Join-Path -Path $Root -ChildPath 'source\Private\Email\Build-EmailSearchName.ps1')
-    . (Join-Path -Path $Root -ChildPath 'source\Private\Email\Read-EmailSearchCriteria.ps1')
+    $Root = Join-Path -Path $PSScriptRoot -ChildPath '../..'
+    . (Join-Path -Path $Root -ChildPath 'Source/Private/Lib/ConvertTo-TimeSpan.ps1')
+    . (Join-Path -Path $Root -ChildPath 'Source/Private/Email/Build-EmailSearchQuery.ps1')
+    . (Join-Path -Path $Root -ChildPath 'Source/Private/Email/Build-EmailSearchName.ps1')
+    . (Join-Path -Path $Root -ChildPath 'Source/Private/Email/Read-EmailSearchCriteria.ps1')
 }
 
 Describe 'Read-EmailSearchCriteria' {

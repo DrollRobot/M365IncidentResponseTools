@@ -5,49 +5,55 @@ online version:
 schema: 2.0.0
 ---
 
-# Remove-IRTMailboxFullAccess
+# Get-IRTEmailSearch
 
 ## SYNOPSIS
-Remove full access to the target user's mailbox
+Interactive manager for existing email searches: start, wait, view
+results, purge matched email, or delete the search.
 
 ## SYNTAX
 
 ```
-Remove-IRTMailboxFullAccess [[-UserObject] <PSObject[]>] [-GrantAccessTo <String>]
- [-ProgressAction <ActionPreference>] [-WhatIf] [-Confirm] [<CommonParameters>]
+Get-IRTEmailSearch [[-Name] <String>] [-ProgressAction <ActionPreference>] [-WhatIf] [-Confirm]
+ [<CommonParameters>]
 ```
 
 ## DESCRIPTION
-{{ Fill in the Description }}
+Lists the tenant's email searches and lets you pick one, then loops an action
+menu against it:
+
+  - Start         Starts a not-yet-started search (Start-ComplianceSearch).
+  - Wait          Polls until the search completes, then plays a sound.
+  - Results       Shows the per-mailbox hit summary (mailbox, item count, size) from
+                  the search's SearchStatistics, with an Excel export.
+This uses only
+                  ordinary Compliance Search permissions - no eDiscovery Preview role -
+                  so only aggregate data is available, not per-message detail or folder.
+  - Purge email   Soft- or hard-deletes the matched email (New-ComplianceSearchAction
+                  -Purge).
+Exchange purges at most ~10 items per mailbox per action.
+  - Delete search Removes the email search definition (Remove-ComplianceSearch).
+
+Requires a live IPPS (Security & Compliance) connection.
 
 ## EXAMPLES
 
-### Example 1
-```powershell
-PS C:\> {{ Add example code here }}
+### EXAMPLE 1
+```
+Get-IRTEmailSearch
+Lists searches and launches the interactive action menu.
 ```
 
-{{ Add example description here }}
+### EXAMPLE 2
+```
+Get-IRTEmailSearch -Name 'From:sus@hacker.com'
+Skips the picker and opens the action menu for the named search.
+```
 
 ## PARAMETERS
 
-### -UserObject
-{{ Fill UserObject Description }}
-
-```yaml
-Type: PSObject[]
-Parameter Sets: (All)
-Aliases: UserObjects
-
-Required: False
-Position: 1
-Default value: None
-Accept pipeline input: False
-Accept wildcard characters: False
-```
-
-### -GrantAccessTo
-{{ Fill GrantAccessTo Description }}
+### -Name
+Identity of an email search to act on directly, skipping the picker.
 
 ```yaml
 Type: String
@@ -55,7 +61,7 @@ Parameter Sets: (All)
 Aliases:
 
 Required: False
-Position: Named
+Position: 1
 Default value: None
 Accept pipeline input: False
 Accept wildcard characters: False
@@ -114,6 +120,7 @@ This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable
 
 ## OUTPUTS
 
+### None. Drives an interactive console workflow.
 ## NOTES
 Version: 1.0.0
 

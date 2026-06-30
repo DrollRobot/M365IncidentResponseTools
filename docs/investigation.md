@@ -71,10 +71,12 @@ The following steps run in parallel.
 | [Show-IRTServicePrincipal](commands/Show-IRTServicePrincipal.md) | Lists all service principals (enterprise apps) in the tenant with optional filtering and export. |
 | [Find-IRTDevice](commands/Find-IRTDevice.md) | Searches Entra ID and Intune devices by name, user, or device ID. |
 | [Show-IRTDevice](commands/Show-IRTDevice.md) | Displays Entra ID and Intune device properties for devices found via Find-IRTDevice. |
+| [Get-IRTAllEntraDevice](commands/Get-IRTAllEntraDevice.md) | Exports every Entra ID device to a spreadsheet, newest registration first. |
 | [Get-IRTTenantOwner](commands/Get-IRTTenantOwner.md) | Looks up an Entra ID tenant by domain or GUID and returns its display name, domain, tenant ID, and cloud. |
 | [Show-IRTMailboxAccess](commands/Show-IRTMailboxAccess.md) | Displays all users with access permissions to the target user's mailbox. |
 | [Find-IRTDirectoryObject](commands/Find-IRTDirectoryObject.md) | Extracts GUIDs from text or clipboard and resolves them to their Graph directory objects. |
 | [New-IRTEmailSearch](commands/New-IRTEmailSearch.md) | Builds and launches a compliance content search for email activity. |
+| [Get-IRTEmailSearch](commands/Get-IRTEmailSearch.md) | Interactive manager for existing email searches: start, wait, view results, purge matched email, or delete the search. |
 
 **Remediation:**
 [Remediation](remediation.md)

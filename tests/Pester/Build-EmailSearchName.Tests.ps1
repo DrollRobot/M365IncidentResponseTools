@@ -1,7 +1,7 @@
 #Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.0.0' }
 
 BeforeAll {
-    $NamePath = '..\..\source\Private\Email\Build-EmailSearchName.ps1'
+    $NamePath = '../../Source/Private/Email/Build-EmailSearchName.ps1'
     . (Join-Path -Path $PSScriptRoot -ChildPath $NamePath)
 }
 

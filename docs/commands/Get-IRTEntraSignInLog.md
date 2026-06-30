@@ -15,21 +15,24 @@ Downloads user sign in logs.
 ### UserObject (Default)
 ```
 Get-IRTEntraSignInLog [[-UserObject] <PSObject[]>] [-Days <Int32>] [-Start <String>] [-End <String>]
- [-NonInteractive] [-Beta <Boolean>] [-Excel <Boolean>] [-IpInfo <Boolean>] [-Open <Boolean>] [-Xml <Boolean>]
+ [-ChunkDays <Int32>] [-ChunkDelaySeconds <Int32>] [-ThrottleDelaySeconds <Int32>] [-NonInteractive]
+ [-DeviceCode] [-Beta <Boolean>] [-Excel <Boolean>] [-IpInfo <Boolean>] [-Open <Boolean>] [-Xml <Boolean>]
  [-ProgressAction <ActionPreference>] [<CommonParameters>]
 ```
 
 ### AllUsers
 ```
-Get-IRTEntraSignInLog [-AllUsers] [-Days <Int32>] [-Start <String>] [-End <String>] [-NonInteractive]
- [-Beta <Boolean>] [-Excel <Boolean>] [-IpInfo <Boolean>] [-Open <Boolean>] [-Xml <Boolean>]
- [-ProgressAction <ActionPreference>] [<CommonParameters>]
+Get-IRTEntraSignInLog [-AllUsers] [-Days <Int32>] [-Start <String>] [-End <String>] [-ChunkDays <Int32>]
+ [-ChunkDelaySeconds <Int32>] [-ThrottleDelaySeconds <Int32>] [-NonInteractive] [-DeviceCode] [-Beta <Boolean>]
+ [-Excel <Boolean>] [-IpInfo <Boolean>] [-Open <Boolean>] [-Xml <Boolean>] [-ProgressAction <ActionPreference>]
+ [<CommonParameters>]
 ```
 
 ### IpAddress
 ```
 Get-IRTEntraSignInLog [-IpAddress <String[]>] [-Days <Int32>] [-Start <String>] [-End <String>]
- [-NonInteractive] [-Beta <Boolean>] [-Excel <Boolean>] [-IpInfo <Boolean>] [-Open <Boolean>] [-Xml <Boolean>]
+ [-ChunkDays <Int32>] [-ChunkDelaySeconds <Int32>] [-ThrottleDelaySeconds <Int32>] [-NonInteractive]
+ [-DeviceCode] [-Beta <Boolean>] [-Excel <Boolean>] [-IpInfo <Boolean>] [-Open <Boolean>] [-Xml <Boolean>]
  [-ProgressAction <ActionPreference>] [<CommonParameters>]
 ```
 
@@ -164,8 +167,78 @@ Accept pipeline input: False
 Accept wildcard characters: False
 ```
 
+### -ChunkDays
+Splits the requested date range into sub-queries of this many days each, querying
+newest to oldest and merging the results. Default: 30 (a default 30-day pull is a
+single chunk). Graph applies its 300-second HttpClient timeout per request, so very
+large pulls (e.g. -AllUsers over a wide range) can time out while the server computes
+a single page. Pass a smaller value (e.g. -ChunkDays 1) to break the request into
+windows small enough to return in time.
+
+```yaml
+Type: Int32
+Parameter Sets: (All)
+Aliases:
+
+Required: False
+Position: Named
+Default value: 30
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
+### -ChunkDelaySeconds
+Seconds to pause between chunk queries. A small pause reduces the chance of
+tripping Graph throttling limits on large multi-chunk pulls. Default: 2.
+Set to 0 to disable. Only applies when the range spans more than one chunk.
+
+```yaml
+Type: Int32
+Parameter Sets: (All)
+Aliases:
+
+Required: False
+Position: Named
+Default value: 2
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
+### -ThrottleDelaySeconds
+Base backoff (seconds) used when Graph throttles a request but does not return a
+Retry-After value. Backoff grows exponentially per retry (base, base*2, base*4...).
+When Graph does return Retry-After, that value is honored and printed instead.
+Default: 60.
+
+```yaml
+Type: Int32
+Parameter Sets: (All)
+Aliases:
+
+Required: False
+Position: Named
+Default value: 60
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
 ### -NonInteractive
 Retrieve non-interactive sign-in logs instead of interactive logs.
+
+```yaml
+Type: SwitchParameter
+Parameter Sets: (All)
+Aliases:
+
+Required: False
+Position: Named
+Default value: False
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
+### -DeviceCode
+{{ Fill DeviceCode Description }}
 
 ```yaml
 Type: SwitchParameter

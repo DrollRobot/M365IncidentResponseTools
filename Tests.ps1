@@ -207,7 +207,7 @@ $ModuleName = if ($SrcManifest) {
 $ManifestPath = if ($Built) {
     Join-Path -Path $PSScriptRoot -ChildPath "$ModuleName.psd1"
 } else {
-    Join-Path -Path $PSScriptRoot -ChildPath "source\$ModuleName.psd1"
+    Join-Path -Path (Join-Path -Path $PSScriptRoot -ChildPath 'Source') -ChildPath "$ModuleName.psd1"
 }
 if (Test-Path $ManifestPath) {
     $ModuleStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
@@ -225,8 +225,8 @@ else {
 }
 
 $TestsFolder = Join-Path -Path $PSScriptRoot -ChildPath 'tests'
-$PesterTestsFolder = Join-Path -Path $PSScriptRoot -ChildPath 'tests\pester'
-$LocalTestsFolder = Join-Path -Path $PSScriptRoot -ChildPath '.local\tests'
+$PesterTestsFolder = Join-Path -Path $TestsFolder -ChildPath 'Pester'
+$LocalTestsFolder = Join-Path -Path (Join-Path -Path $PSScriptRoot -ChildPath '.local') -ChildPath 'tests'
 
 # Where Pester looks: the whole pester folder by default, or the -Path target
 # (e.g. a single *.Tests.ps1 file) when one was given.
@@ -238,7 +238,7 @@ $PesterTarget = if ($PSBoundParameters.ContainsKey('Path')) {
 
 # Compute build-artifact exclusions once; formatting scripts merge these at runtime.
 # CopyPaths in Build.psd1 land at the repo root after a build, alongside the built psm1/psd1.
-$BuildPsd1Path = Join-Path -Path $PSScriptRoot -ChildPath 'source\Build.psd1'
+$BuildPsd1Path = Join-Path -Path (Join-Path -Path $PSScriptRoot -ChildPath 'Source') -ChildPath 'Build.psd1'
 $BuildConfig = Import-PowerShellDataFile -Path $BuildPsd1Path
 $CopiedFolderNames = @($BuildConfig.CopyPaths | ForEach-Object { Split-Path -Path $_ -Leaf })
 $Global:Dev_FormattingExclusions = @{

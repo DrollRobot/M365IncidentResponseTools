@@ -15,7 +15,7 @@ Processes service principal sign-in log objects into an Excel spreadsheet.
 ### Objects (Default)
 ```
 Show-IRTServicePrincipalSignIn
- [-Log] <System.Collections.Generic.List`1[System.Management.Automation.PSObject]> [-TableStyle <String>]
+ [[-Log] <System.Collections.Generic.List`1[System.Management.Automation.PSObject]>] [-TableStyle <String>]
  [-Font <String>] [-IpInfo <Boolean>] [-Open <Boolean>] [-ProgressAction <ActionPreference>]
  [<CommonParameters>]
 ```
@@ -52,7 +52,7 @@ Type: System.Collections.Generic.List`1[System.Management.Automation.PSObject]
 Parameter Sets: Objects
 Aliases: Logs
 
-Required: True
+Required: False
 Position: 1
 Default value: None
 Accept pipeline input: False

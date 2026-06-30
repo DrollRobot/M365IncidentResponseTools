@@ -42,36 +42,17 @@ Shows OAuth app consents for a specific user.
 
 ## PARAMETERS
 
-### -UserObject
-One or more Entra ID user objects to query.
-Falls back to global session objects if
-omitted.
-Accepts pipeline input.
+### -Cached
+Use pre-cached Graph service principal data instead of making new API calls.
 
 ```yaml
-Type: PSObject[]
-Parameter Sets: (All)
-Aliases: UserObjects
-
-Required: False
-Position: 1
-Default value: None
-Accept pipeline input: False
-Accept wildcard characters: False
-```
-
-### -TableStyle
-Excel table style.
-Defaults to IRT_Config.ExcelTableStyle.
-
-```yaml
-Type: String
+Type: SwitchParameter
 Parameter Sets: (All)
 Aliases:
 
 Required: False
 Position: Named
-Default value: $Global:IRT_Config.ExcelTableStyle
+Default value: False
 Accept pipeline input: False
 Accept wildcard characters: False
 ```
@@ -92,22 +73,6 @@ Accept pipeline input: False
 Accept wildcard characters: False
 ```
 
-### -Xml
-Export raw XML alongside the Excel file.
-Defaults to IRT_Config.ExportXml.
-
-```yaml
-Type: Boolean
-Parameter Sets: (All)
-Aliases:
-
-Required: False
-Position: Named
-Default value: $Global:IRT_Config.ExportXml
-Accept pipeline input: False
-Accept wildcard characters: False
-```
-
 ### -Open
 Open the Excel file immediately after export.
 Default: $true.
@@ -124,17 +89,52 @@ Accept pipeline input: False
 Accept wildcard characters: False
 ```
 
-### -Cached
-Use pre-cached Graph service principal data instead of making new API calls.
+### -TableStyle
+Excel table style.
+Defaults to IRT_Config.ExcelTableStyle.
 
 ```yaml
-Type: SwitchParameter
+Type: String
 Parameter Sets: (All)
 Aliases:
 
 Required: False
 Position: Named
-Default value: False
+Default value: $Global:IRT_Config.ExcelTableStyle
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
+### -UserObject
+One or more Entra ID user objects to query.
+Falls back to global session objects if
+omitted.
+Accepts pipeline input.
+
+```yaml
+Type: PSObject[]
+Parameter Sets: (All)
+Aliases: UserObjects
+
+Required: False
+Position: 0
+Default value: None
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
+### -Xml
+Export raw XML alongside the Excel file.
+Defaults to IRT_Config.ExportXml.
+
+```yaml
+Type: Boolean
+Parameter Sets: (All)
+Aliases:
+
+Required: False
+Position: Named
+Default value: $Global:IRT_Config.ExportXml
 Accept pipeline input: False
 Accept wildcard characters: False
 ```

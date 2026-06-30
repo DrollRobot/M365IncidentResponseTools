@@ -189,7 +189,12 @@ $Plan = foreach ($Entry in $RequiredModules) {
         Max           = $Max
         Required      = $Required
         IsGraph       = $ModuleName -like 'Microsoft.Graph.*'
-        InstalledMax  = ($Installed | Sort-Object -Descending | Select-Object -First 1)
+        # Coalesce to a real $null when nothing is installed. An empty pipeline
+        # yields AutomationNull, which under Set-StrictMode -Version Latest makes
+        # member-access enumeration ($Plan.InstalledMax) throw PropertyNotFound.
+        InstalledMax  = if ($Installed.Count) {
+            $Installed | Sort-Object -Descending | Select-Object -First 1
+        } else { $null }
         Satisfied     = $Satisfied
         Problem       = -not $Satisfied
     }
@@ -271,7 +276,9 @@ foreach ($R in $Plan) {
 
         # Re-read post-action so the status line reflects reality.
         $Installed = @(Get-Module -Name $R.Name -ListAvailable | Select-Object -ExpandProperty Version)
-        $R.InstalledMax = $Installed | Sort-Object -Descending | Select-Object -First 1
+        $R.InstalledMax = if ($Installed.Count) {
+            $Installed | Sort-Object -Descending | Select-Object -First 1
+        } else { $null }
         $R.Satisfied    = Test-VersionSatisfied $Installed $R.Min $R.Max $R.Required
     }
 

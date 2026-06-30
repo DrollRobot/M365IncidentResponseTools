@@ -36,7 +36,7 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$DocsPath = Join-Path -Path $PSScriptRoot -ChildPath 'docs\commands'
+$DocsPath = Join-Path -Path (Join-Path -Path $PSScriptRoot -ChildPath 'docs') -ChildPath 'commands'
 
 # PlatyPS calls its internal 'log' function as: log -warning "..."
 # The module's 'Log' alias shadows it, causing an ambiguous parameter error.

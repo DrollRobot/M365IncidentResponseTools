@@ -1,7 +1,7 @@
 #Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.0.0' }
 
 BeforeAll {
-    $RelPath = '..\..\source\Private\Utility\Format-PhoneNumber.ps1'
+    $RelPath = '../../Source/Private/Utility/Format-PhoneNumber.ps1'
     . (Join-Path -Path $PSScriptRoot -ChildPath $RelPath)
 }
 

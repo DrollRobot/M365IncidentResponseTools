@@ -14,7 +14,7 @@ Parse and show unified audit logs.
 
 ### Objects (Default)
 ```
-Show-IRTUnifiedAuditLog [-Log] <System.Collections.Generic.List`1[System.Management.Automation.PSObject]>
+Show-IRTUnifiedAuditLog [[-Log] <System.Collections.Generic.List`1[System.Management.Automation.PSObject]>]
  [-TableStyle <String>] [-Font <String>] [-IpInfo <Boolean>] [-Open <Boolean>] [-WaitOnMessageTrace <Boolean>]
  [-MaxWaitMinutes <Int32>] [-Cached] [-ProgressAction <ActionPreference>] [<CommonParameters>]
 ```
@@ -48,7 +48,7 @@ Type: System.Collections.Generic.List`1[System.Management.Automation.PSObject]
 Parameter Sets: Objects
 Aliases: Logs
 
-Required: True
+Required: False
 Position: 1
 Default value: None
 Accept pipeline input: False

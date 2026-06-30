@@ -13,8 +13,15 @@ Creates $UserObjects variable.
 
 ## SYNTAX
 
+### Search (Default)
 ```
 Find-IRTUser [-Search] <String[]> [-VarPrefix <String>] [-Cached] [-Script] [-AllMatches]
+ [-ProgressAction <ActionPreference>] [<CommonParameters>]
+```
+
+### Clipboard
+```
+Find-IRTUser [-FromClipboard] [-VarPrefix <String>] [-Cached] [-Script] [-AllMatches]
  [-ProgressAction <ActionPreference>] [<CommonParameters>]
 ```
 
@@ -38,12 +45,28 @@ Find-IRTUser -Search bf7573a5844f (partial user id number)
 
 ```yaml
 Type: String[]
-Parameter Sets: (All)
+Parameter Sets: Search
 Aliases:
 
 Required: True
 Position: 1
 Default value: None
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
+### -FromClipboard
+Read one search query per line from the clipboard instead of supplying -Search. Each
+non-empty line is treated as a separate search string. Mutually exclusive with -Search.
+
+```yaml
+Type: SwitchParameter
+Parameter Sets: Clipboard
+Aliases:
+
+Required: True
+Position: Named
+Default value: False
 Accept pipeline input: False
 Accept wildcard characters: False
 ```

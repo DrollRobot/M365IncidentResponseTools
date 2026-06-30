@@ -13,8 +13,15 @@ or ObjectGUID.
 
 ## SYNTAX
 
+### Search (Default)
 ```
 Find-IRTAdDevice [-Search] <String[]> [-VarPrefix <String>] [-Script] [-ProgressAction <ActionPreference>]
+ [<CommonParameters>]
+```
+
+### Clipboard
+```
+Find-IRTAdDevice [-FromClipboard] [-VarPrefix <String>] [-Script] [-ProgressAction <ActionPreference>]
  [<CommonParameters>]
 ```
 
@@ -63,12 +70,28 @@ fields.
 
 ```yaml
 Type: String[]
-Parameter Sets: (All)
+Parameter Sets: Search
 Aliases:
 
 Required: True
 Position: 1
 Default value: None
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
+### -FromClipboard
+Read one search query per line from the clipboard instead of supplying -Search. Each
+non-empty line is treated as a separate search string. Mutually exclusive with -Search.
+
+```yaml
+Type: SwitchParameter
+Parameter Sets: Clipboard
+Aliases:
+
+Required: True
+Position: Named
+Default value: False
 Accept pipeline input: False
 Accept wildcard characters: False
 ```

@@ -15,25 +15,27 @@ Runs multiple queries to pull all Unified Audit Log records related to a specifi
 ### UserObject (Default)
 ```
 Get-IRTUnifiedAuditLog [[-UserObject] <PSObject[]>] [-Days <Int32>] [-Start <String>] [-End <String>]
- [-ResultLimit <Int32>] [-Operation <String[]>] [-RiskyOperation] [-SignInLog] [-FreeText <String[]>]
- [-Excel <Boolean>] [-WaitOnMessageTrace <Boolean>] [-Xml <Boolean>] [-Cached]
- [-ProgressAction <ActionPreference>] [<CommonParameters>]
-```
-
-### AllUsers
-```
-Get-IRTUnifiedAuditLog [-AllUsers] [-Days <Int32>] [-Start <String>] [-End <String>] [-ResultLimit <Int32>]
+ [-ChunkDays <Int32>] [-ChunkDelaySeconds <Int32>] [-ThrottleDelaySeconds <Int32>] [-ResultLimit <Int32>]
  [-Operation <String[]>] [-RiskyOperation] [-SignInLog] [-FreeText <String[]>] [-Excel <Boolean>]
  [-WaitOnMessageTrace <Boolean>] [-Xml <Boolean>] [-Cached] [-ProgressAction <ActionPreference>]
  [<CommonParameters>]
 ```
 
+### AllUsers
+```
+Get-IRTUnifiedAuditLog [-AllUsers] [-Days <Int32>] [-Start <String>] [-End <String>] [-ChunkDays <Int32>]
+ [-ChunkDelaySeconds <Int32>] [-ThrottleDelaySeconds <Int32>] [-ResultLimit <Int32>] [-Operation <String[]>]
+ [-RiskyOperation] [-SignInLog] [-FreeText <String[]>] [-Excel <Boolean>] [-WaitOnMessageTrace <Boolean>]
+ [-Xml <Boolean>] [-Cached] [-ProgressAction <ActionPreference>] [<CommonParameters>]
+```
+
 ### ServicePrincipal
 ```
 Get-IRTUnifiedAuditLog [[-ServicePrincipal] <PSObject[]>] [-Days <Int32>] [-Start <String>] [-End <String>]
- [-ResultLimit <Int32>] [-Operation <String[]>] [-RiskyOperation] [-SignInLog] [-FreeText <String[]>]
- [-Excel <Boolean>] [-WaitOnMessageTrace <Boolean>] [-Xml <Boolean>] [-Cached]
- [-ProgressAction <ActionPreference>] [<CommonParameters>]
+ [-ChunkDays <Int32>] [-ChunkDelaySeconds <Int32>] [-ThrottleDelaySeconds <Int32>] [-ResultLimit <Int32>]
+ [-Operation <String[]>] [-RiskyOperation] [-SignInLog] [-FreeText <String[]>] [-Excel <Boolean>]
+ [-WaitOnMessageTrace <Boolean>] [-Xml <Boolean>] [-Cached] [-ProgressAction <ActionPreference>]
+ [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -165,6 +167,60 @@ Aliases:
 Required: False
 Position: Named
 Default value: None
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
+### -ChunkDays
+Splits the requested date range into sub-queries of this many days each, querying
+newest to oldest and merging the results. Default: 182. Search-UnifiedAuditLog
+degrades and times out on wide ranges, so large pulls (e.g. -AllUsers over a long
+range) are broken into windows small enough to return reliably. Pass a smaller
+value to further reduce the chance of failed queries due to timeouts.
+
+```yaml
+Type: Int32
+Parameter Sets: (All)
+Aliases:
+
+Required: False
+Position: Named
+Default value: 182
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
+### -ChunkDelaySeconds
+Seconds to pause between chunk queries. A small pause reduces the chance of
+tripping Exchange throttling limits on large multi-chunk pulls. Default: 2.
+Set to 0 to disable. Only applies when the range spans more than one chunk.
+
+```yaml
+Type: Int32
+Parameter Sets: (All)
+Aliases:
+
+Required: False
+Position: Named
+Default value: 2
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
+### -ThrottleDelaySeconds
+Base backoff (seconds) used when a Search-UnifiedAuditLog query fails (timeout,
+throttling, or a dropped session). Backoff grows exponentially per retry
+(base, base*2, base*4...) and the token is refreshed between attempts. The full
+exception is written to the PSFramework debug log for troubleshooting. Default: 60.
+
+```yaml
+Type: Int32
+Parameter Sets: (All)
+Aliases:
+
+Required: False
+Position: Named
+Default value: 60
 Accept pipeline input: False
 Accept wildcard characters: False
 ```

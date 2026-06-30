@@ -5,6 +5,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+
+## [v2.10.0] - 2026-06-30
+
 ### Added
 
 - `Get-IRTAccessToken`: new public command that returns a fresh access token for Graph,
@@ -12,6 +15,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   sign-in otherwise). Useful for manual REST calls and custom scripts.
 - `Connect-IRTRunspaceExchange`: new public command that establishes a runspace-local
   Exchange connection with a silently-minted token. Used by playbook steps.
+- `Get-IRTAllEntraDevice`: new public command that exports every Entra ID device to a
+  spreadsheet, newest registration first.
+- `Get-IRTEmailSearch`: new public command; an interactive manager for existing
+  compliance email searches that can start, wait on, view results for, purge matched
+  email from, or delete a search.
+- `Find-IRT*` search commands: new `-FromClipboard` switch reads each non-empty
+  clipboard line as a separate search term.
+- `Get-IRTEntraSignInLog`: new `-DeviceCode` switch filters results to device-code
+  authentications.
 - The MSAL cache extension assembly is now bundled with the module instead of being
   downloaded from nuget.org during the first Connect, so the persistent token cache
   works offline and can no longer silently degrade.
@@ -34,6 +46,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `Get-IRTLicenseReport`: output is now a plain table. This removes the dependency on
   the external Write-PSObject script, which produced corrupted output and errors when
   run inside playbook runspaces. `-Runspace` is retained as a no-op for compatibility.
+- `Get-IRTLicenseReport`: E5 SKUs are now highlighted in the output so high-value
+  licenses stand out at a glance.
+- `Get-IRTEntraSignInLog`: large date-range queries are now split into chunks to avoid
+  the Graph 300-second timeout that caused big sign-in log pulls to fail.
+- `Get-IRTUnifiedAuditLog`: queries are chunked and retried, and the command now flags
+  when a chunk could not be fully retrieved so partial results are not mistaken for
+  complete ones.
 
 ### Fixed
 
@@ -63,6 +82,21 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   records the module root in `$Global:ModuleDependenciesChecked` (a module-agnostic
   table, since the dependency scripts are portable), and re-imports plus all playbook
   runspace workers skip the scan. Speeds up module re-import and playbook startup.
+- Dependency check no longer crashes with "The property 'InstalledMax' cannot be found
+  on this object" when more than one required module is missing, so the install
+  prompt is shown correctly instead of aborting.
+- `Connect-IRT`: the session now reports the account it is actually bound to, and the
+  Graph connected-state check is evaluated correctly.
+- `Get-IRTEntraSignInLog`: fixed a degenerate trailing chunk produced when splitting a
+  sign-in log query by date range.
+- ip_info enrichment no longer fails on large sign-in log pulls.
+
+### Security
+
+- `Connect-IRT` / `Get-IRTAccessToken`: access tokens minted for a different tenant are
+  now rejected, and the session refuses to bind to a mismatched account. Previously a
+  silently-acquired token from an account's home tenant could bind a session to a tenant
+  with no relationship to the intended target.
 
 
 ## [v2.9.2] - 2026-06-10

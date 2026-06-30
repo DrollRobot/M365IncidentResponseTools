@@ -52,7 +52,7 @@ InModuleScope M365IncidentResponseTools {
             Mock Get-Clipboard { 'OnlyOne' }
             $Result = Get-IRTClipboardSearch
             @($Result).Count | Should -Be 1
-            $Result[0] | Should -Be 'OnlyOne'
+            @($Result)[0] | Should -Be 'OnlyOne'
         }
 
         It 'throws when the clipboard is empty' {
