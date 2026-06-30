@@ -3,6 +3,7 @@
 /*.xml
 /*.xlsx
 /*Investigation/
+/DebugLogs/
 
 # test credentials (local only - never commit)
 *.env*
