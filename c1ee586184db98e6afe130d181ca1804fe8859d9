@@ -1,0 +1,82 @@
+base: develop
+title: feat(entra): consolidate user and SP sign-in logs
+---
+# feat(entra): consolidate user and SP sign-in logs
+
+## Summary
+
+The Entra sign-in log commands shared almost all of their query logic — date
+chunking, throttle/timeout retry, XML export, Excel hand-off — but each kept its
+own copy. This PR extracts that machinery into one private engine and turns the
+public commands into thin per-type wrappers, then folds in the device-code and
+non-interactive improvements that motivated the work.
+
+It began as a device-code tweak and grew into a clean split between *how* we
+query Entra sign-in logs (shared) and *which* principal and columns we care
+about (per command).
+
+## What changed
+
+**Shared engine.** New private `Invoke-IRTSignInLogQuery` owns chunking,
+per-chunk token refresh, throttle/Retry-After/timeout handling, sorting, the
+metadata row, XML export, and dispatch to the right `Show-` function. Each
+wrapper just resolves its targets, builds a filter, and calls the engine.
+
+**Renames (breaking):**
+
+- `Get-IRTEntraSignInLog` -> `Get-IRTEntraUserSignInLog`
+- `Get-IRTServicePrincipalSignInLog` -> `Get-IRTEntraSPSignInLog`
+- `Show-IRTEntraSignInLog` -> `Show-IRTEntraUserSignInLog`
+- `Show-IRTServicePrincipalSignIn` -> `Show-IRTEntraSPSignInLog`
+- `Get-IRTNonInteractiveSignIn` removed — use `Get-IRTEntraUserSignInLog -NonInteractive`
+
+Short aliases (`GetSILog`, `GetSPSILog`, etc.) still work. The service-principal
+command gains date chunking and throttle/retry for free.
+
+**Behaviour:**
+
+- `-DeviceCode` now matches `originalTransferMethod` as well as
+  `authenticationProtocol`, so it catches the downstream token use Entra carries
+  forward after a device-code redemption. The server-side OR filter was verified
+  against live Graph.
+- `-NonInteractive` now returns *both* interactive and non-interactive sign-ins;
+  the newly-surfaced `SignInEventTypes` column tells them apart. (The 3-day
+  default range still applies whenever non-interactive logs are included.)
+- New default columns `OriginalTransferMethod` and `SignInEventTypes`,
+  `AutonomousSystemNumber` moved next to `IpAddress`, and device-code values are
+  highlighted via conditional formatting.
+
+**Bug fix.** Surfaced and fixed a latent `-IpAddress` bug: the `[string[]]`
+parameter, reused as a `foreach` loop variable, re-coerced each IP into a
+single-element array that leaked as the subject label. The engine's strict
+typing caught it.
+
+**Worktree fix (separate commit).** `Find-ModuleRoot` now resolves the module
+root correctly inside a git worktree — where the working folder is named for the
+branch, not the module — by reading the `.git` file's gitdir pointer.
+
+## Testing
+
+- Offline Pester suite is green. The single failure, `Get-IRTClipboardSearch`, is
+  a pre-existing flake unrelated to this work.
+- Added `Get-IRTEntraSPSignInLog` offline tests; user tests updated for the new
+  names and the both-types `-NonInteractive` behaviour.
+- Formatting checks all pass: ModuleSyntax, LineLength, PSSA,
+  ExplicitModuleImport, JoinPath, NonASCIICharacters, FormatOperator,
+  WriteVerboseDebug.
+- Online tests were not run here (they need a live Graph session); the online
+  test file was renamed and its stale `-NonInteractive` assertions updated.
+
+## Notes for the reviewer
+
+- **Built artifacts** (`M365IncidentResponseTools.psm1` / `.psd1`) are not rebuilt
+  in this PR — they still export the old names until the usual build step. Source
+  import (tests, debug scripts) already uses the new names.
+- **Command docs** were renamed and cross-references fixed by hand; the PlatyPS
+  parameter tables already lagged the code and should be regenerated with
+  `Docs.ps1` after a build.
+- **VS Code launch config** got matching debug entries locally, but `.vscode/` is
+  gitignored, so those changes are not part of this PR.
+- One pre-existing BacktickContinuation false positive remains in
+  `Scripts/Complete-WorkTree.ps1` (a backtick inside a comment, not a
+  continuation); left untouched as unrelated tooling.
