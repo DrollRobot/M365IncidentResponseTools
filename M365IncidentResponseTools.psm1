@@ -9103,17 +9103,17 @@ function Import-IRTModule {
         }
     }
 
-    if (-not (Get-Module -Name 'PSFramework')) {
-        Import-LockedModule -ModuleName 'PSFramework'
-    }
+    # if (-not (Get-Module -Name 'PSFramework')) { # FIXME doesn't work with onprem functions
+    #     Import-LockedModule -ModuleName 'PSFramework'
+    # }
 
     foreach ($module in $Name) {
         if (Get-Module -Name $module) {
-            Write-PSFMessage -Level 8 -Message "Module already loaded, skipping: $module"
+            # Write-PSFMessage -Level 8 -Message "Module already loaded, skipping: $module"
             continue
         }
 
-        Write-PSFMessage -Level 8 -Message "Importing module: $module"
+        # Write-PSFMessage -Level 8 -Message "Importing module: $module"
         Import-LockedModule -ModuleName $module
     }
 }
