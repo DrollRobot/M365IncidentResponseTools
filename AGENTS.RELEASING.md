@@ -1,31 +1,38 @@
 # Releasing
 
-In-domain: All code in Source/, except functions in Lib/ folders and Build.psd1.
-Non-domain: Dev/Test/Build/Debug/Lib code.
+- If the user asked you to read this file, treat that as them asking you to
+  perform the procedure described below.
 
-Ignore built code, such as *.psm1 and *.psd1, ScriptsToProcess/, Data/, Build/, in
-the module root.
+In-domain: All code in Source/, except functions in Lib/ folders and Build.psd1.
+Non-domain: Scripts/, Tests/, **/Lib/, Build/, Output/, `Docs/<ModuleName>/`, and any
+built artifacts in module root.
+
+
+## Commit
+- Review before writing commit messages: [AGENTS.COMMITTING.md](AGENTS.COMMITTING.md).
+- Commit any untracked files.
 
 ## Build
+Build the module/scripts:
 ```powershell
 .\Build.ps1
 ```
-Test built module
+
 Run pester tests again on the built module:
 ```powershell
-.\Tests.ps1 Offline,Online -Built
+.\Tests.ps1 NotLive,Live -Built
 ```
 
 ## Update docs
 ```powershell
-.\Docs.ps1 -DeleteOrphaned
+.\Docs.ps1
 ```
 
-Review the documents in the root of the Docs folder for accuracy or any new features 
-that should be added. Don't review or modify files in Docs/Commands. (built by PlatyPS)
+Review the documents in the root of the Docs folder for accuracy or any new features
+that should be added. Don't review or modify files in `Docs/<ModuleName>/`. (built by
+PlatyPS)
 
 ## Update CHANGELOG.md
-
 `CHANGELOG.md` in the repo root is the authoritative changelog.
 Before proceeding, fetch and review <https://keepachangelog.com> to get the
 current format rules. Do not rely on training data -- request a fresh copy every time.
@@ -33,7 +40,6 @@ current format rules. Do not rely on training data -- request a fresh copy every
 **How to update the changelog before tagging a new release**
 
 1. **Find the previous tag** and collect every commit since then:
-
    ```powershell
    $prevTag = git describe --tags --abbrev=0   # most recent tag
    git log "$prevTag..HEAD" --oneline
@@ -56,7 +62,6 @@ current format rules. Do not rely on training data -- request a fresh copy every
 3. **Prepend** the new release section to `CHANGELOG.md` immediately after the
    `# Changelog` heading. Use today's date and the version about to be tagged.
    Do not rewrite or delete any existing sections.
-
 
 ## Hand off to user
 - The user will update manifest version, merge, tag, and push.
