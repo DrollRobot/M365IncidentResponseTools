@@ -20,8 +20,8 @@
          `gh pr create`.
       3. Resolve the PR base: the base recorded at worktree creation
          (branch.<branch>.prBase) if present, else the branch's upstream -- but
-         only while it still names an integration branch, since `git push -u`
-         repoints tracking to the branch itself. Refuses to target main.
+         only while it still names an integration branch, since `git push -u` repoints
+         tracking to the branch itself. Refuses to target main.
       4. Show the PR.md body and confirm the title.
       5. Push the branch with -u.
       6. Open the PR with `gh pr create --base <base> --body-file PR.md`.
@@ -98,15 +98,6 @@
     .\Complete-WorkTree.ps1 -WebFromNotes -Slug issue-42
 
 .NOTES
-    Version: 1.2.2
-    1.2.2 - Fixes owner/repo parsing to handle custom SSH host aliases
-        (e.g. git@github_alias:owner/repo.git), not just github.com.
-    1.2.1 - Resolves the PR base from the worktree's recorded base 
-        (branch.<branch>.prBase) and ignores an upstream that a
-        `git push -u` has repointed to the branch itself, so PRs no longer
-        occasionally target the worktree branch instead of develop.
-    1.1.0 - Adds -PushPRToNotes/-GHFromNotes/-WebFromNotes cross-device handoff.
-
     Requirements:
       - PowerShell 7.4 or later.
       - Run from inside the worktree, on a wt/ branch with all work committed
@@ -138,10 +129,9 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $PSNativeCommandUseErrorActionPreference = $true
 
-# Version of this helper script itself. Bump on every change so copies in other
-# repos can be compared: patch = bugfix, minor = new flag/behavior, major =
-# breaking CLI change.
-$ScriptVersion = '1.2.2'
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+    'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
+$ScriptVersion = '1.2.4'
 
 # The cross-device PR-body handoff stores one note per slug
 # (refs/notes/pr-body-<slug>) so concurrent PRs never share - or force-push
@@ -230,15 +220,17 @@ function Read-WithDefault {
     return $entered.Trim()
 }
 
-# Report an abort and exit, naming the branch the repository was left on. Shared
-# by Invoke-Step and the inline confirmations in the -*FromNotes flows.
+# Report an abort and stop, naming the branch the repository was left on.
+# Shared by Invoke-Step and the inline confirmations in the -*FromNotes flows.
+# Throws (not `exit`s): `exit` can close the whole calling host session, not
+# just this script, if it is ever run directly at an interactive prompt.
 function Stop-Aborted {
     Write-Host ''
     Write-Host "Aborted by user." -ForegroundColor Yellow
     $current = git branch --show-current
     Write-Host "Repository is currently on branch '$current'." -ForegroundColor Yellow
     Write-Host "Any steps already completed above have NOT been undone." -ForegroundColor Yellow
-    exit 1
+    throw 'Aborted by user.'
 }
 
 # Prompt before running an action. Answering 'n' aborts the whole script, since
@@ -347,7 +339,8 @@ function Remove-PrNote {
 
 # --- mode validation -------------------------------------------------------
 
-Write-Info "Script version" $ScriptVersion
+if ($MyInvocation.InvocationName -eq '.') { return }
+
 Write-Host ''
 
 $noteModes = @($PushPRToNotes, $GHFromNotes, $WebFromNotes).Where({ $_ })
@@ -490,7 +483,7 @@ if ($branch -in 'main', 'master', 'develop', 'dev') {
 if ($branch -notlike 'wt/*') {
     $WarnMsg = "  Warning: branch '$branch' does not look like a wt/ branch."
     Write-Host $WarnMsg -ForegroundColor Yellow
-    if (-not (Confirm-Step "  Continue anyway?")) { exit 1 }
+    if (-not (Confirm-Step "  Continue anyway?")) { throw 'Aborted by user.' }
 }
 
 $repoRoot = (Invoke-Native git rev-parse --show-toplevel).Trim()
@@ -570,7 +563,7 @@ if (-not (Confirm-Step "Use this title?")) {
     Write-Host ''
     $HintMsg = 'Re-run with -Title "your title here" to set a different PR title.'
     Write-Host $HintMsg -ForegroundColor Yellow
-    exit 1
+    throw 'Aborted by user.'
 }
 
 # --- working tree status ---------------------------------------------------
