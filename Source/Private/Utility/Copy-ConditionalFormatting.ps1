@@ -314,8 +314,8 @@ function Copy-ConditionalFormatting {
                     "Copy-ConditionalFormatting: Copied '$typeName' rule -> $newAddrString")
             }
             catch {
-                $warnMsg = ("Skipped rule (type '{0}', source '{1}'): {2}" -f
-                    $typeName, $rule.Address.Address, $_.Exception.Message)
+                $warnMsg = "Skipped rule (type '$($typeName)', " +
+                "source '$($rule.Address.Address)'): $($_.Exception.Message)"
                 Write-PSFMessage -Level Warning -Message $warnMsg
             }
         }
