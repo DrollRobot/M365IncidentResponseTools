@@ -32,6 +32,11 @@
 .PARAMETER NoBootstrap
     Skip the per-worktree setup (.vscode/.env links and dependency install).
 
+.PARAMETER NoOpenVSCode
+    Skip the final step that opens the generated workspace in VS Code. Useful
+    for non-interactive/automated runs (including this script's own tests) where
+    launching an editor window is unwanted.
+
 .PARAMETER Yes
     Assume 'yes' to every confirmation prompt (non-interactive). The prompt is
     still printed with the auto-answer so the transcript records each step.
@@ -46,12 +51,15 @@
     .\New-Worktree.ps1 issue-42 -NoBootstrap
 
 .EXAMPLE
+    .\New-Worktree.ps1 issue-42 -NoOpenVSCode
+
+.EXAMPLE
     .\New-Worktree.ps1 issue-42 -Yes
 
 .NOTES
-    Script version 1.3.1, which records the integration base as
-    branch.<branch>.prBase so Complete-WorkTree.ps1 can recover the PR base even
-    after `git push -u` repoints the branch's upstream.
+    Records the integration base as branch.<branch>.prBase so
+    Complete-WorkTree.ps1 can recover the PR base even after
+    `git push -u` repoints the branch's upstream.
 #>
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '')]
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingPositionalParameters', '')]
@@ -76,6 +84,8 @@ param(
 
     [switch]$NoBootstrap,
 
+    [switch]$NoOpenVSCode,
+
     [Alias('y')]
     [switch]$Yes
 )
@@ -83,10 +93,9 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-# Version of this helper script itself. Bump on every change so copies in other
-# repos can be compared: patch = bugfix, minor = new flag/behavior, major =
-# breaking CLI change.
-$ScriptVersion = '1.3.1'
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+    'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
+$ScriptVersion = '1.3.4'
 
 # --- output helpers ---------------------------------------------------------
 
@@ -124,11 +133,13 @@ function Write-Success {
     Write-Host $Message -ForegroundColor Green
 }
 
-# Print an error and exit with status 1.
+# Print an error and stop the script. Throws (not `exit`s): `exit` can close
+# the whole calling host session, not just this script, if it is ever run
+# directly at an interactive prompt (rather than as its own process).
 function Stop-Script {
     param([Parameter(Mandatory)][string]$Message)
     Write-Host "ERROR: $Message" -ForegroundColor Red
-    exit 1
+    throw $Message
 }
 
 # Ask the user a yes/no question. Always 'yes' in assume-yes mode, with the
@@ -159,7 +170,7 @@ function Confirm-Step {
     if (-not $current) { $current = '(unknown)' }
     Write-Warn "Repository is currently on branch '$current'."
     Write-Warn 'Any steps already completed above have NOT been undone.'
-    exit 1
+    throw 'Aborted by user.'
 }
 
 # $ErrorActionPreference = 'Stop' does NOT halt on a failing native command; it
@@ -257,7 +268,8 @@ function Invoke-PushBase {
 
 # --- main -------------------------------------------------------------------
 
-Write-Info 'Script version' $ScriptVersion
+if ($MyInvocation.InvocationName -eq '.') { return }
+
 Write-Host ''
 
 # --- resolve paths ----------------------------------------------------------
@@ -540,7 +552,10 @@ if (-not $NoBootstrap) {
 # --- step: open VS Code -----------------------------------------------------
 
 Write-Section 'Step: open VS Code'
-if (Get-Command code -ErrorAction SilentlyContinue) {
+if ($NoOpenVSCode) {
+    Write-Info 'Open' "skipped (-NoOpenVSCode); open manually: $wsFile"
+}
+elseif (Get-Command code -ErrorAction SilentlyContinue) {
     Confirm-Step "Open VS Code with '$wsName'?"
     Invoke-Run code $wsFile
 }

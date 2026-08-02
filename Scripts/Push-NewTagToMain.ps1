@@ -26,6 +26,12 @@
     not changed, the manifest update and the release commit are skipped, but the
     current version is still tagged and pushed.
 
+    After the version bump it offers to build the module with Build.ps1 in the
+    repo root, which is skipped when the repo has no Build.ps1. The build takes
+    no parameters: where it lands is declared by Build.psd1's BuildToRoot key.
+    A root build regenerates committed artifacts, which the release commit picks
+    up automatically; an output build only touches gitignored Output\.
+
 .PARAMETER Bump
     Semantic version bump level. One of:
       patch - bug fixes only           (1.4.2 -> 1.4.3)
@@ -39,17 +45,25 @@
     Merge, tag, and push without changing the version (no manifest update or
     release commit). For when the version was already updated by hand.
 
+.PARAMETER NoManifest
+    Release a repo that has no .psd1 manifest (a bare script). The manifest is
+    never read or written; the tag is cut from -Version alone. Requires
+    -Version (there is no manifest to derive or bump a version from), so it is
+    only valid together with it. Merge, tag 'v<Version>', and push proceed as
+    normal.
+
 .PARAMETER ManifestPath
-    Path to the .psd1 manifest holding ModuleVersion. If omitted, walks up the
-    directory tree from the current location until a directory containing
-    exactly one .psd1 file is found.
+    Path to the .psd1 manifest holding ModuleVersion. If omitted, the manifest
+    is resolved from the source tree: the repo root is located with
+    'git rev-parse --show-toplevel' and its Source\ folder is searched for a
+    single .psd1 (excluding ModuleBuilder's Build.psd1).
 
 .PARAMETER Yes
     Assume 'yes' to every confirmation prompt (non-interactive). The prompt is
     still printed with the auto-answer so the transcript records each step.
 
 .EXAMPLE
-    .\Push-NewTagToMain.ps1 patch
+    .\Push-NewTagToMain.ps1 -Bump patch
 
 .EXAMPLE
     .\Push-NewTagToMain.ps1 -Version 2.0.0
@@ -58,11 +72,12 @@
     .\Push-NewTagToMain.ps1 -NoVersion
 
 .EXAMPLE
-    .\Push-NewTagToMain.ps1 patch -Yes
+    .\Push-NewTagToMain.ps1 -NoManifest -Version 1.2.0
+
+.EXAMPLE
+    .\Push-NewTagToMain.ps1 -Bump patch -Yes
 
 .NOTES
-    Script version 1.1.0.
-
     Requirements:
       - PowerShell 7.4 or later.
       - Run from inside the source branch with a clean working tree.
@@ -71,9 +86,11 @@
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '')]
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingPositionalParameters', '')]
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+    'PSUseShouldProcessForStateChangingFunctions', '')]
 [CmdletBinding(DefaultParameterSetName = 'Bump')]
 param(
-    [Parameter(ParameterSetName = 'Bump', Mandatory, Position = 0)]
+    [Parameter(ParameterSetName = 'Bump', Mandatory)]
     [ValidateSet('patch', 'minor', 'major')]
     [string]$Bump,
 
@@ -84,6 +101,12 @@ param(
     [Parameter(ParameterSetName = 'NoVersion', Mandatory)]
     [switch]$NoVersion,
 
+    # In the 'Version' set only, so it always pairs with an explicit -Version:
+    # a manifest-less repo (a bare script) has nothing to read a version from or
+    # write one to, so the version cannot be derived or bumped.
+    [Parameter(ParameterSetName = 'Version')]
+    [switch]$NoManifest,
+
     [string]$ManifestPath,
 
     [Alias('y')]
@@ -93,13 +116,13 @@ param(
 $ErrorActionPreference = 'Stop'
 $PSNativeCommandUseErrorActionPreference = $true
 
-# Version of this helper script itself (independent of the module version it
-# releases). Bump on every change so copies in other repos can be compared:
-# patch = bugfix, minor = new flag/behavior, major = breaking CLI change.
-$ScriptVersion = '1.1.0'
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+    'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
+$ScriptVersion = '2.0.0'
 
 $useBump = $PSCmdlet.ParameterSetName -eq 'Bump'
 $useNoVersion = [bool]$NoVersion
+$useNoManifest = [bool]$NoManifest
 
 # Answer every confirmation prompt with 'y' (set from -Yes). Script-scoped so
 # the helper functions below can read it.
@@ -171,7 +194,7 @@ function Invoke-Step {
         $branch = git branch --show-current
         Write-Host "Repository is currently on branch '$branch'." -ForegroundColor Yellow
         Write-Host "Any steps already completed above have NOT been undone." -ForegroundColor Yellow
-        exit 1
+        throw 'Aborted by user.'
     }
     & $Action
 }
@@ -195,8 +218,20 @@ function Get-SyncStatus {
     return [pscustomobject]@{ Ahead = $ahead; Behind = $behind }
 }
 
-# Resolve the manifest: use the explicit path if given, otherwise walk up the
-# directory tree until a directory containing exactly one .psd1 is found.
+# Locate the repo root via git, or $null if not in a working tree.
+function Get-RepoRoot {
+    $top = Invoke-NativeOk git rev-parse --show-toplevel
+    if (-not $top) { return $null }
+    # git prints forward slashes; normalize to a real filesystem path.
+    return (Resolve-Path -LiteralPath $top).Path
+}
+
+# Resolve the manifest holding ModuleVersion. Priority:
+#   1. Explicit -ManifestPath.
+#   2. The single source manifest under the repo's Source\ folder (excluding
+#      ModuleBuilder's Build.psd1) -- the metadata source of truth for a
+#      ModuleBuilder layout, where the built copy in the root (if any) is
+#      generated and must not be edited.
 function Find-Manifest {
     param([string]$Path)
 
@@ -207,26 +242,58 @@ function Find-Manifest {
         return (Resolve-Path -LiteralPath $Path).Path
     }
 
-    $searchDir = (Get-Location).Path
-    while ($searchDir) {
-        $candidates = @(Get-ChildItem -Path $searchDir -Filter '*.psd1' -File)
-        if ($candidates.Count -eq 1) {
-            return $candidates[0].FullName
+    # Prefer the source manifest under Source\ when this is a ModuleBuilder repo.
+    $repoRoot = Get-RepoRoot
+    if ($repoRoot) {
+        $sourceDir = Join-Path -Path $repoRoot -ChildPath 'Source'
+        if (Test-Path -LiteralPath $sourceDir -PathType Container) {
+            $srcCandidates = @(
+                Get-ChildItem -Path $sourceDir -Filter '*.psd1' -File |
+                    Where-Object Name -ne 'Build.psd1'
+            )
+            if ($srcCandidates.Count -eq 1) {
+                return $srcCandidates[0].FullName
+            }
+            elseif ($srcCandidates.Count -gt 1) {
+                $names = ($srcCandidates | Select-Object -ExpandProperty Name) -join ', '
+                throw "Multiple .psd1 files found in '$sourceDir': $names. Specify -ManifestPath."
+            }
         }
-        elseif ($candidates.Count -gt 1) {
-            $names = ($candidates | Select-Object -ExpandProperty Name) -join ', '
-            throw "Multiple .psd1 files found in '$searchDir': $names. Specify -ManifestPath."
-        }
-        $parent = Split-Path -Path $searchDir -Parent
-        if ($parent -eq $searchDir) { break }
-        $searchDir = $parent
     }
-    throw "No .psd1 file found walking up from '$(Get-Location)'."
+
+    throw "No single .psd1 found under the repo's Source\ folder. Specify -ManifestPath."
+}
+
+# Surgically rewrite only the ModuleVersion assignment in the manifest, leaving
+# every comment, blank line, and other key untouched. Update-ModuleManifest is
+# deliberately NOT used: it re-serializes the whole file with PowerShellGet's own
+# writer, which clobbers a curated ModuleBuilder source manifest (adds a PSGet_
+# header, drops all comments, and collapses FunctionsToExport = '*' -- the
+# sentinel Build-Module replaces at build time -- to @(), which would export no
+# functions).
+function Set-ManifestVersion {
+    param(
+        [Parameter(Mandatory)][string]$Path,
+        [Parameter(Mandatory)][version]$NewVersion
+    )
+    $content = Get-Content -LiteralPath $Path -Raw
+    # Match an uncommented 'ModuleVersion = "x"' assignment; capture indent and
+    # spacing in 'pre' so alignment is preserved. Anchored to line start (after
+    # optional whitespace) so a commented '# ModuleVersion' line cannot match.
+    $pattern = "(?m)^(?<pre>\s*ModuleVersion\s*=\s*)(?<q>['`"])[^'`"]*\k<q>"
+    $count = ([regex]::Matches($content, $pattern)).Count
+    if ($count -ne 1) {
+        throw "Expected exactly one ModuleVersion assignment in '$Path'; found $count."
+    }
+    $replacement = "`${pre}'$($NewVersion.ToString())'"
+    $updated = [regex]::Replace($content, $pattern, $replacement)
+    Set-Content -LiteralPath $Path -Value $updated -NoNewline -Encoding utf8
 }
 
 # --- gather state ----------------------------------------------------------
 
-Write-Info "Script version" $ScriptVersion
+if ($MyInvocation.InvocationName -eq '.') { return }
+
 Write-Host ''
 
 Write-Section "Release setup"
@@ -247,7 +314,10 @@ if ($source -eq 'main') {
 
 Write-Info "Original branch" $source
 Write-Info "Target branch" "main"
-if ($useNoVersion) {
+if ($useNoManifest) {
+    Write-Info "Version change" "tag '$Version' only (-NoManifest)"
+}
+elseif ($useNoVersion) {
     Write-Info "Version change" "none (-NoVersion)"
 }
 elseif ($useBump) {
@@ -255,6 +325,23 @@ elseif ($useBump) {
 }
 else {
     Write-Info "Version change" "set to '$Version'"
+}
+# Resolve the build script up front so its presence is reported during setup
+# rather than discovered after the merge has already happened. A repo without
+# a Build.ps1 (a bare script repo) simply skips the build step.
+$buildScript = $null
+$repoRoot = Get-RepoRoot
+if ($repoRoot) {
+    $candidate = Join-Path -Path $repoRoot -ChildPath 'Build.ps1'
+    if (Test-Path -LiteralPath $candidate -PathType Leaf) {
+        $buildScript = $candidate
+    }
+}
+if ($buildScript) {
+    Write-Info "Build" $buildScript
+}
+else {
+    Write-Info "Build" "skipped (no Build.ps1 in the repo root)"
 }
 
 # --- working tree status ---------------------------------------------------
@@ -328,50 +415,75 @@ else {
 
 Write-Section "Versions"
 
-$manifest = Find-Manifest -Path $ManifestPath
-$currentVersion = [version](Import-PowerShellDataFile -Path $manifest).ModuleVersion
-
-# Decide whether the version actually changes. A bump always changes it; an
-# explicit -Version only changes it when it differs from the current one.
-if ($useNoVersion) {
+if ($useNoManifest) {
+    # No manifest to read or write: the tag comes straight from -Version and no
+    # version-update step runs. $currentVersion is set to the same value so the
+    # shared tag/commit logic below can treat it uniformly.
+    $manifest = $null
+    $currentVersion = [version]$Version
+    $newVersion = $currentVersion
     $versionChanged = $false
-}
-elseif (-not $useBump) {
-    $versionChanged = ([version]$Version -ne $currentVersion)
-    if (-not $versionChanged) {
-        Write-Info "Note" "requested version matches current; version unchanged"
-    }
+    Write-Info "Manifest" "none (-NoManifest)"
+    Write-Info "Tag version" $Version
 }
 else {
-    $versionChanged = $true
-}
+    $manifest = Find-Manifest -Path $ManifestPath
+    $currentVersion = [version](Import-PowerShellDataFile -Path $manifest).ModuleVersion
 
-$newVersion = if ($versionChanged) {
-    if ($useBump) {
-        switch ($Bump) {
-            'major' { [version]::new($currentVersion.Major + 1, 0, 0) }
-            'minor' { [version]::new($currentVersion.Major, $currentVersion.Minor + 1, 0) }
-            'patch' {
-                $patchNum = [Math]::Max($currentVersion.Build, 0) + 1
-                [version]::new($currentVersion.Major, $currentVersion.Minor, $patchNum)
-            }
+    # Decide whether the version actually changes. A bump always changes it; an
+    # explicit -Version only changes it when it differs from the current one.
+    if ($useNoVersion) {
+        $versionChanged = $false
+    }
+    elseif (-not $useBump) {
+        $versionChanged = ([version]$Version -ne $currentVersion)
+        if (-not $versionChanged) {
+            Write-Info "Note" "requested version matches current; version unchanged"
         }
     }
     else {
-        [version]$Version
+        $versionChanged = $true
+    }
+
+    $newVersion = if ($versionChanged) {
+        if ($useBump) {
+            switch ($Bump) {
+                'major' { [version]::new($currentVersion.Major + 1, 0, 0) }
+                'minor' { [version]::new($currentVersion.Major, $currentVersion.Minor + 1, 0) }
+                'patch' {
+                    $patchNum = [Math]::Max($currentVersion.Build, 0) + 1
+                    [version]::new($currentVersion.Major, $currentVersion.Minor, $patchNum)
+                }
+            }
+        }
+        else {
+            [version]$Version
+        }
+    }
+    else {
+        $currentVersion
+    }
+
+    Write-Info "Manifest" $manifest
+    Write-Info "Current version" $currentVersion
+    if ($versionChanged) {
+        Write-Info "Target version" "$currentVersion -> $newVersion"
+    }
+    else {
+        $ResultMsg = 'version already set; manifest update skipped ' +
+        '(a build may still commit)'
+        Write-Info "Result" $ResultMsg
     }
 }
-else {
-    $currentVersion
-}
 
-Write-Info "Manifest" $manifest
-Write-Info "Current version" $currentVersion
-if ($versionChanged) {
-    Write-Info "Target version" "$currentVersion -> $newVersion"
-}
-else {
-    Write-Info "Result" "version already set; manifest update and release commit are skipped"
+# The tag that will be created below. Check it up front, before any merge or
+# commit, so a duplicate aborts while the repo is still untouched rather than
+# after it has been left on main with a release commit made. Runs in every mode.
+$targetTag = "v$($newVersion.ToString())"
+if (Invoke-NativeOk git rev-parse --verify --quiet "refs/tags/$targetTag") {
+    $DupTagMsg = "Tag '$targetTag' already exists; nothing to release. " +
+    'Delete it or choose another version.'
+    throw $DupTagMsg
 }
 
 # --- release steps ---------------------------------------------------------
@@ -391,8 +503,8 @@ Invoke-Step "Merge '$source' into 'main'?" {
 if ($versionChanged) {
     Write-Section "Step: update version"
     Invoke-Step "Set ModuleVersion to $newVersion in the manifest?" {
-        Write-Run "Update-ModuleManifest -Path `"$manifest`" -ModuleVersion $newVersion"
-        Update-ModuleManifest -Path $manifest -ModuleVersion $newVersion
+        Write-Run "Set-ManifestVersion -Path `"$manifest`" -NewVersion $newVersion"
+        Set-ManifestVersion -Path $manifest -NewVersion $newVersion
     }
 
     # Read the manifest back rather than trusting the in-memory value, so the
@@ -402,23 +514,52 @@ if ($versionChanged) {
         throw "Manifest reports version '$versionStr' after update; expected '$newVersion'."
     }
     Write-Info "New version" $versionStr
-
-    Write-Section "Step: commit release"
-    Invoke-Step "Stage the manifest and commit as 'Release v$versionStr'?" {
-        Write-Run "git add `"$manifest`""
-        git add "$manifest"
-        Write-Run "git commit -m `"Release v$versionStr`""
-        git commit -m "Release v$versionStr"
-    }
 }
 else {
     $versionStr = $currentVersion.ToString()
 }
 
+# Build after the version bump so root builds stamp the new version into the
+# regenerated artifacts. Runs even when the version is unchanged, since merged
+# code still needs rebuilding. Build.psd1 decides where the output lands.
+if ($buildScript) {
+    Write-Section "Step: build"
+    Invoke-Step "Build the module (Build.ps1)?" {
+        Write-Run "& `"$buildScript`""
+        & $buildScript
+    }
+}
+
+# Commit when the version changed or when the build left tracked files dirty
+# (a root build regenerates committed artifacts; an output build touches only
+# the gitignored Output\ folder, leaving nothing to commit). The working tree
+# was verified clean at startup, so any dirtiness here is script-generated.
+$treeDirty = $false
+try {
+    git diff-index --quiet HEAD --
+}
+catch {
+    $treeDirty = $true
+}
+
+if ($versionChanged -or $treeDirty) {
+    Write-Section "Step: commit release"
+    Invoke-Step "Stage all changes and commit as 'Release v$versionStr'?" {
+        Write-Run "git add -A"
+        git add -A
+        Write-Run "git commit -m `"Release v$versionStr`""
+        git commit -m "Release v$versionStr"
+    }
+}
+else {
+    Write-Section "Step: commit release"
+    Write-Host "  Nothing to commit; skipping." -ForegroundColor Green
+}
+
 Write-Section "Step: tag release"
-Invoke-Step "Create annotated tag 'v$versionStr'?" {
-    Write-Run "git tag -a `"v$versionStr`" -m `"Release $versionStr`""
-    git tag -a "v$versionStr" -m "Release $versionStr"
+Invoke-Step "Create annotated tag '$targetTag'?" {
+    Write-Run "git tag -a `"$targetTag`" -m `"Release $versionStr`""
+    git tag -a "$targetTag" -m "Release $versionStr"
 }
 
 Write-Section "Step: push main"
