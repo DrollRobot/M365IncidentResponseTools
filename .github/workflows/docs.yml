@@ -1,14 +1,16 @@
+# .github/workflows/docs.yml
+
 name: Deploy Documentation
+run-name: Docs on ${{ github.ref_name }} ${{ github.event_name }} by @${{ github.actor }}
 
 on:
   push:
     branches:
       - main
     paths:
-      - 'docs/**'
+      - 'Docs/**'
       - 'mkdocs.yml'
 
-  # Allow manual trigger from the Actions tab
   workflow_dispatch:
 
 permissions:
@@ -20,10 +22,10 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: '3.x'
 
