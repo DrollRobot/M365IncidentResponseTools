@@ -5,23 +5,64 @@ function Find-IRTDevice {
     or other Entra/Intune identifiers. Creates $IRT_DeviceObjects from combined Entra + Intune
     device records.
 
-    .EXAMPLE
-    Find-IRTDevice DESKTOP-ABC123
-    Find-IRTDevice -Search DESKTOP-ABC123,LAPTOP-XYZ789
-    Find-IRTDevice flast@domain.com
-    Find-IRTDevice -Search bf7573a5844f   # partial device id / Entra id / Intune id
-    Find-IRTDevice -Search SN1234567890   # serial number (Intune)
+    .DESCRIPTION
+    Searches the cached combined Entra + Intune device records for one or more search strings.
+    Each string is matched against DisplayName, DeviceId, OperatingSystem, OwnerUPN, the Entra
+    object id, the Entra registered-owner display names, and the Intune object id, device name,
+    serial number, email address, and IMEI.
 
-    .EXAMPLE
-    Find-IRTDevice -FromClipboard
-    Reads the clipboard and searches for each line as a separate query.
+    Matching devices are stored in $Global:IRT_DeviceObjects. Use -VarPrefix to change the
+    variable name (e.g. 'Admin' > $Global:IRT_AdminDeviceObjects). A search that returns more
+    than one device is reported but contributes nothing unless -AllMatches is used. Use -Script
+    to suppress global side effects and return the objects directly.
+
+    .PARAMETER Search
+    One or more search strings. Each string is independently searched across all supported
+    fields.
 
     .PARAMETER FromClipboard
     Read one search query per line from the clipboard instead of supplying -Search. Each
     non-empty line is treated as a separate search string. Mutually exclusive with -Search.
 
+    .PARAMETER VarPrefix
+    Optional prefix inserted after 'IRT_' in the global variable name
+    (e.g. 'Admin' > $Global:IRT_AdminDeviceObjects). Useful when working with multiple sets of
+    devices simultaneously.
+
+    .PARAMETER Script
+    Return objects directly and suppress console output and global variable assignment. Use when
+    calling from scripts or the playbook.
+
+    .PARAMETER AllMatches
+    Keep every device returned by a search instead of only searches that match exactly one
+    device. Results are deduplicated by Entra object id.
+
+    .EXAMPLE
+    Find-IRTDevice DESKTOP-ABC123
+    Finds devices matching 'DESKTOP-ABC123' and creates $IRT_DeviceObjects.
+
+    .EXAMPLE
+    Find-IRTDevice -Search DESKTOP-ABC123,LAPTOP-XYZ789
+    Searches for two devices, one query per string.
+
+    .EXAMPLE
+    Find-IRTDevice -Search SN1234567890
+    Searches by Intune serial number. Partial device, Entra, and Intune ids also match.
+
+    .EXAMPLE
+    $Devices = Find-IRTDevice -Search 'DESKTOP-ABC123' -AllMatches -Script
+    Returns every matching device object without setting globals or writing to the console.
+
+    .EXAMPLE
+    Find-IRTDevice -FromClipboard
+    Reads the clipboard and searches for each line as a separate query.
+
+    .OUTPUTS
+    System.Management.Automation.PSObject[]
+
     .NOTES
-    Version: 1.3.0
+    Version: 1.3.1
+    1.3.1 - Added missing help sections so PlatyPS can generate the command page.
     1.3.0 - Added -FromClipboard to read one search query per clipboard line.
     1.2.0 - Added -AllMatches to collect all matching devices and deduplicate results.
     #>
