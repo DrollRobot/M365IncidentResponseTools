@@ -9,14 +9,20 @@
     module using ModuleBuilder. The output is always cleaned before building so a stale
     artifact can never survive a build.
 
-    By default it produces a versioned build under .\output (output\<ModuleName>\<version>\),
-    which is the layout Publish-Module expects for the PowerShell Gallery.
+    Where the build lands is declared in Source\Build.psd1, not passed as a parameter, so
+    a bare .\build.ps1 always does the right thing for the repo:
 
-    With -BuildToRoot, it instead emits a flat, unversioned manifest and .psm1 to the repo
-    root and commits them, so a fresh clone placed on $env:PSModulePath is immediately
-    importable by name with no build step. In that mode the root artifacts are generated
-    files that must never be hand-edited - only .\source is edited, and only this script
-    writes the root.
+      BuildToRoot = $false (default) - a versioned build under .\output
+        (output\<ModuleName>\<version>\), the layout Publish-Module expects for the
+        PowerShell Gallery.
+      BuildToRoot = $true - a flat manifest and .psm1 emitted to the repo root, so a
+        fresh clone on $env:PSModulePath is immediately importable by name with no
+        build step.
+
+    BuildToRoot is a Build.ps1-only key: ModuleBuilder reads Build.psd1 for Build-Module
+    parameter defaults and ignores keys that match no parameter. Built artifacts are
+    generated files that must never be hand-edited - only .\source is edited, and only
+    this script writes the root.
 
     The source manifest under .\source is always the metadata source of truth. The module
     name is derived from it, so the script is portable across modules without modification.
@@ -33,50 +39,50 @@
     after the ModuleBuilder step. Use it for project-specific tasks that depend on
     the finished build output (e.g. copying extra files, updating docs).
 
+    If Build.psd1 declares Script Generators, any Build\Generators\*.ps1 files are
+    dot-sourced before the ModuleBuilder step. Generator functions must be declared
+    with the global: prefix so Invoke-ScriptGenerator can discover them.
+
 .PARAMETER SourcePath
     Path to the source directory containing the source manifest, Public/, Private/, etc.
     Defaults to the 'source' folder next to this script.
 
 .PARAMETER OutputDirectory
-    Path for the versioned build output. Defaults to the 'output' folder next to this
-    script. Ignored when -BuildToRoot is specified.
+    Optional override for the build output location. When omitted, the
+    OutputDirectory value in Source\Build.psd1 is used (resolved relative to
+    Source\), falling back to the 'Output' folder next to this script.
+    Ignored when Build.psd1 sets BuildToRoot to $true.
 
 .PARAMETER Version
     Optional version to stamp into the built manifest, overriding the source manifest's
     ModuleVersion. Intended for CI to pass a computed version.
 
-.PARAMETER BuildToRoot
-    Emit a flat, unversioned build to the repo root instead of a versioned build to
-    .\output. Use this for repos distributed by git clone rather than the Gallery.
-
 .EXAMPLE
     .\build.ps1
-    Cleans and produces a versioned build in .\output using the source manifest version.
+    Cleans and builds using the source manifest version, to wherever Build.psd1's
+    BuildToRoot key points: .\output by default, or the repo root when it is $true.
 
 .EXAMPLE
     .\build.ps1 -Version 1.2.0
-    Cleans and builds into .\output stamped with version 1.2.0, ready for Publish-Module.
-    The form typically called from CI.
-
-.EXAMPLE
-    .\build.ps1 -BuildToRoot
-    Cleans and compiles the module to the repo root so a clone on $env:PSModulePath works
-    immediately.
+    Cleans and builds stamped with version 1.2.0, ready for Publish-Module. The form
+    typically called from CI.
 
 .NOTES
     Build artifacts are staged in .\.staging (gitignored) and removed after a successful
-    build. If the module takes PSFramework (or any module) as a RequiredModules dependency,
-    consumers still need to Install-Module it before importing.
+    build. If the module takes any module as a RequiredModules dependency, consumers still
+    need to Install-Module it before importing.
 #>
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '')]
 [CmdletBinding()]
 param(
     [string] $SourcePath = (Join-Path -Path $PSScriptRoot -ChildPath 'Source'),
-    [string] $OutputDirectory = (Join-Path -Path $PSScriptRoot -ChildPath 'Output'),
-    [string] $Version,
-
-    [boolean] $BuildToRoot = $true # FIXME switch back to switch when deploying to PSGallery
+    [string] $OutputDirectory,
+    [string] $Version
 )
+
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+    'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
+$ScriptVersion = '2.0.0'
 
 $ErrorActionPreference = 'Stop'
 $RepoRoot = $PSScriptRoot
@@ -89,17 +95,111 @@ $srcManifest = Get-ChildItem -Path $SourcePath -Filter '*.psd1' |
 if (-not $srcManifest) { throw "No source manifest found under $SourcePath" }
 $ModuleName = $srcManifest.BaseName
 
-function Resolve-Dependency {
-    param([string] $Name, [version] $MinimumVersion)
-    $have = Get-Module -ListAvailable -Name $Name |
-        Sort-Object Version -Descending | Select-Object -First 1
-    if (-not $have -or ($MinimumVersion -and $have.Version -lt $MinimumVersion)) {
-        $params = @{ Name = $Name; Scope = 'CurrentUser'; Force = $true; AllowClobber = $true }
-        if ($MinimumVersion) { $params.MinimumVersion = $MinimumVersion }
-        Write-Host "Installing $Name..." -ForegroundColor Cyan
-        Install-Module @params
+# Build.psd1 supplies Build-Module's defaults. Build.ps1 reads it too so the
+# clean step and CopyPaths handling agree with what Build-Module will do.
+$buildPsd1Path = Join-Path -Path $SourcePath -ChildPath 'Build.psd1'
+$buildConfig = @{}
+if (Test-Path $buildPsd1Path) {
+    $buildConfig = Import-PowerShellDataFile -Path $buildPsd1Path
+}
+
+# BuildToRoot is a Build.ps1-only key in Build.psd1: ModuleBuilder reads that
+# file for Build-Module parameter defaults and ignores keys matching none.
+$BuildToRoot = $false
+if ($buildConfig.ContainsKey('BuildToRoot')) {
+    if ($buildConfig.BuildToRoot -isnot [bool]) {
+        $BadValue = $buildConfig.BuildToRoot
+        throw "Build.psd1 'BuildToRoot' must be `$true or `$false, not '$BadValue'."
     }
-    Import-Module $Name -Force
+    $BuildToRoot = $buildConfig.BuildToRoot
+}
+
+# Resolve the output directory: explicit -OutputDirectory wins, then
+# Build.psd1's OutputDirectory (relative to Source\), then .\Output.
+if (-not $OutputDirectory) {
+    $OutputDirectory = if ($buildConfig.OutputDirectory) {
+        $OutDirJoin = Join-Path -Path $SourcePath -ChildPath $buildConfig.OutputDirectory
+        [System.IO.Path]::GetFullPath($OutDirJoin)
+    } else {
+        Join-Path -Path $PSScriptRoot -ChildPath 'Output'
+    }
+}
+
+function Resolve-Dependency {
+    <#
+    .SYNOPSIS
+        Imports a build-time module dependency, or reports it as missing.
+
+    .DESCRIPTION
+        Finds the highest installed version of a module within an optional
+        [MinimumVersion, MaximumVersion] range and imports that exact version by
+        path. This script never installs modules: a missing critical dependency
+        throws and halts the build, while a missing non-critical one only warns
+        and returns so the build can continue.
+
+    .PARAMETER Name
+        Name of the module to resolve.
+
+    .PARAMETER MinimumVersion
+        Lowest acceptable module version. Omit for no lower bound.
+
+    .PARAMETER MaximumVersion
+        Highest acceptable module version. Omit for no upper bound.
+
+    .PARAMETER Critical
+        Treat absence as a fatal error and throw. Without it, a missing module
+        only produces a warning.
+
+    .EXAMPLE
+        Resolve-Dependency -Name ModuleBuilder -Critical
+
+        Imports ModuleBuilder, or throws if it is not installed.
+
+    .OUTPUTS
+        None.
+    #>
+    param(
+        [Parameter(Mandatory)]
+        [string] $Name,
+
+        [version] $MinimumVersion,
+
+        [version] $MaximumVersion,
+
+        [switch] $Critical
+    )
+
+    $have = Get-Module -ListAvailable -Name $Name |
+        Where-Object {
+            (-not $MinimumVersion -or $_.Version -ge $MinimumVersion) -and
+            (-not $MaximumVersion -or $_.Version -le $MaximumVersion)
+        } |
+        Sort-Object Version -Descending | Select-Object -First 1
+
+    if ($have) {
+        Import-Module -Name $have.Path -Force
+        return
+    }
+
+    # Install-PSResource takes a single NuGet range for -Version, not
+    # -Minimum/-MaximumVersion. Both bounds are treated as inclusive: [min,max].
+    $hint = "Install-PSResource -Name $Name"
+    if ($MinimumVersion -and $MaximumVersion) {
+        $hint += " -Version '[$MinimumVersion,$MaximumVersion]'"
+    }
+    elseif ($MinimumVersion) {
+        $hint += " -Version '[$MinimumVersion,)'"
+    }
+    elseif ($MaximumVersion) {
+        $hint += " -Version '(,$MaximumVersion]'"
+    }
+    $hint += ' -Scope CurrentUser'
+    $message = "Required module '$Name' is not installed. Install it with: $hint"
+
+    if ($Critical) {
+        throw $message
+    }
+    Write-Warning $message
 }
 
 # --- Clean (always runs first) -------------------------------------------------
@@ -114,12 +214,9 @@ if ($BuildToRoot) {
     )
 
     # Add CopyPaths folders declared in Build.psd1
-    $buildPsd1Path = Join-Path -Path $SourcePath -ChildPath 'Build.psd1'
-    if (Test-Path $buildPsd1Path) {
-        $buildConfig = Import-PowerShellDataFile -Path $buildPsd1Path
-        foreach ($cp in $buildConfig.CopyPaths) {
-            $rootArtifacts += Join-Path -Path $RepoRoot -ChildPath (Split-Path -Path $cp -Leaf)
-        }
+    $copyPaths = if ($buildConfig.ContainsKey('CopyPaths')) { $buildConfig.CopyPaths } else { @() }
+    foreach ($cp in $copyPaths) {
+        $rootArtifacts += Join-Path -Path $RepoRoot -ChildPath (Split-Path -Path $cp -Leaf)
     }
 
     # Add any culture-named help folders present in the source tree (e.g. en-US)
@@ -144,7 +241,38 @@ if (Test-Path $preBuildScript) {
 
 # --- Build ---------------------------------------------------------------------
 Write-Host '==> Build' -ForegroundColor Green
-Resolve-Dependency -Name ModuleBuilder
+Resolve-Dependency -Name ModuleBuilder -Critical
+
+# Project-local Script Generators (Build\Generators\*.ps1) define their
+# functions with the global: prefix so ModuleBuilder's Invoke-ScriptGenerator
+# (which resolves generator commands from its own module scope, chained only
+# to the global scope) can discover them. Dot-source them before Build-Module.
+if ($buildConfig.ContainsKey('Generators') -and $buildConfig.Generators) {
+    $generatorDir = Join-Path -Path $RepoRoot -ChildPath 'Build\Generators'
+    if (Test-Path $generatorDir) {
+        foreach ($generatorFile in Get-ChildItem -Path $generatorDir -Filter '*.ps1') {
+            Write-Host "   Loading generator $($generatorFile.Name)" -ForegroundColor Cyan
+            . $generatorFile.FullName
+        }
+    }
+}
+
+# ConvertTo-Script (the standalone-script Generator) calls Update-ScriptFileInfo,
+# which re-parses the generated .ps1 with Test-ScriptFileInfo. PowerShellGet 1.x
+# splits the <#PSScriptInfo#> block on CRLF only, but ModuleBuilder writes that block
+# with LF line endings -- so 1.x finds no metadata and the build dies with "missing
+# required metadata properties". PowerShellGet 2.x splits on CR-or-LF and parses it.
+# Resolve a 2.x so the generator's unqualified Update-ScriptFileInfo binds to it.
+# (3.x dropped Update-ScriptFileInfo entirely.) Non-critical: a missing 2.x warns,
+# then the generator surfaces its own failure.
+if ($buildConfig.ContainsKey('Generators') -and $buildConfig.Generators) {
+    $psGetParams = @{
+        Name           = 'PowerShellGet'
+        MinimumVersion = '2.0.0'
+        MaximumVersion = '2.99.99'
+    }
+    Resolve-Dependency @psGetParams
+}
 
 if ($BuildToRoot) {
     # Flat build into staging, then mirror up to the repo root.
@@ -165,12 +293,12 @@ if ($BuildToRoot) {
     Write-Host $Msg -ForegroundColor Cyan
 }
 else {
-    # Versioned build for the Gallery: output\<ModuleName>\<version>\
+    # Default build. Versioning behavior comes from Build.psd1
+    # (VersionedOutputDirectory); only the resolved output path is passed.
     $buildParams = @{
-        SourcePath               = $srcManifest.FullName
-        OutputDirectory          = $OutputDirectory
-        VersionedOutputDirectory = $true
-        Passthru                 = $true
+        SourcePath      = $srcManifest.FullName
+        OutputDirectory = $OutputDirectory
+        Passthru        = $true
     }
     if ($Version) { $buildParams.Version = $Version }
     $built = Build-Module @buildParams
