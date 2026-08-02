@@ -1,0 +1,48 @@
+# .github/workflows/ci.yml
+
+name: CI
+run-name: CI on ${{ github.ref_name }} ${{ github.event_name }} by @${{ github.actor }}
+
+on:
+  push:
+    branches: [develop]
+  pull_request:
+    branches: [develop]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Scan for secrets
+        shell: pwsh
+        run: |
+          pip install detect-secrets==1.5.0
+          detect-secrets-hook --baseline .secrets.baseline @(git ls-files)
+
+      - name: Install PowerShell modules
+        shell: pwsh
+        run: Install-Module Pester, PSScriptAnalyzer, ModuleBuilder -Force -Scope CurrentUser -SkipPublisherCheck
+
+      - name: Lint checks
+        shell: pwsh
+        run: >
+          .\Tests.ps1 ModuleSyntax,Lint -Quiet
+
+      - name: PSScriptAnalyzer
+        shell: pwsh
+        run: .\Tests.ps1 PSSA -Quiet
+
+      - name: NotLive Pester tests
+        shell: pwsh
+        run: .\Tests.ps1 NotLive

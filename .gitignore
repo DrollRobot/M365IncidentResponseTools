@@ -9,6 +9,12 @@
 *.env*
 !*.env.ps1.example
 
+# local-only overrides and personal test files
+*.local*
+
+# versioned ModuleBuilder output
+/Output/
+
 # mkdocs documentation
 /site
 
