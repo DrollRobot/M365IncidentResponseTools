@@ -12,11 +12,11 @@
 
     Responsibilities:
       * Verify $Global:IRT_Config was populated on module load.
-      * For Online runs: point auth at an isolated test token cache, force the
-        cache on, choose silent vs. interactive auth, and run the online Pester
+      * For Live runs: point auth at an isolated test token cache, force the
+        cache on, choose silent vs. interactive auth, and run the live Pester
         suite in two passes (Connect-IRT first, then the rest only if the
-        connection succeeded). Sets $TestContext.OnlineHandled so the
-        orchestrator skips its generic Online run. PostTests.ps1 restores the
+        connection succeeded). Sets $TestContext.LiveHandled so the
+        orchestrator skips its generic Live run. PostTests.ps1 restores the
         cache config and auth env var.
 
     A throw here aborts the run; Tests.ps1 still runs PostTests.ps1 for cleanup.
@@ -46,14 +46,17 @@ $Global:Dev_PSSAConfig = @{
     # Write-IRT is the module's user-output wrapper; allow positional parameters.
     CommandAllowList    = @('Write-IRT')
     # Format-Tree's internal helpers use positional parameters intentionally.
+    # RequiredModules.psd1 is a dependency list, not a module manifest, but PSSA
+    # applies manifest rules to every .psd1 it sees.
     PerFileSuppressions = @{
-        'Source\Private\Lib\Format-Tree\Format-Tree.ps1' = @('PSAvoidUsingPositionalParameters')
+        'Source\Private\Lib\Format-Tree\Format-Tree.ps1'  = @('PSAvoidUsingPositionalParameters')
+        'Source\ScriptsToProcess\RequiredModules.psd1'    = @('PSMissingModuleManifestField')
     }
     PerPathSuppressions = @{}
 }
 
-# --- Online auth/cache setup + run -------------------------------------------
-if ('Online' -in $TestContext.Test) {
+# --- Live auth/cache setup + run ---------------------------------------------
+if ('Live' -in $TestContext.Test) {
     $PesterTestsFolder = $TestContext.PesterTestsFolder
 
     # Derive the test cache path alongside the primary cache.
@@ -70,7 +73,7 @@ if ('Online' -in $TestContext.Test) {
 
     if (-not $TestContext.OriginalCacheEnable) {
         Write-Host ''
-        Write-Host '  WARNING: Online tests override the token cache config.' -ForegroundColor Red
+        Write-Host '  WARNING: Live tests override the token cache config.' -ForegroundColor Red
         Write-Host "           Test cache : $TestCachePath" -ForegroundColor Red
         Write-Host '         EnableTokenCache has been forced on for this run.' -ForegroundColor Red
     }
@@ -88,33 +91,52 @@ if ('Online' -in $TestContext.Test) {
         $env:IRT_TEST_SILENT_AUTH = '1'
     }
 
-    # This hook owns the Online run; tell the orchestrator to skip its generic one.
-    $TestContext.OnlineHandled = $true
+    # This hook owns the Live run; tell the orchestrator to skip its generic one.
+    $TestContext.LiveHandled = $true
+
+    # Both passes filter on 'live' and exclude 'destructive', matching the
+    # orchestrator's own Live run: destructive tests are opted into separately
+    # through the Destructive category and its DISPOSABLE_ENVIRONMENT /
+    # Confirm-RemoteDisposable.ps1 gates, never as a side effect of a Live run.
+    $LiveFilter = @{
+        TagFilter        = 'live'
+        ExcludeTagFilter = 'destructive'
+        PassThru         = $true
+    }
 
     # Pass 1: Connect-IRT.Tests.ps1 runs first. Its BeforeAll genuinely tests
     # Connect-IRT by clearing $Global:IRT_Session and calling it from scratch.
     # On success the session is populated and available to all subsequent files.
     $ConnectTestFile = Join-Path -Path $PesterTestsFolder -ChildPath 'Connect-IRT.Tests.ps1'
-    Write-Host "`n=== Invoke-Pester (Online: Connect-IRT) ===" -ForegroundColor Cyan
-    $ConnectResult = Invoke-Pester -Path $ConnectTestFile -TagFilter 'Online' -PassThru
+    Write-Host "`n=== Invoke-Pester (Live: Connect-IRT) ===" -ForegroundColor Cyan
+    $ConnectResult = Invoke-Pester -Path $ConnectTestFile @LiveFilter
 
-    # Pass 2: remaining online tests, only if the connection is now active.
+    # Failures are added to the orchestrator's counter (this hook is dot-sourced,
+    # so the variable is the same one) -- otherwise a hook-owned Live run would
+    # always exit 0 and CI could not gate on it.
+    $PesterFailedCount += $ConnectResult.FailedCount
+
+    # Pass 2: remaining live tests, only if the connection is now active.
     # Skipping when the connection tests failed avoids a cascade of misleading
     # failures in every downstream test file that relies on the session.
     if ($ConnectResult.FailedCount -gt 0 -or -not $Global:IRT_Session) {
         Write-Host ''
-        $Msg = '  Connect-IRT online tests failed or no session was established.'
+        $Msg = '  Connect-IRT live tests failed or no session was established.'
         Write-Host $Msg -ForegroundColor Red
-        Write-Host '  Skipping remaining online tests.' -ForegroundColor Red
+        Write-Host '  Skipping remaining live tests.' -ForegroundColor Red
     }
     else {
+        # *.Lint.Tests.ps1 files are excluded outright: they carry no 'live' tag,
+        # but discovering them here would scan the whole repo for nothing.
         $RemainingTests = Get-ChildItem -Path $PesterTestsFolder -Filter '*.Tests.ps1' |
             Where-Object { $_.Name -ne 'Connect-IRT.Tests.ps1' } |
+            Where-Object { $_.Name -notlike '*.Lint.Tests.ps1' } |
             Select-Object -ExpandProperty FullName
 
         if ($RemainingTests) {
-            Write-Host "`n=== Invoke-Pester (Online: remaining) ===" -ForegroundColor Cyan
-            Invoke-Pester -Path $RemainingTests -TagFilter 'Online'
+            Write-Host "`n=== Invoke-Pester (Live: remaining) ===" -ForegroundColor Cyan
+            $RemainingResult = Invoke-Pester -Path $RemainingTests @LiveFilter
+            $PesterFailedCount += $RemainingResult.FailedCount
         }
     }
 }

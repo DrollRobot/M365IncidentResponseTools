@@ -4,7 +4,7 @@ BeforeAll {
     . (Join-Path -Path $PSScriptRoot -ChildPath '../../Source/Private/Graph/Resolve-DateRange.ps1')
 }
 
-Describe 'Resolve-DateRange' {
+Describe 'Resolve-DateRange' -Tag 'unit' {
 
     Context 'Relative range (-Days)' {
         It 'returns RangeType of Relative' {

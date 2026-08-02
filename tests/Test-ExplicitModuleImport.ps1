@@ -34,18 +34,42 @@ param(
     [switch] $Quiet
 )
 
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+    'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
+$ScriptVersion = '1.0.1'
+
 # import helper functions from the Scripts folder.
-. (Join-Path -Path $PSScriptRoot -ChildPath '..\Scripts\Find-ModuleRoot.ps1')
 . (Join-Path -Path $PSScriptRoot -ChildPath '..\Scripts\Find-ScriptCommand.ps1')
 . (Join-Path -Path $PSScriptRoot -ChildPath '..\Scripts\Resolve-CommandModule.ps1')
 
+# Resolve the module name from the repo's Source\ manifest (excluding ModuleBuilder's
+# Build.psd1), for standalone runs where $Global:Dev_ModuleName has not been set by the
+# Tests.ps1 orchestrator. The repo root is located via git, so this stays correct in a
+# worktree (where the folder name is the branch, not the module name).
+function Get-SourceModuleName {
+    param([Parameter(Mandatory)][string]$Path)
+    $global:LASTEXITCODE = 0
+    $RepoRoot = git -C $Path rev-parse --show-toplevel 2>$null
+    if ($LASTEXITCODE -ne 0 -or -not $RepoRoot) { return $null }
+    $SourceDir = Join-Path -Path $RepoRoot -ChildPath 'Source'
+    if (-not (Test-Path -LiteralPath $SourceDir)) { return $null }
+    $Manifest = Get-ChildItem -LiteralPath $SourceDir -Filter '*.psd1' -File |
+        Where-Object Name -ne 'Build.psd1' |
+        Select-Object -First 1
+    if ($Manifest) { return $Manifest.BaseName }
+    return $null
+}
+
 # This check enforces the explicit-import convention from AGENTS.md, which
 # applies only to in-domain code under Source\. Dev tooling, build scripts,
-# and tests are non-domain and exempt.
-$ExcludedFolders = @('Scripts', 'Tests', 'Build', 'Docs', '.local')
+# tests, and module-init/data folders (ScriptsToProcess, Data) are non-domain
+# and exempt.
+$ExcludedFolders = @(
+    'Scripts', 'Tests', 'Build', 'Docs', 'Source\ScriptsToProcess', 'Source\Data', '.local'
+)
 $ExcludedFiles = @('Build.ps1', 'Tests.ps1', 'Docs.ps1')
 
-if ($Global:Dev_FormattingExclusions) {
+if (Get-Variable -Name Dev_FormattingExclusions -Scope Global -ErrorAction SilentlyContinue) {
     $ExcludedFiles += $Global:Dev_FormattingExclusions.ExcludeFiles
     $ExcludedFolders += $Global:Dev_FormattingExclusions.ExcludeFolders
 }
@@ -56,63 +80,29 @@ $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
 #   Prefer erroring over importing because script doesn't know if dev wants
 #   to test source or build module.
 # The orchestrator resolves the module name from the manifest (worktree-safe)
-# and shares it via $Global:Dev_ModuleName; prefer that. Fall back to folder-name
-# detection for standalone runs (which assume the repo folder matches the module).
-$CurrentModuleName = if ($Global:Dev_ModuleName) {
+# and shares it via $Global:Dev_ModuleName; prefer that. Fall back to resolving
+# the repo root via git and reading its Source\ manifest for standalone runs.
+$ModuleNameSet = Get-Variable -Name Dev_ModuleName -Scope Global -ErrorAction SilentlyContinue
+$CurrentModuleName = if ($ModuleNameSet) {
     $Global:Dev_ModuleName
 }
 else {
-    (Find-ModuleRoot -Path $PSScriptRoot).Name
+    Get-SourceModuleName -Path $PSScriptRoot
 }
 if (-not $CurrentModuleName) {
     $ErrMsg = 'Could not determine the module name. Run via Tests.ps1, ' +
     'or ensure the repo folder matches the module manifest.'
-    Write-Error $ErrMsg
-    exit 1
+    throw $ErrMsg
 }
 if (-not (Get-Module -Name $CurrentModuleName)) {
     $ErrMsg = "Module '$CurrentModuleName' is not imported. " +
     "Import it before running this test."
-    Write-Error $ErrMsg
-    exit 1
+    throw $ErrMsg
 }
 
 # Static map for commands that Get-Command cannot discover on this machine
-# (e.g. modules not installed here, like ActiveDirectory RSAT tools).
 # Add entries as new undiscoverable dependencies are introduced.
 $CommandModuleMap = @{
-    'Disable-ADAccount'        = 'ActiveDirectory'
-    'Enable-ADAccount'         = 'ActiveDirectory'
-    'Get-ADComputer'           = 'ActiveDirectory'
-    'Get-ADDomain'             = 'ActiveDirectory'
-    'Get-ADDomainController'   = 'ActiveDirectory'
-    'Get-ADGroup'              = 'ActiveDirectory'
-    'Get-ADGroupMember'        = 'ActiveDirectory'
-    'Get-ADOrganizationalUnit' = 'ActiveDirectory'
-    'Get-ADUser'               = 'ActiveDirectory'
-    'Set-ADAccountPassword'    = 'ActiveDirectory'
-    'Set-ADUser'               = 'ActiveDirectory'
-    'Start-ADSyncSyncCycle'    = 'ADSync'
-    # ExchangeOnlineManagement REST cmdlets only exist in the session after
-    # Connect-ExchangeOnline / Connect-IPPSSession, so offline they never
-    # resolve via Get-Command.
-    'Add-MailboxPermission'    = 'ExchangeOnlineManagement'
-    'Add-RecipientPermission'  = 'ExchangeOnlineManagement'
-    'Get-AcceptedDomain'       = 'ExchangeOnlineManagement'
-    'Get-ComplianceSearch'     = 'ExchangeOnlineManagement'
-    'Get-ComplianceSearchAction' = 'ExchangeOnlineManagement'
-    'Get-InboxRule'            = 'ExchangeOnlineManagement'
-    'Get-Mailbox'              = 'ExchangeOnlineManagement'
-    'Get-MailboxPermission'    = 'ExchangeOnlineManagement'
-    'Get-MessageTrace'         = 'ExchangeOnlineManagement'
-    'Get-MessageTraceV2'       = 'ExchangeOnlineManagement'
-    'Get-OrganizationConfig'   = 'ExchangeOnlineManagement'
-    'New-ComplianceSearch'     = 'ExchangeOnlineManagement'
-    'New-ComplianceSearchAction' = 'ExchangeOnlineManagement'
-    'Remove-ComplianceSearch'  = 'ExchangeOnlineManagement'
-    'Remove-MailboxPermission' = 'ExchangeOnlineManagement'
-    'Search-UnifiedAuditLog'   = 'ExchangeOnlineManagement'
-    'Start-ComplianceSearch'   = 'ExchangeOnlineManagement'
 }
 
 $GetChildParams = @{
@@ -128,7 +118,7 @@ $files = Get-ChildItem @GetChildParams |
     Where-Object {
         $Rel = [System.IO.Path]::GetRelativePath($Path, $_.FullName)
         (-not ($ExcludedFiles -contains $Rel)) -and
-        (-not ($ExcludedFolders | Where-Object { $Rel -like "$_\*" -or $Rel -like "*\$_\*" }))
+        (-not ($ExcludedFolders | Where-Object { $Rel -like "$_\*" }))
     }
 
 $hitCount = 0
@@ -219,3 +209,8 @@ $Elapsed = "$([math]::Round($Stopwatch.Elapsed.TotalSeconds, 2))s"
 $SummaryColor = if ($hitCount -gt 0) { 'Red' } else { 'Green' }
 $Msg = "$hitCount missing module reference(s) -- $totalFiles file(s) checked. ($Elapsed)"
 Write-Host $Msg -ForegroundColor $SummaryColor
+
+# Throw (not exit) so pre-commit/CI still see a nonzero process exit via an
+# uncaught error, without risking closing an interactive host if this script
+# is ever dot-sourced or run directly at a prompt instead of through Tests.ps1.
+if ($hitCount -gt 0) { throw $Msg }

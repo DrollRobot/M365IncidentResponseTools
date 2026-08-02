@@ -19,7 +19,7 @@ BeforeAll {
     . (Join-Path -Path $Root -ChildPath 'Source/Private/Email/Read-EmailSearchCriteria.ps1')
 }
 
-Describe 'Read-EmailSearchCriteria' {
+Describe 'Read-EmailSearchCriteria' -Tag 'unit' {
 
     BeforeEach {
         $script:Index = 0

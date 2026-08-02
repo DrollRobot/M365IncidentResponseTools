@@ -43,7 +43,7 @@
         from the parent still works - scoped connections in practice.
 #>
 
-Describe 'Connect-IRTRunspaceExchange in a live runspace' -Tag 'Online' {
+Describe 'Connect-IRTRunspaceExchange in a live runspace' -Tag 'live', 'integration' {
 
     BeforeAll {
         if (-not ($Global:IRT_Session -and $Global:IRT_Session.Exchange)) {

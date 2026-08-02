@@ -14,7 +14,7 @@
 
 InModuleScope M365IncidentResponseTools {
 
-    Describe 'Get-IRTGraphDefaultScope' {
+    Describe 'Get-IRTGraphDefaultScope' -Tag 'unit' {
 
         BeforeAll {
             $script:Result = Get-IRTGraphDefaultScope

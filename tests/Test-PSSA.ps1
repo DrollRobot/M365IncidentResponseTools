@@ -56,6 +56,10 @@ param(
     [switch] $Quiet
 )
 
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+    'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
+$ScriptVersion = '1.0.3'
+
 # All analyzer configuration lives here.
 # PSScriptAnalyzer reads: ExcludeRules, Rules (and any other native keys).
 $AnalyzerSettings = @{
@@ -173,7 +177,7 @@ $ExcludedFiles = @()
 $ExcludedFolders = @('.local')
 
 # Merge exclusions from the test orchestrator when called via Tests.ps1.
-if ($Global:Dev_FormattingExclusions) {
+if (Get-Variable -Name Dev_FormattingExclusions -Scope Global -ErrorAction SilentlyContinue) {
     $ExcludedFiles += $Global:Dev_FormattingExclusions.ExcludeFiles
     $ExcludedFolders += $Global:Dev_FormattingExclusions.ExcludeFolders
 }
@@ -193,7 +197,7 @@ if ($AutoFormat) {
         Where-Object {
             $Rel = [System.IO.Path]::GetRelativePath($RepoRoot, $_.FullName)
             (-not ($ExcludedFiles -contains $Rel)) -and
-            (-not ($ExcludedFolders | Where-Object { $Rel -like "$_\*" -or $Rel -like "*\$_\*" }))
+            (-not ($ExcludedFolders | Where-Object { $Rel -like "$_\*" }))
         }
 
     Write-Host 'Applying auto-fixes and formatting...' -ForegroundColor Cyan
@@ -268,7 +272,7 @@ try {
     $Results = $Results | Where-Object {
         $Rel = [System.IO.Path]::GetRelativePath($Path, $_.ScriptPath)
         (-not ($ExcludedFiles -contains $Rel)) -and
-        (-not ($ExcludedFolders | Where-Object { $Rel -like "$_\*" -or $Rel -like "*\$_\*" }))
+        (-not ($ExcludedFolders | Where-Object { $Rel -like "$_\*" }))
     }
     # Apply per-file and per-path rule suppressions.
     if ($PerFileSuppressions.Count -gt 0 -or $PerPathSuppressions.Count -gt 0) {
@@ -333,3 +337,10 @@ if ($IssueCount -gt 0 -and -not $Quiet) {
 $SummaryColor = if ($IssueCount -gt 0) { 'Red' } else { 'Green' }
 $Msg = "$IssueCount issue(s) -- $FileCount file(s) checked. (${ElapsedSec}s)"
 Write-Host $Msg -ForegroundColor $SummaryColor
+
+# Throw (not exit) so pre-commit/CI still see a nonzero process exit via an
+# uncaught error, without risking closing an interactive host if this script
+# is ever dot-sourced or run directly at a prompt instead of through Tests.ps1.
+# The early returns above (VS Code host, PSSA not installed, analyzer error)
+# are environment skips, not findings, so they never throw.
+if ($IssueCount -gt 0) { throw $Msg }

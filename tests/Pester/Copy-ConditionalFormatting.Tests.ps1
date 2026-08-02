@@ -103,7 +103,7 @@ param()
 
 InModuleScope M365IncidentResponseTools {
 
-    Describe 'Copy-ConditionalFormatting' {
+    Describe 'Copy-ConditionalFormatting' -Tag 'integration' {
 
         BeforeAll {
             # -----------------------------------------------------------------------

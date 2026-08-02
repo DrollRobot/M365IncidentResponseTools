@@ -5,7 +5,7 @@ BeforeAll {
     . (Join-Path -Path $PSScriptRoot -ChildPath $QueryPath)
 }
 
-Describe 'Build-EmailSearchQuery' {
+Describe 'Build-EmailSearchQuery' -Tag 'unit' {
 
     Context 'kind:email scoping' {
         It 'always begins with (kind:email)' {

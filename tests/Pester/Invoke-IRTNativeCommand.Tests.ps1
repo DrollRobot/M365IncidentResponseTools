@@ -31,7 +31,7 @@
 
 InModuleScope M365IncidentResponseTools {
 
-    Describe 'Invoke-IRTNativeCommand' {
+    Describe 'Invoke-IRTNativeCommand' -Tag 'integration' {
 
         BeforeAll {
             # Full path to the pwsh that is running these tests -- always present.

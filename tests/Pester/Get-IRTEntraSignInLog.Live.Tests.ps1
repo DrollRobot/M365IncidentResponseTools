@@ -2,7 +2,7 @@
 
 <#
 .SYNOPSIS
-    Online tests for Get-IRTEntraSignInLog.
+    Live tests for Get-IRTEntraSignInLog.
 
 .DESCRIPTION
     These tests require an active Microsoft Graph session established by
@@ -158,7 +158,7 @@
 
 InModuleScope M365IncidentResponseTools {
 
-    Describe 'Get-IRTEntraSignInLog (live)' -Tag 'Online' {
+    Describe 'Get-IRTEntraSignInLog (live)' -Tag 'live', 'integration' {
 
         BeforeAll {
             if (-not ($Global:IRT_Session -and $Global:IRT_Session.Graph)) {

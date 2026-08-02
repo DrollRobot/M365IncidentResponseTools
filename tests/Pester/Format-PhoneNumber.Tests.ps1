@@ -5,7 +5,7 @@ BeforeAll {
     . (Join-Path -Path $PSScriptRoot -ChildPath $RelPath)
 }
 
-Describe 'Format-PhoneNumber' {
+Describe 'Format-PhoneNumber' -Tag 'unit' {
 
     Context 'US/Canada numbers (+1)' {
         It 'formats +1 to 123-456-7890' {

@@ -33,7 +33,7 @@
         the parent's ConnectionId must still be Connected afterwards.
 #>
 
-Describe 'Start-IRTPlaybook end-to-end (live)' -Tag 'Online' {
+Describe 'Start-IRTPlaybook end-to-end (live)' -Tag 'live', 'e2e' {
 
     BeforeAll {
         if (-not ($Global:IRT_Session -and

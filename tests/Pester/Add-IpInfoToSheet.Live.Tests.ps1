@@ -2,7 +2,7 @@
 
 <#
 .SYNOPSIS
-    Online tests for Add-IpInfoToSheet.
+    Live tests for Add-IpInfoToSheet.
 
 .DESCRIPTION
     These tests require a live internet connection and the ip_info CLI tool to
@@ -49,12 +49,12 @@
 
 InModuleScope M365IncidentResponseTools {
 
-    Describe 'Add-IpInfoToSheet' -Tag 'Online' {
+    Describe 'Add-IpInfoToSheet' -Tag 'live', 'integration' {
 
         BeforeAll {
             # Fail fast with a clear message if the tool is not installed.
             if (-not (Get-Command ip_info -ErrorAction SilentlyContinue)) {
-                throw 'ip_info CLI tool not found. Run Install-Dependencies.ps1 first.'
+                throw 'ip_info CLI tool not found. Run Install-Dependency.ps1 first.'
             }
 
             Mock Write-IRT {}

@@ -5,7 +5,7 @@ BeforeAll {
     . (Join-Path -Path $PSScriptRoot -ChildPath $RelPath)
 }
 
-Describe 'Get-RandomPassword' {
+Describe 'Get-RandomPassword' -Tag 'unit' {
 
     Context 'Length' {
         It 'returns a string of the requested length' {

@@ -56,7 +56,7 @@ BeforeAll {
     }
 }
 
-Describe 'Build-EntraDeviceRow' {
+Describe 'Build-EntraDeviceRow' -Tag 'unit' {
 
     Context 'sorting' {
 

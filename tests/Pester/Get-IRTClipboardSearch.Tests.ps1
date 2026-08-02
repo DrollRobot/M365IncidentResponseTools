@@ -17,7 +17,7 @@
 
 InModuleScope M365IncidentResponseTools {
 
-    Describe 'Get-IRTClipboardSearch' {
+    Describe 'Get-IRTClipboardSearch' -Tag 'unit' {
 
         BeforeEach {
             Mock Import-IRTModule { }

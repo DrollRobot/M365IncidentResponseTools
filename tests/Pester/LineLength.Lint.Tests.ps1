@@ -1,0 +1,100 @@
+<#
+.SYNOPSIS
+    Pester lint check: flags lines exceeding a maximum length.
+
+.DESCRIPTION
+    One It per scanned file, generated during Discovery. A failing file is
+    identified by its test name; the failure message lists every offending
+    line number and its length.
+
+    Every line is measured, comments included.
+
+    To suppress a finding on a specific line, append the inline exemption
+    marker:
+
+        <code>  # noqa: LineLength
+
+    Parameterized via a Pester container. Tests.ps1's 'Lint' category builds the
+    container, feeding static values from Tests\TestConfig.psd1 plus the scan
+    target and computed build-artifact exclusions. Run with no -Data at all, it
+    scans the repository root with no exclusions.
+
+.PARAMETER Path
+    Files and/or folders to scan (folders recurse). Defaults to the repository
+    root, two levels above this file.
+
+.PARAMETER ExcludePath
+    Files and/or folders to skip. A file entry excludes that file; a folder
+    entry excludes its whole subtree. Relative entries resolve against the
+    current directory; Tests.ps1 passes absolute paths.
+
+.PARAMETER MaxLength
+    Maximum allowed line length in characters. Defaults to 100.
+
+.EXAMPLE
+    .\Tests.ps1 LineLength
+
+    Scans the repository root for lines over 100 characters.
+
+.OUTPUTS
+    None. Findings are thrown as the failing test's exception message, one
+    'path Line:N Length:N' finding per line.
+#>
+# Settings arrive as script parameters and are consumed inside Discovery/It
+# scriptblocks, which PSScriptAnalyzer does not connect to the param block.
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', '')]
+param(
+    [string[]] $Path,
+    [string[]] $ExcludePath = @(),
+    [int] $MaxLength = 100
+)
+
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+    'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
+$ScriptVersion = '1.1.0'
+
+BeforeDiscovery {
+    . (Join-Path -Path $PSScriptRoot -ChildPath 'Build-TestFileList.ps1')
+
+    if (-not $Path) {
+        $RootParams = @{
+            Path      = $PSScriptRoot
+            ChildPath = '..\..'
+        }
+        $Path = @((Resolve-Path (Join-Path @RootParams)).Path)
+    }
+
+    $CaseParams = @{
+        Path        = $Path
+        ExcludePath = $ExcludePath
+    }
+    $script:LintCases = @(Build-TestFileList @CaseParams)
+}
+
+Describe 'LineLength' -Tag 'lint' {
+
+    BeforeAll {
+        . (Join-Path -Path $PSScriptRoot -ChildPath 'Read-LintFile.ps1')
+    }
+
+    It '<RelativePath>' -ForEach $script:LintCases {
+        $LintFile = Read-LintFile -Path $FullName
+        $ExemptParams = @{
+            LintFile = $LintFile
+            Rule     = 'LineLength'
+            Line     = 0
+        }
+        $Hits = for ($Index = 0; $Index -lt $LintFile.Line.Count; $Index++) {
+            $Text = $LintFile.Line[$Index]
+            if ($null -eq $Text -or $Text.Length -le $MaxLength) { continue }
+            $Number = $Index + 1
+            $ExemptParams.Line = $Number
+            if (Test-LintExempt @ExemptParams) { continue }
+            "$($RelativePath) Line:$($Number) Length:$($Text.Length)"
+        }
+        # throw, not Should: Tests.ps1 prints Exception.Message verbatim,
+        # and only a raw throw leaves it free of "Expected ... but got ..."
+        # wrapping. One finding per line, each already prefixed with its path.
+        if ($Hits) { throw ($Hits -join [System.Environment]::NewLine) }
+    }
+}

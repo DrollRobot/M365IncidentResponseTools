@@ -105,7 +105,7 @@ InModuleScope M365IncidentResponseTools {
         }
     }
 
-    Describe 'Connect-IRTRunspaceExchange' {
+    Describe 'Connect-IRTRunspaceExchange' -Tag 'unit' {
 
         BeforeEach {
             $script:SavedSession = (

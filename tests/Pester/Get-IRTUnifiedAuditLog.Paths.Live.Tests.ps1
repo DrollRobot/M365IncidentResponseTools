@@ -2,11 +2,11 @@
 
 <#
 .SYNOPSIS
-    Online parameter-path tests for Get-IRTUnifiedAuditLog.
+    Live parameter-path tests for Get-IRTUnifiedAuditLog.
 
 .DESCRIPTION
     Covers the parameter sets and filter switches not exercised by the AllUsers /
-    date-range tests in Get-IRTUnifiedAuditLog.Online.Tests.ps1.
+    date-range tests in Get-IRTUnifiedAuditLog.Live.Tests.ps1.
 
     Prerequisites:
       - Connect-IRT must have completed (Exchange and Graph sessions active).
@@ -122,7 +122,7 @@
 
 InModuleScope M365IncidentResponseTools {
 
-    Describe 'Get-IRTUnifiedAuditLog parameter paths (live)' -Tag 'Online' {
+    Describe 'Get-IRTUnifiedAuditLog parameter paths (live)' -Tag 'live', 'integration' {
 
         BeforeAll {
             if (-not ($Global:IRT_Session -and $Global:IRT_Session.Exchange)) {

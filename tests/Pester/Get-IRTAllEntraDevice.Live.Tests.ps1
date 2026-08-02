@@ -2,7 +2,7 @@
 
 <#
 .SYNOPSIS
-    Online tests for Get-IRTAllEntraDevice.
+    Live tests for Get-IRTAllEntraDevice.
 
 .DESCRIPTION
     These tests require an active Microsoft Graph session established by
@@ -26,7 +26,7 @@
 
 InModuleScope M365IncidentResponseTools {
 
-    Describe 'Get-IRTAllEntraDevice (live)' -Tag 'Online' {
+    Describe 'Get-IRTAllEntraDevice (live)' -Tag 'live', 'integration' {
 
         BeforeAll {
             if (-not ($Global:IRT_Session -and $Global:IRT_Session.Graph)) {

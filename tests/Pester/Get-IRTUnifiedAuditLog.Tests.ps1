@@ -87,7 +87,7 @@ AfterAll {
     }
 }
 
-Describe 'Get-IRTUnifiedAuditLog' {
+Describe 'Get-IRTUnifiedAuditLog' -Tag 'unit' {
 
     BeforeEach {
         $Mod = 'M365IncidentResponseTools'

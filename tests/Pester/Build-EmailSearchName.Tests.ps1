@@ -5,7 +5,7 @@ BeforeAll {
     . (Join-Path -Path $PSScriptRoot -ChildPath $NamePath)
 }
 
-Describe 'Build-EmailSearchName' {
+Describe 'Build-EmailSearchName' -Tag 'unit' {
 
     Context 'Recipient and keyword fields' {
         It 'renders each populated field as Label:value joined by the separator' {

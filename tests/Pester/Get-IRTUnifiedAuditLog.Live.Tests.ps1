@@ -2,7 +2,7 @@
 
 <#
 .SYNOPSIS
-    Online tests for Get-IRTUnifiedAuditLog.
+    Live tests for Get-IRTUnifiedAuditLog.
 
 .DESCRIPTION
     These tests require an active Exchange Online session established by
@@ -64,7 +64,7 @@
 
 InModuleScope M365IncidentResponseTools {
 
-    Describe 'Get-IRTUnifiedAuditLog (live)' -Tag 'Online' {
+    Describe 'Get-IRTUnifiedAuditLog (live)' -Tag 'live', 'integration' {
 
         BeforeAll {
             if (-not ($Global:IRT_Session -and $Global:IRT_Session.Exchange)) {

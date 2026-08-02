@@ -12,10 +12,15 @@
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '')]
 [CmdletBinding()]
 param(
-    [string] $Path = (Get-Location).Path,
+    [Parameter(Position = 0, ValueFromRemainingArguments)]
+    [string[]] $Path = @((Get-Location).Path),
     [switch] $Recurse,
     [switch] $Quiet
 )
+
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+    'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
+$ScriptVersion = '1.0.2'
 
 # Folder names to exclude from scanning. Any file under a matching folder is skipped.
 $ExcludedFolders = @(
@@ -26,27 +31,40 @@ $ExcludedFolders = @(
 $ExcludedFiles = @()
 
 # Merge exclusions from the test orchestrator when called via Tests.ps1.
-if ($Global:Dev_FormattingExclusions) {
+if (Get-Variable -Name Dev_FormattingExclusions -Scope Global -ErrorAction SilentlyContinue) {
     $ExcludedFiles += $Global:Dev_FormattingExclusions.ExcludeFiles
     $ExcludedFolders += $Global:Dev_FormattingExclusions.ExcludeFolders
 }
 
 $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
 
-$GetChildParams = @{
-    Path = $Path
-    File = $true
+# Base path for relative-path exclusions and display. Tests.ps1 invokes with a
+# single directory (prior behavior); pre-commit invokes with a list of files,
+# which has no single base -- fall back to the current directory then.
+$ScanBase = if (@($Path).Count -eq 1 -and
+    (Test-Path -LiteralPath $Path[0] -PathType Container)) {
+    $Path[0]
 }
-if ($Recurse) {
-    $GetChildParams.Recurse = $true
+else {
+    (Get-Location).Path
 }
 
-$files = Get-ChildItem @GetChildParams |
+$files = foreach ($Item in $Path) {
+    if (Test-Path -LiteralPath $Item -PathType Leaf) {
+        Get-Item -LiteralPath $Item
+    }
+    else {
+        $GetChildParams = @{ Path = $Item; File = $true }
+        if ($Recurse) { $GetChildParams.Recurse = $true }
+        Get-ChildItem @GetChildParams
+    }
+}
+$files = $files |
     Where-Object Extension -in '.ps1', '.psm1', '.psd1' |
     Where-Object {
-        $Rel = [System.IO.Path]::GetRelativePath($Path, $_.FullName)
+        $Rel = [System.IO.Path]::GetRelativePath($ScanBase, $_.FullName)
         (-not ($ExcludedFiles -contains $Rel)) -and
-        (-not ($ExcludedFolders | Where-Object { $Rel -like "$_\*" -or $Rel -like "*\$_\*" }))
+        (-not ($ExcludedFolders | Where-Object { $Rel -like "$_\*" }))
     }
 $errorCount = 0
 $totalLines = 0
@@ -58,7 +76,7 @@ foreach ($file in $files) {
     $FileIndex++
     $WpParams = @{
         Activity        = $MyInvocation.MyCommand.Name
-        Status          = [System.IO.Path]::GetRelativePath($Path, $file.FullName)
+        Status          = [System.IO.Path]::GetRelativePath($ScanBase, $file.FullName)
         PercentComplete = ($FileIndex / $FileTotal) * 100
     }
     Write-Progress @WpParams
@@ -92,3 +110,8 @@ $Elapsed = "$([math]::Round($Stopwatch.Elapsed.TotalSeconds, 2))s"
 $SummaryColor = if ($errorCount -gt 0) { 'Red' } else { 'Green' }
 $Msg = "$errorCount syntax error(s) -- $Count file(s), $totalLines line(s) checked. ($Elapsed)"
 Write-Host $Msg -ForegroundColor $SummaryColor
+
+# Throw (not exit) so pre-commit/CI still see a nonzero process exit via an
+# uncaught error, without risking closing an interactive host if this script
+# is ever dot-sourced or run directly at a prompt instead of through Tests.ps1.
+if ($errorCount -gt 0) { throw $Msg }

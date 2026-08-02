@@ -11,7 +11,7 @@ BeforeAll {
     . (Join-Path -Path $Dir -ChildPath 'Get-TenantOidc.ps1')
 }
 
-Describe 'Get-TenantOidc -CloudTable' {
+Describe 'Get-TenantOidc -CloudTable' -Tag 'unit' {
 
     BeforeAll {
         $Table = Get-TenantOidc -CloudTable

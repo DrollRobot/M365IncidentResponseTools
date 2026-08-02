@@ -9,7 +9,7 @@
     public Connect-IRT function. The private-helper tests run entirely
     offline using synthetic JWTs. The Connect-IRT unit tests mock all
     downstream connect functions so no network I/O occurs. Live integration
-    tests are in a separate Online-tagged Describe block and require an
+    tests are in a separate 'live'-tagged Describe block and require an
     active tenant connection.
 
 -- Get-TokenExpiry ---------------------------------------------------
@@ -135,9 +135,9 @@
         Scopes granted in this session beyond the default set must be
         re-requested on refresh instead of being silently dropped.
 
--- Connect-IRT session state (live) [Tag: Online] ------------------------
+-- Connect-IRT session state (live) [Tag: live, integration] -------------
 
-    Full integration tests against a real tenant. Require -Online flag on
+    Full integration tests against a real tenant. Require the Live category on
     tests.ps1. This file runs first in the two-pass online strategy:
     its BeforeAll clears $Global:IRT_Session and calls Connect-IRT from
     scratch, genuinely testing the function. On success the session stays
@@ -145,10 +145,10 @@
     isolated test token cache so the operator's primary cache is never
     affected.
 
-    In interactive mode (-Online without -CachedAuth) the BeforeAll signs
+    In interactive mode (Live -InteractiveAuth) the BeforeAll signs
     in once to populate the cache, clears the session, then reconnects
     silently to verify the full cache round-trip in a single run.
-    In agent mode (-Online -CachedAuth) only a silent refresh is attempted.
+    In agent mode (Live, cached auth) only a silent refresh is attempted.
 
     'Graph BoundTokenExpiry is a future UTC DateTime'
         Confirms a real Graph access token was acquired and bound; a past
@@ -220,7 +220,7 @@ InModuleScope M365IncidentResponseTools {
         }
     }
 
-    Describe 'Get-TokenExpiry' {
+    Describe 'Get-TokenExpiry' -Tag 'unit' {
         # Get-TokenExpiry decodes the JWT payload, reads the 'exp' Unix
         # timestamp, and converts it to a UTC DateTime. It is intentionally
         # lenient: if the token cannot be parsed for any reason it returns
@@ -268,7 +268,7 @@ InModuleScope M365IncidentResponseTools {
         }
     }
 
-    Describe 'Test-TokenExpired' {
+    Describe 'Test-TokenExpired' -Tag 'unit' {
         # Test-TokenExpired wraps Get-TokenExpiry and adds a configurable
         # buffer window (default 300 seconds / 5 minutes). A token is
         # considered "expired" if its expiry time is within the buffer,
@@ -344,7 +344,7 @@ InModuleScope M365IncidentResponseTools {
 # only -- no network I/O, no MSAL, no browser prompts.
 # ---------------------------------------------------------------------------
 InModuleScope M365IncidentResponseTools {
-    Describe 'Connect-IRT' {
+    Describe 'Connect-IRT' -Tag 'unit' {
 
         Context '-Refresh: no active session' {
             # -Refresh is only meaningful when a session already exists.
@@ -731,12 +731,12 @@ InModuleScope M365IncidentResponseTools {
 } # end InModuleScope
 
 # ---------------------------------------------------------------------------
-# Online tests -- connect automatically via $env:IRT_TEST_TENANT_ID
-# Run with: .\tests.ps1 -Online
+# Live tests -- connect automatically via $env:IRT_TEST_TENANT_ID
+# Run with: .\Tests.ps1 Live
 #
 # These tests exercise the full authentication stack against a live tenant
 # (real MSAL token acquisition, real Graph/Exchange endpoints). They are
-# tagged 'Online' so the offline test run never executes them.
+# tagged 'live' so the NotLive test run never executes them.
 #
 # tests.ps1 overrides $Global:IRT_Config.MsalCachePath to an
 # isolated test cache (irt-testing-cache.bin) before running this suite,
@@ -755,7 +755,7 @@ InModuleScope M365IncidentResponseTools {
 # the tests genuinely verify that Connect-IRT establishes the session from
 # scratch, not that a pre-existing session already looks healthy.
 # ---------------------------------------------------------------------------
-Describe 'Connect-IRT session state (live)' -Tag 'Online' {
+Describe 'Connect-IRT session state (live)' -Tag 'live', 'integration' {
 
     BeforeAll {
         # Clear any pre-existing session so Connect-IRT is tested from scratch.
@@ -920,7 +920,7 @@ Describe 'Connect-IRT session state (live)' -Tag 'Online' {
 }
 
 # ---------------------------------------------------------------------------
-# Admin consent workflow (live) [Tag: Online]
+# Admin consent workflow (live) [Tag: live, integration]
 #
 # Verifies that Connect-IRT detects missing tenant-wide consent and drives
 # the /adminconsent flow to completion. The test is intentionally destructive:
@@ -950,7 +950,7 @@ Describe 'Connect-IRT session state (live)' -Tag 'Online' {
 #     Confirms the forced reconnect produced a fresh, usable token and that
 #     the session was updated correctly alongside the consent grant.
 # ---------------------------------------------------------------------------
-Describe 'Connect-IRT admin consent workflow (live)' -Tag 'Online' {
+Describe 'Connect-IRT admin consent workflow (live)' -Tag 'live', 'integration' {
 
     BeforeAll {
         # This test requires browser interaction for the consent prompt.
@@ -960,7 +960,7 @@ Describe 'Connect-IRT admin consent workflow (live)' -Tag 'Online' {
 
         if (-not ($Global:IRT_Session -and $Global:IRT_Session.Graph)) {
             throw ('Admin consent tests require an active Graph connection. ' +
-                "Run '.\tests.ps1 -Online' so the session is established first.")
+                "Run '.\Tests.ps1 Live' so the session is established first.")
         }
 
         . (Join-Path -Path $PSScriptRoot -ChildPath '..\..\Scripts\Revoke-IRTGraphConsent.ps1')
@@ -1049,5 +1049,3 @@ Describe 'Connect-IRT admin consent workflow (live)' -Tag 'Online' {
         ) -Because 'the forced reconnect must produce a fresh token'
     }
 }
-
-
