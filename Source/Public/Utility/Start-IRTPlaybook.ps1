@@ -384,7 +384,7 @@ function Start-IRTPlaybook {
                 $InitialSessionState.Variables.Add($SsveType::new($Key, $SharedRefs[$Key], ''))
             }
 
-            # Seed the dependency-check table too. Confirm-Dependencies.ps1
+            # Seed the dependency-check table too. Confirm-Dependency.ps1
             # (ScriptsToProcess) records each verified module root in the generic
             # $Global:ModuleDependenciesChecked hashtable; passing it down lets the
             # parallel runspaces skip the Get-Module -ListAvailable scan the parent
