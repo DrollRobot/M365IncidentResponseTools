@@ -3,8 +3,6 @@
 # Read by both Confirm-Dependency.ps1 and Install-Dependency.ps1
 
 @{
-    # ModuleVersion required to prevent PSSA PSMissingModuleManifestField error
-    ModuleVersion = '0'
     RequiredModules = @(
         @{ ModuleName = 'Microsoft.Graph.Applications'; ModuleVersion = '2.30.0' }
         @{ ModuleName = 'Microsoft.Graph.Authentication'; ModuleVersion = '2.30.0' }
