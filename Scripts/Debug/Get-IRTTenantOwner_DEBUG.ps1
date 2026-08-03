@@ -17,4 +17,3 @@ if (-not (Test-IRTConnection -Quiet)) {
 
 Get-IRTTenantOwner -TenantId $env:IRT_TEST_TENANT_ID
 # Get-IRTTenantOwner -TenantId $env:IRT_TEST_USGOV_TENANT_ID
-

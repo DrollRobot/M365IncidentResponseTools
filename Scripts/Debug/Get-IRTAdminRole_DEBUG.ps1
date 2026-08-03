@@ -21,4 +21,3 @@ if (($Global:IRT_UserObjects | Measure-Object).Count -eq 0) {
 Set-Location ([environment]::GetFolderPath('Desktop'))
 
 Get-IRTAdminRole -Highlight $UserObject.UserPrincipalName
-
