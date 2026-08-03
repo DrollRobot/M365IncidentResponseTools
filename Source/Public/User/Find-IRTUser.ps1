@@ -38,23 +38,33 @@ function Find-IRTUser {
     Results are deduplicated by user object id.
 
     .EXAMPLE
+    ```powershell
     Find-IRTUser flast
+    ```
     Finds users matching 'flast' and creates $IRT_UserObjects.
 
     .EXAMPLE
+    ```powershell
     Find-IRTUser -Search flast,jsmith
+    ```
     Searches for two users, one query per string.
 
     .EXAMPLE
+    ```powershell
     Find-IRTUser bf7573a5844f
+    ```
     Searches by partial user id. Email addresses and proxy addresses also match.
 
     .EXAMPLE
+    ```powershell
     $Users = Find-IRTUser -Search 'flast' -AllMatches -Script
+    ```
     Returns every matching user object without setting globals or writing to the console.
 
     .EXAMPLE
+    ```powershell
     Find-IRTUser -FromClipboard
+    ```
     Reads the clipboard and searches for each line as a separate query.
 
     .OUTPUTS

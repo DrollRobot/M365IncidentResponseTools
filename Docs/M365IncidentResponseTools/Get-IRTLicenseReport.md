@@ -4,7 +4,7 @@ external help file: M365IncidentResponseTools-Help.xml
 HelpUri: ''
 Locale: en-US
 Module Name: M365IncidentResponseTools
-ms.date: 08/02/2026
+ms.date: 08/03/2026
 PlatyPS schema version: 2024-05-01
 title: Get-IRTLicenseReport
 ---
@@ -37,12 +37,16 @@ Use -Objects to return raw enriched objects instead.
 
 ### EXAMPLE 1
 
+```powershell
 Get-IRTLicenseReport
+```
 Displays a color-formatted license table in the console.
 
 ### EXAMPLE 2
 
+```powershell
 $Licenses = Get-IRTLicenseReport -Objects
+```
 Returns raw license objects for further processing.
 
 ## PARAMETERS

@@ -4,7 +4,7 @@ external help file: M365IncidentResponseTools-Help.xml
 HelpUri: ''
 Locale: en-US
 Module Name: M365IncidentResponseTools
-ms.date: 08/02/2026
+ms.date: 08/03/2026
 PlatyPS schema version: 2024-05-01
 title: Reset-IRTUserPassword
 ---
@@ -93,39 +93,53 @@ Supports -WhatIf and -Confirm via SupportsShouldProcess.
 
 ### EXAMPLE 1
 
+```powershell
 Reset-IRTUserPassword -RandomCharacters
+```
 Resets the password for the user stored in the global session using a random password.
 The new password is printed to the console.
 
 ### EXAMPLE 2
 
+```powershell
 Reset-IRTUserPassword -UserObject $User -RandomCharacters
+```
 Resets the password for a specific user object using a random password.
 
 ### EXAMPLE 3
 
+```powershell
 Reset-IRTUserPassword -Custom
+```
 Prompts the operator to enter a custom password, then applies it to the global session user.
 
 ### EXAMPLE 4
 
+```powershell
 Reset-IRTUserPassword -UserObject $User -ForceChangePasswordNextSignIn
+```
 Forces the user to set a new password (with MFA) on their next sign-in, without
 changing the current password.
 
 ### EXAMPLE 5
 
+```powershell
 Reset-IRTUserPassword -RandomCharacters -Length 48
+```
 Resets the password using a random 48-character password.
 
 ### EXAMPLE 6
 
+```powershell
 Reset-IRTUserPassword -UserObject $User -RandomCharacters -WhatIf
+```
 Shows what would happen without actually resetting the password.
 
 ### EXAMPLE 7
 
+```powershell
 Reset-IRTUserPassword -UserObject $User -ClearForceChangePasswordNextSignIn
+```
 Clears the forced-change flag on the user's account.
 
 ## PARAMETERS

@@ -11,7 +11,9 @@ function Import-IRT {
         import penalty.
 
     .EXAMPLE
+        ```powershell
         Import-IRT
+        ```
 
         Loads M365IncidentResponseTools into the current session. Run this once at
         the start of a session to warm up the module before using any IRT commands.

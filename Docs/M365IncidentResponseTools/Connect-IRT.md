@@ -4,7 +4,7 @@ external help file: M365IncidentResponseTools-Help.xml
 HelpUri: ''
 Locale: en-US
 Module Name: M365IncidentResponseTools
-ms.date: 08/02/2026
+ms.date: 08/03/2026
 PlatyPS schema version: 2024-05-01
 title: Connect-IRT
 ---
@@ -52,17 +52,23 @@ to a known cloud.
 
 ### EXAMPLE 1
 
+```powershell
 Connect-IRT -TenantId $tid
+```
 Connects to Graph and Exchange Online.
 
 ### EXAMPLE 2
 
+```powershell
 Connect-IRT -TenantId $tid -Exchange -Cloud USGov
+```
 Connects to Exchange in a USGov cloud, skipping OIDC discovery.
 
 ### EXAMPLE 3
 
+```powershell
 Connect-IRT -Refresh
+```
 Silently re-acquires tokens for all services in the existing session.
 
 ## PARAMETERS

@@ -4,7 +4,7 @@ external help file: M365IncidentResponseTools-Help.xml
 HelpUri: ''
 Locale: en-US
 Module Name: M365IncidentResponseTools
-ms.date: 08/02/2026
+ms.date: 08/03/2026
 PlatyPS schema version: 2024-05-01
 title: Get-IRTAccessToken
 ---
@@ -53,12 +53,16 @@ always silent, so a worker can never pop a hidden browser prompt.
 
 ### EXAMPLE 1
 
+```powershell
 Get-IRTAccessToken -Service Exchange -Silent
+```
 Returns a fresh Exchange token from the cache without ever prompting.
 
 ### EXAMPLE 2
 
+```powershell
 (Get-IRTAccessToken -Service Graph).AccessToken
+```
 Returns just the bearer token string for a manual Graph REST call.
 
 ## PARAMETERS

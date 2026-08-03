@@ -4,7 +4,7 @@ external help file: M365IncidentResponseTools-Help.xml
 HelpUri: ''
 Locale: en-US
 Module Name: M365IncidentResponseTools
-ms.date: 08/02/2026
+ms.date: 08/03/2026
 PlatyPS schema version: 2024-05-01
 title: Get-IRTNonInteractiveSignIn
 ---
@@ -40,12 +40,16 @@ Falls back to $Global:IRT_UserObjects if no -UserObject is passed.
 
 ### EXAMPLE 1
 
+```powershell
 Get-IRTNonInteractiveSignIn
+```
 Downloads non-interactive sign-in logs for the user in the global session.
 
 ### EXAMPLE 2
 
+```powershell
 Get-IRTNonInteractiveSignIn -UserObject $User -Days 30
+```
 Downloads 30 days of non-interactive sign-ins for a specific user.
 
 ## PARAMETERS

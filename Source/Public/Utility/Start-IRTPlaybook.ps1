@@ -32,16 +32,22 @@ function Start-IRTPlaybook {
     limited memory or Graph throttling is a concern.
 
     .EXAMPLE
+    ```powershell
     Find-GraphUser 'jsmith@contoso.com'
     Start-IRTPlaybook
+    ```
     Look up a user, then run the full playbook using the global user object.
 
     .EXAMPLE
+    ```powershell
     Start-IRTPlaybook -UserObject $User -Ticket 'INC-1234'
+    ```
     Run the playbook for an already-resolved user object and name the output folder INC-1234.
 
     .EXAMPLE
+    ```powershell
     Start-IRTPlaybook -UserObject $User -NoFolder -MaxRunspaces 5
+    ```
     Run without writing files, using a limited runspace pool.
 
     .OUTPUTS

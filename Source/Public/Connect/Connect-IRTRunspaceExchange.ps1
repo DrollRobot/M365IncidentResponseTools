@@ -21,7 +21,9 @@ function Connect-IRTRunspaceExchange {
     Connect-IRT / Update-IRTToken instead.
 
     .EXAMPLE
+    ```powershell
     Connect-IRTRunspaceExchange
+    ```
     Inside a playbook step: ensures this runspace has a live Exchange
     connection with a fresh token.
 

@@ -4,7 +4,7 @@ external help file: M365IncidentResponseTools-Help.xml
 HelpUri: ''
 Locale: en-US
 Module Name: M365IncidentResponseTools
-ms.date: 08/02/2026
+ms.date: 08/03/2026
 PlatyPS schema version: 2024-05-01
 title: Find-IRTServicePrincipal
 ---
@@ -61,32 +61,44 @@ Pass
 
 ### EXAMPLE 1
 
+```powershell
 Find-IRTServicePrincipal MyApp
+```
 Find a single service principal by display name.
 
 ### EXAMPLE 2
 
+```powershell
 Find-IRTServicePrincipal -Search MyApp,AnotherApp
+```
 Find multiple service principals in one call.
 
 ### EXAMPLE 3
 
+```powershell
 Find-IRTServicePrincipal -Search 00000003-0000-0000-c000-000000000000
+```
 Find by full or partial AppId (Microsoft Graph in this example).
 
 ### EXAMPLE 4
 
+```powershell
 Find-IRTServicePrincipal -Search bf7573a5844f
+```
 Find by partial object ID.
 
 ### EXAMPLE 5
 
+```powershell
 Find-IRTServicePrincipal MyApp -Script
+```
 Return the matched object directly without console output or setting the global variable.
 
 ### EXAMPLE 6
 
+```powershell
 Find-IRTServicePrincipal -FromClipboard
+```
 Reads the clipboard and searches for each line as a separate query.
 
 ## PARAMETERS

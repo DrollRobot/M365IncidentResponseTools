@@ -4,7 +4,7 @@ external help file: M365IncidentResponseTools-Help.xml
 HelpUri: ''
 Locale: en-US
 Module Name: M365IncidentResponseTools
-ms.date: 08/02/2026
+ms.date: 08/03/2026
 PlatyPS schema version: 2024-05-01
 title: Get-IRTEntraAuditLog
 ---
@@ -40,17 +40,23 @@ Date range defaults to the last 30 days when no -Days, -Start, or -End is specif
 
 ### EXAMPLE 1
 
+```powershell
 Get-IRTEntraAuditLog
+```
 Downloads the last 30 days of Entra audit events for the user in the global session.
 
 ### EXAMPLE 2
 
+```powershell
 Get-IRTEntraAuditLog -UserObject $User -Days 90
+```
 Downloads 90 days of audit events for a specific user.
 
 ### EXAMPLE 3
 
+```powershell
 Get-IRTEntraAuditLog -AllUsers -Start '2026-04-01' -End '2026-04-30'
+```
 Downloads all tenant audit events for April 2026.
 
 ## PARAMETERS

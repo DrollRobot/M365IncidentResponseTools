@@ -19,11 +19,15 @@ function New-IRTInvestigationFolder {
     Optional ticket or case number to include in the folder name.
 
     .EXAMPLE
+    ```powershell
     New-IRTInvestigationFolder
+    ```
     Creates a folder like: investigation_contoso_jsmith_26-05-03_14-30
 
     .EXAMPLE
+    ```powershell
     New-IRTInvestigationFolder -Ticket 'INC-1234' -UserObject $User
+    ```
     Creates a folder that includes the ticket number and user name.
 
     .OUTPUTS

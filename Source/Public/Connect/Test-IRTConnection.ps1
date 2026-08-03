@@ -13,11 +13,15 @@ function Test-IRTConnection {
     tenant (matched by TenantId), $false otherwise. Suppresses all output.
 
     .EXAMPLE
+    ```powershell
     Test-IRTConnection
+    ```
     Displays connection status for Graph and Exchange.
 
     .EXAMPLE
+    ```powershell
     if (-not (Test-IRTConnection -Quiet)) { throw 'Not fully connected.' }
+    ```
     Silently asserts that both services are connected to the same tenant.
 
     .NOTES

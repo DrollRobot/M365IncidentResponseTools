@@ -4,7 +4,7 @@ external help file: M365IncidentResponseTools-Help.xml
 HelpUri: ''
 Locale: en-US
 Module Name: M365IncidentResponseTools
-ms.date: 08/02/2026
+ms.date: 08/03/2026
 PlatyPS schema version: 2024-05-01
 title: Disable-IRTAdUser
 ---
@@ -38,12 +38,16 @@ Falls back to $Global:UserObjects if no -UserObject is passed.
 
 ### EXAMPLE 1
 
+```powershell
 Disable-IRTAdUser
+```
 Disables the user(s) in the global session.
 
 ### EXAMPLE 2
 
+```powershell
 Disable-IRTAdUser -UserObject $AdUser
+```
 Disables a specific user.
 
 ## PARAMETERS

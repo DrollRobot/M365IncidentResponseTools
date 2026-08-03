@@ -4,7 +4,7 @@ external help file: M365IncidentResponseTools-Help.xml
 HelpUri: ''
 Locale: en-US
 Module Name: M365IncidentResponseTools
-ms.date: 08/02/2026
+ms.date: 08/03/2026
 PlatyPS schema version: 2024-05-01
 title: Get-IRTAllEntraDevice
 ---
@@ -43,12 +43,16 @@ registration and last sign-in timestamps.
 
 ### EXAMPLE 1
 
+```powershell
 Get-IRTAllEntraDevice
+```
 Exports all Entra devices to a spreadsheet and opens it.
 
 ### EXAMPLE 2
 
+```powershell
 Get-IRTAllEntraDevice -Open $false -Xml $true
+```
 Writes the spreadsheet and a raw XML dump without opening the workbook.
 
 ## PARAMETERS

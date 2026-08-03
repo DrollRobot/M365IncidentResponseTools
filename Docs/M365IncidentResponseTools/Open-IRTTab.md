@@ -4,7 +4,7 @@ external help file: M365IncidentResponseTools-Help.xml
 HelpUri: ''
 Locale: en-US
 Module Name: M365IncidentResponseTools
-ms.date: 08/02/2026
+ms.date: 08/03/2026
 PlatyPS schema version: 2024-05-01
 title: Open-IRTTab
 ---
@@ -39,17 +39,23 @@ environment variable set by Windows Terminal in every hosted session.
 
 ### EXAMPLE 1
 
+```powershell
 Open-IRTTab
+```
 Opens a new tab. Connects to the current tenant if a session is active.
 
 ### EXAMPLE 2
 
+```powershell
 Open-IRTTab -Quiet
+```
 Opens a new tab if in Windows Terminal; silently does nothing otherwise.
 
 ### EXAMPLE 3
 
+```powershell
 Open-IRTTab -Title '[IRT] Secondary'
+```
 Opens a new tab with a custom title.
 
 ## PARAMETERS

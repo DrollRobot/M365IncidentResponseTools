@@ -55,15 +55,21 @@ function Connect-IRT {
     granted the necessary delegated permissions.
 
     .EXAMPLE
+    ```powershell
     Connect-IRT -TenantId $tid
+    ```
     Connects to Graph and Exchange Online.
 
     .EXAMPLE
+    ```powershell
     Connect-IRT -TenantId $tid -Exchange -Cloud USGov
+    ```
     Connects to Exchange in a USGov cloud, skipping OIDC discovery.
 
     .EXAMPLE
+    ```powershell
     Connect-IRT -Refresh
+    ```
     Silently re-acquires tokens for all services in the existing session.
 
     .NOTES

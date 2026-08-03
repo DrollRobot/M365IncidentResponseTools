@@ -4,7 +4,7 @@ external help file: M365IncidentResponseTools-Help.xml
 HelpUri: ''
 Locale: en-US
 Module Name: M365IncidentResponseTools
-ms.date: 08/02/2026
+ms.date: 08/03/2026
 PlatyPS schema version: 2024-05-01
 title: Get-IRTAdminRole
 ---
@@ -41,17 +41,23 @@ Use -Excel to export a formatted .xlsx workbook instead.
 
 ### EXAMPLE 1
 
+```powershell
 Get-IRTAdminRole
+```
 Displays all role members grouped by type in the console.
 
 ### EXAMPLE 2
 
+```powershell
 Get-IRTAdminRole -Excel -Highlight 'jsmith@contoso.com'
+```
 Exports an Excel report and flags any row matching 'jsmith@contoso.com'.
 
 ### EXAMPLE 3
 
+```powershell
 $RoleMembers = Get-IRTAdminRole -Script
+```
 Returns raw objects for further processing.
 
 ## PARAMETERS

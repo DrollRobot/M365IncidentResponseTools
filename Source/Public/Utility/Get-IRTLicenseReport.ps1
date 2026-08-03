@@ -18,11 +18,15 @@ function Get-IRTLicenseReport {
     so existing callers do not break.
 
     .EXAMPLE
+    ```powershell
     Get-IRTLicenseReport
+    ```
     Displays a color-formatted license table in the console.
 
     .EXAMPLE
+    ```powershell
     $Licenses = Get-IRTLicenseReport -Objects
+    ```
     Returns raw license objects for further processing.
 
     .OUTPUTS

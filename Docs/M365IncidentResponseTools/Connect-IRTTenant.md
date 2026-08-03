@@ -4,7 +4,7 @@ external help file: M365IncidentResponseTools-Help.xml
 HelpUri: ''
 Locale: en-US
 Module Name: M365IncidentResponseTools
-ms.date: 08/02/2026
+ms.date: 08/03/2026
 PlatyPS schema version: 2024-05-01
 title: Connect-IRTTenant
 ---
@@ -45,17 +45,23 @@ A template file (TenantsTemplate.xlsx) is included in the Data folder for refere
 
 ### EXAMPLE 1
 
+```powershell
 Connect-IRTTenant contoso
+```
 Looks up 'contoso' in the tenants worksheet and connects to all services.
 
 ### EXAMPLE 2
 
+```powershell
 Connect-IRTTenant fab -Graph
+```
 Looks up 'fab' in the tenants worksheet and connects to Graph only.
 
 ### EXAMPLE 3
 
+```powershell
 irttenant bestcompany
+```
 Uses the alias to connect to the matching tenant.
 
 ## PARAMETERS

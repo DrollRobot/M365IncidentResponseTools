@@ -4,7 +4,7 @@ external help file: M365IncidentResponseTools-Help.xml
 HelpUri: ''
 Locale: en-US
 Module Name: M365IncidentResponseTools
-ms.date: 08/02/2026
+ms.date: 08/03/2026
 PlatyPS schema version: 2024-05-01
 title: Get-IRTAdAdminUser
 ---
@@ -38,12 +38,16 @@ Use -Csv to export the results to a CSV file in C:\Temp.
 
 ### EXAMPLE 1
 
+```powershell
 Get-IRTAdAdminUser
+```
 Displays all AdminCount=1 users in a formatted table.
 
 ### EXAMPLE 2
 
+```powershell
 Get-IRTAdAdminUser -Csv
+```
 Exports the list to AdAdminUsers_<domain>_<date>.csv in C:\Temp.
 
 ## PARAMETERS

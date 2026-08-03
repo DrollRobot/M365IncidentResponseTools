@@ -4,7 +4,7 @@ external help file: M365IncidentResponseTools-Help.xml
 HelpUri: ''
 Locale: en-US
 Module Name: M365IncidentResponseTools
-ms.date: 08/02/2026
+ms.date: 08/03/2026
 PlatyPS schema version: 2024-05-01
 title: Find-IRTAdUser
 ---
@@ -55,22 +55,30 @@ return objects directly.
 
 ### EXAMPLE 1
 
+```powershell
 Find-IRTAdUser flast
+```
 Finds users matching 'flast' and sets the global user object if exactly one match.
 
 ### EXAMPLE 2
 
+```powershell
 Find-IRTAdUser flast@contoso.com
+```
 Searches by email address.
 
 ### EXAMPLE 3
 
+```powershell
 $Users = Find-IRTAdUser -Search 'flast','jsmith' -Script
+```
 Returns matching user objects for two search strings without setting globals.
 
 ### EXAMPLE 4
 
+```powershell
 Find-IRTAdUser -FromClipboard
+```
 Reads the clipboard and searches for each line as a separate query.
 
 ## PARAMETERS

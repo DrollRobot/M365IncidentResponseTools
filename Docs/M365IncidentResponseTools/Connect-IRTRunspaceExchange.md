@@ -4,7 +4,7 @@ external help file: M365IncidentResponseTools-Help.xml
 HelpUri: ''
 Locale: en-US
 Module Name: M365IncidentResponseTools
-ms.date: 08/02/2026
+ms.date: 08/03/2026
 PlatyPS schema version: 2024-05-01
 title: Connect-IRTRunspaceExchange
 ---
@@ -50,7 +50,9 @@ Connect-IRT / Update-IRTToken instead.
 
 ### EXAMPLE 1
 
+```powershell
 Connect-IRTRunspaceExchange
+```
 Inside a playbook step: ensures this runspace has a live Exchange
 connection with a fresh token.
 

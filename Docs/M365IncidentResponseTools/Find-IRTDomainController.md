@@ -4,7 +4,7 @@ external help file: M365IncidentResponseTools-Help.xml
 HelpUri: ''
 Locale: en-US
 Module Name: M365IncidentResponseTools
-ms.date: 08/02/2026
+ms.date: 08/03/2026
 PlatyPS schema version: 2024-05-01
 title: Find-IRTDomainController
 ---
@@ -36,12 +36,16 @@ a reachable domain controller; exits with an error if AD is unavailable.
 
 ### EXAMPLE 1
 
+```powershell
 Find-IRTDomainController
+```
 Returns the Name of every domain controller in the domain.
 
 ### EXAMPLE 2
 
+```powershell
 $DCs = Find-IRTDomainController
+```
 Captures the list of DC names for use in a loop or downstream command.
 
 ## PARAMETERS

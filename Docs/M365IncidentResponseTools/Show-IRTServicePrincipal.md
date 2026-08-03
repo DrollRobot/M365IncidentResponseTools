@@ -4,7 +4,7 @@ external help file: M365IncidentResponseTools-Help.xml
 HelpUri: ''
 Locale: en-US
 Module Name: M365IncidentResponseTools
-ms.date: 08/02/2026
+ms.date: 08/03/2026
 PlatyPS schema version: 2024-05-01
 title: Show-IRTServicePrincipal
 ---
@@ -54,18 +54,24 @@ Uses the IRT_DirectoryRoles cache if populated.
 
 ### EXAMPLE 1
 
+```powershell
 Find-ServicePrincipal MyApp
 Show-IRTServicePrincipal
+```
 Two-step workflow: find then display.
 
 ### EXAMPLE 2
 
+```powershell
 Show-IRTServicePrincipal
+```
 Display info for the service principal already stored in the global session.
 
 ### EXAMPLE 3
 
+```powershell
 Show-IRTServicePrincipal -ServicePrincipalObject $SP
+```
 Display info for a specific service principal object passed directly.
 
 ## PARAMETERS

@@ -20,15 +20,21 @@ function Open-IRTTab {
     run in multiple console hosts.
 
     .EXAMPLE
+    ```powershell
     Open-IRTTab
+    ```
     Opens a new tab. Connects to the current tenant if a session is active.
 
     .EXAMPLE
+    ```powershell
     Open-IRTTab -Quiet
+    ```
     Opens a new tab if in Windows Terminal; silently does nothing otherwise.
 
     .EXAMPLE
+    ```powershell
     Open-IRTTab -Title '[IRT] Secondary'
+    ```
     Opens a new tab with a custom title.
 
     .OUTPUTS

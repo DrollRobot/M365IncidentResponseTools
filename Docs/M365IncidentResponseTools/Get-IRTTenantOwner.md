@@ -4,7 +4,7 @@ external help file: M365IncidentResponseTools-Help.xml
 HelpUri: ''
 Locale: en-US
 Module Name: M365IncidentResponseTools
-ms.date: 08/02/2026
+ms.date: 08/03/2026
 PlatyPS schema version: 2024-05-01
 title: Get-IRTTenantOwner
 ---
@@ -58,15 +58,21 @@ reimporting the module.
 
 ### EXAMPLE 1
 
+```powershell
 Get-IRTTenantOwner -TenantId 'f8cdef31-a31e-4b4a-93e4-5f571e91255a' # Microsoft tenant id
+```
 
 ### EXAMPLE 2
 
+```powershell
 $guids | Get-IRTTenantOwner
+```
 
 ### EXAMPLE 3
 
+```powershell
 Get-IRTTenantOwner $tid -SkipGraph
+```
 
 ## PARAMETERS
 

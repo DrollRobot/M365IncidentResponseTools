@@ -50,28 +50,40 @@ function Reset-IRTAdUserPassword {
     password. The user will be required to set a new password on their next sign-in.
 
     .EXAMPLE
+    ```powershell
     Reset-IRTAdUserPassword -RandomCharacters
+    ```
     Generates and sets a random password for the user in the global session.
 
     .EXAMPLE
+    ```powershell
     Reset-IRTAdUserPassword -UserObjects $User -RandomCharacters
+    ```
     Resets the password for a specific user object using a random password.
 
     .EXAMPLE
+    ```powershell
     Reset-IRTAdUserPassword -Custom
+    ```
     Prompts the operator to enter a custom password for the global session user.
 
     .EXAMPLE
+    ```powershell
     Reset-IRTAdUserPassword -UserObjects $User -ForceChangePasswordNextSignIn
+    ```
     Forces the user to set a new password on their next sign-in, without changing
     the current password.
 
     .EXAMPLE
+    ```powershell
     Reset-IRTAdUserPassword -RandomCharacters -Length 48
+    ```
     Resets the password using a random 48-character password.
 
     .EXAMPLE
+    ```powershell
     Reset-IRTAdUserPassword -UserObjects $User -RandomCharacters -WhatIf
+    ```
     Shows what would happen without actually resetting the password.
 
     .OUTPUTS

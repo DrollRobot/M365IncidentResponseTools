@@ -42,13 +42,19 @@ function Get-IRTTenantOwner {
     tenants not found. Useful when calling in bulk where partial results are expected.
 
     .EXAMPLE
+    ```powershell
     Get-IRTTenantOwner -TenantId 'f8cdef31-a31e-4b4a-93e4-5f571e91255a' # Microsoft tenant id
+    ```
 
     .EXAMPLE
+    ```powershell
     $guids | Get-IRTTenantOwner
+    ```
 
     .EXAMPLE
+    ```powershell
     Get-IRTTenantOwner $tid -SkipGraph
+    ```
 
     .NOTES
     The Graph lookup requires the CrossTenantInformation.ReadBasic.All scope.

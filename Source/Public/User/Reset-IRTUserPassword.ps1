@@ -65,33 +65,47 @@ function Reset-IRTUserPassword {
     Use this to undo a previous -ForceChangePasswordNextSignIn call.
 
     .EXAMPLE
+    ```powershell
     Reset-IRTUserPassword -RandomCharacters
+    ```
     Resets the password for the user stored in the global session using a random password.
     The new password is printed to the console.
 
     .EXAMPLE
+    ```powershell
     Reset-IRTUserPassword -UserObject $User -RandomCharacters
+    ```
     Resets the password for a specific user object using a random password.
 
     .EXAMPLE
+    ```powershell
     Reset-IRTUserPassword -Custom
+    ```
     Prompts the operator to enter a custom password, then applies it to the global session user.
 
     .EXAMPLE
+    ```powershell
     Reset-IRTUserPassword -UserObject $User -ForceChangePasswordNextSignIn
+    ```
     Forces the user to set a new password (with MFA) on their next sign-in, without
     changing the current password.
 
     .EXAMPLE
+    ```powershell
     Reset-IRTUserPassword -RandomCharacters -Length 48
+    ```
     Resets the password using a random 48-character password.
 
     .EXAMPLE
+    ```powershell
     Reset-IRTUserPassword -UserObject $User -RandomCharacters -WhatIf
+    ```
     Shows what would happen without actually resetting the password.
 
     .EXAMPLE
+    ```powershell
     Reset-IRTUserPassword -UserObject $User -ClearForceChangePasswordNextSignIn
+    ```
     Clears the forced-change flag on the user's account.
 
     .OUTPUTS

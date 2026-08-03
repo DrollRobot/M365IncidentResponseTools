@@ -4,7 +4,7 @@ external help file: M365IncidentResponseTools-Help.xml
 HelpUri: ''
 Locale: en-US
 Module Name: M365IncidentResponseTools
-ms.date: 08/02/2026
+ms.date: 08/03/2026
 PlatyPS schema version: 2024-05-01
 title: Copy-IRTFunction
 ---
@@ -44,19 +44,25 @@ Use -FunctionName to include additional functions beyond the default set.
 
 ### EXAMPLE 1
 
+```powershell
 Copy-IRTFunction
+```
 
 Copies the default set of IRT helper functions to the clipboard.
 
 ### EXAMPLE 2
 
+```powershell
 Copy-IRTFunction -FunctionName 'Get-IRTMessageTrace'
+```
 
 Copies the default set plus Get-IRTMessageTrace.
 
 ### EXAMPLE 3
 
+```powershell
 'Get-IRTInboxRule', 'Get-IRTMessageTrace' | Copy-IRTFunction
+```
 
 Copies the default set plus both named functions via the pipeline.
 

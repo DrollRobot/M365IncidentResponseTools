@@ -4,7 +4,7 @@ external help file: M365IncidentResponseTools-Help.xml
 HelpUri: ''
 Locale: en-US
 Module Name: M365IncidentResponseTools
-ms.date: 08/02/2026
+ms.date: 08/03/2026
 PlatyPS schema version: 2024-05-01
 title: Test-IRTConnection
 ---
@@ -36,12 +36,16 @@ are working against before running incident response commands.
 
 ### EXAMPLE 1
 
+```powershell
 Test-IRTConnection
+```
 Displays connection status for Graph and Exchange.
 
 ### EXAMPLE 2
 
+```powershell
 if (-not (Test-IRTConnection -Quiet)) { throw 'Not fully connected.' }
+```
 Silently asserts that both services are connected to the same tenant.
 
 ## PARAMETERS

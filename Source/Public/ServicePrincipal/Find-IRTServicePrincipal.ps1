@@ -48,27 +48,39 @@ function Find-IRTServicePrincipal {
     principal produce only one entry in the output.
 
     .EXAMPLE
+    ```powershell
     Find-IRTServicePrincipal MyApp
+    ```
     Find a single service principal by display name.
 
     .EXAMPLE
+    ```powershell
     Find-IRTServicePrincipal -Search MyApp,AnotherApp
+    ```
     Find multiple service principals in one call.
 
     .EXAMPLE
+    ```powershell
     Find-IRTServicePrincipal -Search 00000003-0000-0000-c000-000000000000
+    ```
     Find by full or partial AppId (Microsoft Graph in this example).
 
     .EXAMPLE
+    ```powershell
     Find-IRTServicePrincipal -Search bf7573a5844f
+    ```
     Find by partial object ID.
 
     .EXAMPLE
+    ```powershell
     Find-IRTServicePrincipal MyApp -Script
+    ```
     Return the matched object directly without console output or setting the global variable.
 
     .EXAMPLE
+    ```powershell
     Find-IRTServicePrincipal -FromClipboard
+    ```
     Reads the clipboard and searches for each line as a separate query.
 
     .OUTPUTS

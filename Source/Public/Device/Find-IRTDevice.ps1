@@ -38,23 +38,33 @@ function Find-IRTDevice {
     device. Results are deduplicated by Entra object id.
 
     .EXAMPLE
+    ```powershell
     Find-IRTDevice DESKTOP-ABC123
+    ```
     Finds devices matching 'DESKTOP-ABC123' and creates $IRT_DeviceObjects.
 
     .EXAMPLE
+    ```powershell
     Find-IRTDevice -Search DESKTOP-ABC123,LAPTOP-XYZ789
+    ```
     Searches for two devices, one query per string.
 
     .EXAMPLE
+    ```powershell
     Find-IRTDevice -Search SN1234567890
+    ```
     Searches by Intune serial number. Partial device, Entra, and Intune ids also match.
 
     .EXAMPLE
+    ```powershell
     $Devices = Find-IRTDevice -Search 'DESKTOP-ABC123' -AllMatches -Script
+    ```
     Returns every matching device object without setting globals or writing to the console.
 
     .EXAMPLE
+    ```powershell
     Find-IRTDevice -FromClipboard
+    ```
     Reads the clipboard and searches for each line as a separate query.
 
     .OUTPUTS

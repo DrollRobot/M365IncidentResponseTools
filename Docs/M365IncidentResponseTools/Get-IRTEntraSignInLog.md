@@ -4,7 +4,7 @@ external help file: M365IncidentResponseTools-Help.xml
 HelpUri: ''
 Locale: en-US
 Module Name: M365IncidentResponseTools
-ms.date: 08/02/2026
+ms.date: 08/03/2026
 PlatyPS schema version: 2024-05-01
 title: Get-IRTEntraSignInLog
 ---
@@ -61,17 +61,23 @@ Date range defaults to the last 30 days when no -Days, -Start, or -End is specif
 
 ### EXAMPLE 1
 
+```powershell
 Get-IRTEntraSignInLog
+```
 Downloads the last 30 days of sign-in logs for the user in the global session.
 
 ### EXAMPLE 2
 
-Get-IRTEntraSignInLog -UserObject $User -Days 90
-Downloads 90 days of sign-in logs for a specific user.
+```powershell
+Get-IRTEntraSignInLog -UserObject $User -Days 7
+```
+Downloads 7 days of sign-in logs for a specific user.
 
 ### EXAMPLE 3
 
+```powershell
 Get-IRTEntraSignInLog -IpAddress '203.0.113.5' -Days 14
+```
 Finds all sign-ins from a specific IP over the last 14 days.
 
 ## PARAMETERS
@@ -159,7 +165,6 @@ A small pause reduces the chance of
 tripping Graph throttling limits on large multi-chunk pulls.
 Default: 2.
 Set to 0 to disable.
-Only applies when the range spans more than one chunk.
 
 ```yaml
 Type: System.Int32
@@ -318,7 +323,8 @@ Retrieve non-interactive sign-in logs instead of interactive logs.
 Type: System.Management.Automation.SwitchParameter
 DefaultValue: False
 SupportsWildcards: false
-Aliases: []
+Aliases:
+- NI
 ParameterSets:
 - Name: (All)
   Position: Named

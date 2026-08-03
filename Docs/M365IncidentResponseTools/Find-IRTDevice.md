@@ -4,7 +4,7 @@ external help file: M365IncidentResponseTools-Help.xml
 HelpUri: ''
 Locale: en-US
 Module Name: M365IncidentResponseTools
-ms.date: 08/02/2026
+ms.date: 08/03/2026
 PlatyPS schema version: 2024-05-01
 title: Find-IRTDevice
 ---
@@ -56,27 +56,37 @@ to suppress global side effects and return the objects directly.
 
 ### EXAMPLE 1
 
+```powershell
 Find-IRTDevice DESKTOP-ABC123
+```
 Finds devices matching 'DESKTOP-ABC123' and creates $IRT_DeviceObjects.
 
 ### EXAMPLE 2
 
+```powershell
 Find-IRTDevice -Search DESKTOP-ABC123,LAPTOP-XYZ789
+```
 Searches for two devices, one query per string.
 
 ### EXAMPLE 3
 
+```powershell
 Find-IRTDevice -Search SN1234567890
+```
 Searches by Intune serial number. Partial device, Entra, and Intune ids also match.
 
 ### EXAMPLE 4
 
+```powershell
 $Devices = Find-IRTDevice -Search 'DESKTOP-ABC123' -AllMatches -Script
+```
 Returns every matching device object without setting globals or writing to the console.
 
 ### EXAMPLE 5
 
+```powershell
 Find-IRTDevice -FromClipboard
+```
 Reads the clipboard and searches for each line as a separate query.
 
 ## PARAMETERS

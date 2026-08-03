@@ -4,7 +4,7 @@ external help file: M365IncidentResponseTools-Help.xml
 HelpUri: ''
 Locale: en-US
 Module Name: M365IncidentResponseTools
-ms.date: 08/02/2026
+ms.date: 08/03/2026
 PlatyPS schema version: 2024-05-01
 title: Remove-IRTDevice
 ---
@@ -45,18 +45,24 @@ automated remediation scripts).
 
 ### EXAMPLE 1
 
+```powershell
 Remove-IRTDevice
+```
 Operates on $IRT_DeviceObjects. Prompts for name confirmation before each deletion.
 
 ### EXAMPLE 2
 
+```powershell
 Find-IRTDevice DESKTOP-ABC123
 Remove-IRTDevice
+```
 Find a device by name, then delete it (with confirmation prompt).
 
 ### EXAMPLE 3
 
+```powershell
 Remove-IRTDevice -Force -WhatIf
+```
 Show what would be deleted without prompting or actually deleting anything.
 
 ## PARAMETERS

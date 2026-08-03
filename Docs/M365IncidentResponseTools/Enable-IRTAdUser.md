@@ -4,7 +4,7 @@ external help file: M365IncidentResponseTools-Help.xml
 HelpUri: ''
 Locale: en-US
 Module Name: M365IncidentResponseTools
-ms.date: 08/02/2026
+ms.date: 08/03/2026
 PlatyPS schema version: 2024-05-01
 title: Enable-IRTAdUser
 ---
@@ -38,12 +38,16 @@ Falls back to $Global:UserObjects if no -UserObject is passed.
 
 ### EXAMPLE 1
 
+```powershell
 Enable-IRTAdUser
+```
 Re-enables the user(s) in the global session.
 
 ### EXAMPLE 2
 
+```powershell
 Enable-IRTAdUser -UserObject $AdUser
+```
 Re-enables a specific user.
 
 ## PARAMETERS

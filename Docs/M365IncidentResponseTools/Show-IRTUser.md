@@ -4,7 +4,7 @@ external help file: M365IncidentResponseTools-Help.xml
 HelpUri: ''
 Locale: en-US
 Module Name: M365IncidentResponseTools
-ms.date: 08/02/2026
+ms.date: 08/03/2026
 PlatyPS schema version: 2024-05-01
 title: Show-IRTUser
 ---
@@ -38,12 +38,16 @@ Falls back to $Global:IRT_UserObjects if no -UserObject is passed.
 
 ### EXAMPLE 1
 
+```powershell
 Show-IRTUser
+```
 Displays info for the user stored in the global session.
 
 ### EXAMPLE 2
 
+```powershell
 Show-IRTUser -UserObject $User
+```
 Displays info for a specific user object.
 
 ## PARAMETERS

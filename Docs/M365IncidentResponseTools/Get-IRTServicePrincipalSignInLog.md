@@ -4,7 +4,7 @@ external help file: M365IncidentResponseTools-Help.xml
 HelpUri: ''
 Locale: en-US
 Module Name: M365IncidentResponseTools
-ms.date: 08/02/2026
+ms.date: 08/03/2026
 PlatyPS schema version: 2024-05-01
 title: Get-IRTServicePrincipalSignInLog
 ---
@@ -55,18 +55,24 @@ Use Find-IRTServicePrincipal first to populate that global variable.
 
 ### EXAMPLE 1
 
+```powershell
 Find-IRTServicePrincipal MyApp
 Get-IRTServicePrincipalSignInLog
+```
 Two-step workflow: find the SP then download its sign-in logs.
 
 ### EXAMPLE 2
 
+```powershell
 Get-IRTServicePrincipalSignInLog -ServicePrincipalObject $SP -Days 90
+```
 Downloads 90 days of sign-in logs for a specific service principal.
 
 ### EXAMPLE 3
 
+```powershell
 Get-IRTServicePrincipalSignInLog -AllServicePrincipals -Days 7
+```
 Downloads 7 days of sign-in logs for all service principals in the tenant.
 
 ## PARAMETERS

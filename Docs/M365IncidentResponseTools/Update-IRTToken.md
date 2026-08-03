@@ -4,7 +4,7 @@ external help file: M365IncidentResponseTools-Help.xml
 HelpUri: ''
 Locale: en-US
 Module Name: M365IncidentResponseTools
-ms.date: 08/02/2026
+ms.date: 08/03/2026
 PlatyPS schema version: 2024-05-01
 title: Update-IRTToken
 ---
@@ -54,18 +54,24 @@ rather than the same near-expired cached access token.
 
 ### EXAMPLE 1
 
+```powershell
 Update-IRTToken -Service 'Graph'
+```
 Checks and re-binds the Graph token if it is expiring within 5 minutes.
 Writes an error if the Graph session does not exist.
 
 ### EXAMPLE 2
 
+```powershell
 Update-IRTToken -Service 'Graph', 'Exchange'
+```
 Checks both Graph and Exchange tokens and refreshes whichever is expiring soon.
 
 ### EXAMPLE 3
 
+```powershell
 Update-IRTToken
+```
 Checks all three services (Graph, Exchange, IPPS).
 
 ## PARAMETERS

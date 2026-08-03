@@ -9,7 +9,9 @@ function Open-IRTTenantOwnerCSV {
     runtime. If the file does not exist yet, a warning is displayed.
 
     .EXAMPLE
+    ```powershell
     Open-IRTTenantOwnerCSV
+    ```
 
     .NOTES
     Version: 1.0.0

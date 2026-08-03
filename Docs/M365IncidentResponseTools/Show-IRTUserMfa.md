@@ -4,7 +4,7 @@ external help file: M365IncidentResponseTools-Help.xml
 HelpUri: ''
 Locale: en-US
 Module Name: M365IncidentResponseTools
-ms.date: 08/02/2026
+ms.date: 08/03/2026
 PlatyPS schema version: 2024-05-01
 title: Show-IRTUserMfa
 ---
@@ -39,12 +39,16 @@ Falls back to $Global:IRT_UserObjects if no -UserObject is passed.
 
 ### EXAMPLE 1
 
+```powershell
 Show-IRTUserMfa
+```
 Displays MFA methods for the user in the global session.
 
 ### EXAMPLE 2
 
+```powershell
 Show-IRTUserMfa -UserObject $User
+```
 Displays MFA methods for a specific user.
 
 ## PARAMETERS

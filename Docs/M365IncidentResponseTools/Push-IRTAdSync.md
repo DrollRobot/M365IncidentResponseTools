@@ -4,7 +4,7 @@ external help file: M365IncidentResponseTools-Help.xml
 HelpUri: ''
 Locale: en-US
 Module Name: M365IncidentResponseTools
-ms.date: 08/02/2026
+ms.date: 08/03/2026
 PlatyPS schema version: 2024-05-01
 title: Push-IRTAdSync
 ---
@@ -49,17 +49,23 @@ Use -ResetCredentials to force a re-prompt.
 
 ### EXAMPLE 1
 
+```powershell
 Push-IRTAdSync
+```
 Automatically discovers and triggers a delta sync.
 
 ### EXAMPLE 2
 
+```powershell
 Push-IRTAdSync -SyncServer 'sync01.contoso.com'
+```
 Triggers sync on a known server without discovery.
 
 ### EXAMPLE 3
 
+```powershell
 Push-IRTAdSync -ResetCredentials
+```
 Re-prompts for domain admin credentials before syncing.
 
 ## PARAMETERS

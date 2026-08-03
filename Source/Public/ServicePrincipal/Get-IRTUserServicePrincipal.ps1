@@ -30,11 +30,15 @@ function Get-IRTUserServicePrincipal { # FIXME rename to Get-IRTUserAppConsent
     Use pre-cached Graph service principal data instead of making new API calls.
 
     .EXAMPLE
+    ```powershell
     Get-IRTUserServicePrincipal
+    ```
     Shows OAuth app consents for the user in the global session.
 
     .EXAMPLE
+    ```powershell
     Get-IRTUserServicePrincipal -UserObject $User
+    ```
     Shows OAuth app consents for a specific user.
 
     .OUTPUTS

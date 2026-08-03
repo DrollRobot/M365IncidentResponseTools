@@ -4,7 +4,7 @@ external help file: M365IncidentResponseTools-Help.xml
 HelpUri: ''
 Locale: en-US
 Module Name: M365IncidentResponseTools
-ms.date: 08/02/2026
+ms.date: 08/03/2026
 PlatyPS schema version: 2024-05-01
 title: New-IRTEmailSearch
 ---
@@ -47,17 +47,23 @@ object.
 
 ### EXAMPLE 1
 
+```powershell
 New-IRTEmailSearch
+```
 Launches the interactive query builder.
 
 ### EXAMPLE 2
 
+```powershell
 New-IRTEmailSearch -From 'sus@hacker.com' -Subject 'Payroll' -Start '5/28/26'
+```
 Builds a search for mail from a sender on or after the start date.
 
 ### EXAMPLE 3
 
+```powershell
 New-IRTEmailSearch -Subject 'invoice' -Start '5/28/26' -End '5/29/26'
+```
 Builds a search over an absolute date range.
 
 ## PARAMETERS

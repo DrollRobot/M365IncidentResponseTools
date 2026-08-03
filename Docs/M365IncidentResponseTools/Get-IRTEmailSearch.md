@@ -4,7 +4,7 @@ external help file: M365IncidentResponseTools-Help.xml
 HelpUri: ''
 Locale: en-US
 Module Name: M365IncidentResponseTools
-ms.date: 08/02/2026
+ms.date: 08/03/2026
 PlatyPS schema version: 2024-05-01
 title: Get-IRTEmailSearch
 ---
@@ -49,12 +49,16 @@ Requires a live IPPS (Security & Compliance) connection.
 
 ### EXAMPLE 1
 
+```powershell
 Get-IRTEmailSearch
+```
 Lists searches and launches the interactive action menu.
 
 ### EXAMPLE 2
 
+```powershell
 Get-IRTEmailSearch -Name 'From:sus@hacker.com'
+```
 Skips the picker and opens the action menu for the named search.
 
 ## PARAMETERS

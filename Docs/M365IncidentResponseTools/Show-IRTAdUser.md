@@ -4,7 +4,7 @@ external help file: M365IncidentResponseTools-Help.xml
 HelpUri: ''
 Locale: en-US
 Module Name: M365IncidentResponseTools
-ms.date: 08/02/2026
+ms.date: 08/03/2026
 PlatyPS schema version: 2024-05-01
 title: Show-IRTAdUser
 ---
@@ -36,12 +36,16 @@ $Global:IRT_UserObject (via Get-AdGlobalUserObject) if no -UserObjects is passed
 
 ### EXAMPLE 1
 
+```powershell
 Show-IRTAdUser
+```
 Displays info for the user(s) in the global session.
 
 ### EXAMPLE 2
 
+```powershell
 Show-IRTAdUser -UserObjects $AdUser
+```
 Displays info for a specific AD user object.
 
 ## PARAMETERS

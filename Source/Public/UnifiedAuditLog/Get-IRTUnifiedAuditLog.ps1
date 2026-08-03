@@ -82,15 +82,21 @@ function Get-IRTUnifiedAuditLog {
     Use pre-cached Graph data where available.
 
     .EXAMPLE
+    ```powershell
     Get-IRTUnifiedAuditLog
+    ```
     Queries the UAL for the last 30 days for the user in the global session.
 
     .EXAMPLE
+    ```powershell
     Get-IRTUnifiedAuditLog -UserObject $User -Days 90
+    ```
     Queries 90 days of UAL activity for a specific user.
 
     .EXAMPLE
+    ```powershell
     Get-IRTUnifiedAuditLog -AllUsers -Operation 'FileDeleted' -Start '2026-04-01' -End '2026-04-30'
+    ```
     Finds all FileDeleted events for any user during April 2026.
 
     .OUTPUTS

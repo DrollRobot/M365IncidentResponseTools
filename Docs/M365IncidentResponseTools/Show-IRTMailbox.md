@@ -4,7 +4,7 @@ external help file: M365IncidentResponseTools-Help.xml
 HelpUri: ''
 Locale: en-US
 Module Name: M365IncidentResponseTools
-ms.date: 08/02/2026
+ms.date: 08/03/2026
 PlatyPS schema version: 2024-05-01
 title: Show-IRTMailbox
 ---
@@ -40,12 +40,16 @@ Exchange Online connection.
 
 ### EXAMPLE 1
 
+```powershell
 Show-IRTMailbox
+```
 Displays mailbox details for the user in the global session.
 
 ### EXAMPLE 2
 
+```powershell
 Show-IRTMailbox -UserObject $User
+```
 Displays mailbox details for a specific user.
 
 ## PARAMETERS

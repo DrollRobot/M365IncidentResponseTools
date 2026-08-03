@@ -4,7 +4,7 @@ external help file: M365IncidentResponseTools-Help.xml
 HelpUri: ''
 Locale: en-US
 Module Name: M365IncidentResponseTools
-ms.date: 08/02/2026
+ms.date: 08/03/2026
 PlatyPS schema version: 2024-05-01
 title: New-IRTInvestigationFolder
 ---
@@ -40,12 +40,16 @@ Falls back to $Global:IRT_UserObjects if no -UserObject is passed.
 
 ### EXAMPLE 1
 
+```powershell
 New-IRTInvestigationFolder
+```
 Creates a folder like: investigation_contoso_jsmith_26-05-03_14-30
 
 ### EXAMPLE 2
 
+```powershell
 New-IRTInvestigationFolder -Ticket 'INC-1234' -UserObject $User
+```
 Creates a folder that includes the ticket number and user name.
 
 ## PARAMETERS

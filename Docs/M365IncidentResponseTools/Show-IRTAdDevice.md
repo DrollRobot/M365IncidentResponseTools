@@ -4,7 +4,7 @@ external help file: M365IncidentResponseTools-Help.xml
 HelpUri: ''
 Locale: en-US
 Module Name: M365IncidentResponseTools
-ms.date: 08/02/2026
+ms.date: 08/03/2026
 PlatyPS schema version: 2024-05-01
 title: Show-IRTAdDevice
 ---
@@ -36,12 +36,16 @@ $Global:IRT_DeviceObject if no -DeviceObject is passed.
 
 ### EXAMPLE 1
 
+```powershell
 Show-IRTAdDevice
+```
 Displays info for the device in $Global:IRT_DeviceObject.
 
 ### EXAMPLE 2
 
+```powershell
 Show-IRTAdDevice -DeviceObject $AdComputer
+```
 Displays info for a specific AD computer object.
 
 ## PARAMETERS

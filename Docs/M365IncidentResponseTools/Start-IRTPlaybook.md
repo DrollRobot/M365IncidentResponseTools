@@ -4,7 +4,7 @@ external help file: M365IncidentResponseTools-Help.xml
 HelpUri: ''
 Locale: en-US
 Module Name: M365IncidentResponseTools
-ms.date: 08/02/2026
+ms.date: 08/03/2026
 PlatyPS schema version: 2024-05-01
 title: Start-IRTPlaybook
 ---
@@ -43,18 +43,24 @@ by Find-User.
 
 ### EXAMPLE 1
 
+```powershell
 Find-GraphUser 'jsmith@contoso.com'
 Start-IRTPlaybook
+```
 Look up a user, then run the full playbook using the global user object.
 
 ### EXAMPLE 2
 
+```powershell
 Start-IRTPlaybook -UserObject $User -Ticket 'INC-1234'
+```
 Run the playbook for an already-resolved user object and name the output folder INC-1234.
 
 ### EXAMPLE 3
 
+```powershell
 Start-IRTPlaybook -UserObject $User -NoFolder -MaxRunspaces 5
+```
 Run without writing files, using a limited runspace pool.
 
 ## PARAMETERS

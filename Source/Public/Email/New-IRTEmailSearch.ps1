@@ -63,15 +63,21 @@ function New-IRTEmailSearch {
     prompting. Never overwrites an existing search.
 
     .EXAMPLE
+    ```powershell
     New-IRTEmailSearch
+    ```
     Launches the interactive query builder.
 
     .EXAMPLE
+    ```powershell
     New-IRTEmailSearch -From 'sus@hacker.com' -Subject 'Payroll' -Start '5/28/26'
+    ```
     Builds a search for mail from a sender on or after the start date.
 
     .EXAMPLE
+    ```powershell
     New-IRTEmailSearch -Subject 'invoice' -Start '5/28/26' -End '5/29/26'
+    ```
     Builds a search over an absolute date range.
 
     .OUTPUTS

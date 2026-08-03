@@ -44,27 +44,38 @@ function Get-TenantOidc {
     known cloud key to its endpoint record.
 
     .EXAMPLE
+    ```powershell
     Get-TenantOidc -TenantId 'f8cdef31-a31e-4b4a-93e4-5f571e91255a'
+    ```
 
     .EXAMPLE
+    ```powershell
     Get-TenantOidc -Domain 'contoso.com'
+    ```
 
     .EXAMPLE
+    ```powershell
     $oidc = Get-TenantOidc -TenantId $value
     Write-Host (
         "TenantId: $( $oidc.TenantId ) | Cloud: $( $oidc.Cloud ) | " +
         "Graph: $( $oidc.msgraph_host )")
+    ```
 
     .EXAMPLE
+    ```powershell
     # Resolve a known cloud key to its endpoints without probing.
     $endpoints = (Get-TenantOidc -CloudTable)['USGov']
     $endpoints.Graph   # https://graph.microsoft.us
+    ```
 
     .EXAMPLE
+    ```powershell
     # List all supported cloud keys.
     (Get-TenantOidc -CloudTable).Keys
+    ```
 
     .EXAMPLE
+    ```powershell
     # Shape of the CloudConfig object (also returned as $oidc.CloudConfig after a probe).
     # All keys present on every cloud entry:
     #
@@ -78,6 +89,7 @@ function Get-TenantOidc {
     $cc = (Get-TenantOidc -CloudTable)['Commercial']
     $cc.GraphEnv        # Global
     $cc.ExchangeEnv     # O365Default
+    ```
 
     .OUTPUTS
     PSCustomObject (augmented OIDC discovery document), or $null if not found.

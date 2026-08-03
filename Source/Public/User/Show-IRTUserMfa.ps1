@@ -27,11 +27,15 @@ function Show-IRTUserMfa {
     Open the Excel file immediately after export. Default: $true.
 
     .EXAMPLE
+    ```powershell
     Show-IRTUserMfa
+    ```
     Displays MFA methods for the user in the global session.
 
     .EXAMPLE
+    ```powershell
     Show-IRTUserMfa -UserObject $User
+    ```
     Displays MFA methods for a specific user.
 
     .OUTPUTS

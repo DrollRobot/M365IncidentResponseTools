@@ -31,11 +31,15 @@ function Get-IRTNonInteractiveSignIn {
     Open the Excel file immediately after export. Default: $true.
 
     .EXAMPLE
+    ```powershell
     Get-IRTNonInteractiveSignIn
+    ```
     Downloads non-interactive sign-in logs for the user in the global session.
 
     .EXAMPLE
+    ```powershell
     Get-IRTNonInteractiveSignIn -UserObject $User -Days 30
+    ```
     Downloads 30 days of non-interactive sign-ins for a specific user.
 
     .OUTPUTS

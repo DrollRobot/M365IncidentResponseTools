@@ -4,7 +4,7 @@ external help file: M365IncidentResponseTools-Help.xml
 HelpUri: ''
 Locale: en-US
 Module Name: M365IncidentResponseTools
-ms.date: 08/02/2026
+ms.date: 08/03/2026
 PlatyPS schema version: 2024-05-01
 title: Get-TenantOidc
 ---
@@ -75,32 +75,43 @@ Microsoft cloud endpoint metadata for the module.
 
 ### EXAMPLE 1
 
+```powershell
 Get-TenantOidc -TenantId 'f8cdef31-a31e-4b4a-93e4-5f571e91255a'
+```
 
 ### EXAMPLE 2
 
+```powershell
 Get-TenantOidc -Domain 'contoso.com'
+```
 
 ### EXAMPLE 3
 
+```powershell
 $oidc = Get-TenantOidc -TenantId $value
 Write-Host (
     "TenantId: $( $oidc.TenantId ) | Cloud: $( $oidc.Cloud ) | " +
     "Graph: $( $oidc.msgraph_host )")
+```
 
 ### EXAMPLE 4
 
+```powershell
 # Resolve a known cloud key to its endpoints without probing.
 $endpoints = (Get-TenantOidc -CloudTable)['USGov']
 $endpoints.Graph   # https://graph.microsoft.us
+```
 
 ### EXAMPLE 5
 
+```powershell
 # List all supported cloud keys.
 (Get-TenantOidc -CloudTable).Keys
+```
 
 ### EXAMPLE 6
 
+```powershell
 # Shape of the CloudConfig object (also returned as $oidc.CloudConfig after a probe).
 # All keys present on every cloud entry:
 #
@@ -114,6 +125,7 @@ $endpoints.Graph   # https://graph.microsoft.us
 $cc = (Get-TenantOidc -CloudTable)['Commercial']
 $cc.GraphEnv        # Global
 $cc.ExchangeEnv     # O365Default
+```
 
 ## PARAMETERS
 

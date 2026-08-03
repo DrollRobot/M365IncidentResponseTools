@@ -18,11 +18,15 @@ function Find-IRTAdOu {
     variable. Useful when calling from scripts.
 
     .EXAMPLE
+    ```powershell
     Find-IRTAdOu 'Workstations'
+    ```
     Finds all OUs with 'Workstations' in their name and sets $Global:OuObject if exactly one match.
 
     .EXAMPLE
+    ```powershell
     $Ou = Find-IRTAdOu -Search 'contoso.com/Workstations' -Script
+    ```
     Returns the OU object directly for use in a script.
 
     .OUTPUTS

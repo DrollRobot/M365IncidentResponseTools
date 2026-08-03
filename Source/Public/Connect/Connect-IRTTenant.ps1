@@ -39,15 +39,21 @@ function Connect-IRTTenant {
     Open the browser in private/incognito mode.
 
     .EXAMPLE
+    ```powershell
     Connect-IRTTenant contoso
+    ```
     Looks up 'contoso' in the tenants worksheet and connects to all services.
 
     .EXAMPLE
+    ```powershell
     Connect-IRTTenant fab -Graph
+    ```
     Looks up 'fab' in the tenants worksheet and connects to Graph only.
 
     .EXAMPLE
+    ```powershell
     irttenant bestcompany
+    ```
     Uses the alias to connect to the matching tenant.
 
     .NOTES

@@ -4,7 +4,7 @@ external help file: M365IncidentResponseTools-Help.xml
 HelpUri: ''
 Locale: en-US
 Module Name: M365IncidentResponseTools
-ms.date: 08/02/2026
+ms.date: 08/03/2026
 PlatyPS schema version: 2024-05-01
 title: Get-IRTMessageTrace
 ---
@@ -61,17 +61,23 @@ is specified.
 
 ### EXAMPLE 1
 
+```powershell
 Get-IRTMessageTrace
+```
 Downloads message trace for the user in the global session (last 10 days).
 
 ### EXAMPLE 2
 
+```powershell
 Get-IRTMessageTrace -UserObject $User -Days 30
+```
 Downloads 30 days of message trace for a specific user.
 
 ### EXAMPLE 3
 
+```powershell
 Get-IRTMessageTrace -AllUsers -Start '2026-04-01' -End '2026-04-30'
+```
 Downloads all tenant message trace for April 2026.
 
 ## PARAMETERS

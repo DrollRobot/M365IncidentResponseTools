@@ -4,7 +4,7 @@ external help file: M365IncidentResponseTools-Help.xml
 HelpUri: ''
 Locale: en-US
 Module Name: M365IncidentResponseTools
-ms.date: 08/02/2026
+ms.date: 08/03/2026
 PlatyPS schema version: 2024-05-01
 title: Find-IRTRiskyServicePrincipal
 ---
@@ -43,12 +43,16 @@ Requires the PSToml module for feeds that use TOML format.
 
 ### EXAMPLE 1
 
+```powershell
 Find-IRTRiskyServicePrincipal
+```
 Queries all threat intelligence feeds and reports any matches in the tenant.
 
 ### EXAMPLE 2
 
+```powershell
 Find-IRTRiskyServicePrincipal -Cached
+```
 Same as above but uses cached Graph data from the current session.
 
 ## PARAMETERS

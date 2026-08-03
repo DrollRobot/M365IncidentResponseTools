@@ -4,7 +4,7 @@ external help file: M365IncidentResponseTools-Help.xml
 HelpUri: ''
 Locale: en-US
 Module Name: M365IncidentResponseTools
-ms.date: 08/02/2026
+ms.date: 08/03/2026
 PlatyPS schema version: 2024-05-01
 title: Get-IRTUnifiedAuditLog
 ---
@@ -64,17 +64,23 @@ Requires an active Exchange Online connection.
 
 ### EXAMPLE 1
 
+```powershell
 Get-IRTUnifiedAuditLog
+```
 Queries the UAL for the last 30 days for the user in the global session.
 
 ### EXAMPLE 2
 
+```powershell
 Get-IRTUnifiedAuditLog -UserObject $User -Days 90
+```
 Queries 90 days of UAL activity for a specific user.
 
 ### EXAMPLE 3
 
+```powershell
 Get-IRTUnifiedAuditLog -AllUsers -Operation 'FileDeleted' -Start '2026-04-01' -End '2026-04-30'
+```
 Finds all FileDeleted events for any user during April 2026.
 
 ## PARAMETERS

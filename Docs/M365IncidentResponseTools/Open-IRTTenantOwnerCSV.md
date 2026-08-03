@@ -4,7 +4,7 @@ external help file: M365IncidentResponseTools-Help.xml
 HelpUri: ''
 Locale: en-US
 Module Name: M365IncidentResponseTools
-ms.date: 08/02/2026
+ms.date: 08/03/2026
 PlatyPS schema version: 2024-05-01
 title: Open-IRTTenantOwnerCSV
 ---
@@ -36,7 +36,9 @@ If the file does not exist yet, a warning is displayed.
 
 ### EXAMPLE 1
 
+```powershell
 Open-IRTTenantOwnerCSV
+```
 
 ## PARAMETERS
 

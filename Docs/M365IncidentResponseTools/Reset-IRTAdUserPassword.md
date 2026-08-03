@@ -4,7 +4,7 @@ external help file: M365IncidentResponseTools-Help.xml
 HelpUri: ''
 Locale: en-US
 Module Name: M365IncidentResponseTools
-ms.date: 08/02/2026
+ms.date: 08/03/2026
 PlatyPS schema version: 2024-05-01
 title: Reset-IRTAdUserPassword
 ---
@@ -78,33 +78,45 @@ Supports -WhatIf and -Confirm via SupportsShouldProcess.
 
 ### EXAMPLE 1
 
+```powershell
 Reset-IRTAdUserPassword -RandomCharacters
+```
 Generates and sets a random password for the user in the global session.
 
 ### EXAMPLE 2
 
+```powershell
 Reset-IRTAdUserPassword -UserObjects $User -RandomCharacters
+```
 Resets the password for a specific user object using a random password.
 
 ### EXAMPLE 3
 
+```powershell
 Reset-IRTAdUserPassword -Custom
+```
 Prompts the operator to enter a custom password for the global session user.
 
 ### EXAMPLE 4
 
+```powershell
 Reset-IRTAdUserPassword -UserObjects $User -ForceChangePasswordNextSignIn
+```
 Forces the user to set a new password on their next sign-in, without changing
 the current password.
 
 ### EXAMPLE 5
 
+```powershell
 Reset-IRTAdUserPassword -RandomCharacters -Length 48
+```
 Resets the password using a random 48-character password.
 
 ### EXAMPLE 6
 
+```powershell
 Reset-IRTAdUserPassword -UserObjects $User -RandomCharacters -WhatIf
+```
 Shows what would happen without actually resetting the password.
 
 ## PARAMETERS

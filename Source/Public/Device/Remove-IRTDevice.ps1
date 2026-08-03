@@ -23,16 +23,22 @@ function Remove-IRTDevice {
 	(-WhatIf / -Confirm) still applies.
 
 	.EXAMPLE
+	```powershell
 	Remove-IRTDevice
+	```
 	Operates on $IRT_DeviceObjects. Prompts for name confirmation before each deletion.
 
 	.EXAMPLE
+	```powershell
 	Find-IRTDevice DESKTOP-ABC123
 	Remove-IRTDevice
+	```
 	Find a device by name, then delete it (with confirmation prompt).
 
 	.EXAMPLE
+	```powershell
 	Remove-IRTDevice -Force -WhatIf
+	```
 	Show what would be deleted without prompting or actually deleting anything.
 
 	.NOTES

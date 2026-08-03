@@ -4,7 +4,7 @@ external help file: M365IncidentResponseTools-Help.xml
 HelpUri: ''
 Locale: en-US
 Module Name: M365IncidentResponseTools
-ms.date: 08/02/2026
+ms.date: 08/03/2026
 PlatyPS schema version: 2024-05-01
 title: Find-IRTUser
 ---
@@ -55,27 +55,37 @@ global side effects and return the objects directly.
 
 ### EXAMPLE 1
 
+```powershell
 Find-IRTUser flast
+```
 Finds users matching 'flast' and creates $IRT_UserObjects.
 
 ### EXAMPLE 2
 
+```powershell
 Find-IRTUser -Search flast,jsmith
+```
 Searches for two users, one query per string.
 
 ### EXAMPLE 3
 
+```powershell
 Find-IRTUser bf7573a5844f
+```
 Searches by partial user id. Email addresses and proxy addresses also match.
 
 ### EXAMPLE 4
 
+```powershell
 $Users = Find-IRTUser -Search 'flast' -AllMatches -Script
+```
 Returns every matching user object without setting globals or writing to the console.
 
 ### EXAMPLE 5
 
+```powershell
 Find-IRTUser -FromClipboard
+```
 Reads the clipboard and searches for each line as a separate query.
 
 ## PARAMETERS

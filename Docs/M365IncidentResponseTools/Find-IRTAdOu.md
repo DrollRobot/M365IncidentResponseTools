@@ -4,7 +4,7 @@ external help file: M365IncidentResponseTools-Help.xml
 HelpUri: ''
 Locale: en-US
 Module Name: M365IncidentResponseTools
-ms.date: 08/02/2026
+ms.date: 08/03/2026
 PlatyPS schema version: 2024-05-01
 title: Find-IRTAdOu
 ---
@@ -38,12 +38,16 @@ $Global:OuObject and displayed; multiple or zero results produce a warning.
 
 ### EXAMPLE 1
 
+```powershell
 Find-IRTAdOu 'Workstations'
+```
 Finds all OUs with 'Workstations' in their name and sets $Global:OuObject if exactly one match.
 
 ### EXAMPLE 2
 
+```powershell
 $Ou = Find-IRTAdOu -Search 'contoso.com/Workstations' -Script
+```
 Returns the OU object directly for use in a script.
 
 ## PARAMETERS

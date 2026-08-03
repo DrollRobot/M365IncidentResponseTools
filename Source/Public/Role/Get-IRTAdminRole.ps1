@@ -36,15 +36,21 @@ function Get-IRTAdminRole {
     When exporting to Excel, open the file immediately after writing. Default: $true.
 
     .EXAMPLE
+    ```powershell
     Get-IRTAdminRole
+    ```
     Displays all role members grouped by type in the console.
 
     .EXAMPLE
+    ```powershell
     Get-IRTAdminRole -Excel -Highlight 'jsmith@contoso.com'
+    ```
     Exports an Excel report and flags any row matching 'jsmith@contoso.com'.
 
     .EXAMPLE
+    ```powershell
     $RoleMembers = Get-IRTAdminRole -Script
+    ```
     Returns raw objects for further processing.
 
     .OUTPUTS

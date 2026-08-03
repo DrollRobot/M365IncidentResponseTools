@@ -47,11 +47,15 @@ function Get-IRTAccessToken {
     app for Exchange and IPPS).
 
     .EXAMPLE
+    ```powershell
     Get-IRTAccessToken -Service Exchange -Silent
+    ```
     Returns a fresh Exchange token from the cache without ever prompting.
 
     .EXAMPLE
+    ```powershell
     (Get-IRTAccessToken -Service Graph).AccessToken
+    ```
     Returns just the bearer token string for a manual Graph REST call.
 
     .OUTPUTS

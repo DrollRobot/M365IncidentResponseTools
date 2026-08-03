@@ -4,7 +4,7 @@ external help file: M365IncidentResponseTools-Help.xml
 HelpUri: ''
 Locale: en-US
 Module Name: M365IncidentResponseTools
-ms.date: 08/02/2026
+ms.date: 08/03/2026
 PlatyPS schema version: 2024-05-01
 title: Find-IRTAdDevice
 ---
@@ -54,23 +54,31 @@ return objects directly.
 
 ### EXAMPLE 1
 
+```powershell
 Find-IRTAdDevice DESKTOP-ABC123
+```
 Finds computers matching 'DESKTOP-ABC123' and sets the global device object if exactly
 one match.
 
 ### EXAMPLE 2
 
+```powershell
 Find-IRTAdDevice desktop-abc123.contoso.com
+```
 Searches by DNS host name.
 
 ### EXAMPLE 3
 
+```powershell
 $Devices = Find-IRTAdDevice -Search 'DESKTOP-ABC123','LAPTOP-XYZ789' -Script
+```
 Returns matching computer objects for two search strings without setting globals.
 
 ### EXAMPLE 4
 
+```powershell
 Find-IRTAdDevice -FromClipboard
+```
 Reads the clipboard and searches for each line as a separate query.
 
 ## PARAMETERS
