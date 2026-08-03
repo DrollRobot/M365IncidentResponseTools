@@ -49,6 +49,7 @@ current format rules. Do not rely on training data -- request a fresh copy every
    against the three changelog categories:
    - **Features** -- new or changed functionality a user can invoke (maps to Added,
      Changed, Deprecated, Removed).
+     **Documentation** -- updates to user facing documentation.
    - **User-facing bugs** -- something that was broken and is now fixed (maps to Fixed).
    - **Security** -- vulnerabilities or security-relevant changes (maps to Security).
 
