@@ -15,5 +15,3 @@ Files here are NOT merged into the `.psm1`.
 - Reference these files at runtime via `$PSScriptRoot` from within a function,
   or via a module-level path variable set during initialization.
 - Do not store user-specific data or secrets here -- only static reference data.
-
-
