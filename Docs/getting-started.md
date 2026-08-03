@@ -23,29 +23,11 @@ git clone https://github.com/DrollRobot/M365IncidentResponseTools.git
 ### Install Dependencies
 
 On the first import of the module, (`Import-Module M365IncidentResponseTools`)
-Install-Dependency.ps1 will verify you have the required modules installed. If not,
-it will tell you to run a command similar to the one below:
+Confirm-Dependency.ps1 will verify you have the required modules installed. If not,
+it will provide a command to run the Install-Dependency.ps1 script. Something like:
 ```powershell
-& "C:\Users\USER\Documents\Powershell\Modules\M365IncidentResponseTools\Install-Dependency.ps1"
+& "C:\*\M365IncidentResponseTools\ScriptsToProcess\Install-Dependency.ps1"
 ```
-
-**The script will install the following modules:**
-Microsoft.Graph.Applications
-Microsoft.Graph.Authentication
-Microsoft.Graph.Beta.Identity.Signins
-Microsoft.Graph.Beta.Reports
-Microsoft.Graph.DeviceManagement
-Microsoft.Graph.DirectoryObjects
-Microsoft.Graph.Groups
-Microsoft.Graph.Identity.DirectoryManagement
-Microsoft.Graph.Identity.Signins
-Microsoft.Graph.Reports
-Microsoft.Graph.Users
-Microsoft.Graph.Users.Actions
-ExchangeOnlineManagement
-ImportExcel
-PSToml
-PSFramework
 
 **Connecting to an M365 tenant:**
 [Connect to M365](connect.md)
