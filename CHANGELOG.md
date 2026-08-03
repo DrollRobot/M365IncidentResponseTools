@@ -6,6 +6,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 
+## [v2.10.1] - 2026-08-02
+
+### Changed
+
+- The import banner now shows the installed module version and a link to the
+  documentation site.
+- Added documentation for user investigations, service principal investigations,
+  remediation in active directory.
+
+### Fixed
+
+- On-prem commands run against a remote session no longer fail on module import.
+  PSFramework is not available in those sessions, and the module no longer tries
+  to load it there.
+- Fixed many broken links in documentation site.
+
 ## [v2.10.0] - 2026-06-30
 
 ### Added
@@ -131,7 +147,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - IP address conditional formatting rules are now read from a spreadsheet at a configurable
   path, allowing users to create their own conditional formatting rules.
 - Added automatic cloud detection using OIDC data. You no longer have to specify `-GCCHigh`
-  with Connect-IRT. (though, you can still specify a cloud with `-Cloud UsGov/Commercial` 
+  with Connect-IRT. (though, you can still specify a cloud with `-Cloud UsGov/Commercial`
   to bypass OIDC lookup)
 
 ### Fixed
