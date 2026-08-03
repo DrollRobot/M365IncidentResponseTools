@@ -74,18 +74,17 @@ selected user from `$Global:IRT_UserObjects` unless `-UserObject` is passed.
 # last 30 days of interactive sign-in logs for the selected user
 Get-IRTEntraSignInLog
 
-# 90 days for a specific user
-Get-IRTEntraSignInLog -UserObject $User -Days 90
+# 7 days for a specific user
+Get-IRTEntraSignInLog -UserObject $User -Days 7
 
 # all sign-ins from a specific IP over the last 14 days
 Get-IRTEntraSignInLog -IpAddress '203.0.113.5' -Days 14
 
-# non-interactive sign-ins (token refreshes, service-to-service calls)
-Get-IRTNonInteractiveSignIn
+# non-interactive sign-ins for a specific time range.
+Get-IRTEntraSignInLog -NonInteractive -Start '2026-04-01' -End '2026-04-3'
 ```
 
-Results are enriched with IP geolocation and Entra error descriptions, then exported
-to an Excel workbook.
+Results are exported to an Excel workbook.
 
 ### Message Trace
 
