@@ -53,6 +53,14 @@
 
     When logs are found and -Excel $true is passed, Show-IRTUnifiedAuditLog
     is called exactly once.
+
+-- RecordType expansion -------------------------------------------------
+
+    Search-UnifiedAuditLog accepts a single -RecordType per call, so the
+    function multiplies its query table by the number of record types given.
+    AllUsers with two record types makes two calls; UserObject (4 base
+    queries) with one record type makes four calls, each carrying RecordType.
+    Without -RecordType no call carries the parameter.
 #>
 
 # EXO proxy cmdlets only exist after Connect-ExchangeOnline. Create thin global
@@ -60,7 +68,25 @@
 # New-UALPage is also global so it is accessible inside Mock body scriptblocks.
 BeforeAll {
     function global:Get-AcceptedDomain { }
-    function global:Search-UnifiedAuditLog { }
+    # Parameter names mirror the real cmdlet so Mock -ParameterFilter can bind
+    # them by name (e.g. $RecordType, $SessionId).
+    function global:Search-UnifiedAuditLog {
+        [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+            'PSReviewUnusedParameter', '',
+            Justification = 'Stub exists only so Mock can bind parameters by name.')]
+        param(
+            $ResultSize,
+            $SessionCommand,
+            $Formatted,
+            $StartDate,
+            $EndDate,
+            $UserIds,
+            $FreeText,
+            $Operations,
+            $RecordType,
+            $SessionId
+        )
+    }
 
     function global:New-UALPage {
         [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
@@ -252,6 +278,75 @@ Describe 'Get-IRTUnifiedAuditLog' -Tag 'unit' {
             Get-IRTUnifiedAuditLog @Params
             $InvokeArgs = @{ ModuleName = 'M365IncidentResponseTools' }
             Should -Invoke Show-IRTUnifiedAuditLog -Times 1 -Exactly @InvokeArgs
+        }
+    }
+
+    # -------------------------------------------------------------------
+    Context '-RecordType runs every query once per record type' {
+
+        BeforeEach {
+            Mock Search-UnifiedAuditLog { @() } -ModuleName M365IncidentResponseTools
+        }
+
+        It 'makes 2 calls for AllUsers with 2 record types' {
+            $Params = @{
+                AllUsers   = $true
+                RecordType = 'MicrosoftTeams', 'ExchangeItem'
+                Excel      = $false
+                Xml        = $false
+            }
+            Get-IRTUnifiedAuditLog @Params
+            $InvokeArgs = @{ ModuleName = 'M365IncidentResponseTools' }
+            Should -Invoke Search-UnifiedAuditLog -Times 2 -Exactly @InvokeArgs
+        }
+
+        It 'passes each requested record type to Search-UnifiedAuditLog' {
+            $Params = @{
+                AllUsers   = $true
+                RecordType = 'MicrosoftTeams', 'ExchangeItem'
+                Excel      = $false
+                Xml        = $false
+            }
+            Get-IRTUnifiedAuditLog @Params
+            $TeamsArgs = @{
+                ModuleName      = 'M365IncidentResponseTools'
+                ParameterFilter = { $RecordType -eq 'MicrosoftTeams' }
+            }
+            $ExchangeArgs = @{
+                ModuleName      = 'M365IncidentResponseTools'
+                ParameterFilter = { $RecordType -eq 'ExchangeItem' }
+            }
+            Should -Invoke Search-UnifiedAuditLog -Times 1 -Exactly @TeamsArgs
+            Should -Invoke Search-UnifiedAuditLog -Times 1 -Exactly @ExchangeArgs
+        }
+
+        It 'makes 4 calls for a UserObject with 1 record type, all carrying it' {
+            $User = [pscustomobject]@{
+                Id                = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'
+                UserPrincipalName = 'user@contoso.com'
+            }
+            $Params = @{
+                UserObject = $User
+                RecordType = 'MicrosoftTeams'
+                Excel      = $false
+                Xml        = $false
+            }
+            Get-IRTUnifiedAuditLog @Params
+            $Filter = { $RecordType -eq 'MicrosoftTeams' }
+            $InvokeArgs = @{ ModuleName = 'M365IncidentResponseTools'; ParameterFilter = $Filter }
+            Should -Invoke Search-UnifiedAuditLog -Times 4 -Exactly @InvokeArgs
+        }
+
+        It 'does not pass RecordType when the parameter is omitted' {
+            $Params = @{
+                AllUsers = $true
+                Excel    = $false
+                Xml      = $false
+            }
+            Get-IRTUnifiedAuditLog @Params
+            $Filter = { $PSBoundParameters.ContainsKey('RecordType') }
+            $InvokeArgs = @{ ModuleName = 'M365IncidentResponseTools'; ParameterFilter = $Filter }
+            Should -Invoke Search-UnifiedAuditLog -Times 0 -Exactly @InvokeArgs
         }
     }
 

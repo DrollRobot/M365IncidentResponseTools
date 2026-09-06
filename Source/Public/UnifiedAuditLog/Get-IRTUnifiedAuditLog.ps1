@@ -68,6 +68,11 @@ function Get-IRTUnifiedAuditLog {
     .PARAMETER FreeText
     One or more free-text search strings passed to Search-UnifiedAuditLog.
 
+    .PARAMETER RecordType
+    Filter results to one or more UAL record types (e.g. MicrosoftTeams,
+    ExchangeItem, AzureActiveDirectoryStsLogon). Search-UnifiedAuditLog accepts a
+    single record type per call, so every query is run once per record type given.
+
     .PARAMETER Excel
     Export results to an Excel workbook. Default: $true.
 
@@ -99,11 +104,18 @@ function Get-IRTUnifiedAuditLog {
     ```
     Finds all FileDeleted events for any user during April 2026.
 
+    .EXAMPLE
+    ```powershell
+    Get-IRTUnifiedAuditLog -UserObject $User -Days 30 -RecordType 'MicrosoftTeams'
+    ```
+    Pulls only Microsoft Teams records for the user over the last 30 days.
+
     .OUTPUTS
     None. Results are exported to an Excel workbook.
 
     .NOTES
-    Version: 1.9.0
+    Version: 1.10.0
+    1.10.0 - Added -RecordType to filter queries by UAL record type.
     1.9.0 - Exposed -ChunkDays to control date-chunk size, added per-chunk token
     refresh so long multi-chunk runs don't outlive the token's refresh window, an
     inter-chunk delay (-ChunkDelaySeconds), and retry-with-backoff
@@ -160,6 +172,9 @@ function Get-IRTUnifiedAuditLog {
         [switch] $SignInLog,
 
         [string[]] $FreeText,
+
+        [Alias('RecordTypes')]
+        [string[]] $RecordType,
 
         [boolean] $Excel = $true,
         [boolean] $WaitOnMessageTrace = $false,
@@ -574,6 +589,28 @@ function Get-IRTUnifiedAuditLog {
                 }
             }
 
+            # Search-UnifiedAuditLog takes a single -RecordType per call, so when
+            # record types are requested, expand the query table to run every
+            # query once per record type.
+            if (($RecordType | Measure-Object).Count -gt 0) {
+                $ExpandedTable = [ordered]@{}
+                $Key = 1
+                foreach ($Entry in $QueryTable.GetEnumerator()) {
+                    foreach ($Type in $RecordType) {
+                        $TypedParams = @{}
+                        $Entry.Value.Params.GetEnumerator() |
+                            ForEach-Object { $TypedParams[$_.Key] = $_.Value }
+                        $TypedParams['RecordType'] = $Type
+                        $ExpandedTable["$Key"] = @{
+                            Params        = $TypedParams
+                            ConsoleOutput = "RecordType ${Type}: " +
+                            $Entry.Value.ConsoleOutput
+                        }
+                        $Key++
+                    }
+                }
+                $QueryTable = $ExpandedTable
+            }
 
             #region RUN QUERIES
             $LimitReached = $false
