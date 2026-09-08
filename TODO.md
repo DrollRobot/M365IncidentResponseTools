@@ -1,3 +1,0 @@
-
-
-Enumerate email transport rules. 
