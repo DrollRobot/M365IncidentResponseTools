@@ -120,7 +120,7 @@ devices.
 ### Unified Audit Log
 
 ```powershell
-# all UAL records for the selected user over the last 30 days
+# all UAL records for the selected user (defaults to 1 day)
 Get-IRTUnifiedAuditLog
 
 # 90 days for a specific user
@@ -134,6 +134,9 @@ Get-IRTUnifiedAuditLog -SignInLog -Days 180
 
 # specific operations across all users in a date range
 Get-IRTUnifiedAuditLog -AllUsers -Operation 'FileDeleted' -Start '2026-04-01' -End '2026-04-30'
+
+# only specific record types
+Get-IRTUnifiedAuditLog -RecordType 'ExchangeItem', 'AzureActiveDirectoryStsLogon'
 ```
 
 ## Other Investigation Commands
