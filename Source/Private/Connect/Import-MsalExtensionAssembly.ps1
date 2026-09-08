@@ -19,7 +19,7 @@ function Import-MsalExtensionAssembly {
     [string] - the path to the loaded Extensions DLL.
 
     .NOTES
-    Version: 2.0.0
+    Version: 2.1.0
     #>
     [OutputType([string])]
     [CmdletBinding()]
@@ -31,8 +31,7 @@ function Import-MsalExtensionAssembly {
     $MsalFloor = [version]'4.61.3'  # Extensions.Msal 4.66.x minimum MSAL
 
     # Already loaded?
-    $Loaded = [System.AppDomain]::CurrentDomain.GetAssemblies() |
-        Where-Object { $_.GetName().Name -eq 'Microsoft.Identity.Client.Extensions.Msal' }
+    $Loaded = Get-LoadedAssembly -Name 'Microsoft.Identity.Client.Extensions.Msal'
     if ($Loaded) {
         Write-PSFMessage -Level 8 -Message (
             "Import-MsalExtensionAssembly: Already loaded from $($Loaded.Location)")
@@ -40,9 +39,7 @@ function Import-MsalExtensionAssembly {
     }
 
     # Verify the MSAL DLL Graph loaded meets the Extensions floor.
-    $Msal = [System.AppDomain]::CurrentDomain.GetAssemblies() |
-        Where-Object { $_.GetName().Name -eq 'Microsoft.Identity.Client' } |
-        Select-Object -First 1
+    $Msal = Get-LoadedAssembly -Name 'Microsoft.Identity.Client'
     if (-not $Msal) {
         throw 'Microsoft.Identity.Client is not loaded. ' +
         'Call Import-MsalAssembly before calling Import-MsalExtensionAssembly.'
@@ -71,6 +68,10 @@ function Import-MsalExtensionAssembly {
             'The module build is incomplete - re-install the module or run Build.ps1.')
     }
 
-    Add-Type -Path $DllPath
+    try {
+        Add-Type -Path $DllPath -ErrorAction Stop
+    } catch {
+        throw "Failed to load MSAL extensions assembly from '$DllPath': $_"
+    }
     return $DllPath
 }

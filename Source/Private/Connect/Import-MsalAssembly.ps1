@@ -16,7 +16,7 @@ function Import-MsalAssembly {
     Import-MsalAssembly
 
     .NOTES
-    Version: 1.0.0
+    Version: 1.1.0
     #>
     [CmdletBinding()]
     [OutputType([System.Reflection.Assembly])]
@@ -24,15 +24,21 @@ function Import-MsalAssembly {
 
     Import-IRTModule -Name 'PSFramework'
 
-    $Assembly = [System.AppDomain]::CurrentDomain.GetAssemblies() |
-        Where-Object { $_.FullName -like 'Microsoft.Identity.Client,*' }
+    $Assembly = Get-LoadedAssembly -Name 'Microsoft.Identity.Client'
 
     if ($Assembly) {
         Write-PSFMessage -Level 8 -Message "MSAL assembly already loaded: $($Assembly.FullName)"
         return $Assembly
     }
 
+    # Microsoft.Graph.Authentication ships the MSAL DLL and is a declared
+    # dependency, but Get-Module only sees it once it is imported.
+    Import-IRTModule -Name 'Microsoft.Graph.Authentication'
     $GraphModule = Get-Module Microsoft.Graph.Authentication -ErrorAction SilentlyContinue
+    if (-not $GraphModule) {
+        throw ('Microsoft.Graph.Authentication could not be loaded. It is a required ' +
+            'dependency and supplies the MSAL assembly.')
+    }
     Write-PSFMessage -Level 8 -Message (
         "Microsoft.Graph.Authentication version: " +
         "$($GraphModule.Version)")
@@ -51,6 +57,5 @@ function Import-MsalAssembly {
     } catch {
         throw "Failed to load MSAL assembly from '$MsalDll': $_"
     }
-    return [System.AppDomain]::CurrentDomain.GetAssemblies() |
-        Where-Object { $_.FullName -like 'Microsoft.Identity.Client,*' }
+    return Get-LoadedAssembly -Name 'Microsoft.Identity.Client'
 }
