@@ -139,7 +139,7 @@ $ScriptVersion = '2.0.0'
 
     if ($Unsatisfied) {
         Write-Host @Red 'Required module(s) not satisfied:'
-        foreach ($Line in $Unsatisfied) {Write-Host @Yellow $Line}
+        foreach ($Line in $Unsatisfied) { Write-Host @Yellow $Line }
 
         $InstallScript = Join-Path -Path $ScriptDir -ChildPath 'Install-Dependency.ps1'
         if (Test-Path -LiteralPath $InstallScript) {
