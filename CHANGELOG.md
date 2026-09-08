@@ -6,6 +6,33 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 
+## [v2.11.0] - 2026-09-08
+
+### Added
+
+- `Get-IRTUnifiedAuditLog`: new `-RecordType` filter restricts a search to one or more
+  UAL record types (for example `ExchangeItem`, `AzureActiveDirectoryStsLogon`).
+
+### Changed
+
+- Command help now renders EXAMPLE blocks as fenced PowerShell code on the
+  documentation site.
+- User investigation documentation gained a `-RecordType` example, corrected the note
+  implying a bare `Get-IRTUnifiedAuditLog` covers 30 days (it defaults to 1 day), and
+  synced the sign-in log examples with current behavior.
+
+### Fixed
+
+- Unified audit log searches that Exchange Online refused are no longer reported as
+  "Retrieved 0 logs". Exchange returns some failures, such as `Unauthorized` from the
+  sync-search path, as a warning with an empty result rather than as an error, which
+  was indistinguishable from a tenant with no matching activity. These searches are
+  now retried, and if they keep failing the results carry a DATA MISSING marker.
+- MSAL assembly load failures now report the real cause. A failed cache-extension
+  load surfaces the underlying error instead of a misleading "Unable to find type"
+  message, and a missing Microsoft.Graph.Authentication import names the dependency
+  instead of reporting an empty file path.
+
 ## [v2.10.1] - 2026-08-02
 
 ### Changed
