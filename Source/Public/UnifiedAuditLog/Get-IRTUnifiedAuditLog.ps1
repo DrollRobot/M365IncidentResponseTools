@@ -114,7 +114,7 @@ function Get-IRTUnifiedAuditLog {
     None. Results are exported to an Excel workbook.
 
     .NOTES
-    Version: 1.10.0
+    Version: 1.11.0
     1.10.0 - Added -RecordType to filter queries by UAL record type.
     1.9.0 - Exposed -ChunkDays to control date-chunk size, added per-chunk token
     refresh so long multi-chunk runs don't outlive the token's refresh window, an
@@ -192,6 +192,14 @@ function Get-IRTUnifiedAuditLog {
         # max attempts per Search-UnifiedAuditLog call before giving up on it
         $MaxRetry = 3
 
+        # Warnings that mean the query was refused or dropped rather than genuinely
+        # empty. EXO returns 401s from the sync-search path, and some transport
+        # faults, as a WARNING plus an empty result set instead of a terminating
+        # error. Left alone those are indistinguishable from a tenant with no
+        # matching audit activity, so a refused query would be reported to the
+        # analyst as 'no activity' - the worst way for an IR tool to fail.
+        $UalFailureWarning = 'Unauthorized|Failed to process request via|HttpRequestException'
+
         # helper: run a Search-UnifiedAuditLog call with retry. Exchange/UAL surfaces
         # transient failures (throttling, timeouts, dropped sessions) with varied and
         # unstable error text, so rather than match specific messages we retry on ANY
@@ -210,7 +218,33 @@ function Get-IRTUnifiedAuditLog {
             while ($true) {
                 $Attempt++
                 try {
-                    return Search-UnifiedAuditLog @SearchParams -ErrorAction Stop
+                    # These warnings come from inside the EXO REST plumbing and do
+                    # NOT honour -WarningVariable (verified against a live tenant),
+                    # so merge the warning stream into the output and split it back
+                    # apart by record type.
+                    $CallParams = @{}
+                    $SearchParams.GetEnumerator() |
+                        ForEach-Object { $CallParams[$_.Key] = $_.Value }
+                    $CallParams['ErrorAction'] = 'Stop'
+
+                    $Merged = Search-UnifiedAuditLog @CallParams 3>&1
+
+                    $WarningType = [System.Management.Automation.WarningRecord]
+                    $Warnings = @($Merged | Where-Object { $_ -is $WarningType })
+                    $Result = @($Merged | Where-Object { $_ -isnot $WarningType })
+
+                    $Blocked = @($Warnings |
+                            Where-Object { $_ -match $UalFailureWarning })
+                    # pass through anything that was not a refusal
+                    foreach ($Warning in @($Warnings |
+                                Where-Object { $_ -notmatch $UalFailureWarning })) {
+                        Write-IRT "$Warning" -Level Warn
+                    }
+                    if ($Blocked.Count -gt 0 -and $Result.Count -eq 0) {
+                        throw ('Search returned no records and warned: ' +
+                            "$($Blocked[0])")
+                    }
+                    return $Result
                 }
                 catch {
                     $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')

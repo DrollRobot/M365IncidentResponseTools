@@ -386,4 +386,83 @@ Describe 'Get-IRTUnifiedAuditLog' -Tag 'unit' {
             Should -Invoke Show-IRTUnifiedAuditLog -Times 1 -Exactly @InvokeArgs
         }
     }
+
+    Context 'a query refused with only a warning is treated as a failure' {
+
+        BeforeEach {
+            # EXO reports some refusals (401s from the sync-search path) as a
+            # WARNING plus an empty result rather than a terminating error. That
+            # must not be reported to the analyst as "no audit activity".
+            Mock Search-UnifiedAuditLog {
+                Write-Warning ('Failed to process request via Sync Search mode, ' +
+                    'returning HttpRequestException. Exception: Unauthorized , ' +
+                    'Reason: Unauthorized.')
+                @()
+            } -ModuleName M365IncidentResponseTools
+            Mock Start-Sleep { } -ModuleName M365IncidentResponseTools
+        }
+
+        It 'retries MaxRetry (3) times instead of accepting the empty result' {
+            $Params = @{
+                AllUsers             = $true
+                Excel                = $true
+                Xml                  = $false
+                ThrottleDelaySeconds = 1
+            }
+            Get-IRTUnifiedAuditLog @Params -ErrorAction SilentlyContinue
+            $InvokeArgs = @{ ModuleName = 'M365IncidentResponseTools' }
+            Should -Invoke Search-UnifiedAuditLog -Times 3 -Exactly @InvokeArgs
+        }
+
+        It 'passes a DATA MISSING marker through to Show-IRTUnifiedAuditLog' {
+            $Params = @{
+                AllUsers             = $true
+                Excel                = $true
+                Xml                  = $false
+                ThrottleDelaySeconds = 1
+            }
+            Get-IRTUnifiedAuditLog @Params -ErrorAction SilentlyContinue
+            $Filter = { $Log | Where-Object { $_.IRTDataGap } }
+            $InvokeArgs = @{ ModuleName = 'M365IncidentResponseTools'; ParameterFilter = $Filter }
+            Should -Invoke Show-IRTUnifiedAuditLog -Times 1 -Exactly @InvokeArgs
+        }
+    }
+
+    Context 'an unrelated warning does not turn an empty result into a failure' {
+
+        BeforeEach {
+            # A tenant with no matching activity is a legitimate empty result and
+            # must still be reported once, without retries or a gap marker.
+            Mock Search-UnifiedAuditLog {
+                Write-Warning 'Some unrelated advisory warning.'
+                @()
+            } -ModuleName M365IncidentResponseTools
+            Mock Start-Sleep { } -ModuleName M365IncidentResponseTools
+        }
+
+        It 'runs the query once and does not retry' {
+            $Params = @{
+                AllUsers             = $true
+                Excel                = $true
+                Xml                  = $false
+                ThrottleDelaySeconds = 1
+            }
+            Get-IRTUnifiedAuditLog @Params -ErrorAction SilentlyContinue
+            $InvokeArgs = @{ ModuleName = 'M365IncidentResponseTools' }
+            Should -Invoke Search-UnifiedAuditLog -Times 1 -Exactly @InvokeArgs
+        }
+
+        It 'inserts no data-gap marker' {
+            $Params = @{
+                AllUsers             = $true
+                Excel                = $true
+                Xml                  = $false
+                ThrottleDelaySeconds = 1
+            }
+            Get-IRTUnifiedAuditLog @Params -ErrorAction SilentlyContinue
+            $Filter = { $Log | Where-Object { $_.IRTDataGap } }
+            $InvokeArgs = @{ ModuleName = 'M365IncidentResponseTools'; ParameterFilter = $Filter }
+            Should -Invoke Show-IRTUnifiedAuditLog -Times 0 -Exactly @InvokeArgs
+        }
+    }
 }
