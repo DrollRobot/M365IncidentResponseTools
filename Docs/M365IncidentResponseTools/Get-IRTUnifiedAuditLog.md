@@ -4,7 +4,7 @@ external help file: M365IncidentResponseTools-Help.xml
 HelpUri: ''
 Locale: en-US
 Module Name: M365IncidentResponseTools
-ms.date: 08/03/2026
+ms.date: 09/07/2026
 PlatyPS schema version: 2024-05-01
 title: Get-IRTUnifiedAuditLog
 ---
@@ -22,8 +22,9 @@ Runs multiple queries to pull all Unified Audit Log records related to a specifi
 ```
 Get-IRTUnifiedAuditLog [[-UserObject] <psobject[]>] [-Days <int>] [-Start <string>] [-End <string>]
  [-ChunkDays <int>] [-ChunkDelaySeconds <int>] [-ThrottleDelaySeconds <int>] [-ResultLimit <int>]
- [-Operation <string[]>] [-RiskyOperation] [-SignInLog] [-FreeText <string[]>] [-Excel <bool>]
- [-WaitOnMessageTrace <bool>] [-Xml <bool>] [-Cached] [<CommonParameters>]
+ [-Operation <string[]>] [-RiskyOperation] [-SignInLog] [-FreeText <string[]>]
+ [-RecordType <string[]>] [-Excel <bool>] [-WaitOnMessageTrace <bool>] [-Xml <bool>] [-Cached]
+ [<CommonParameters>]
 ```
 
 ### AllUsers
@@ -31,8 +32,9 @@ Get-IRTUnifiedAuditLog [[-UserObject] <psobject[]>] [-Days <int>] [-Start <strin
 ```
 Get-IRTUnifiedAuditLog [-AllUsers] [-Days <int>] [-Start <string>] [-End <string>]
  [-ChunkDays <int>] [-ChunkDelaySeconds <int>] [-ThrottleDelaySeconds <int>] [-ResultLimit <int>]
- [-Operation <string[]>] [-RiskyOperation] [-SignInLog] [-FreeText <string[]>] [-Excel <bool>]
- [-WaitOnMessageTrace <bool>] [-Xml <bool>] [-Cached] [<CommonParameters>]
+ [-Operation <string[]>] [-RiskyOperation] [-SignInLog] [-FreeText <string[]>]
+ [-RecordType <string[]>] [-Excel <bool>] [-WaitOnMessageTrace <bool>] [-Xml <bool>] [-Cached]
+ [<CommonParameters>]
 ```
 
 ### ServicePrincipal
@@ -41,7 +43,8 @@ Get-IRTUnifiedAuditLog [-AllUsers] [-Days <int>] [-Start <string>] [-End <string
 Get-IRTUnifiedAuditLog [[-ServicePrincipal] <psobject[]>] [-Days <int>] [-Start <string>]
  [-End <string>] [-ChunkDays <int>] [-ChunkDelaySeconds <int>] [-ThrottleDelaySeconds <int>]
  [-ResultLimit <int>] [-Operation <string[]>] [-RiskyOperation] [-SignInLog] [-FreeText <string[]>]
- [-Excel <bool>] [-WaitOnMessageTrace <bool>] [-Xml <bool>] [-Cached] [<CommonParameters>]
+ [-RecordType <string[]>] [-Excel <bool>] [-WaitOnMessageTrace <bool>] [-Xml <bool>] [-Cached]
+ [<CommonParameters>]
 ```
 
 ## ALIASES
@@ -82,6 +85,13 @@ Queries 90 days of UAL activity for a specific user.
 Get-IRTUnifiedAuditLog -AllUsers -Operation 'FileDeleted' -Start '2026-04-01' -End '2026-04-30'
 ```
 Finds all FileDeleted events for any user during April 2026.
+
+### EXAMPLE 4
+
+```powershell
+Get-IRTUnifiedAuditLog -UserObject $User -Days 30 -RecordType 'MicrosoftTeams'
+```
+Pulls only Microsoft Teams records for the user over the last 30 days.
 
 ## PARAMETERS
 
@@ -281,6 +291,32 @@ DefaultValue: ''
 SupportsWildcards: false
 Aliases:
 - Operations
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+### -RecordType
+
+Filter results to one or more UAL record types (e.g.
+MicrosoftTeams,
+ExchangeItem, AzureActiveDirectoryStsLogon).
+Search-UnifiedAuditLog accepts a
+single record type per call, so every query is run once per record type given.
+
+```yaml
+Type: System.String[]
+DefaultValue: ''
+SupportsWildcards: false
+Aliases:
+- RecordTypes
 ParameterSets:
 - Name: (All)
   Position: Named
@@ -522,7 +558,8 @@ This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable
 
 ## NOTES
 
-Version: 1.9.0
+Version: 1.11.0
+1.10.0 - Added -RecordType to filter queries by UAL record type.
 1.9.0 - Exposed -ChunkDays to control date-chunk size, added per-chunk token
 refresh so long multi-chunk runs don't outlive the token's refresh window, an
 inter-chunk delay (-ChunkDelaySeconds), and retry-with-backoff
