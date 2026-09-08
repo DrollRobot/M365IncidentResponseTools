@@ -111,7 +111,7 @@ function Get-IRTLicenseReport {
 
                 # highlight E5 SKUs in yellow - they unlock extra security tooling
                 $IsE5 = $_.LicenseFullName -match '\bE5\b' -or
-                    $_.SkuPartNumber -match 'SPE_E5|ENTERPRISEPREMIUM'
+                $_.SkuPartNumber -match 'SPE_E5|ENTERPRISEPREMIUM'
                 if ( $IsE5 ) {
                     $E5Licenses.Add( $LicenseName )
                     $LicenseName = "${Highlight}${LicenseName}${Reset}"

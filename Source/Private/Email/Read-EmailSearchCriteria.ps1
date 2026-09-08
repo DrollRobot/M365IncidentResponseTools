@@ -174,13 +174,13 @@ function Read-EmailSearchCriteria {
                     # up - surface the behavior right where the value is entered.
                     if ($Item.Key -eq 'From') {
                         $TokenNote = "'From' matches whole tokens (the address is split " +
-                            "on @ . -), not substrings. 'microsoft' matches " +
-                            'anyone@microsoft.com but not microsoftonline.com. It also ' +
-                            'matches sender display names. ' +
-                            '(Microsoft Support <support@microsoftonline.com> would match)'
+                        "on @ . -), not substrings. 'microsoft' matches " +
+                        'anyone@microsoft.com but not microsoftonline.com. It also ' +
+                        'matches sender display names. ' +
+                        '(Microsoft Support <support@microsoftonline.com> would match)'
                         $WildcardNote = 'Use a wildcards for partial matching, ' +
-                            "e.g. 'microsoft*' (matches microsoft.com and " +
-                            'microsoftonline.com) (only trailing wildcards allowed)'
+                        "e.g. 'microsoft*' (matches microsoft.com and " +
+                        'microsoftonline.com) (only trailing wildcards allowed)'
 
                         # wrap each note to the same 100-char limit used for source so the
                         # hint does not overflow the terminal; 2-space hanging indent.
