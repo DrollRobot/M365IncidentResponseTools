@@ -120,7 +120,7 @@ InModuleScope M365IncidentResponseTools {
                     Set-ItResult -Skipped -Because 'the tenant has no Entra devices'
                     return
                 }
-                Should -Invoke Export-Excel
+                Should -Invoke Export-Excel -Scope Context
             }
         }
     }

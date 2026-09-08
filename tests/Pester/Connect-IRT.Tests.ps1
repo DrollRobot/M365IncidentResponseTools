@@ -789,7 +789,7 @@ Describe 'Connect-IRT session state (live)' -Tag 'live', 'integration' {
             catch {
                 throw (
                     'No cached test credentials found for silent auth. ' +
-                    "Run '.\tests.ps1 online -Interactive' to sign in " +
+                    "Run '.\Tests.ps1 Live -InteractiveAuth' to sign in " +
                     "interactively and populate the test token cache first. " +
                     "Original error: $_"
                 )
