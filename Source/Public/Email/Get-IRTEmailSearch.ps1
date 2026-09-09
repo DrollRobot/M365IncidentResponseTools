@@ -65,7 +65,7 @@ function Get-IRTEmailSearch {
     }
 
     # prefix that identifies IRT-created searches, used by the bulk-delete option
-    $Prefix = $Global:IRT_Config.EmailSearchNamePrefix
+    $Prefix = (Get-IRTJobNamePrefix)
 
     # outer loop: pick a search (unless one was named), then run the action loop
     :picker while ($true) {

@@ -52,7 +52,7 @@ function New-IRTEmailSearch {
 
     .PARAMETER NamePrefix
     String prepended to the search name (whether auto-generated or supplied via -Name).
-    Defaults to IRT_Config.EmailSearchNamePrefix ('IRT: '). The prefix is not re-applied
+    Defaults to IRT_Config.JobNamePrefix ('IRT: '). The prefix is not re-applied
     if the resolved name already starts with it. Pass '' to omit the prefix.
 
     .PARAMETER ExchangeLocation
@@ -86,7 +86,7 @@ function New-IRTEmailSearch {
 
     .NOTES
     Version: 1.2.0
-    1.2.0 - Prepend a configurable name prefix (IRT_Config.EmailSearchNamePrefix, default 'IRT: ').
+    1.2.0 - Prepend a configurable name prefix (IRT_Config.JobNamePrefix, default 'IRT: ').
     1.1.0 - Create and start when connected to IPPS; when offline, save criteria and warn.
     #>
     [CmdletBinding(SupportsShouldProcess)]
@@ -102,7 +102,7 @@ function New-IRTEmailSearch {
         [string[]] $Body,
         [string[]] $AttachmentName,
         [string] $Name,
-        [string] $NamePrefix = $Global:IRT_Config.EmailSearchNamePrefix,
+        [string] $NamePrefix = (Get-IRTJobNamePrefix),
         [string[]] $ExchangeLocation = 'All',
         [switch] $Force
     )
