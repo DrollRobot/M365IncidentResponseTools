@@ -27,6 +27,7 @@ function Test-IRTConnection {
     .NOTES
     Version: 1.0.0
     #>
+    [Alias('TestIRTConnection', 'IRTConnection')]
     [OutputType([bool])]
     [CmdletBinding()]
     param (

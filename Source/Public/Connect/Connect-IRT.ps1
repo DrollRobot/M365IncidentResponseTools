@@ -75,7 +75,7 @@ function Connect-IRT {
     .NOTES
     Version: 1.1.0
     #>
-    [Alias('ConnectIRT')]
+    [Alias('ConnectIRT', 'IRTConnect')]
     [CmdletBinding(DefaultParameterSetName = 'TenantId')]
     param (
         [Parameter(Mandatory, ParameterSetName = 'TenantId')]

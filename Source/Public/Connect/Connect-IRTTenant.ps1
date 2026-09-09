@@ -61,7 +61,7 @@ function Connect-IRTTenant {
     1.2.0 - Multiple-match now prompts user with a selection menu instead of throwing.
     1.1.0 - Updated to use xlsx file instead of csv.
     #>
-    [Alias('IRTTenant')]
+    [Alias('IRTTenant', 'TenantIRT')]
     [CmdletBinding()]
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
         'PSAvoidUsingPlainTextForPassword', 'PasswordBrowser')]
