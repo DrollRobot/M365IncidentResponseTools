@@ -6261,6 +6261,108 @@ function New-RoleMemberObject {
     }
 }
 #EndRegion '.\Private\Role\New-RoleMemberObject.ps1' 51
+#Region '.\Private\ServicePrincipal\New-TenantSheet.ps1' -1
+
+function New-TenantSheet {
+    <#
+    .SYNOPSIS
+    Creates a new tenants worksheet containing the standard columns and sample rows.
+
+    .DESCRIPTION
+    Generates the tenants.xlsx workbook that Connect-IRTTenant reads. The worksheet
+    holds four columns -- TenantName, Aliases, TenantId and PasswordURLs -- plus three
+    sample rows showing the expected format for each.
+
+    The workbook is generated here in code rather than copied from a bundled .xlsx
+    template. Changing the column layout is an edit to the row definitions below, which
+    reviews as a readable diff, instead of a hand edit to an opaque binary file.
+
+    The parent directory is created when it does not already exist. An existing file at
+    Path is never overwritten; callers are expected to test for the file first.
+
+    .PARAMETER Path
+    Full path of the workbook to create.
+
+    .EXAMPLE
+    New-TenantSheet -Path "$env:APPDATA\M365IncidentResponseTools\tenants.xlsx"
+
+    Creates a starter tenants worksheet in the module's configuration directory.
+
+    .OUTPUTS
+    System.IO.FileInfo for the workbook that was created.
+    #>
+    [CmdletBinding(SupportsShouldProcess)]
+    [OutputType([System.IO.FileInfo])]
+    param (
+        [Parameter(Mandatory)]
+        [string] $Path
+    )
+
+    begin {
+        $FunctionName = $MyInvocation.MyCommand.Name
+
+        # Sample rows. Adding, removing or renaming a property here changes the
+        # worksheet layout; Connect-IRTTenant reads these column names.
+        $SampleTenants = @(
+            [PSCustomObject]@{
+                TenantName   = 'Contoso Inc'
+                Aliases      = 'Contoso|ContosoInc|contoso'
+                TenantId     = '00000000-0000-0000-0000-000000000000'
+                PasswordURLs = ''
+            }
+            [PSCustomObject]@{
+                TenantName   = 'Fabrikam LLC'
+                Aliases      = 'Fabrikam|FabrikamLLC|fab'
+                TenantId     = '11111111-1111-1111-1111-111111111111'
+                PasswordURLs = ''
+            }
+            [PSCustomObject]@{
+                TenantName   = 'GovClient'
+                Aliases      = 'GovClient|GovC'
+                TenantId     = '22222222-2222-2222-2222-222222222222'
+                PasswordURLs = ''
+            }
+        )
+    }
+
+    process {
+
+        if (Test-Path -LiteralPath $Path) {
+            throw "Tenants worksheet already exists: ${Path}"
+        }
+
+        if (-not $PSCmdlet.ShouldProcess($Path, 'Create tenants worksheet')) {
+            return
+        }
+
+        $ParentDir = Split-Path -Path $Path -Parent
+        if ($ParentDir -and -not (Test-Path -LiteralPath $ParentDir)) {
+            Write-PSFMessage -Level 8 -Message (
+                "${FunctionName}: creating parent directory '${ParentDir}'")
+            $null = New-Item -ItemType Directory -Path $ParentDir -Force
+        }
+
+        $RowCount = ($SampleTenants | Measure-Object).Count
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: writing ${RowCount} sample rows to '${Path}'")
+
+        $ExcelParams = @{
+            Path          = $Path
+            WorksheetName = 'tenants'
+            TableName     = 'Tenants'
+            TableStyle    = 'Medium15'
+            AutoSize      = $true
+            PassThru      = $true
+        }
+        $Package = $SampleTenants | Export-Excel @ExcelParams
+        Close-ExcelPackage -ExcelPackage $Package
+
+        Write-PSFMessage -Level 8 -Message "${FunctionName}: created '${Path}'"
+
+        Get-Item -LiteralPath $Path
+    }
+}
+#EndRegion '.\Private\ServicePrincipal\New-TenantSheet.ps1' 100
 #Region '.\Private\ServicePrincipal\Show-GraphServicePrincipalTree.ps1' -1
 
 function Show-GraphServicePrincipalTree {
@@ -9684,7 +9786,7 @@ function Connect-IRT {
     .NOTES
     Version: 1.1.0
     #>
-    [Alias('ConnectIRT')]
+    [Alias('ConnectIRT', 'IRTConnect')]
     [CmdletBinding(DefaultParameterSetName = 'TenantId')]
     param (
         [Parameter(Mandatory, ParameterSetName = 'TenantId')]
@@ -10071,7 +10173,7 @@ function Connect-IRTTenant {
     across multiple tenants belonging to the same client.
 
     The tenants worksheet should be stored at $env:APPDATA\M365IncidentResponseTools\tenants.xlsx.
-    A template file (TenantsTemplate.xlsx) is included in the Data folder for reference.
+    Run Open-IRTTenantSheet to generate a starter worksheet with the expected columns.
 
     .PARAMETER Alias
     A string to match against tenant alias patterns. Matched as a regex against the
@@ -10119,7 +10221,7 @@ function Connect-IRTTenant {
     1.2.0 - Multiple-match now prompts user with a selection menu instead of throwing.
     1.1.0 - Updated to use xlsx file instead of csv.
     #>
-    [Alias('IRTTenant')]
+    [Alias('IRTTenant', 'TenantIRT')]
     [CmdletBinding()]
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
         'PSAvoidUsingPlainTextForPassword', 'PasswordBrowser')]
@@ -10725,6 +10827,7 @@ function Test-IRTConnection {
     .NOTES
     Version: 1.0.0
     #>
+    [Alias('TestIRTConnection', 'IRTConnection')]
     [OutputType([bool])]
     [CmdletBinding()]
     param (
@@ -10839,7 +10942,7 @@ function Test-IRTConnection {
         }
     }
 }
-#EndRegion '.\Public\Connect\Test-IRTConnection.ps1' 144
+#EndRegion '.\Public\Connect\Test-IRTConnection.ps1' 145
 #Region '.\Public\Connect\Update-IRTToken.ps1' -1
 
 function Update-IRTToken {
@@ -20099,13 +20202,33 @@ function Open-IRTTenantOwnerCSV {
 function Open-IRTTenantSheet {
     <#
     .SYNOPSIS
-    Opens the tenants worksheet for editing. Creates it from the template if it doesn't exist.
+    Opens the tenants worksheet for editing. Creates it if it doesn't exist.
+
+    .DESCRIPTION
+    Opens the tenants worksheet that Connect-IRTTenant reads. When the file is not
+    present it is generated first, with the standard columns and a few sample rows
+    showing the expected format, then opened in the default handler for .xlsx files.
 
     .PARAMETER TenantFile
     Path to the tenants worksheet. Defaults to $env:APPDATA\M365IncidentResponseTools\tenants.xlsx.
 
+    .EXAMPLE
+    ```powershell
+    Open-IRTTenantSheet
+    ```
+    Opens the tenants worksheet, generating it first if this is the first run.
+
+    .EXAMPLE
+    ```powershell
+    Open-IRTTenantSheet -TenantFile 'C:\Cases\tenants.xlsx'
+    ```
+    Opens a tenants worksheet stored outside the default configuration directory.
+
+    .OUTPUTS
+    None. The worksheet is opened in the default application for .xlsx files.
+
     .NOTES
-    Version: 1.0.0
+    Version: 1.1.0
     #>
     [Alias(
         'Open-IRTTenantWorksheet', 'OpenIRTTenantWorksheet',
@@ -20117,6 +20240,8 @@ function Open-IRTTenantSheet {
     )
 
     begin {
+        $FunctionName = $MyInvocation.MyCommand.Name
+
         if (-not $TenantFile) {
             $TenantFile = $Global:IRT_Config.TenantsSheetPath
         }
@@ -20124,29 +20249,18 @@ function Open-IRTTenantSheet {
 
     process {
 
-        if (-not ( Test-Path $TenantFile )) {
-
-            $ConfigDir = Split-Path $TenantFile
-            $ModuleRoot = $MyInvocation.MyCommand.Module.ModuleBase
-            $TemplateParams = @{
-                Path                = $ModuleRoot
-                ChildPath           = 'Data'
-                AdditionalChildPath = 'TenantsTemplate.xlsx'
-            }
-            $TemplateFile = Join-Path @TemplateParams
-
-            if (-not (Test-Path $ConfigDir)) {
-                $null = New-Item -ItemType Directory -Path $ConfigDir -Force
-            }
-
-            Copy-Item -Path $TemplateFile -Destination $TenantFile
-            Write-IRT "Created tenants worksheet file from template: ${TenantFile}"
+        if (-not (Test-Path -LiteralPath $TenantFile)) {
+            Write-PSFMessage -Level 8 -Message (
+                "${FunctionName}: no worksheet at '${TenantFile}', generating one")
+            $null = New-TenantSheet -Path $TenantFile
+            Write-IRT "Created tenants worksheet: ${TenantFile}"
         }
 
+        Write-PSFMessage -Level 8 -Message "${FunctionName}: opening '${TenantFile}'"
         Invoke-Item $TenantFile
     }
 }
-#EndRegion '.\Public\ServicePrincipal\Open-IRTTenantSheet.ps1' 51
+#EndRegion '.\Public\ServicePrincipal\Open-IRTTenantSheet.ps1' 62
 #Region '.\Public\ServicePrincipal\Show-IRTServicePrincipal.ps1' -1
 
 function Show-IRTServicePrincipal {
@@ -20472,6 +20586,328 @@ function Show-IRTServicePrincipal {
     }
 }
 #EndRegion '.\Public\ServicePrincipal\Show-IRTServicePrincipal.ps1' 323
+#Region '.\Public\UnifiedAuditLog\Get-IRTTeamsExternalDomain.ps1' -1
+
+function Get-IRTTeamsExternalDomain {
+    <#
+    .SYNOPSIS
+    Pulls the Unified Audit Log records that reveal which external domains and
+    tenants the organisation communicates with over Microsoft Teams.
+
+    .DESCRIPTION
+    Queries the Unified Audit Log for the Teams operations whose audit records
+    carry the identity of the remote party in a chat, channel post, meeting, or
+    call. Collating these records shows which outside organisations tenant users
+    actually talk to, which is the starting point for scoping a compromise that
+    spread through Teams federation or guest access.
+
+    The requested date range is split into calendar weeks running Sunday through
+    Saturday, and each week is queried and exported separately as a CLIXML file
+    named for the Sunday that begins the week. Splitting the pull this way keeps
+    each Search-UnifiedAuditLog window small enough to return reliably, and lets
+    an interrupted run resume: weeks that already have a file on disk are skipped
+    unless -Force is passed.
+
+    A file is written for every week that is queried, including weeks with no
+    matching activity. An empty file therefore means "queried, nothing found",
+    which is a different and much more useful statement than a missing file.
+
+    Weeks are queried newest first, so the most recent activity lands on disk
+    soonest.
+
+    Operations queried:
+
+        MessageSent            - chat and channel messages
+        MessageCreatedHasLink  - messages containing a link
+        MessageUpdated         - message edits
+        MessageEditedHasLink   - edits to messages containing a link
+        ChatCreated            - new chat threads
+        MemberAdded            - members joining a chat or team
+        ReactedToMessage       - message reactions (remote tenant ID only)
+        CallParticipantDetail  - call and meeting participants (remote tenant
+                                 ID only)
+
+    The last two record the remote party's tenant GUID but not its domain name,
+    so they still identify the external organisation - just not by a name a human
+    can read without resolving the GUID.
+
+    Requires an active Exchange Online connection, and a Microsoft Graph
+    connection for the tenant domain used in file names.
+
+    .PARAMETER Days
+    Number of days back to search. Cannot be used with -Start / -End.
+    Default: 180.
+
+    .PARAMETER Start
+    Start of date range (parseable date string). Used with -End for an absolute
+    range.
+
+    .PARAMETER End
+    End of date range (parseable date string). Used with -Start for an absolute
+    range.
+
+    .PARAMETER Path
+    Directory to write the weekly CLIXML files into. Default: current directory.
+
+    .PARAMETER ResultLimit
+    Maximum records to retrieve per weekly chunk. Stops at the next 5000-record
+    page boundary after the limit is reached. Default: 50000.
+
+    .PARAMETER ChunkDelaySeconds
+    Seconds to pause between queries to reduce the chance of tripping Exchange
+    throttling limits. Default: 2. Set to 0 to disable.
+
+    .PARAMETER ThrottleDelaySeconds
+    Base backoff (seconds) used when a query fails. Passed through to
+    Get-IRTUnifiedAuditLog, which grows the backoff exponentially per retry.
+    Default: 60.
+
+    .PARAMETER Force
+    Re-query and overwrite weeks that already have a file in -Path. Without it,
+    existing weekly files are left alone so an interrupted run can be resumed
+    without repeating completed work.
+
+    .EXAMPLE
+    ```powershell
+    Get-IRTTeamsExternalDomain
+    ```
+    Pulls the last 180 days, writing one CLIXML file per Sunday-Saturday week
+    into the current directory.
+
+    .EXAMPLE
+    ```powershell
+    Get-IRTTeamsExternalDomain -Days 30 -Path 'C:\Cases\Contoso'
+    ```
+    Pulls the last 30 days into a specific folder.
+
+    .EXAMPLE
+    ```powershell
+    Get-IRTTeamsExternalDomain -Start '2026-01-01' -End '2026-03-31' -Force
+    ```
+    Pulls an absolute range, re-querying weeks that already have files.
+
+    .OUTPUTS
+    [System.IO.FileInfo] One object per weekly CLIXML file written.
+
+    .NOTES
+    Version: 1.0.0
+    #>
+    [Alias('GetTeamsExtDomain', 'GetTeamsExtDomains')]
+    [CmdletBinding()]
+    [OutputType([System.IO.FileInfo])]
+    param (
+        [int]    $Days, # default value set at #DEFAULTDAYS
+        [string] $Start,
+        [string] $End,
+
+        [string] $Path = (Get-Location).Path,
+
+        [int] $ResultLimit = 50000,
+
+        # seconds to pause between queries to avoid tripping throttle limits
+        [ValidateRange(0, 3600)]
+        [int] $ChunkDelaySeconds = 2,
+
+        # base seconds for retry backoff, passed through to Get-IRTUnifiedAuditLog
+        [ValidateRange(1, 3600)]
+        [int] $ThrottleDelaySeconds = 60,
+
+        [switch] $Force
+    )
+
+    begin {
+        Import-IRTModule -Name 'PSFramework'
+        $FunctionName = $MyInvocation.MyCommand.Name
+        $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+
+        #DEFAULTDAYS
+        $DefaultDays = 180
+
+        $FileNamePrefix = 'TeamsExternalDomains'
+        $SheetTitle = 'Teams external domains'
+
+        # Operations whose audit records name the remote party's domain.
+        $DomainOperations = @(
+            'MessageSent'
+            'MessageCreatedHasLink'
+            'MessageUpdated'
+            'MessageEditedHasLink'
+            'ChatCreated'
+            'MemberAdded'
+        )
+        # Operations that record only the remote tenant's GUID. Still identifies
+        # the external organisation, but the GUID has to be resolved separately
+        # before it means anything to an analyst.
+        $TenantIdOperations = @(
+            'ReactedToMessage'
+            'CallParticipantDetail'
+        )
+        $Operations = $DomainOperations + $TenantIdOperations
+
+        # No -RecordType filter is applied. Several of these operation names also
+        # appear outside the Teams workload, and dropping those records to tidy
+        # the result set would hide external contact from the analyst - the one
+        # failure mode this function exists to prevent.
+
+        # validate output directory
+        if (-not (Test-Path -Path $Path -PathType 'Container')) {
+            $ErrorParams = @{
+                Category    = 'ObjectNotFound'
+                Message     = "-Path '${Path}' is not an existing directory."
+                ErrorAction = 'Stop'
+            }
+            Write-Error @ErrorParams
+        }
+        $Path = (Resolve-Path -Path $Path).Path
+
+        # parse date range
+        $DateRangeParams = @{
+            Days        = $Days
+            Start       = $Start
+            End         = $End
+            DefaultDays = $DefaultDays
+        }
+        $DateRange = Resolve-DateRange @DateRangeParams
+        $LocalStart = $DateRange.StartUtc.ToLocalTime()
+        $LocalEnd = $DateRange.EndUtc.ToLocalTime()
+
+        # Align chunk boundaries to the Sunday on or before the range start.
+        # DayOfWeek is 0 for Sunday, so subtracting it from the date lands on
+        # that week's Sunday midnight in local time.
+        $FirstSunday = $LocalStart.Date.AddDays( - [int]$LocalStart.DayOfWeek)
+
+        # Build one chunk per calendar week. The queried window is clamped to
+        # the range the caller actually asked for, so the first and last weeks
+        # can be partial; that is recorded in each file's metadata rather than
+        # silently widening the pull.
+        $WeekChunks = [System.Collections.Generic.List[hashtable]]::new()
+        $WeekStart = $FirstSunday
+        while ($WeekStart -lt $LocalEnd) {
+            $WeekEnd = $WeekStart.AddDays(7)
+            $QueryStart = $WeekStart -gt $LocalStart ? $WeekStart : $LocalStart
+            $QueryEnd = $WeekEnd -lt $LocalEnd ? $WeekEnd : $LocalEnd
+            $WeekChunks.Add(@{
+                    WeekStart = $WeekStart
+                    Start     = $QueryStart
+                    End       = $QueryEnd
+                    Partial   = ($QueryStart -gt $WeekStart) -or ($QueryEnd -lt $WeekEnd)
+                })
+            $WeekStart = $WeekEnd
+        }
+        # query newest first so the most recent activity lands on disk soonest
+        $WeekChunks.Reverse()
+        $WeekCount = $WeekChunks.Count
+
+        $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: Range $($LocalStart.ToString('yyyy-MM-dd HH:mm')) to " +
+            "$($LocalEnd.ToString('yyyy-MM-dd HH:mm')) split into ${WeekCount} " +
+            "weekly chunks [$Elapsed]")
+    }
+
+    process {
+
+        # tenant label for file names
+        $DomainName = Get-DefaultDomain
+
+        Write-IRT ("Querying ${WeekCount} weeks of Teams external contact " +
+            "records for ${DomainName}.")
+
+        $ChunkIndex = 0
+        foreach ($Chunk in $WeekChunks) {
+            $ChunkIndex++
+
+            $WeekStartString = $Chunk.WeekStart.ToString('yy-MM-dd')
+            $FileNameBase = "${FileNamePrefix}_${DomainName}_${WeekStartString}"
+            $XmlOutputPath = Join-Path -Path $Path -ChildPath "${FileNameBase}.xml"
+
+            $WindowFormat = 'M/d/yy h:mmtt'
+            $WindowStart = $Chunk.Start.ToString($WindowFormat)
+            $WindowEnd = $Chunk.End.ToString($WindowFormat)
+            $Label = "Week ${ChunkIndex} of ${WeekCount} (${WindowStart} to ${WindowEnd})"
+
+            # resume support: a week that already has a file was already queried
+            if ((Test-Path -Path $XmlOutputPath -PathType 'Leaf') -and -not $Force) {
+                Write-IRT "${Label}: file exists, skipping. Use -Force to re-query."
+                Write-PSFMessage -Level 8 -Message (
+                    "${FunctionName}: Skipping existing file ${XmlOutputPath}")
+                continue
+            }
+
+            Write-IRT "${Label}: querying."
+            $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+            Write-PSFMessage -Level 8 -Message (
+                "${FunctionName}: ${Label} to ${XmlOutputPath} [$Elapsed]")
+
+            # Reuse the shared UAL query function so this pull inherits its
+            # paging, token refresh, retry/backoff, and data-gap marking.
+            $UalParams = @{
+                AllUsers             = $true
+                Operation            = $Operations
+                Start                = $Chunk.Start.ToString('yyyy-MM-dd HH:mm:ss')
+                End                  = $Chunk.End.ToString('yyyy-MM-dd HH:mm:ss')
+                ChunkDays            = 7
+                ChunkDelaySeconds    = $ChunkDelaySeconds
+                ThrottleDelaySeconds = $ThrottleDelaySeconds
+                ResultLimit          = $ResultLimit
+                Excel                = $false
+                Xml                  = $false
+                PassThru             = $true
+            }
+            $Returned = Get-IRTUnifiedAuditLog @UalParams
+
+            # strip the child function's metadata row; this function writes its
+            # own, describing the week rather than the whole requested range
+            $Records = [System.Collections.Generic.List[psobject]]::new()
+            foreach ($Record in $Returned) {
+                if ($null -eq $Record) { continue }
+                if ($Record.Metadata) { continue }
+                $Records.Add($Record)
+            }
+
+            $RecordCount = $Records.Count
+            $GapCount = @($Records | Where-Object { $_.IRTDataGap }).Count
+            if ($GapCount -gt 0) {
+                Write-IRT ("${Label}: ${GapCount} DATA MISSING marker(s) present; " +
+                    "this week is incomplete.") -Level Warn
+            }
+
+            # build metadata for this week
+            $WeekLabel = $Chunk.WeekStart.ToString('M/d/yy')
+            $TitleSuffix = " for ${DomainName}. Week of ${WeekLabel}, " +
+            "${WindowStart} to ${WindowEnd}."
+            $Metadata = [pscustomobject]@{
+                Metadata        = $true
+                FileNamePrefix  = $FileNamePrefix
+                FileName        = $FileNameBase
+                SheetTitle      = $SheetTitle
+                Title           = "${SheetTitle}${TitleSuffix}"
+                TitleSuffix     = $TitleSuffix
+                ProfileTag      = $null
+                WeekStart       = $Chunk.WeekStart
+                CoveredStartUtc = $Chunk.Start.ToUniversalTime()
+                CoveredEndUtc   = $Chunk.End.ToUniversalTime()
+                PartialWeek     = $Chunk.Partial
+                RecordCount     = $RecordCount
+                DataGapCount    = $GapCount
+                Operations      = $Operations
+                TenantIdOnlyOps = $TenantIdOperations
+            }
+            $Records.Insert(0, $Metadata)
+
+            # A file is written even when the week is empty, so that a missing
+            # file means "not queried" rather than "nothing found".
+            Write-IRT "${Label}: ${RecordCount} records. Saving to ${XmlOutputPath}"
+            $Records | Export-Clixml -Depth 10 -Path $XmlOutputPath
+
+            Get-Item -Path $XmlOutputPath
+        }
+
+        $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+        Write-PSFMessage -Level 8 -Message "${FunctionName}: Complete [$Elapsed]"
+    }
+}
+#EndRegion '.\Public\UnifiedAuditLog\Get-IRTTeamsExternalDomain.ps1' 320
 #Region '.\Public\UnifiedAuditLog\Get-IRTUnifiedAuditLog.ps1' -1
 
 function Get-IRTUnifiedAuditLog {
@@ -20562,6 +20998,14 @@ function Get-IRTUnifiedAuditLog {
     .PARAMETER Cached
     Use pre-cached Graph data where available.
 
+    .PARAMETER PassThru
+    Emit the retrieved records to the pipeline in addition to any configured
+    exports. One collection is emitted per queried object (user, service
+    principal, or the single 'AllUsers' pseudo-object), and each collection
+    carries the same metadata object at index 0 that the XML export writes.
+    Intended for callers that post-process results in memory rather than
+    reading the exported files back off disk.
+
     .EXAMPLE
     ```powershell
     Get-IRTUnifiedAuditLog
@@ -20586,11 +21030,20 @@ function Get-IRTUnifiedAuditLog {
     ```
     Pulls only Microsoft Teams records for the user over the last 30 days.
 
+    .EXAMPLE
+    ```powershell
+    $Logs = Get-IRTUnifiedAuditLog -AllUsers -Days 7 -Excel $false -Xml $false -PassThru
+    ```
+    Returns the records in memory without writing any files.
+
     .OUTPUTS
-    None. Results are exported to an Excel workbook.
+    None by default. Results are exported to an Excel workbook. With -PassThru,
+    emits one [System.Collections.Generic.List[psobject]] per queried object.
 
     .NOTES
-    Version: 1.11.0
+    Version: 1.12.0
+    1.12.0 - Added -PassThru so callers can post-process records in memory
+    instead of reading the exported files back off disk.
     1.10.0 - Added -RecordType to filter queries by UAL record type.
     1.9.0 - Exposed -ChunkDays to control date-chunk size, added per-chunk token
     refresh so long multi-chunk runs don't outlive the token's refresh window, an
@@ -20655,7 +21108,8 @@ function Get-IRTUnifiedAuditLog {
         [boolean] $Excel = $true,
         [boolean] $WaitOnMessageTrace = $false,
         [boolean] $Xml = $Global:IRT_Config.ExportXml,
-        [switch] $Cached
+        [switch] $Cached,
+        [switch] $PassThru
     )
 
     begin {
@@ -21368,10 +21822,22 @@ function Get-IRTUnifiedAuditLog {
                 }
                 & $ActiveProfile.ShowFunction @Params
             }
+
+            # emit the records for in-memory consumers. -NoEnumerate keeps each
+            # object's result set as one collection so a multi-object run does
+            # not flatten into a single undifferentiated stream with metadata
+            # rows scattered through it.
+            if ($PassThru) {
+                $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+                Write-PSFMessage -Level 8 -Message (
+                    "${FunctionName}: PassThru emitting $($Logs.Count) objects " +
+                    "(includes metadata row) [$Elapsed]")
+                Write-Output -InputObject $Logs -NoEnumerate
+            }
         }
     }
 }
-#EndRegion '.\Public\UnifiedAuditLog\Get-IRTUnifiedAuditLog.ps1' 898
+#EndRegion '.\Public\UnifiedAuditLog\Get-IRTUnifiedAuditLog.ps1' 928
 #Region '.\Public\UnifiedAuditLog\Open-IRTAllOperationsSheet.ps1' -1
 
 function Open-IRTAllOperationsSheet {
