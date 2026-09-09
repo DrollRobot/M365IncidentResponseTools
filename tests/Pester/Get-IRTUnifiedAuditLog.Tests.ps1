@@ -54,6 +54,13 @@
     When logs are found and -Excel $true is passed, Show-IRTUnifiedAuditLog
     is called exactly once.
 
+-- PassThru -------------------------------------------------------------
+
+    With -PassThru the function emits the record collection to the pipeline in
+    addition to (or instead of) writing files. -NoEnumerate keeps it as a single
+    collection, and the metadata row the XML export would have written is at
+    index 0.
+
 -- RecordType expansion -------------------------------------------------
 
     Search-UnifiedAuditLog accepts a single -RecordType per call, so the
@@ -462,6 +469,51 @@ Describe 'Get-IRTUnifiedAuditLog' -Tag 'unit' {
             Get-IRTUnifiedAuditLog @Params -ErrorAction SilentlyContinue
             $Filter = { $Log | Where-Object { $_.IRTDataGap } }
             $InvokeArgs = @{ ModuleName = 'M365IncidentResponseTools'; ParameterFilter = $Filter }
+            Should -Invoke Show-IRTUnifiedAuditLog -Times 0 -Exactly @InvokeArgs
+        }
+    }
+
+    # -------------------------------------------------------------------
+    Context 'PassThru' {
+
+        BeforeEach {
+            Mock Search-UnifiedAuditLog {
+                New-UALPage -Count 10
+            } -ModuleName M365IncidentResponseTools
+        }
+
+        It 'emits nothing by default' {
+            $Params = @{
+                AllUsers = $true
+                Excel    = $false
+                Xml      = $false
+            }
+            $Result = Get-IRTUnifiedAuditLog @Params
+            $Result | Should -BeNullOrEmpty
+        }
+
+        It 'emits one collection with the metadata row at index 0' {
+            $Params = @{
+                AllUsers = $true
+                Excel    = $false
+                Xml      = $false
+                PassThru = $true
+            }
+            $Result = Get-IRTUnifiedAuditLog @Params
+            $Result.Count | Should -Be 11
+            $Result[0].Metadata | Should -BeTrue
+            $Result[0].FileNamePrefix | Should -Be 'UnifiedAuditLogs'
+        }
+
+        It 'does not export when -Excel and -Xml are false' {
+            $Params = @{
+                AllUsers = $true
+                Excel    = $false
+                Xml      = $false
+                PassThru = $true
+            }
+            $null = Get-IRTUnifiedAuditLog @Params
+            $InvokeArgs = @{ ModuleName = 'M365IncidentResponseTools' }
             Should -Invoke Show-IRTUnifiedAuditLog -Times 0 -Exactly @InvokeArgs
         }
     }

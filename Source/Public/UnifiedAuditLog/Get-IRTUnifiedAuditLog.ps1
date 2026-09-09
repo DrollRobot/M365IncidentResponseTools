@@ -86,6 +86,14 @@ function Get-IRTUnifiedAuditLog {
     .PARAMETER Cached
     Use pre-cached Graph data where available.
 
+    .PARAMETER PassThru
+    Emit the retrieved records to the pipeline in addition to any configured
+    exports. One collection is emitted per queried object (user, service
+    principal, or the single 'AllUsers' pseudo-object), and each collection
+    carries the same metadata object at index 0 that the XML export writes.
+    Intended for callers that post-process results in memory rather than
+    reading the exported files back off disk.
+
     .EXAMPLE
     ```powershell
     Get-IRTUnifiedAuditLog
@@ -110,11 +118,20 @@ function Get-IRTUnifiedAuditLog {
     ```
     Pulls only Microsoft Teams records for the user over the last 30 days.
 
+    .EXAMPLE
+    ```powershell
+    $Logs = Get-IRTUnifiedAuditLog -AllUsers -Days 7 -Excel $false -Xml $false -PassThru
+    ```
+    Returns the records in memory without writing any files.
+
     .OUTPUTS
-    None. Results are exported to an Excel workbook.
+    None by default. Results are exported to an Excel workbook. With -PassThru,
+    emits one [System.Collections.Generic.List[psobject]] per queried object.
 
     .NOTES
-    Version: 1.11.0
+    Version: 1.12.0
+    1.12.0 - Added -PassThru so callers can post-process records in memory
+    instead of reading the exported files back off disk.
     1.10.0 - Added -RecordType to filter queries by UAL record type.
     1.9.0 - Exposed -ChunkDays to control date-chunk size, added per-chunk token
     refresh so long multi-chunk runs don't outlive the token's refresh window, an
@@ -179,7 +196,8 @@ function Get-IRTUnifiedAuditLog {
         [boolean] $Excel = $true,
         [boolean] $WaitOnMessageTrace = $false,
         [boolean] $Xml = $Global:IRT_Config.ExportXml,
-        [switch] $Cached
+        [switch] $Cached,
+        [switch] $PassThru
     )
 
     begin {
@@ -891,6 +909,18 @@ function Get-IRTUnifiedAuditLog {
                     Cached = $Cached
                 }
                 & $ActiveProfile.ShowFunction @Params
+            }
+
+            # emit the records for in-memory consumers. -NoEnumerate keeps each
+            # object's result set as one collection so a multi-object run does
+            # not flatten into a single undifferentiated stream with metadata
+            # rows scattered through it.
+            if ($PassThru) {
+                $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+                Write-PSFMessage -Level 8 -Message (
+                    "${FunctionName}: PassThru emitting $($Logs.Count) objects " +
+                    "(includes metadata row) [$Elapsed]")
+                Write-Output -InputObject $Logs -NoEnumerate
             }
         }
     }
