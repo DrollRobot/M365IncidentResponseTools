@@ -49,7 +49,15 @@ function Get-IRTUnifiedAuditLog {
     Base backoff (seconds) used when a Search-UnifiedAuditLog query fails (timeout,
     throttling, or a dropped session). Backoff grows exponentially per retry
     (base, base*2, base*4...) and the token is refreshed between attempts. The full
-    exception is written to the PSFramework debug log for troubleshooting. Default: 60.
+    exception is written to the PSFramework debug log for troubleshooting. Default: 30.
+
+    .PARAMETER HighCompleteness
+    Run the search on Exchange's high-completeness path. Without it the service
+    prioritises speed and may silently return an incomplete result set. Searches are
+    slower with it, which on wide date ranges raises the chance of a timeout or an
+    expired search session, so it is off by default. Pair it with a smaller -ChunkDays.
+    The switch is only sent to Search-UnifiedAuditLog when specified, so older
+    ExchangeOnlineManagement builds that lack the parameter still work by default.
 
     .PARAMETER ResultLimit
     Maximum total records to retrieve across all queries and date chunks. Counts
@@ -126,12 +134,22 @@ function Get-IRTUnifiedAuditLog {
     ```
     Returns the records in memory without writing any files.
 
+    .EXAMPLE
+    ```powershell
+    Get-IRTUnifiedAuditLog -UserObject $User -Days 7 -HighCompleteness -ChunkDays 1
+    ```
+    Runs the slower high-completeness search, one day per chunk to keep each query
+    inside the service's timeout. Use when a default search returns suspiciously
+    little and the gap has to be ruled out.
+
     .OUTPUTS
     None by default. Results are exported to an Excel workbook. With -PassThru,
     emits one [System.Collections.Generic.List[psobject]] per queried object.
 
     .NOTES
-    Version: 1.13.0
+    Version: 1.14.0
+    1.14.0 - Added -HighCompleteness (off by default). Retry backoff now starts at 30s
+    instead of 60s.
     1.13.0 - Paging now stops when the result set is exhausted. Search-UnifiedAuditLog
     keeps returning full 5000-record pages of already-served records instead of a short
     page, so the old page-size-only loop ran until ResultLimit or a session timeout.
@@ -187,7 +205,10 @@ function Get-IRTUnifiedAuditLog {
 
         # base seconds for retry backoff when a query fails (timeout/throttle/session)
         [ValidateRange(1, 3600)]
-        [int] $ThrottleDelaySeconds = 60,
+        [int] $ThrottleDelaySeconds = 30,
+
+        # run the search on Exchange's slower but complete search path
+        [switch] $HighCompleteness,
 
         [int] $ResultLimit = 50000,
 
@@ -564,6 +585,15 @@ function Get-IRTUnifiedAuditLog {
                 ResultSize     = 5000
                 SessionCommand = 'ReturnLargeSet'
                 Formatted      = $true
+            }
+
+            # Only send the switch when it was asked for. Passing
+            # -HighCompleteness:$false would still bind the parameter, which
+            # fails outright on ExchangeOnlineManagement builds that predate it.
+            if ($HighCompleteness) {
+                $BaseParams['HighCompleteness'] = $true
+                Write-PSFMessage -Level 8 -Message (
+                    "${FunctionName}: HighCompleteness enabled; searches will be slower.")
             }
 
             # add operations, if specified

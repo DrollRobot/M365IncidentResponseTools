@@ -102,6 +102,13 @@
     -ResultLimit measures real records. Counting raw records instead would let
     overlapping pages spend the limit on repeats and cut the pull short,
     silently dropping audit records an analyst needs.
+
+-- HighCompleteness ------------------------------------------------------
+
+    The switch is only forwarded to Search-UnifiedAuditLog when the caller asks
+    for it. Sending -HighCompleteness:$false would still bind the parameter,
+    which fails outright on ExchangeOnlineManagement builds that predate it, so
+    the default path must not carry the parameter at all.
 #>
 
 # EXO proxy cmdlets only exist after Connect-ExchangeOnline. Create thin global
@@ -125,7 +132,8 @@ BeforeAll {
             $FreeText,
             $Operations,
             $RecordType,
-            $SessionId
+            $SessionId,
+            [switch] $HighCompleteness
         )
     }
 
@@ -685,6 +693,39 @@ Describe 'Get-IRTUnifiedAuditLog' -Tag 'unit' {
             $Filter = { $Message -match 'Total retrieved 10000 logs \(15000 records' }
             $InvokeArgs = @{ ModuleName = 'M365IncidentResponseTools'; ParameterFilter = $Filter }
             Should -Invoke Write-IRT -Times 1 -Exactly @InvokeArgs
+        }
+    }
+
+    # -------------------------------------------------------------------
+    Context '-HighCompleteness is only sent when asked for' {
+
+        BeforeEach {
+            Mock Search-UnifiedAuditLog { @() } -ModuleName M365IncidentResponseTools
+        }
+
+        It 'omits the parameter entirely by default' {
+            $Params = @{
+                AllUsers = $true
+                Excel    = $false
+                Xml      = $false
+            }
+            Get-IRTUnifiedAuditLog @Params
+            $Filter = { $PSBoundParameters.ContainsKey('HighCompleteness') }
+            $InvokeArgs = @{ ModuleName = 'M365IncidentResponseTools'; ParameterFilter = $Filter }
+            Should -Invoke Search-UnifiedAuditLog -Times 0 -Exactly @InvokeArgs
+        }
+
+        It 'passes the switch when the caller sets it' {
+            $Params = @{
+                AllUsers         = $true
+                HighCompleteness = $true
+                Excel            = $false
+                Xml              = $false
+            }
+            Get-IRTUnifiedAuditLog @Params
+            $Filter = { $HighCompleteness.IsPresent }
+            $InvokeArgs = @{ ModuleName = 'M365IncidentResponseTools'; ParameterFilter = $Filter }
+            Should -Invoke Search-UnifiedAuditLog -Times 1 -Exactly @InvokeArgs
         }
     }
 }
