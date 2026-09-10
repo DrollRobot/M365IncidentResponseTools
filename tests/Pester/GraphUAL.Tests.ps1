@@ -208,6 +208,12 @@ Describe 'Start-IRTGraphUAL job matrix' -Tag 'unit' {
 
 Describe 'Get-IRTJobNamePrefix' -Tag 'unit' {
 
+    BeforeAll {
+        # these tests swap in their own config; keep the real one to put back, since
+        # test files that run later read it
+        $script:SavedConfig = $Global:IRT_Config
+    }
+
     It 'prefers the current key' {
         InModuleScope $script:Mod {
             $Global:IRT_Config = [pscustomobject]@{
@@ -233,14 +239,7 @@ Describe 'Get-IRTJobNamePrefix' -Tag 'unit' {
     }
 
     AfterAll {
-        InModuleScope $script:Mod {
-            $RemoveParams = @{
-                Name        = 'IRT_Config'
-                Scope       = 'Global'
-                ErrorAction = 'SilentlyContinue'
-            }
-            Remove-Variable @RemoveParams
-        }
+        $Global:IRT_Config = $script:SavedConfig
     }
 }
 
