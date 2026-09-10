@@ -20,7 +20,8 @@ function Show-IRTTeamsExternalDomain {
     Each record is handed to a dedicated parser for its operation (for example
     Get-MessageSentParty for MessageSent), which returns every domain and tenant ID the
     record names. Records from operations with no parser are skipped with a warning, so
-    other exports in the same folder do no harm.
+    other exports in the same folder do no harm. A progress line is shown as each file
+    is read.
 
     The investigated tenant's own parties are removed. Its tenant ID is each record's
     OrganizationId, and its domains are learned from the records themselves: any domain
@@ -33,6 +34,9 @@ function Show-IRTTeamsExternalDomain {
     or a lookup fails, a warning is shown and the tenant ID is listed in place of the
     domain. A tenant ID that the same record already pairs with a domain is not looked
     up.
+
+    Lookups run in chunks of -TenantIdChunkSize tenant IDs, with a progress line after
+    each chunk. A chunk that fails leaves only its own tenant IDs unresolved.
 
     Counting:
         - A record adds one to each organisation it names, however often it names it.
@@ -47,6 +51,10 @@ function Show-IRTTeamsExternalDomain {
     .PARAMETER Path
     Folder containing the .xml files to read. Subfolders are not searched.
     Default: current directory.
+
+    .PARAMETER TenantIdChunkSize
+    Number of tenant IDs sent to Get-IRTTenantOwner per call. A failed call leaves only
+    its own chunk unresolved, so lower this if lookups fail in bulk. Default: 100.
 
     .PARAMETER Open
     Open the workbook after export. Default: $true.
@@ -72,6 +80,12 @@ function Show-IRTTeamsExternalDomain {
 
     .EXAMPLE
     ```powershell
+    Show-IRTTeamsExternalDomain -Path 'C:\Cases\Contoso' -TenantIdChunkSize 25
+    ```
+    Looks up tenant IDs 25 at a time, for when larger lookups fail.
+
+    .EXAMPLE
+    ```powershell
     Show-IRTTeamsExternalDomain -Path 'C:\Cases\Contoso' -Open $false
     ```
     Writes the workbook without opening it.
@@ -80,12 +94,18 @@ function Show-IRTTeamsExternalDomain {
     None. Writes an Excel workbook into -Path.
 
     .NOTES
-    Version: 1.0.0
+    Version: 1.1.0
+    1.1.0 - Tenant IDs are looked up in chunks of -TenantIdChunkSize, so one failed
+    lookup no longer loses every tenant ID. Progress is shown per file and per chunk.
     #>
     [Alias('ShowTeamsExtDomain', 'ShowTeamsExtDomains')]
     [CmdletBinding()]
     param (
         [string] $Path = (Get-Location).Path,
+
+        # tenant IDs per Get-IRTTenantOwner call; lower it if lookups fail in bulk
+        [ValidateRange(1, 1000)]
+        [int] $TenantIdChunkSize = 100,
 
         [boolean] $Open = $true,
 
@@ -152,7 +172,8 @@ function Show-IRTTeamsExternalDomain {
             Write-IRT "No .xml files found in ${Path}." -Level Warn
             return
         }
-        Write-IRT "Reading $($Files.Count) .xml file(s) from ${Path}."
+        $FileCount = $Files.Count
+        Write-IRT "Reading ${FileCount} .xml file(s) from ${Path}."
 
         $ParsedRecords = [System.Collections.Generic.List[pscustomobject]]::new()
         $SeenIdentities = [System.Collections.Generic.HashSet[string]]::new()
@@ -161,7 +182,10 @@ function Show-IRTTeamsExternalDomain {
         $DuplicateCount = 0
         $UnreadableCount = 0
 
+        $FileIndex = 0
         foreach ($File in $Files) {
+            $FileIndex++
+            Write-IRT "Reading file ${FileIndex} of ${FileCount}: $($File.Name)"
             $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
             Write-PSFMessage -Level 8 -Message (
                 "${FunctionName}: Import-Clixml $($File.Name) [$Elapsed]")
@@ -331,27 +355,47 @@ function Show-IRTTeamsExternalDomain {
                     "to resolve them.") -Level Warn
             }
             else {
-                Write-IRT "Looking up domains for ${LookupCount} tenant ID(s)."
-                $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-                Write-PSFMessage -Level 8 -Message (
-                    "${FunctionName}: Get-IRTTenantOwner [$Elapsed]")
-                $OwnerParams = @{
-                    TenantId = [string[]]@($LookupIds)
-                    Cached   = $true
-                    Quiet    = $true
-                }
-                try {
-                    $Owners = @(Get-IRTTenantOwner @OwnerParams)
-                }
-                catch {
-                    Write-IRT "Tenant lookup failed: $($_.Exception.Message)" -Level Warn
-                    $Owners = @()
-                }
-                foreach ($Owner in $Owners) {
-                    if ($Owner.Exists -and $Owner.DefaultDomain) {
-                        $OwnerDomain = ([string]$Owner.DefaultDomain).ToLowerInvariant()
-                        $TenantDomains[[string]$Owner.TenantId] = $OwnerDomain
+                $LookupList = [string[]]@($LookupIds)
+                $ChunkCount = [int][math]::Ceiling($LookupCount / $TenantIdChunkSize)
+                Write-IRT ("Looking up domains for ${LookupCount} tenant ID(s) in " +
+                    "${ChunkCount} chunk(s) of up to ${TenantIdChunkSize}.")
+
+                # One Get-IRTTenantOwner call per chunk, so a call that throws leaves only
+                # its own tenant IDs unresolved and progress shows between chunks.
+                $LookedUp = 0
+                for ($ChunkIndex = 0; $ChunkIndex -lt $ChunkCount; $ChunkIndex++) {
+                    $ChunkStart = $ChunkIndex * $TenantIdChunkSize
+                    $ChunkEnd = [math]::Min($ChunkStart + $TenantIdChunkSize, $LookupCount) - 1
+                    $Chunk = [string[]]@($LookupList[$ChunkStart..$ChunkEnd])
+                    $ChunkLabel = "Chunk $($ChunkIndex + 1) of ${ChunkCount}"
+
+                    $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+                    Write-PSFMessage -Level 8 -Message (
+                        "${FunctionName}: Get-IRTTenantOwner ${ChunkLabel}, " +
+                        "$($Chunk.Count) tenant IDs [$Elapsed]")
+                    $OwnerParams = @{
+                        TenantId = $Chunk
+                        Cached   = $true
+                        Quiet    = $true
                     }
+                    try {
+                        $Owners = @(Get-IRTTenantOwner @OwnerParams)
+                    }
+                    catch {
+                        Write-IRT ("${ChunkLabel}: tenant lookup failed, so its " +
+                            "$($Chunk.Count) tenant ID(s) stay unresolved: " +
+                            "$($_.Exception.Message)") -Level Warn
+                        $Owners = @()
+                    }
+                    foreach ($Owner in $Owners) {
+                        if ($Owner.Exists -and $Owner.DefaultDomain) {
+                            $OwnerDomain = ([string]$Owner.DefaultDomain).ToLowerInvariant()
+                            $TenantDomains[[string]$Owner.TenantId] = $OwnerDomain
+                        }
+                    }
+
+                    $LookedUp += $Chunk.Count
+                    Write-IRT "Looked up ${LookedUp} of ${LookupCount} tenant ID(s)."
                 }
 
                 $Unresolved = @($LookupIds | Where-Object { -not $TenantDomains.ContainsKey($_) })

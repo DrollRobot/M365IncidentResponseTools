@@ -14,12 +14,13 @@
         11111111-... contoso.com    the investigated tenant
         22222222-... fabrikam.com   outside; the lookup mock resolves it
         33333333-... (no domain)    outside; the lookup mock cannot resolve it
+        44444444-... to 66666666-.. outside; three tenants for chunking tests
         tailspin.com                outside; appears only as a guest UPN
 
     The unit block mocks Export-Excel, so nothing is written and post-export
-    formatting is skipped. It checks warnings and lookup behaviour. The integration
-    block lets the real parsers and Export-Excel run, then reads the workbook back with
-    Import-Excel.
+    formatting is skipped. It checks warnings, progress, and lookup behaviour. The
+    integration block lets the real parsers and Export-Excel run, then reads the
+    workbook back with Import-Excel.
 
 -- warnings -------------------------------------------------------------
 
@@ -27,10 +28,19 @@
     operations with no parser, a missing Graph connection, and tenant IDs that could
     not be resolved each produce a warning.
 
+-- progress -------------------------------------------------------------
+
+    A large folder takes minutes to read and look up, so a progress line is shown as
+    each file is read and after each lookup chunk.
+
 -- tenant lookup --------------------------------------------------------
 
     Only tenant IDs that a record names without a domain are looked up. With no Graph
     connection nothing is looked up and tenant IDs are listed instead.
+
+    Lookups run in chunks of -TenantIdChunkSize. A chunk whose call throws warns and
+    leaves only its own tenant IDs unresolved; later chunks are still looked up. Before
+    chunking, one failure lost every lookup in the run.
 
 -- workbook -------------------------------------------------------------
 
@@ -128,6 +138,17 @@ Describe 'Show-IRTTeamsExternalDomain' -Tag 'unit' {
         $script:BlockRecord = New-SteRecord -Operation 'UserBlocked' -AuditData @{
             Members = @(@{ OrganizationId = '33333333-3333-3333-3333-333333333333' })
         }
+
+        # blocked users from three more tenants, for chunking
+        $script:TenantRecords = @(
+            '44444444-4444-4444-4444-444444444444'
+            '55555555-5555-5555-5555-555555555555'
+            '66666666-6666-6666-6666-666666666666'
+        ) | ForEach-Object {
+            New-SteRecord -Operation 'UserBlocked' -AuditData @{
+                Members = @(@{ OrganizationId = $_ })
+            }
+        }
     }
 
     # -------------------------------------------------------------------
@@ -178,6 +199,35 @@ Describe 'Show-IRTTeamsExternalDomain' -Tag 'unit' {
     }
 
     # -------------------------------------------------------------------
+    Context 'progress' {
+
+        It 'reports each file as it is read' {
+            $Week2 = Join-Path -Path $TestPath -ChildPath 'week2.xml'
+            Save-SteFile -FilePath $script:WeekFile -Record @($script:BlockRecord)
+            Save-SteFile -FilePath $Week2 -Record @($script:BlockRecord)
+            Show-IRTTeamsExternalDomain -Path $TestPath -Open $false
+            $First = { $Message -match 'file 1 of 2' }
+            $Second = { $Message -match 'file 2 of 2' }
+            Should -Invoke Write-IRT -ModuleName $Mod -ParameterFilter $First
+            Should -Invoke Write-IRT -ModuleName $Mod -ParameterFilter $Second
+        }
+
+        It 'reports progress after each lookup chunk' {
+            Save-SteFile -FilePath $script:WeekFile -Record $script:TenantRecords
+            $Params = @{
+                Path              = $TestPath
+                Open              = $false
+                TenantIdChunkSize = 2
+            }
+            Show-IRTTeamsExternalDomain @Params
+            $First = { $Message -match 'Looked up 2 of 3' }
+            $Second = { $Message -match 'Looked up 3 of 3' }
+            Should -Invoke Write-IRT -ModuleName $Mod -ParameterFilter $First
+            Should -Invoke Write-IRT -ModuleName $Mod -ParameterFilter $Second
+        }
+    }
+
+    # -------------------------------------------------------------------
     Context 'tenant lookup' {
 
         It 'looks up a tenant ID named without a domain' {
@@ -197,6 +247,37 @@ Describe 'Show-IRTTeamsExternalDomain' -Tag 'unit' {
             Save-SteFile -FilePath $script:WeekFile -Record @($Chat)
             Show-IRTTeamsExternalDomain -Path $TestPath -Open $false
             Should -Invoke Get-IRTTenantOwner -Times 0 -ModuleName $Mod
+        }
+
+        It 'looks up tenant IDs in chunks of -TenantIdChunkSize' {
+            Save-SteFile -FilePath $script:WeekFile -Record $script:TenantRecords
+            $Params = @{
+                Path              = $TestPath
+                Open              = $false
+                TenantIdChunkSize = 2
+            }
+            Show-IRTTeamsExternalDomain @Params
+            Should -Invoke Get-IRTTenantOwner -Times 2 -Exactly -ModuleName $Mod
+        }
+
+        It 'keeps looking up later chunks after one fails' {
+            Mock Get-IRTTenantOwner {
+                $Broken = '44444444-4444-4444-4444-444444444444'
+                if ($TenantId -contains $Broken) { throw 'lookup broke' }
+                foreach ($Id in $TenantId) {
+                    [pscustomobject]@{ TenantId = $Id; Exists = $false }
+                }
+            } -ModuleName $Mod
+            Save-SteFile -FilePath $script:WeekFile -Record $script:TenantRecords
+            $Params = @{
+                Path              = $TestPath
+                Open              = $false
+                TenantIdChunkSize = 1
+            }
+            Show-IRTTeamsExternalDomain @Params
+            Should -Invoke Get-IRTTenantOwner -Times 3 -Exactly -ModuleName $Mod
+            $F = { $Level -eq 'Warn' -and $Message -match 'lookup failed.*lookup broke' }
+            Should -Invoke Write-IRT -ModuleName $Mod -ParameterFilter $F
         }
 
         It 'warns when a tenant ID cannot be resolved' {
