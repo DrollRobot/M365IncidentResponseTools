@@ -20,8 +20,8 @@ function Show-IRTTeamsExternalDomain {
     Each record is handed to a dedicated parser for its operation (for example
     Get-MessageSentParty for MessageSent), which returns every domain and tenant ID the
     record names. Records from operations with no parser are skipped with a warning, so
-    other exports in the same folder do no harm. A progress line is shown as each file
-    is read.
+    other exports in the same folder do no harm. A Write-Progress bar tracks the files as
+    they are read.
 
     The investigated tenant's own parties are removed. Its tenant ID is each record's
     OrganizationId, and its domains are learned from the records themselves: any domain
@@ -35,8 +35,8 @@ function Show-IRTTeamsExternalDomain {
     domain. A tenant ID that the same record already pairs with a domain is not looked
     up.
 
-    Lookups run in chunks of -TenantIdChunkSize tenant IDs, with a progress line after
-    each chunk. A chunk that fails leaves only its own tenant IDs unresolved.
+    Lookups run in chunks of -TenantIdChunkSize tenant IDs, tracked by a Write-Progress
+    bar. A chunk that fails leaves only its own tenant IDs unresolved.
 
     Counting:
         - A record adds one to each organisation it names, however often it names it.
@@ -94,7 +94,9 @@ function Show-IRTTeamsExternalDomain {
     None. Writes an Excel workbook into -Path.
 
     .NOTES
-    Version: 1.1.0
+    Version: 1.1.1
+    1.1.1 - Progress is shown with Write-Progress instead of a console line for each file
+    and each lookup chunk.
     1.1.0 - Tenant IDs are looked up in chunks of -TenantIdChunkSize, so one failed
     lookup no longer loses every tenant ID. Progress is shown per file and per chunk.
     #>
@@ -130,6 +132,10 @@ function Show-IRTTeamsExternalDomain {
         $DateHeader = 'LastDate'
         $AllowHeader = 'allow_TRUE_FALSE'
         $DateNumberFormat = 'm/d/yyyy h:mm:ss AM/PM'
+
+        # progress bars
+        $ReadActivity = 'Reading Teams audit log files'
+        $LookupActivity = 'Looking up tenant domains'
 
         # one dedicated parser per operation queried by Get-IRTTeamsExternalDomain
         $ParserRegistry = @{
@@ -185,7 +191,14 @@ function Show-IRTTeamsExternalDomain {
         $FileIndex = 0
         foreach ($File in $Files) {
             $FileIndex++
-            Write-IRT "Reading file ${FileIndex} of ${FileCount}: $($File.Name)"
+            $ProgressParams = @{
+                Id              = 1
+                Activity        = $ReadActivity
+                Status          = "File ${FileIndex} of ${FileCount}: $($File.Name)"
+                PercentComplete = [int](($FileIndex - 1) / $FileCount * 100)
+            }
+            Write-Progress @ProgressParams
+
             $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
             Write-PSFMessage -Level 8 -Message (
                 "${FunctionName}: Import-Clixml $($File.Name) [$Elapsed]")
@@ -250,6 +263,12 @@ function Show-IRTTeamsExternalDomain {
                     })
             }
         }
+        $ReadDoneParams = @{
+            Id        = 1
+            Activity  = $ReadActivity
+            Completed = $true
+        }
+        Write-Progress @ReadDoneParams
 
         $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
         Write-PSFMessage -Level 8 -Message (
@@ -361,13 +380,21 @@ function Show-IRTTeamsExternalDomain {
                     "${ChunkCount} chunk(s) of up to ${TenantIdChunkSize}.")
 
                 # One Get-IRTTenantOwner call per chunk, so a call that throws leaves only
-                # its own tenant IDs unresolved and progress shows between chunks.
+                # its own tenant IDs unresolved and progress moves between chunks.
                 $LookedUp = 0
                 for ($ChunkIndex = 0; $ChunkIndex -lt $ChunkCount; $ChunkIndex++) {
                     $ChunkStart = $ChunkIndex * $TenantIdChunkSize
                     $ChunkEnd = [math]::Min($ChunkStart + $TenantIdChunkSize, $LookupCount) - 1
                     $Chunk = [string[]]@($LookupList[$ChunkStart..$ChunkEnd])
                     $ChunkLabel = "Chunk $($ChunkIndex + 1) of ${ChunkCount}"
+
+                    $ProgressParams = @{
+                        Id              = 1
+                        Activity        = $LookupActivity
+                        Status          = "${ChunkLabel}, ${LookedUp} of ${LookupCount} looked up"
+                        PercentComplete = [int]($LookedUp / $LookupCount * 100)
+                    }
+                    Write-Progress @ProgressParams
 
                     $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
                     Write-PSFMessage -Level 8 -Message (
@@ -395,8 +422,13 @@ function Show-IRTTeamsExternalDomain {
                     }
 
                     $LookedUp += $Chunk.Count
-                    Write-IRT "Looked up ${LookedUp} of ${LookupCount} tenant ID(s)."
                 }
+                $LookupDoneParams = @{
+                    Id        = 1
+                    Activity  = $LookupActivity
+                    Completed = $true
+                }
+                Write-Progress @LookupDoneParams
 
                 $Unresolved = @($LookupIds | Where-Object { -not $TenantDomains.ContainsKey($_) })
                 if ($Unresolved.Count -gt 0) {

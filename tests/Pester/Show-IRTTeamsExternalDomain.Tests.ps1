@@ -20,7 +20,7 @@
     The unit block mocks Export-Excel, so nothing is written and post-export
     formatting is skipped. It checks warnings, progress, and lookup behaviour. The
     integration block lets the real parsers and Export-Excel run, then reads the
-    workbook back with Import-Excel.
+    workbook back with Import-Excel. Write-Progress is mocked in both.
 
 -- warnings -------------------------------------------------------------
 
@@ -30,8 +30,10 @@
 
 -- progress -------------------------------------------------------------
 
-    A large folder takes minutes to read and look up, so a progress line is shown as
-    each file is read and after each lookup chunk.
+    A large folder takes minutes to read and look up, so Write-Progress tracks each file
+    and each lookup chunk, and each bar is completed when its loop ends. Progress must
+    not print a console line per file or chunk: on a run of hundreds of lookups those
+    lines would bury the warnings.
 
 -- tenant lookup --------------------------------------------------------
 
@@ -120,6 +122,7 @@ Describe 'Show-IRTTeamsExternalDomain' -Tag 'unit' {
 
         Mock Write-IRT { } -ModuleName $Mod
         Mock Write-PSFMessage { } -ModuleName $Mod
+        Mock Write-Progress { } -ModuleName $Mod
         Mock Import-IRTModule { } -ModuleName $Mod
         Mock Export-Excel { } -ModuleName $Mod
         Mock Update-IRTToken { @{ Graph = $true } } -ModuleName $Mod
@@ -201,18 +204,18 @@ Describe 'Show-IRTTeamsExternalDomain' -Tag 'unit' {
     # -------------------------------------------------------------------
     Context 'progress' {
 
-        It 'reports each file as it is read' {
+        It 'shows Write-Progress for each file as it is read' {
             $Week2 = Join-Path -Path $TestPath -ChildPath 'week2.xml'
             Save-SteFile -FilePath $script:WeekFile -Record @($script:BlockRecord)
             Save-SteFile -FilePath $Week2 -Record @($script:BlockRecord)
             Show-IRTTeamsExternalDomain -Path $TestPath -Open $false
-            $First = { $Message -match 'file 1 of 2' }
-            $Second = { $Message -match 'file 2 of 2' }
-            Should -Invoke Write-IRT -ModuleName $Mod -ParameterFilter $First
-            Should -Invoke Write-IRT -ModuleName $Mod -ParameterFilter $Second
+            $First = { $Status -match 'File 1 of 2' }
+            $Second = { $Status -match 'File 2 of 2' }
+            Should -Invoke Write-Progress -ModuleName $Mod -ParameterFilter $First
+            Should -Invoke Write-Progress -ModuleName $Mod -ParameterFilter $Second
         }
 
-        It 'reports progress after each lookup chunk' {
+        It 'shows Write-Progress for each lookup chunk' {
             Save-SteFile -FilePath $script:WeekFile -Record $script:TenantRecords
             $Params = @{
                 Path              = $TestPath
@@ -220,10 +223,33 @@ Describe 'Show-IRTTeamsExternalDomain' -Tag 'unit' {
                 TenantIdChunkSize = 2
             }
             Show-IRTTeamsExternalDomain @Params
-            $First = { $Message -match 'Looked up 2 of 3' }
-            $Second = { $Message -match 'Looked up 3 of 3' }
-            Should -Invoke Write-IRT -ModuleName $Mod -ParameterFilter $First
-            Should -Invoke Write-IRT -ModuleName $Mod -ParameterFilter $Second
+            $First = { $Status -match 'Chunk 1 of 2' }
+            $Second = { $Status -match 'Chunk 2 of 2' }
+            Should -Invoke Write-Progress -ModuleName $Mod -ParameterFilter $First
+            Should -Invoke Write-Progress -ModuleName $Mod -ParameterFilter $Second
+        }
+
+        It 'completes the file and lookup progress bars when their loops end' {
+            Save-SteFile -FilePath $script:WeekFile -Record $script:TenantRecords
+            Show-IRTTeamsExternalDomain -Path $TestPath -Open $false
+            $F = { $Completed }
+            $InvokeArgs = @{ ModuleName = $Mod; ParameterFilter = $F }
+            Should -Invoke Write-Progress -Times 2 -Exactly @InvokeArgs
+        }
+
+        It 'does not write a console line for each file or chunk' {
+            $Week2 = Join-Path -Path $TestPath -ChildPath 'week2.xml'
+            Save-SteFile -FilePath $script:WeekFile -Record $script:TenantRecords
+            Save-SteFile -FilePath $Week2 -Record @($script:BlockRecord)
+            $Params = @{
+                Path              = $TestPath
+                Open              = $false
+                TenantIdChunkSize = 1
+            }
+            Show-IRTTeamsExternalDomain @Params
+            $F = { $Message -match 'file \d+ of \d+|looked up \d+ of \d+' }
+            $InvokeArgs = @{ ModuleName = $Mod; ParameterFilter = $F }
+            Should -Invoke Write-IRT -Times 0 -Exactly @InvokeArgs
         }
     }
 
@@ -309,6 +335,7 @@ Describe 'Show-IRTTeamsExternalDomain workbook' -Tag 'integration' {
 
         Mock Write-IRT { } -ModuleName $Mod
         Mock Write-PSFMessage { } -ModuleName $Mod
+        Mock Write-Progress { } -ModuleName $Mod
         Mock Import-IRTModule { } -ModuleName $Mod
         Mock Update-IRTToken { @{ Graph = $true } } -ModuleName $Mod
         Mock Get-IRTTenantOwner {
