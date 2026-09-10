@@ -59,7 +59,9 @@ function Get-IRTTenantOwner {
     .NOTES
     The Graph lookup requires the CrossTenantInformation.ReadBasic.All scope.
 
-    Version: 1.2.0
+    Version: 1.2.1
+    1.2.1 - -Cached no longer throws on a cache hit. The entry was assigned to $cached,
+    which is the [switch] $Cached parameter under PowerShell's case-insensitive names.
     #>
     [CmdletBinding()]
     param (
@@ -131,19 +133,21 @@ function Get-IRTTenantOwner {
 
             # --- Cache lookup ---
             if ($Cached -and $Global:IRT_TenantInfoTable.ContainsKey($Tid)) {
-                $cached = $Global:IRT_TenantInfoTable[$Tid]
+                # Not $cached: variable names are case-insensitive, so that would assign
+                # the entry to the [switch] $Cached parameter and throw on every hit.
+                $CacheHit = $Global:IRT_TenantInfoTable[$Tid]
                 Write-PSFMessage -Level 8 -Message (
-                    "Cache hit for '$Tid' (cached $($cached.CachedAt), " +
-                    "DisplayName='$($cached.DisplayName)')")
+                    "Cache hit for '$Tid' (cached $($CacheHit.CachedAt), " +
+                    "DisplayName='$($CacheHit.DisplayName)')")
                 [pscustomobject]@{
-                    TenantId            = $cached.TenantId
+                    TenantId            = $CacheHit.TenantId
                     Exists              = $true
-                    DisplayName         = $cached.DisplayName
-                    DefaultDomain       = $cached.DefaultDomain
-                    FederationBrandName = $cached.FederationBrandName
-                    Cloud               = $cached.Cloud
-                    GraphHost           = $cached.GraphHost
-                    TokenEndpoint       = $cached.TokenEndpoint
+                    DisplayName         = $CacheHit.DisplayName
+                    DefaultDomain       = $CacheHit.DefaultDomain
+                    FederationBrandName = $CacheHit.FederationBrandName
+                    Cloud               = $CacheHit.Cloud
+                    GraphHost           = $CacheHit.GraphHost
+                    TokenEndpoint       = $CacheHit.TokenEndpoint
                     Source              = 'Cache'
                 }
                 continue
