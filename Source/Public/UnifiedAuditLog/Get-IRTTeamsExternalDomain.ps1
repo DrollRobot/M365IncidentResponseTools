@@ -16,7 +16,8 @@ function Get-IRTTeamsExternalDomain {
     named for the Sunday that begins the week. Splitting the pull this way keeps
     each Search-UnifiedAuditLog window small enough to return reliably, and lets
     an interrupted run resume: weeks that already have a file on disk are skipped
-    unless -Force is passed.
+    unless -Force is passed. To retry particular weeks, such as ones that reported
+    DATA MISSING markers, pass their numbers to -Week.
 
     A file is written for every week that is queried, including weeks with no
     matching activity. An empty file therefore means "queried, nothing found",
@@ -27,19 +28,24 @@ function Get-IRTTeamsExternalDomain {
 
     Operations queried:
 
-        MessageSent            - chat and channel messages
-        MessageCreatedHasLink  - messages containing a link
-        MessageUpdated         - message edits
-        MessageEditedHasLink   - edits to messages containing a link
-        ChatCreated            - new chat threads
-        MemberAdded            - members joining a chat or team
-        ReactedToMessage       - message reactions (remote tenant ID only)
-        CallParticipantDetail  - call and meeting participants (remote tenant
-                                 ID only)
+        MessageSent              - chat and channel messages
+        MessageCreatedHasLink    - messages containing a link
+        MessageUpdated           - message edits
+        MessageEditedHasLink     - edits to messages containing a link
+        ChatCreated              - new chat threads
+        MemberAdded              - members joining a chat or team
+        MeetingParticipantDetail - meeting attendees, including guests
+        CallParticipantDetail    - call participants
+        ReactedToMessage         - message reactions (remote tenant ID only)
+        UserAccepted             - external user accepted (remote tenant ID only)
+        UserBlocked              - external user blocked (remote tenant ID only)
 
-    The last two record the remote party's tenant GUID but not its domain name,
+    The last three record the remote party's tenant GUID but not its domain name,
     so they still identify the external organisation - just not by a name a human
     can read without resolving the GUID.
+
+    Guest accounts appear under this tenant's ID, with the guest's home domain
+    encoded in the UPN before #EXT# (jane_contoso.com#EXT#@tenant.onmicrosoft.com).
 
     Requires an active Exchange Online connection, and a Microsoft Graph
     connection for the tenant domain used in file names.
@@ -55,6 +61,17 @@ function Get-IRTTeamsExternalDomain {
     .PARAMETER End
     End of date range (parseable date string). Used with -Start for an absolute
     range.
+
+    .PARAMETER Week
+    One or more week numbers to query, as shown in the "Week N of M" console
+    label. Weeks are numbered newest first, so week 1 is the most recent. Only the
+    named weeks are queried, and each is re-queried even if its file already
+    exists, since a failed query still writes a file holding DATA MISSING markers.
+
+    The numbers only point at the same weeks if the range resolves the same way as
+    the original run, so retry with the same -Start / -End. With -Days (or the
+    default), every week's number goes up by one each time a Sunday passes; check
+    the dates in the console label before trusting a retry.
 
     .PARAMETER Path
     Directory to write the weekly CLIXML files into. Default: current directory.
@@ -96,19 +113,33 @@ function Get-IRTTeamsExternalDomain {
     ```
     Pulls an absolute range, re-querying weeks that already have files.
 
+    .EXAMPLE
+    ```powershell
+    Get-IRTTeamsExternalDomain -Start '2026-01-01' -End '2026-03-31' -Week 4, 9
+    ```
+    Re-queries only weeks 4 and 9 of that range, for example after they reported
+    DATA MISSING markers. Their existing files are overwritten.
+
     .OUTPUTS
-    [System.IO.FileInfo] One object per weekly CLIXML file written.
+    None. Writes one CLIXML file per queried week into -Path.
 
     .NOTES
-    Version: 1.0.0
+    Version: 1.2.0
+    1.2.0 - Added MeetingParticipantDetail, UserAccepted, and UserBlocked.
+    CallParticipantDetail moved to the domain group.
+    1.1.0 - Added -Week to re-query specific weeks. No longer emits a FileInfo
+    object for each file written.
     #>
     [Alias('GetTeamsExtDomain', 'GetTeamsExtDomains')]
     [CmdletBinding()]
-    [OutputType([System.IO.FileInfo])]
     param (
         [int]    $Days, # default value set at #DEFAULTDAYS
         [string] $Start,
         [string] $End,
+
+        # retry specific weeks by the number shown in the console label
+        [ValidateRange(1, [int]::MaxValue)]
+        [int[]] $Week,
 
         [string] $Path = (Get-Location).Path,
 
@@ -144,13 +175,17 @@ function Get-IRTTeamsExternalDomain {
             'MessageEditedHasLink'
             'ChatCreated'
             'MemberAdded'
+            'MeetingParticipantDetail'
+            'CallParticipantDetail'
         )
         # Operations that record only the remote tenant's GUID. Still identifies
         # the external organisation, but the GUID has to be resolved separately
         # before it means anything to an analyst.
         $TenantIdOperations = @(
+            # names the domain only when the external party is the one reacting
             'ReactedToMessage'
-            'CallParticipantDetail'
+            'UserAccepted'
+            'UserBlocked'
         )
         $Operations = $DomainOperations + $TenantIdOperations
 
@@ -208,6 +243,23 @@ function Get-IRTTeamsExternalDomain {
         $WeekChunks.Reverse()
         $WeekCount = $WeekChunks.Count
 
+        # -Week numbers follow the same newest-first order as the console labels,
+        # so they can only be checked once the range has been split into weeks
+        if ($Week) {
+            $OutOfRange = @($Week | Where-Object { $_ -gt $WeekCount })
+            if ($OutOfRange.Count -gt 0) {
+                $ErrorParams = @{
+                    Category    = 'InvalidArgument'
+                    Message     = "-Week $($OutOfRange -join ', ') out of range. The " +
+                    "requested date range has ${WeekCount} weeks."
+                    ErrorAction = 'Stop'
+                }
+                Write-Error @ErrorParams
+            }
+            Write-PSFMessage -Level 8 -Message (
+                "${FunctionName}: -Week limits the run to week(s) $($Week -join ', ')")
+        }
+
         $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
         Write-PSFMessage -Level 8 -Message (
             "${FunctionName}: Range $($LocalStart.ToString('yyyy-MM-dd HH:mm')) to " +
@@ -220,12 +272,23 @@ function Get-IRTTeamsExternalDomain {
         # tenant label for file names
         $DomainName = Get-DefaultDomain
 
-        Write-IRT ("Querying ${WeekCount} weeks of Teams external contact " +
-            "records for ${DomainName}.")
+        if ($Week) {
+            $WeekList = ($Week | Sort-Object -Unique) -join ', '
+            Write-IRT ("Querying week(s) ${WeekList} of ${WeekCount} of Teams " +
+                "external contact records for ${DomainName}.")
+        }
+        else {
+            Write-IRT ("Querying ${WeekCount} weeks of Teams external contact " +
+                "records for ${DomainName}.")
+        }
 
         $ChunkIndex = 0
         foreach ($Chunk in $WeekChunks) {
             $ChunkIndex++
+
+            # -Week runs only the named weeks. Every week still counts toward the
+            # index so each label matches the run being retried.
+            if ($Week -and $ChunkIndex -notin $Week) { continue }
 
             $WeekStartString = $Chunk.WeekStart.ToString('yy-MM-dd')
             $FileNameBase = "${FileNamePrefix}_${DomainName}_${WeekStartString}"
@@ -236,8 +299,11 @@ function Get-IRTTeamsExternalDomain {
             $WindowEnd = $Chunk.End.ToString($WindowFormat)
             $Label = "Week ${ChunkIndex} of ${WeekCount} (${WindowStart} to ${WindowEnd})"
 
-            # resume support: a week that already has a file was already queried
-            if ((Test-Path -Path $XmlOutputPath -PathType 'Leaf') -and -not $Force) {
+            # resume support: a week that already has a file was already queried.
+            # Weeks named in -Week are re-queried anyway, because a failed query
+            # still writes a file holding DATA MISSING markers.
+            $FileExists = Test-Path -Path $XmlOutputPath -PathType 'Leaf'
+            if ($FileExists -and -not ($Force -or $Week)) {
                 Write-IRT "${Label}: file exists, skipping. Use -Force to re-query."
                 Write-PSFMessage -Level 8 -Message (
                     "${FunctionName}: Skipping existing file ${XmlOutputPath}")
@@ -307,10 +373,9 @@ function Get-IRTTeamsExternalDomain {
 
             # A file is written even when the week is empty, so that a missing
             # file means "not queried" rather than "nothing found".
-            Write-IRT "${Label}: ${RecordCount} records. Saving to ${XmlOutputPath}"
+            $OutputPathString = Split-Path -Path $XmlOutputPath -Parent
+            Write-IRT "${Label}: ${RecordCount} records. Saving to ${OutputPathString}"
             $Records | Export-Clixml -Depth 10 -Path $XmlOutputPath
-
-            Get-Item -Path $XmlOutputPath
         }
 
         $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
