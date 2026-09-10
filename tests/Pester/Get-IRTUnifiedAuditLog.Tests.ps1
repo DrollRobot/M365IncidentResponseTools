@@ -19,15 +19,24 @@
     find external commands that were never imported by the module itself).
 
     New-UALPage is a test-only factory that creates minimal UAL record objects.
-    Each record gets a unique Identity so the deduplication pass inside the
-    function does not collapse the set.
+    By default each record gets a random unique Identity so the deduplication
+    pass inside the function does not collapse the set. -StartId makes the
+    identities deterministic, which is what lets a test hand back the same
+    records twice.
+
+    Every record carries ResultIndex and ResultCount exactly as a live tenant
+    returns them under SessionCommand ReturnLargeSet: page-relative, so a full
+    page reads ResultIndex 1..5000 with ResultCount 5000 no matter how much of
+    the result set is still outstanding. That is deliberate - it keeps the
+    fixture honest about why those fields cannot be used to detect the end of a
+    search.
 
 -- paging stops at ResultLimit ------------------------------------------
 
-    The paging while loop condition is ($QueryLogCount -lt $ResultLimit).
-    When the first page returns exactly 5000 records and ResultLimit is 5000,
-    $QueryLogCount equals $ResultLimit before the loop body runs, so
-    Search-UnifiedAuditLog is called once per query and a Warn is written.
+    The paging while loop requires ($AllLogs.Count -lt $ResultLimit). When the
+    first page returns exactly 5000 records and ResultLimit is 5000, the count
+    equals $ResultLimit before the loop body runs, so Search-UnifiedAuditLog is
+    called once per query and a Warn is written.
 
 -- paging continues naturally -------------------------------------------
 
@@ -68,6 +77,31 @@
     AllUsers with two record types makes two calls; UserObject (4 base
     queries) with one record type makes four calls, each carrying RecordType.
     Without -RecordType no call carries the parameter.
+
+-- ResultIndex/ResultCount must not end paging ---------------------------
+
+    Regression guard, and the reason New-UALPage stamps those fields
+    page-relative. An earlier build stopped paging once the highest ResultIndex
+    on a page reached ResultCount. Because a full page always reports
+    ResultIndex 1..5000 against ResultCount 5000, that ended every search after
+    page one: a live 7-day pull returned 4682 records where the correct answer
+    was at least 6243. Full pages carrying those fields must keep paging.
+
+-- paging stops on a full page of records already served ----------------
+
+    A ReturnLargeSet search does not end with a short page: once the set is
+    exhausted the service keeps returning full 5000-record pages of records it
+    has already served. A loop watching only the page size therefore pages until
+    ResultLimit or a session timeout - on a real 34k-record pull that was 46
+    wasted pages ending in a 401. A full page that contributes no record the
+    query has not already served is the end-of-set signal.
+
+-- ResultLimit counts deduplicated records -------------------------------
+
+    Regression guard. Records are deduplicated as pages arrive, so
+    -ResultLimit measures real records. Counting raw records instead would let
+    overlapping pages spend the limit on repeats and cut the pull short,
+    silently dropping audit records an analyst needs.
 #>
 
 # EXO proxy cmdlets only exist after Connect-ExchangeOnline. Create thin global
@@ -101,14 +135,21 @@ BeforeAll {
             Justification = 'Test-only factory; ShouldProcess is not applicable.')]
         param(
             [int]    $Count,
-            [string] $SessionId = 'test-session-1'
+            [string] $SessionId = 'test-session-1',
+            # -1 keeps identities random and therefore unique per call
+            [int]    $StartId = -1
         )
         $Base = [datetime]'2024-01-01'
         0..($Count - 1) | ForEach-Object {
+            $Id = [string][guid]::NewGuid()
+            if ($StartId -ge 0) { $Id = "rec-$($StartId + $_)" }
             [pscustomobject]@{
-                Identity     = [string][guid]::NewGuid()
+                Identity     = $Id
                 SessionId    = $SessionId
                 CreationDate = $Base.AddSeconds($_)
+                # page-relative, as a live tenant returns them
+                ResultIndex  = $_ + 1
+                ResultCount  = $Count
             }
         }
     }
@@ -515,6 +556,135 @@ Describe 'Get-IRTUnifiedAuditLog' -Tag 'unit' {
             $null = Get-IRTUnifiedAuditLog @Params
             $InvokeArgs = @{ ModuleName = 'M365IncidentResponseTools' }
             Should -Invoke Show-IRTUnifiedAuditLog -Times 0 -Exactly @InvokeArgs
+        }
+    }
+
+    # -------------------------------------------------------------------
+    Context 'page-relative ResultIndex/ResultCount does not end paging' -Tag 'regression' {
+
+        BeforeEach {
+            # Three full pages of distinct records, each reporting ResultIndex
+            # 1..5000 against ResultCount 5000 exactly as a live tenant does,
+            # then a short page. Reading those fields as an end-of-set marker
+            # would stop this after one call and lose 10000 records.
+            $script:UALPageCallCount = 0
+            Mock Search-UnifiedAuditLog {
+                $script:UALPageCallCount++
+                if ($script:UALPageCallCount -gt 3) { New-UALPage -Count 200 }
+                else {
+                    New-UALPage -Count 5000 -StartId (($script:UALPageCallCount - 1) * 5000)
+                }
+            } -ModuleName M365IncidentResponseTools
+        }
+
+        It 'keeps paging through full pages until a short page arrives' {
+            $Params = @{
+                AllUsers    = $true
+                ResultLimit = 50000
+                Excel       = $false
+                Xml         = $false
+            }
+            Get-IRTUnifiedAuditLog @Params
+            $InvokeArgs = @{ ModuleName = 'M365IncidentResponseTools' }
+            Should -Invoke Search-UnifiedAuditLog -Times 4 -Exactly @InvokeArgs
+        }
+
+        It 'keeps every record from every page' {
+            $Params = @{
+                AllUsers    = $true
+                ResultLimit = 50000
+                Excel       = $false
+                Xml         = $false
+            }
+            Get-IRTUnifiedAuditLog @Params
+            $Filter = { $Message -match 'Total retrieved 15200 logs' }
+            $InvokeArgs = @{ ModuleName = 'M365IncidentResponseTools'; ParameterFilter = $Filter }
+            Should -Invoke Write-IRT -Times 1 -Exactly @InvokeArgs
+        }
+    }
+
+    # -------------------------------------------------------------------
+    Context 'paging stops on a full page of records already served' -Tag 'regression' {
+
+        BeforeEach {
+            # Same 5000 identities on every call and no ResultIndex/ResultCount,
+            # which is the worst case: nothing but the duplicate check can tell
+            # the pull is finished. The short page after 10 calls is only a
+            # backstop so a regression fails the assertion instead of hanging.
+            $script:UALPageCallCount = 0
+            Mock Search-UnifiedAuditLog {
+                $script:UALPageCallCount++
+                if ($script:UALPageCallCount -gt 10) { New-UALPage -Count 10 }
+                else { New-UALPage -Count 5000 -StartId 0 }
+            } -ModuleName M365IncidentResponseTools
+        }
+
+        It 'stops after the first page that adds nothing new' {
+            $Params = @{
+                AllUsers    = $true
+                ResultLimit = 50000
+                Excel       = $false
+                Xml         = $false
+            }
+            Get-IRTUnifiedAuditLog @Params
+            $InvokeArgs = @{ ModuleName = 'M365IncidentResponseTools' }
+            Should -Invoke Search-UnifiedAuditLog -Times 2 -Exactly @InvokeArgs
+        }
+
+        It 'warns that the result set was treated as exhausted' {
+            $Params = @{
+                AllUsers    = $true
+                ResultLimit = 50000
+                Excel       = $false
+                Xml         = $false
+            }
+            Get-IRTUnifiedAuditLog @Params
+            $Filter = { $Level -eq 'Warn' -and $Message -match 'all already seen' }
+            $InvokeArgs = @{ ModuleName = 'M365IncidentResponseTools'; ParameterFilter = $Filter }
+            Should -Invoke Write-IRT -Times 1 -Exactly @InvokeArgs
+        }
+    }
+
+    # -------------------------------------------------------------------
+    Context 'ResultLimit counts deduplicated records' -Tag 'regression' {
+
+        BeforeEach {
+            # Pages overlap by half, so the raw record count runs at twice the
+            # rate of the real one. Counting raw records against ResultLimit
+            # would cut the pull short and silently drop real audit records.
+            $script:UALPageCallCount = 0
+            Mock Search-UnifiedAuditLog {
+                $script:UALPageCallCount++
+                if ($script:UALPageCallCount -gt 10) { New-UALPage -Count 10 }
+                else {
+                    New-UALPage -Count 5000 -StartId (($script:UALPageCallCount - 1) * 2500)
+                }
+            } -ModuleName M365IncidentResponseTools
+        }
+
+        It 'pages until 10000 unique records are collected, not 10000 raw' {
+            $Params = @{
+                AllUsers    = $true
+                ResultLimit = 10000
+                Excel       = $false
+                Xml         = $false
+            }
+            Get-IRTUnifiedAuditLog @Params
+            $InvokeArgs = @{ ModuleName = 'M365IncidentResponseTools' }
+            Should -Invoke Search-UnifiedAuditLog -Times 3 -Exactly @InvokeArgs
+        }
+
+        It 'reports the deduplicated total alongside the raw record count' {
+            $Params = @{
+                AllUsers    = $true
+                ResultLimit = 10000
+                Excel       = $false
+                Xml         = $false
+            }
+            Get-IRTUnifiedAuditLog @Params
+            $Filter = { $Message -match 'Total retrieved 10000 logs \(15000 records' }
+            $InvokeArgs = @{ ModuleName = 'M365IncidentResponseTools'; ParameterFilter = $Filter }
+            Should -Invoke Write-IRT -Times 1 -Exactly @InvokeArgs
         }
     }
 }

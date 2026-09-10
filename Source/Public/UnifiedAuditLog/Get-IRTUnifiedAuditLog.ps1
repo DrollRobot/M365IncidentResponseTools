@@ -52,9 +52,11 @@ function Get-IRTUnifiedAuditLog {
     exception is written to the PSFramework debug log for troubleshooting. Default: 60.
 
     .PARAMETER ResultLimit
-    Maximum total records to retrieve across all queries and date chunks. Stops at the
-    next 5000-record page boundary after the limit is reached. Since queries run from
-    the most recent chunk backward, the most recent events are retained. Default: 50000.
+    Maximum total records to retrieve across all queries and date chunks. Counts
+    deduplicated records, so overlapping pages and overlapping queries do not spend the
+    limit on repeats. Stops at the next 5000-record page boundary after the limit is
+    reached. Since queries run from the most recent chunk backward, the most recent
+    events are retained. Default: 50000.
 
     .PARAMETER Operation
     Filter results to specific UAL operation names.
@@ -129,9 +131,17 @@ function Get-IRTUnifiedAuditLog {
     emits one [System.Collections.Generic.List[psobject]] per queried object.
 
     .NOTES
-    Version: 1.12.0
+    Version: 1.13.0
+    1.13.0 - Paging now stops when the result set is exhausted. Search-UnifiedAuditLog
+    keeps returning full 5000-record pages of already-served records instead of a short
+    page, so the old page-size-only loop ran until ResultLimit or a session timeout.
+    Paging now ends when a full page adds no records the query has not already served.
+    Records are also deduplicated as pages arrive rather than at the end, so
+    -ResultLimit counts real records instead of repeats, and the console reports both
+    the deduplicated and raw record counts.
     1.12.0 - Added -PassThru so callers can post-process records in memory
     instead of reading the exported files back off disk.
+    1.11.0 - Added a data-gap marker for queries that fail after all retries.
     1.10.0 - Added -RecordType to filter queries by UAL record type.
     1.9.0 - Exposed -ChunkDays to control date-chunk size, added per-chunk token
     refresh so long multi-chunk runs don't outlive the token's refresh window, an
@@ -327,6 +337,41 @@ function Get-IRTUnifiedAuditLog {
             }
         }
 
+        # helper: append a page's records to the result list, skipping any
+        # Identity already stored. ReturnLargeSet pages overlap heavily, so
+        # deduplicating as pages arrive - rather than once at the very end -
+        # keeps -ResultLimit counting real records instead of repeats, and gives
+        # the paging loop a reliable "did this page add anything" signal.
+        # $SeenId spans every query for this object and decides what gets stored.
+        # $QuerySeenId is reset per query and only measures whether the current
+        # query's paging is still producing records it has not already served,
+        # so heavy overlap between two different queries cannot be mistaken for
+        # one query running out of pages.
+        # Returns the number of records new to the current query.
+        function Add-IRTUalUniqueRecord {
+            param(
+                [System.Collections.Generic.List[psobject]]  $Destination,
+                [System.Collections.Generic.HashSet[string]] $SeenId,
+                [System.Collections.Generic.HashSet[string]] $QuerySeenId,
+                [psobject[]] $Record
+            )
+            $NewToQuery = 0
+            foreach ($Item in $Record) {
+                $Id = [string]$Item.Identity
+                if ($QuerySeenId.Add($Id)) { $NewToQuery++ }
+                if ($SeenId.Add($Id)) { $Destination.Add($Item) }
+            }
+            return $NewToQuery
+        }
+
+        # NOTE: do not add a ResultIndex/ResultCount end-of-set check here. Under
+        # SessionCommand ReturnLargeSet those fields are page-relative, not
+        # cumulative: a full page reports ResultIndex 1..5000 and ResultCount
+        # 5000 regardless of how much of the set is left (measured against a live
+        # tenant). Treating ResultIndex -ge ResultCount as "complete" therefore
+        # ends every paged search after page one and silently drops the rest.
+        # The all-duplicates check in the paging loop is the end-of-set signal.
+
         # query profiles - add new entries here to support additional modes
         $ProfileTable = [ordered]@{
             Default = [pscustomobject]@{
@@ -474,6 +519,13 @@ function Get-IRTUnifiedAuditLog {
         foreach ($LoopObject in $LoopObjects) {
 
             $AllLogs = [System.Collections.Generic.List[psobject]]::new()
+
+            # Records are deduplicated on the way in, not at the end, so
+            # $AllLogs.Count is always a count of real records and -ResultLimit
+            # cannot be spent on repeats. $RawRecordCount keeps the pre-dedup
+            # total so the console can report how much of the pull was overlap.
+            $UniqueLogIds = [System.Collections.Generic.HashSet[string]]::new()
+            $RawRecordCount = 0
 
             # users
             switch ( $ParameterSet ) {
@@ -735,13 +787,24 @@ function Get-IRTUnifiedAuditLog {
                         continue
                     }
                     $LogCount = ($Page | Measure-Object).Count
+                    $RawRecordCount += $LogCount
+
+                    # identities served by this query's own paging session, used
+                    # to spot a page that is nothing but repeats
+                    $QuerySeenIds = [System.Collections.Generic.HashSet[string]]::new()
+                    $NewToQuery = 0
 
                     if ($LogCount -gt 0) {
 
-                        Write-IRT "Retrieved ${LogCount} logs."
-
-                        # add to list
-                        foreach ($i in $Page) { $AllLogs.Add($i) }
+                        # add to list, dropping records already seen
+                        $AddParams = @{
+                            Destination = $AllLogs
+                            SeenId      = $UniqueLogIds
+                            QuerySeenId = $QuerySeenIds
+                            Record      = $Page
+                        }
+                        $NewToQuery = Add-IRTUalUniqueRecord @AddParams
+                        Write-IRT "Retrieved ${LogCount} logs (${NewToQuery} new)."
 
                         # extract sessionid for paging
                         $SessionId = $Page[0].SessionId
@@ -753,8 +816,13 @@ function Get-IRTUnifiedAuditLog {
                         Write-IRT "Retrieved 0 logs." -Level Warn
                     }
 
-                    # retrieve pages until exhausted or ResultLimit reached
-                    while ($LogCount -eq 5000 -and $AllLogs.Count -lt $ResultLimit) {
+                    # Retrieve pages until the pages stop producing records this
+                    # query has not already served, or ResultLimit is reached.
+                    # Page size alone is not an end-of-set signal: an exhausted
+                    # ReturnLargeSet search keeps returning full pages of records
+                    # it has already handed over.
+                    while ($LogCount -eq 5000 -and $NewToQuery -gt 0 -and
+                        $AllLogs.Count -lt $ResultLimit) {
 
                         # Large searches can outlive the ~1h access token. Cheap no-op
                         # while the bound token is healthy; silent re-bind when not.
@@ -790,22 +858,44 @@ function Get-IRTUnifiedAuditLog {
                             break
                         }
                         $LogCount = @($Page).Count
+                        $RawRecordCount += $LogCount
 
                         if ( $LogCount -gt 0 ) {
 
-                            Write-IRT "Retrieved ${LogCount} logs."
-
-                            # add to list
-                            foreach ($i in $Page) { $AllLogs.Add($i) }
+                            # add to list, dropping records already seen
+                            $AddParams = @{
+                                Destination = $AllLogs
+                                SeenId      = $UniqueLogIds
+                                QuerySeenId = $QuerySeenIds
+                                Record      = $Page
+                            }
+                            $NewToQuery = Add-IRTUalUniqueRecord @AddParams
+                            Write-IRT "Retrieved ${LogCount} logs (${NewToQuery} new)."
 
                             # extract sessionid for paging
                             $SessionId = $Page[0].SessionId
                         }
                         else {
                             Write-IRT "Retrieved 0 logs." -Level Warn
+                            $NewToQuery = 0
                         }
 
                         $PageCount++
+                    }
+
+                    # note why paging stopped, so an analyst can tell a complete
+                    # pull from one that was cut short
+                    $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+                    if ($LogCount -eq 5000 -and $NewToQuery -eq 0) {
+                        # a full page of nothing new means the service is
+                        # re-serving records it already returned; the query is
+                        # done even though the page size says otherwise
+                        Write-IRT ("Query $QueryKey page $($PageCount - 1) returned " +
+                            "5000 records, all already seen. Treating the result set " +
+                            "as exhausted.") -Level Warn
+                        Write-PSFMessage -Level 8 -Message (
+                            "${FunctionName}: Query $QueryKey stopped paging on an " +
+                            "all-duplicate page $($PageCount - 1). [$Elapsed]")
                     }
 
                     if ($AllLogs.Count -ge $ResultLimit) { $LimitReached = $true; break }
@@ -841,17 +931,11 @@ function Get-IRTUnifiedAuditLog {
                 return
             }
 
-            #region UNIQUE, SORT
+            #region SORT
             $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-            Write-PSFMessage -Level 8 -Message "${FunctionName}: Dedupliacation, sorting [$Elapsed]"
-            # remove duplicates
-            $UniqueLogIds = [System.Collections.Generic.HashSet[string]]::new()
-            $Logs = [System.Collections.Generic.List[psobject]]::new()
-            foreach ($Log in $AllLogs) {
-                if ($UniqueLogIds.Add([string]$Log.Identity)) {
-                    $null = $Logs.Add($Log)
-                }
-            }
+            Write-PSFMessage -Level 8 -Message "${FunctionName}: Sorting [$Elapsed]"
+            # records were deduplicated as pages arrived, in Add-IRTUalUniqueRecord
+            $Logs = $AllLogs
             # build comparison script
             $PropertyName = 'CreationDate'
             $Descending = $true
@@ -870,7 +954,8 @@ function Get-IRTUnifiedAuditLog {
             # count actual logs before adding metadata
             $TotalLogCount = ($Logs | Measure-Object).Count
             if ($TotalLogCount -gt 0) {
-                Write-IRT "Total retrieved ${TotalLogCount} logs."
+                Write-IRT ("Total retrieved ${TotalLogCount} logs " +
+                    "(${RawRecordCount} records returned before deduplication).")
             }
             else {
                 Write-IRT "Total retrieved 0 logs." -Level Warn
