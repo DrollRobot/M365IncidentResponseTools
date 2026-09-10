@@ -66,6 +66,14 @@ function Get-IRTUnifiedAuditLog {
     reached. Since queries run from the most recent chunk backward, the most recent
     events are retained. Default: 50000.
 
+    .PARAMETER ExhaustedPageQueries
+    Number of full pages in a row that must add no new records before a query stops
+    paging. An exhausted search keeps returning full 5000-record pages of records it has
+    already served, so a page of nothing new is the end-of-set signal. A page that does
+    add records resets the count. Raise it to test whether the service still returns
+    new records after a page of duplicates; each extra page costs another request.
+    Default: 1.
+
     .PARAMETER Operation
     Filter results to specific UAL operation names.
 
@@ -142,12 +150,22 @@ function Get-IRTUnifiedAuditLog {
     inside the service's timeout. Use when a default search returns suspiciously
     little and the gap has to be ruled out.
 
+    .EXAMPLE
+    ```powershell
+    Get-IRTUnifiedAuditLog -AllUsers -Days 7 -ExhaustedPageQueries 3
+    ```
+    Keeps paging each query until three full pages in a row add no new records. Compare
+    the 'Total retrieved' count against a default run to see whether stopping at the
+    first page of duplicates misses records.
+
     .OUTPUTS
     None by default. Results are exported to an Excel workbook. With -PassThru,
     emits one [System.Collections.Generic.List[psobject]] per queried object.
 
     .NOTES
-    Version: 1.14.0
+    Version: 1.15.0
+    1.15.0 - Added -ExhaustedPageQueries to set how many all-duplicate pages in a row end a
+    query's paging. The default of 1 keeps the 1.13.0 behaviour.
     1.14.0 - Added -HighCompleteness (off by default). Retry backoff now starts at 30s
     instead of 60s.
     1.13.0 - Paging now stops when the result set is exhausted. Search-UnifiedAuditLog
@@ -211,6 +229,10 @@ function Get-IRTUnifiedAuditLog {
         [switch] $HighCompleteness,
 
         [int] $ResultLimit = 50000,
+
+        # full pages in a row that must add nothing new before a query stops paging
+        [ValidateRange(1, 100)]
+        [int] $ExhaustedPageQueries = 1,
 
         [Alias('Operations')]
         [string[]] $Operation,
@@ -823,6 +845,8 @@ function Get-IRTUnifiedAuditLog {
                     # to spot a page that is nothing but repeats
                     $QuerySeenIds = [System.Collections.Generic.HashSet[string]]::new()
                     $NewToQuery = 0
+                    # full pages in a row that added nothing new to this query
+                    $DuplicatePageStreak = 0
 
                     if ($LogCount -gt 0) {
 
@@ -846,12 +870,13 @@ function Get-IRTUnifiedAuditLog {
                         Write-IRT "Retrieved 0 logs." -Level Warn
                     }
 
-                    # Retrieve pages until the pages stop producing records this
-                    # query has not already served, or ResultLimit is reached.
-                    # Page size alone is not an end-of-set signal: an exhausted
-                    # ReturnLargeSet search keeps returning full pages of records
-                    # it has already handed over.
-                    while ($LogCount -eq 5000 -and $NewToQuery -gt 0 -and
+                    # Retrieve pages until -ExhaustedPageQueries full pages in a row
+                    # produce nothing this query has not already served, or
+                    # ResultLimit is reached. Page size alone is not an end-of-set
+                    # signal: an exhausted ReturnLargeSet search keeps returning
+                    # full pages of records it has already handed over.
+                    while ($LogCount -eq 5000 -and
+                        $DuplicatePageStreak -lt $ExhaustedPageQueries -and
                         $AllLogs.Count -lt $ResultLimit) {
 
                         # Large searches can outlive the ~1h access token. Cheap no-op
@@ -910,22 +935,49 @@ function Get-IRTUnifiedAuditLog {
                             $NewToQuery = 0
                         }
 
+                        # A page of nothing new extends the duplicate streak. A page
+                        # that adds records resets it; if that follows duplicate
+                        # pages, a lower -ExhaustedPageQueries would have missed them.
+                        $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+                        if ($NewToQuery -gt 0) {
+                            if ($DuplicatePageStreak -gt 0) {
+                                Write-IRT ("Query $QueryKey page $PageCount added " +
+                                    "${NewToQuery} new records after " +
+                                    "${DuplicatePageStreak} all-duplicate page(s).") -Level Warn
+                                Write-PSFMessage -Level 8 -Message (
+                                    "${FunctionName}: Query $QueryKey page $PageCount " +
+                                    "reset a duplicate streak of " +
+                                    "$DuplicatePageStreak. [$Elapsed]")
+                            }
+                            $DuplicatePageStreak = 0
+                        }
+                        else {
+                            $DuplicatePageStreak++
+                            Write-PSFMessage -Level 8 -Message (
+                                "${FunctionName}: Query $QueryKey page $PageCount " +
+                                "added nothing new (duplicate streak " +
+                                "$DuplicatePageStreak of $ExhaustedPageQueries). [$Elapsed]")
+                        }
+
                         $PageCount++
                     }
 
                     # note why paging stopped, so an analyst can tell a complete
                     # pull from one that was cut short
                     $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-                    if ($LogCount -eq 5000 -and $NewToQuery -eq 0) {
-                        # a full page of nothing new means the service is
-                        # re-serving records it already returned; the query is
-                        # done even though the page size says otherwise
-                        Write-IRT ("Query $QueryKey page $($PageCount - 1) returned " +
-                            "5000 records, all already seen. Treating the result set " +
-                            "as exhausted.") -Level Warn
+                    if ($LogCount -eq 5000 -and
+                        $DuplicatePageStreak -ge $ExhaustedPageQueries) {
+                        # full pages of nothing new mean the service is re-serving
+                        # records it already returned; the query is done even
+                        # though the page size says otherwise
+                        Write-IRT ("Query $QueryKey returned $DuplicatePageStreak full " +
+                            "page(s) in a row, all already seen, ending at page " +
+                            "$($PageCount - 1). Treating the result set as " +
+                            "exhausted.") -Level Warn
                         Write-PSFMessage -Level 8 -Message (
-                            "${FunctionName}: Query $QueryKey stopped paging on an " +
-                            "all-duplicate page $($PageCount - 1). [$Elapsed]")
+                            "${FunctionName}: Query $QueryKey stopped paging after " +
+                            "$DuplicatePageStreak all-duplicate page(s), ending at " +
+                            "page $($PageCount - 1). [$Elapsed]")
                     }
 
                     if ($AllLogs.Count -ge $ResultLimit) { $LimitReached = $true; break }

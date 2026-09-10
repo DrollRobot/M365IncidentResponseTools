@@ -109,6 +109,15 @@
     for it. Sending -HighCompleteness:$false would still bind the parameter,
     which fails outright on ExchangeOnlineManagement builds that predate it, so
     the default path must not carry the parameter at all.
+
+-- ExhaustedPageQueries --------------------------------------------------
+
+    -ExhaustedPageQueries sets how many full pages in a row must add nothing new
+    before a query stops paging. With a limit of 3 and the same 5000 records on
+    every call, the function pages once for real records and three more times
+    for duplicates. A page that adds new records resets the streak: with a
+    limit of 2, a lone duplicate page followed by fresh records keeps paging,
+    and those fresh records are kept.
 #>
 
 # EXO proxy cmdlets only exist after Connect-ExchangeOnline. Create thin global
@@ -726,6 +735,109 @@ Describe 'Get-IRTUnifiedAuditLog' -Tag 'unit' {
             $Filter = { $HighCompleteness.IsPresent }
             $InvokeArgs = @{ ModuleName = 'M365IncidentResponseTools'; ParameterFilter = $Filter }
             Should -Invoke Search-UnifiedAuditLog -Times 1 -Exactly @InvokeArgs
+        }
+    }
+
+    # -------------------------------------------------------------------
+    Context '-ExhaustedPageQueries sets how many duplicate pages end paging' {
+
+        BeforeEach {
+            # Same 5000 identities on every call. The short page after 10 calls
+            # is only a backstop so a regression fails instead of hanging.
+            $script:UALPageCallCount = 0
+            Mock Search-UnifiedAuditLog {
+                $script:UALPageCallCount++
+                if ($script:UALPageCallCount -gt 10) { New-UALPage -Count 10 }
+                else { New-UALPage -Count 5000 -StartId 0 }
+            } -ModuleName M365IncidentResponseTools
+        }
+
+        It 'requests pages until the limit of all-duplicate pages is reached' {
+            $Params = @{
+                AllUsers             = $true
+                ResultLimit          = 50000
+                ExhaustedPageQueries = 3
+                Excel                = $false
+                Xml                  = $false
+            }
+            Get-IRTUnifiedAuditLog @Params
+            # one page of real records, then three pages of duplicates
+            $InvokeArgs = @{ ModuleName = 'M365IncidentResponseTools' }
+            Should -Invoke Search-UnifiedAuditLog -Times 4 -Exactly @InvokeArgs
+        }
+
+        It 'reports the length of the duplicate run when it stops' {
+            $Params = @{
+                AllUsers             = $true
+                ResultLimit          = 50000
+                ExhaustedPageQueries = 3
+                Excel                = $false
+                Xml                  = $false
+            }
+            Get-IRTUnifiedAuditLog @Params
+            $Filter = { $Level -eq 'Warn' -and $Message -match '3 full page\(s\) in a row' }
+            $InvokeArgs = @{ ModuleName = 'M365IncidentResponseTools'; ParameterFilter = $Filter }
+            Should -Invoke Write-IRT -Times 1 -Exactly @InvokeArgs
+        }
+    }
+
+    # -------------------------------------------------------------------
+    Context 'a page of new records resets the duplicate streak' {
+
+        BeforeEach {
+            # Calls 1-2 serve records 0-4999 and calls 3-5 serve 5000-9999: new,
+            # duplicate, new, duplicate, duplicate. With a limit of 2 the lone
+            # duplicate page must not end paging. Anything past call 5 is a short
+            # backstop page of random records, which would change the total.
+            $script:UALPageCallCount = 0
+            Mock Search-UnifiedAuditLog {
+                $script:UALPageCallCount++
+                $Call = $script:UALPageCallCount
+                if ($Call -le 2) { New-UALPage -Count 5000 -StartId 0 }
+                elseif ($Call -le 5) { New-UALPage -Count 5000 -StartId 5000 }
+                else { New-UALPage -Count 10 }
+            } -ModuleName M365IncidentResponseTools
+        }
+
+        It 'pages past a lone duplicate page and stops after two in a row' {
+            $Params = @{
+                AllUsers             = $true
+                ResultLimit          = 50000
+                ExhaustedPageQueries = 2
+                Excel                = $false
+                Xml                  = $false
+            }
+            Get-IRTUnifiedAuditLog @Params
+            $InvokeArgs = @{ ModuleName = 'M365IncidentResponseTools' }
+            Should -Invoke Search-UnifiedAuditLog -Times 5 -Exactly @InvokeArgs
+        }
+
+        It 'keeps the records served after the duplicate page' {
+            $Params = @{
+                AllUsers             = $true
+                ResultLimit          = 50000
+                ExhaustedPageQueries = 2
+                Excel                = $false
+                Xml                  = $false
+            }
+            Get-IRTUnifiedAuditLog @Params
+            $Filter = { $Message -match 'Total retrieved 10000 logs' }
+            $InvokeArgs = @{ ModuleName = 'M365IncidentResponseTools'; ParameterFilter = $Filter }
+            Should -Invoke Write-IRT -Times 1 -Exactly @InvokeArgs
+        }
+
+        It 'warns that new records arrived after a duplicate page' {
+            $Params = @{
+                AllUsers             = $true
+                ResultLimit          = 50000
+                ExhaustedPageQueries = 2
+                Excel                = $false
+                Xml                  = $false
+            }
+            Get-IRTUnifiedAuditLog @Params
+            $Filter = { $Level -eq 'Warn' -and $Message -match 'after 1 all-duplicate page' }
+            $InvokeArgs = @{ ModuleName = 'M365IncidentResponseTools'; ParameterFilter = $Filter }
+            Should -Invoke Write-IRT -Times 1 -Exactly @InvokeArgs
         }
     }
 }

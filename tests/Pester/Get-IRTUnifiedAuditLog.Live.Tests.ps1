@@ -60,6 +60,23 @@
         Window: 14 days ago to 7 days ago. Any record outside that window
         (with a 1-day tolerance for UTC/local conversion) would indicate the
         -Start or -End parameter is being ignored or misformatted.
+
+-- -ExhaustedPageQueries 2 ----------------------------------------------
+
+    One -AllUsers query over 7 days with -ExhaustedPageQueries 2 and
+    ResultLimit=15000. Seven days of tenant activity has run past one
+    5000-record page, so the query pages through an extra all-duplicate page
+    before it stops. Verifies the longer paging session still completes cleanly.
+
+    'returns at least 1 log record'
+        The query, paging, and capture pipeline work end-to-end with the
+        higher limit.
+
+    'every record Identity is unique'
+        Extra duplicate pages must not leak repeat records into the result.
+
+    'inserts no data-gap marker'
+        Extending the ReturnLargeSet session must not push it into a failure.
 #>
 
 InModuleScope M365IncidentResponseTools {
@@ -187,6 +204,43 @@ InModuleScope M365IncidentResponseTools {
                     $Entry.CreationDate | Should -BeGreaterOrEqual $LowerBound
                     $Entry.CreationDate | Should -BeLessOrEqual $UpperBound
                 }
+            }
+        }
+
+        # -------------------------------------------------------------------
+        Context '-ExhaustedPageQueries 2' {
+
+            BeforeAll {
+                Mock Write-IRT { }
+                Mock Write-PSFMessage { }
+
+                $script:CapturedDup = $null
+                Mock Show-IRTUnifiedAuditLog { $script:CapturedDup = $Log }
+
+                $Params = @{
+                    AllUsers             = $true
+                    Days                 = 7
+                    ResultLimit          = 15000
+                    ExhaustedPageQueries = 2
+                    Excel                = $true
+                    Xml                  = $false
+                }
+                Get-IRTUnifiedAuditLog @Params
+                $script:LogsDup = @($script:CapturedDup | Where-Object { $_ -and -not $_.Metadata })
+            }
+
+            It 'returns at least 1 log record' {
+                $script:LogsDup.Count | Should -BeGreaterThan 0
+            }
+
+            It 'every record Identity is unique' {
+                $Ids = [System.Collections.Generic.HashSet[string]]::new(
+                    [string[]]@($script:LogsDup.Identity))
+                $Ids.Count | Should -Be $script:LogsDup.Count
+            }
+
+            It 'inserts no data-gap marker' {
+                @($script:LogsDup | Where-Object { $_.IRTDataGap }).Count | Should -Be 0
             }
         }
     }
