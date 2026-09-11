@@ -47,6 +47,19 @@
     records what has been witnessed, so an absent value is not proof of an invalid
     one, and blocking would reject legitimate searches for record types Microsoft
     has shipped but this tenant has not yet logged.
+
+-- record paging --------------------------------------------------------
+
+    Get-GraphUALRecord follows @odata.nextLink until the service stops sending
+    one. There is no record budget: a Graph download ends on its own, and
+    stopping early would keep an arbitrary subset, because the API does not sort.
+
+-- download keeps every record ------------------------------------------
+
+    Receive-IRTGraphUAL runs the real Get-GraphUALRecord and ConvertTo-UalRecord
+    against a mocked request layer, so the whole download path is checked: every
+    page of every job lands in the output. None of the Graph functions takes
+    -ResultLimit; that cap belonged to Search-UnifiedAuditLog's paging model.
 #>
 
 BeforeAll {
@@ -749,6 +762,132 @@ Describe 'Get-GraphUALJobLabel' -Tag 'unit' {
             $Label = Get-GraphUALJobLabel -Query $Query
             $Label.Length | Should -BeLessOrEqual 40
             $Label | Should -Match '\.\.\.$'
+        }
+    }
+}
+
+Describe 'Get-GraphUALRecord' -Tag 'unit' {
+
+    It 'follows nextLinks until the last page and keeps every record' {
+        InModuleScope $script:Mod {
+            Mock Import-IRTModule { }
+            Mock Write-PSFMessage { }
+            # an unexpected request fails loudly instead of reaching Graph
+            Mock Invoke-GraphUALRequest {
+                [pscustomobject]@{ Ok = $false; Result = $null; Error = 'unexpected request' }
+            }
+            Mock Invoke-GraphUALRequest {
+                $Value = @(1..3 | ForEach-Object { @{ id = "p1-$_" } })
+                $Result = @{ value = $Value; '@odata.nextLink' = 'https://graph.test/p2' }
+                [pscustomobject]@{ Ok = $true; Result = $Result; Error = $null }
+            } -ParameterFilter { $Path -like 'queries/job-1/records*' }
+            Mock Invoke-GraphUALRequest {
+                $Value = @(1..3 | ForEach-Object { @{ id = "p2-$_" } })
+                $Result = @{ value = $Value; '@odata.nextLink' = 'https://graph.test/p3' }
+                [pscustomobject]@{ Ok = $true; Result = $Result; Error = $null }
+            } -ParameterFilter { $Uri -eq 'https://graph.test/p2' }
+            Mock Invoke-GraphUALRequest {
+                $Value = @(1..2 | ForEach-Object { @{ id = "p3-$_" } })
+                $Result = @{ value = $Value; '@odata.nextLink' = $null }
+                [pscustomobject]@{ Ok = $true; Result = $Result; Error = $null }
+            } -ParameterFilter { $Uri -eq 'https://graph.test/p3' }
+
+            $Page = Get-GraphUALRecord -JobId 'job-1'
+
+            $Page.Count | Should -Be 8
+            $Page.Pages | Should -Be 3
+            $Page.Error | Should -BeNullOrEmpty
+        }
+    }
+}
+
+Describe 'Graph audit search functions have no record cap' -Tag 'unit', 'acceptance' {
+
+    It '<Name> takes no -ResultLimit' -ForEach @(
+        @{ Name = 'Start-IRTGraphUAL' }
+        @{ Name = 'Wait-IRTGraphUAL' }
+        @{ Name = 'Receive-IRTGraphUAL' }
+    ) {
+        (Get-Command -Name $Name).Parameters.Keys | Should -Not -Contain 'ResultLimit'
+    }
+
+    It 'Get-GraphUALRecord takes no -Remaining' {
+        InModuleScope $script:Mod {
+            (Get-Command -Name 'Get-GraphUALRecord').Parameters.Keys |
+                Should -Not -Contain 'Remaining'
+        }
+    }
+}
+
+Describe 'Receive-IRTGraphUAL' -Tag 'integration' {
+
+    It 'downloads every record from every page of every job' {
+        InModuleScope $script:Mod {
+            Mock Import-IRTModule { }
+            Mock Write-IRT { }
+            Mock Write-PSFMessage { }
+            Mock Get-DefaultDomain { 'contoso' }
+            Mock Get-GraphUALJob {
+                foreach ($Index in 1, 2) {
+                    [pscustomobject]@{
+                        Id          = "job-$Index"
+                        GroupId     = 'g1'
+                        Index       = $Index
+                        Label       = "keyword $Index"
+                        DisplayName = "job $Index"
+                        Status      = 'succeeded'
+                        ObjectName  = 'jdoe'
+                        ProfileTag  = 'Default'
+                        FilePrefix  = 'UnifiedAuditLogs'
+                        SheetTitle  = 'Unified audit logs'
+                        Days        = 30
+                        Stamp       = '260909-1412'
+                        StartUtc    = [datetime]'2026-08-10'
+                        EndUtc      = [datetime]'2026-09-09'
+                    }
+                }
+            }
+            # an unexpected request fails loudly instead of reaching Graph
+            Mock Invoke-GraphUALRequest {
+                [pscustomobject]@{ Ok = $false; Result = $null; Error = 'unexpected request' }
+            }
+            # job-1 spans two pages and job-2 one. Every id is distinct, so dedupe
+            # keeps them all and the output should hold all seven.
+            Mock Invoke-GraphUALRequest {
+                $Value = @(1..3 | ForEach-Object {
+                        @{ id = "j1p1-$_"; createdDateTime = '2026-09-01T00:00:00Z' }
+                    })
+                $Result = @{ value = $Value; '@odata.nextLink' = 'https://graph.test/j1p2' }
+                [pscustomobject]@{ Ok = $true; Result = $Result; Error = $null }
+            } -ParameterFilter { $Path -like 'queries/job-1/records*' }
+            Mock Invoke-GraphUALRequest {
+                $Value = @(1..2 | ForEach-Object {
+                        @{ id = "j1p2-$_"; createdDateTime = '2026-09-02T00:00:00Z' }
+                    })
+                $Result = @{ value = $Value; '@odata.nextLink' = $null }
+                [pscustomobject]@{ Ok = $true; Result = $Result; Error = $null }
+            } -ParameterFilter { $Uri -eq 'https://graph.test/j1p2' }
+            Mock Invoke-GraphUALRequest {
+                $Value = @(1..2 | ForEach-Object {
+                        @{ id = "j2p1-$_"; createdDateTime = '2026-09-03T00:00:00Z' }
+                    })
+                $Result = @{ value = $Value; '@odata.nextLink' = $null }
+                [pscustomobject]@{ Ok = $true; Result = $Result; Error = $null }
+            } -ParameterFilter { $Path -like 'queries/job-2/records*' }
+
+            $Params = @{
+                Group    = 'g1'
+                Excel    = $false
+                Xml      = $false
+                PassThru = $true
+            }
+            $Output = @(Receive-IRTGraphUAL @Params)
+
+            $IsRecord = { -not $_.PSObject.Properties['Metadata'] }
+            $Records = @($Output | Where-Object $IsRecord)
+            $Records.Count | Should -Be 7
+            $IsMarker = { $_.PSObject.Properties['IRTDataGap'] }
+            @($Records | Where-Object $IsMarker).Count | Should -Be 0
         }
     }
 }

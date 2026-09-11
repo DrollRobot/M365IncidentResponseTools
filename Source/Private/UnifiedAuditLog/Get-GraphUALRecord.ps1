@@ -4,8 +4,7 @@ function Get-GraphUALRecord {
     Retrieves every record from one finished audit search job, following paging.
 
     .DESCRIPTION
-    Internal helper. Pages the records endpoint until it runs out of nextLinks or hits the
-    caller's remaining budget.
+    Internal helper. Pages the records endpoint until it runs out of nextLinks.
 
     The page size is fixed at 999. The endpoint rejects anything larger, and this is the
     largest page the service will return.
@@ -17,15 +16,11 @@ function Get-GraphUALRecord {
     .PARAMETER JobId
     Id of the job to read.
 
-    .PARAMETER Remaining
-    Maximum records still wanted. Paging stops once this many have been collected. Zero or
-    less means no limit.
-
     .EXAMPLE
     ```powershell
-    $Page = Get-GraphUALRecord -JobId $Id -Remaining 50000
+    $Page = Get-GraphUALRecord -JobId $Id
     ```
-    Retrieves up to 50,000 records from a job.
+    Retrieves every record from a job.
 
     .OUTPUTS
     [pscustomobject] with properties:
@@ -35,15 +30,14 @@ function Get-GraphUALRecord {
         Error   - the failure message if paging stopped early, else $null
 
     .NOTES
-    Version: 1.0.0
+    Version: 1.1.0
+    1.1.0 - Removed -Remaining; paging always runs to the last page.
     #>
     [CmdletBinding()]
     [OutputType([pscustomobject])]
     param(
         [Parameter(Mandatory)]
-        [string] $JobId,
-
-        [int] $Remaining = 0
+        [string] $JobId
     )
 
     Import-IRTModule -Name 'PSFramework'
@@ -65,8 +59,6 @@ function Get-GraphUALRecord {
 
         $Pages++
         foreach ($Item in @($Response.Result.value)) { $Records.Add($Item) }
-
-        if ($Remaining -gt 0 -and $Records.Count -ge $Remaining) { break }
 
         $NextLink = $Response.Result.'@odata.nextLink'
         if (-not $NextLink) { break }

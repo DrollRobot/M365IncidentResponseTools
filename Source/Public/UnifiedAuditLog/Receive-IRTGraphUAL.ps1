@@ -29,11 +29,6 @@ function Receive-IRTGraphUAL {
     .PARAMETER Id
     One or more individual job ids, for collecting a single job rather than a group.
 
-    .PARAMETER ResultLimit
-    Maximum records to retrieve per group. Default: 50000. Because the API does not sort
-    its output, a truncated download is an arbitrary subset rather than the newest
-    records, so this warns when it takes effect.
-
     .PARAMETER Excel
     Export to an Excel workbook. Default: $true.
 
@@ -63,7 +58,9 @@ function Receive-IRTGraphUAL {
     [System.Collections.Generic.List[psobject]] per group.
 
     .NOTES
-    Version: 1.0.0
+    Version: 1.1.0
+    1.1.0 - Removed -ResultLimit. It only existed because of Search-UnifiedAuditLog's
+    paging model; a Graph download ends on its own, and every record is kept.
     #>
     [CmdletBinding(SupportsShouldProcess, DefaultParameterSetName = 'Group')]
     [OutputType([System.Collections.Generic.List[psobject]])]
@@ -75,8 +72,6 @@ function Receive-IRTGraphUAL {
         [Parameter(Mandatory, ParameterSetName = 'Id')]
         [Alias('JobId')]
         [string[]] $Id,
-
-        [int] $ResultLimit = 50000,
 
         [boolean] $Excel = $true,
 
@@ -148,11 +143,8 @@ function Receive-IRTGraphUAL {
 
             $Unique = [System.Collections.Generic.HashSet[string]]::new()
             $Records = [System.Collections.Generic.List[psobject]]::new()
-            $LimitReached = $false
 
             foreach ($Job in $Jobs) {
-
-                if ($LimitReached) { break }
 
                 if ($Job.Status -ne 'succeeded') {
                     Write-IRT ("  job $($Job.Index) is '$($Job.Status)'. Inserting a " +
@@ -166,11 +158,7 @@ function Receive-IRTGraphUAL {
                     continue
                 }
 
-                $PageParams = @{
-                    JobId      = $Job.Id
-                    Remaining  = $ResultLimit - $Records.Count
-                }
-                $Page = Get-GraphUALRecord @PageParams
+                $Page = Get-GraphUALRecord -JobId $Job.Id
 
                 if ($Page.Error) {
                     Write-IRT ("  job $($Job.Index) failed partway through download. " +
@@ -190,17 +178,10 @@ function Receive-IRTGraphUAL {
                     if (-not $Unique.Add([string]$Raw.id)) { continue }
                     $Records.Add((ConvertTo-UalRecord -Record $Raw))
                     $Added++
-                    if ($Records.Count -ge $ResultLimit) { $LimitReached = $true; break }
                 }
 
                 Write-IRT ("  job $($Job.Index) ($($Job.Label)): $($Page.Count) record(s), " +
                     "$Added new.")
-            }
-
-            if ($LimitReached) {
-                Write-IRT ("Reached the ResultLimit of ${ResultLimit}. The API returns " +
-                    'records unsorted, so this is an arbitrary subset, not the newest ' +
-                    'events. Narrow the search or raise -ResultLimit.') -Level Warn
             }
             #endregion DOWNLOAD
 

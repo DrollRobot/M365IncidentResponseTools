@@ -74,9 +74,6 @@ function Start-IRTGraphUAL {
     .PARAMETER IpAddress
     Restrict the search to one or more client IP addresses.
 
-    .PARAMETER ResultLimit
-    Maximum records to retrieve when the results are downloaded. Default: 50000.
-
     .PARAMETER NoWait
     Submit the jobs and return immediately instead of waiting for them.
 
@@ -126,7 +123,9 @@ function Start-IRTGraphUAL {
     $Global:IRT_GraphUAL.
 
     .NOTES
-    Version: 1.0.0
+    Version: 1.1.0
+    1.1.0 - Removed -ResultLimit. It was stored on the group but never reached the
+    download.
     #>
     [Alias('GraphUAL', 'StartGraphUAL')]
     [CmdletBinding(SupportsShouldProcess, DefaultParameterSetName = 'UserObject')]
@@ -162,8 +161,6 @@ function Start-IRTGraphUAL {
         [string[]] $FreeText,
 
         [string[]] $IpAddress,
-
-        [int] $ResultLimit = 50000,
 
         [switch] $NoWait,
 
@@ -453,18 +450,17 @@ function Start-IRTGraphUAL {
             #endregion SUBMIT
 
             $Group = [pscustomobject]@{
-                GroupId     = $GroupId
-                Stamp       = $Stamp
-                ObjectName  = $ObjectName
-                ProfileTag  = $ActiveProfile.ProfileTag
-                FilePrefix  = $ActiveProfile.FilePrefix
-                SheetTitle  = $ActiveProfile.SheetTitle
-                Days        = $Days
-                StartUtc    = $DateRange.StartUtc
-                EndUtc      = $DateRange.EndUtc
-                Jobs        = $Jobs
-                Created     = Get-Date
-                ResultLimit = $ResultLimit
+                GroupId    = $GroupId
+                Stamp      = $Stamp
+                ObjectName = $ObjectName
+                ProfileTag = $ActiveProfile.ProfileTag
+                FilePrefix = $ActiveProfile.FilePrefix
+                SheetTitle = $ActiveProfile.SheetTitle
+                Days       = $Days
+                StartUtc   = $DateRange.StartUtc
+                EndUtc     = $DateRange.EndUtc
+                Jobs       = $Jobs
+                Created    = Get-Date
             }
 
             if ($Global:IRT_GraphUAL -isnot [System.Collections.Generic.List[psobject]]) {

@@ -41,9 +41,6 @@ function Wait-IRTGraphUAL {
     .PARAMETER Audio
     Play a sound when the wait ends. Default: $true.
 
-    .PARAMETER ResultLimit
-    Maximum records per group when downloading. Default: 50000.
-
     .PARAMETER Excel
     Export results to an Excel workbook. Default: $true.
 
@@ -81,7 +78,8 @@ function Wait-IRTGraphUAL {
     None. Results are exported by Receive-IRTGraphUAL.
 
     .NOTES
-    Version: 1.0.0
+    Version: 1.1.0
+    1.1.0 - Removed -ResultLimit, along with the download cap it passed on.
     #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
         'PSAvoidUsingWriteHost', '',
@@ -102,8 +100,6 @@ function Wait-IRTGraphUAL {
         [switch] $NoReceive,
 
         [boolean] $Audio = $true,
-
-        [int] $ResultLimit = 50000,
 
         [boolean] $Excel = $true,
 
@@ -201,11 +197,10 @@ function Wait-IRTGraphUAL {
 
     foreach ($CurrentGroup in $Focus) {
         $ReceiveParams = @{
-            Group       = $CurrentGroup
-            ResultLimit = $ResultLimit
-            Excel       = $Excel
-            Xml         = $Xml
-            Cached      = $Cached
+            Group  = $CurrentGroup
+            Excel  = $Excel
+            Xml    = $Xml
+            Cached = $Cached
         }
         Receive-IRTGraphUAL @ReceiveParams
     }
