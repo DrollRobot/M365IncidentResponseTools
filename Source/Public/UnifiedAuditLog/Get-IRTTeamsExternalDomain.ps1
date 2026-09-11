@@ -80,15 +80,6 @@ function Get-IRTTeamsExternalDomain {
     Maximum records to retrieve per weekly chunk. Stops at the next 5000-record
     page boundary after the limit is reached. Default: 50000.
 
-    .PARAMETER ChunkDelaySeconds
-    Seconds to pause between queries to reduce the chance of tripping Exchange
-    throttling limits. Default: 2. Set to 0 to disable.
-
-    .PARAMETER ThrottleDelaySeconds
-    Base backoff (seconds) used when a query fails. Passed through to
-    Get-IRTUnifiedAuditLog, which grows the backoff exponentially per retry.
-    Default: 60.
-
     .PARAMETER Force
     Re-query and overwrite weeks that already have a file in -Path. Without it,
     existing weekly files are left alone so an interrupted run can be resumed
@@ -124,7 +115,9 @@ function Get-IRTTeamsExternalDomain {
     None. Writes one CLIXML file per queried week into -Path.
 
     .NOTES
-    Version: 1.2.0
+    Version: 1.3.0
+    1.3.0 - Removed -ChunkDelaySeconds, which never took effect, and
+    -ThrottleDelaySeconds. Retry backoff now uses the Get-IRTUnifiedAuditLog default.
     1.2.0 - Added MeetingParticipantDetail, UserAccepted, and UserBlocked.
     CallParticipantDetail moved to the domain group.
     1.1.0 - Added -Week to re-query specific weeks. No longer emits a FileInfo
@@ -144,14 +137,6 @@ function Get-IRTTeamsExternalDomain {
         [string] $Path = (Get-Location).Path,
 
         [int] $ResultLimit = 50000,
-
-        # seconds to pause between queries to avoid tripping throttle limits
-        [ValidateRange(0, 3600)]
-        [int] $ChunkDelaySeconds = 2,
-
-        # base seconds for retry backoff, passed through to Get-IRTUnifiedAuditLog
-        [ValidateRange(1, 3600)]
-        [int] $ThrottleDelaySeconds = 60,
 
         [switch] $Force
     )
@@ -318,17 +303,15 @@ function Get-IRTTeamsExternalDomain {
             # Reuse the shared UAL query function so this pull inherits its
             # paging, token refresh, retry/backoff, and data-gap marking.
             $UalParams = @{
-                AllUsers             = $true
-                Operation            = $Operations
-                Start                = $Chunk.Start.ToString('yyyy-MM-dd HH:mm:ss')
-                End                  = $Chunk.End.ToString('yyyy-MM-dd HH:mm:ss')
-                ChunkDays            = 7
-                ChunkDelaySeconds    = $ChunkDelaySeconds
-                ThrottleDelaySeconds = $ThrottleDelaySeconds
-                ResultLimit          = $ResultLimit
-                Excel                = $false
-                Xml                  = $false
-                PassThru             = $true
+                AllUsers    = $true
+                Operation   = $Operations
+                Start       = $Chunk.Start.ToString('yyyy-MM-dd HH:mm:ss')
+                End         = $Chunk.End.ToString('yyyy-MM-dd HH:mm:ss')
+                ChunkDays   = 7
+                ResultLimit = $ResultLimit
+                Excel       = $false
+                Xml         = $false
+                PassThru    = $true
             }
             $Returned = Get-IRTUnifiedAuditLog @UalParams
 
