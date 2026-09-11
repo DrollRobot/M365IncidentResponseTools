@@ -36,7 +36,10 @@
     The paging while loop requires ($AllLogs.Count -lt $ResultLimit). When the
     first page returns exactly 5000 records and ResultLimit is 5000, the count
     equals $ResultLimit before the loop body runs, so Search-UnifiedAuditLog is
-    called once per query and a Warn is written.
+    called once per query and a Warn is written. The records past the limit were
+    never retrieved, so one DATA MISSING marker (RecordType IRT_RESULT_LIMIT) is
+    added to the results. It is left out of the reported total, which counts real
+    records only. A pull that ends naturally gets no marker.
 
 -- paging continues naturally -------------------------------------------
 
@@ -230,6 +233,33 @@ Describe 'Get-IRTUnifiedAuditLog' -Tag 'unit' {
             $Filter = { $Level -eq 'Warn' -and $Message -match 'ResultLimit' }
             Should -Invoke Write-IRT -ModuleName M365IncidentResponseTools -ParameterFilter $Filter
         }
+
+        It 'adds one ResultLimit DATA MISSING marker when paging is cut short' {
+            $Params = @{
+                AllUsers    = $true
+                ResultLimit = 5000
+                Excel       = $false
+                Xml         = $false
+                PassThru    = $true
+            }
+            $Result = Get-IRTUnifiedAuditLog @Params
+            $Markers = @($Result | Where-Object { $_.PSObject.Properties['IRTDataGap'] })
+            $Markers.Count | Should -Be 1
+            $Markers[0].RecordType | Should -Be 'IRT_RESULT_LIMIT'
+        }
+
+        It 'leaves the marker out of the reported total' {
+            $Params = @{
+                AllUsers    = $true
+                ResultLimit = 5000
+                Excel       = $false
+                Xml         = $false
+            }
+            Get-IRTUnifiedAuditLog @Params
+            $Filter = { $Message -match 'Total retrieved 5000 logs' }
+            $InvokeArgs = @{ ModuleName = 'M365IncidentResponseTools'; ParameterFilter = $Filter }
+            Should -Invoke Write-IRT -Times 1 -Exactly @InvokeArgs
+        }
     }
 
     # -------------------------------------------------------------------
@@ -270,6 +300,19 @@ Describe 'Get-IRTUnifiedAuditLog' -Tag 'unit' {
             $Filter = { $Level -eq 'Warn' -and $Message -match 'ResultLimit' }
             $InvokeArgs = @{ ModuleName = 'M365IncidentResponseTools'; ParameterFilter = $Filter }
             Should -Invoke Write-IRT -Times 0 @InvokeArgs
+        }
+
+        It 'adds no DATA MISSING marker when paging ends naturally' {
+            $Params = @{
+                AllUsers    = $true
+                ResultLimit = 50000
+                Excel       = $false
+                Xml         = $false
+                PassThru    = $true
+            }
+            $Result = Get-IRTUnifiedAuditLog @Params
+            $Markers = @($Result | Where-Object { $_.PSObject.Properties['IRTDataGap'] })
+            $Markers.Count | Should -Be 0
         }
     }
 
@@ -447,6 +490,24 @@ Describe 'Get-IRTUnifiedAuditLog' -Tag 'unit' {
             }
             Get-IRTUnifiedAuditLog @Params -ErrorAction SilentlyContinue
             $Filter = { $Log | Where-Object { $_.IRTDataGap } }
+            $InvokeArgs = @{ ModuleName = 'M365IncidentResponseTools'; ParameterFilter = $Filter }
+            Should -Invoke Show-IRTUnifiedAuditLog -Times 1 -Exactly @InvokeArgs
+        }
+
+        It 'records the failure cause and exception message in the marker' {
+            $Params = @{
+                AllUsers             = $true
+                Excel                = $true
+                Xml                  = $false
+                ThrottleDelaySeconds = 1
+            }
+            Get-IRTUnifiedAuditLog @Params -ErrorAction SilentlyContinue
+            $Filter = {
+                $Log | Where-Object {
+                    $_.IRTDataGap -and $_.RecordType -eq 'IRT_QUERY_FAILURE' -and
+                    $_.AuditData -match 'simulated UAL failure'
+                }
+            }
             $InvokeArgs = @{ ModuleName = 'M365IncidentResponseTools'; ParameterFilter = $Filter }
             Should -Invoke Show-IRTUnifiedAuditLog -Times 1 -Exactly @InvokeArgs
         }

@@ -64,7 +64,9 @@ function Get-IRTUnifiedAuditLog {
     deduplicated records, so overlapping pages and overlapping queries do not spend the
     limit on repeats. Stops at the next 5000-record page boundary after the limit is
     reached. Since queries run from the most recent chunk backward, the most recent
-    events are retained. Default: 50000.
+    events are retained. When the limit stops a pull early, a DATA MISSING marker row
+    (RecordType IRT_RESULT_LIMIT) is added to the results, so the truncation shows in
+    the exported data and not only in the console. Default: 50000.
 
     .PARAMETER ExhaustedPageQueries
     Number of full pages in a row that must add no new records before a query stops
@@ -163,7 +165,9 @@ function Get-IRTUnifiedAuditLog {
     emits one [System.Collections.Generic.List[psobject]] per queried object.
 
     .NOTES
-    Version: 1.15.0
+    Version: 1.16.0
+    1.16.0 - A pull stopped early by -ResultLimit now gets a DATA MISSING marker row
+    (RecordType IRT_RESULT_LIMIT), so truncated results are visible in the output.
     1.15.0 - Added -ExhaustedPageQueries to set how many all-duplicate pages in a row end a
     query's paging. The default of 1 keeps the 1.13.0 behaviour.
     1.14.0 - Added -HighCompleteness (off by default). Retry backoff now starts at 30s
@@ -345,12 +349,14 @@ function Get-IRTUnifiedAuditLog {
             }
         }
 
-        # helper: build a visible "data missing" marker row to insert when a query
-        # fails after all retries. It mimics a UAL record closely enough to flow
+        # helper: build a visible "data missing" marker row to insert when part of a
+        # search was not retrieved: a query that failed after all retries, or a pull
+        # stopped early by ResultLimit. It mimics a UAL record closely enough to flow
         # through dedup, sort, and the sheet builders, so an incomplete dataset is
         # obvious in the spreadsheet itself - not just in the console/debug error.
-        # The full failure detail (window, query, exception) lands in the Raw column
-        # via AuditData.
+        # The full detail (window, query, reason) lands in the Raw column via
+        # AuditData. RecordType tells the two causes apart, because they need
+        # different fixes: retry the query, or raise -ResultLimit.
         function New-IRTUalGapMarker {
             [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
                 'PSUseShouldProcessForStateChangingFunctions', '',
@@ -358,22 +364,25 @@ function Get-IRTUnifiedAuditLog {
             param(
                 [hashtable] $DateChunk,
                 [string]    $Label,
-                [System.Management.Automation.ErrorRecord] $ErrorRecord
+                [string]    $Reason,
+                [ValidateSet('IRT_QUERY_FAILURE', 'IRT_RESULT_LIMIT')]
+                [string]    $RecordType = 'IRT_QUERY_FAILURE'
             )
+            $Cause = $RecordType -eq 'IRT_RESULT_LIMIT' ? 'ResultLimit reached' : 'query failed'
             $GapAuditData = [ordered]@{
-                Operation      = '*** DATA MISSING - query failed; results incomplete ***'
+                Operation      = "*** DATA MISSING - ${Cause}; results incomplete ***"
                 Workload       = 'IRT'
                 ResultStatus   = 'Failed'
                 FailedQuery    = $Label
                 WindowStartUtc = $DateChunk.Start.ToString('yyyy-MM-dd HH:mm:ssZ')
                 WindowEndUtc   = $DateChunk.End.ToString('yyyy-MM-dd HH:mm:ssZ')
-                Error          = $ErrorRecord.Exception.Message
+                Error          = $Reason
             } | ConvertTo-Json -Compress
             return [pscustomobject]@{
                 Identity     = "IRT-DATA-GAP-$([guid]::NewGuid())"
                 IRTDataGap   = $true
                 CreationDate = $DateChunk.End
-                RecordType   = 'IRT_QUERY_FAILURE'
+                RecordType   = $RecordType
                 Operations   = 'DataMissing'
                 UserIds      = '*** DATA MISSING - INCOMPLETE RESULTS ***'
                 AuditData    = $GapAuditData
@@ -831,9 +840,9 @@ function Get-IRTUnifiedAuditLog {
                             "DATA MISSING marker and continuing.") -Level Error
                         Write-Error -ErrorRecord $_
                         $MarkerParams = @{
-                            DateChunk   = $DateChunk
-                            Label       = "Query $QueryKey"
-                            ErrorRecord = $_
+                            DateChunk = $DateChunk
+                            Label     = "Query $QueryKey"
+                            Reason    = $_.Exception.Message
                         }
                         $AllLogs.Add( (New-IRTUalGapMarker @MarkerParams) )
                         continue
@@ -905,9 +914,9 @@ function Get-IRTUnifiedAuditLog {
                                 "pages kept.") -Level Error
                             Write-Error -ErrorRecord $_
                             $MarkerParams = @{
-                                DateChunk   = $DateChunk
-                                Label       = "Query $QueryKey page $PageCount"
-                                ErrorRecord = $_
+                                DateChunk = $DateChunk
+                                Label     = "Query $QueryKey page $PageCount"
+                                Reason    = $_.Exception.Message
                             }
                             $AllLogs.Add( (New-IRTUalGapMarker @MarkerParams) )
                             break
@@ -999,8 +1008,8 @@ function Get-IRTUnifiedAuditLog {
 
             # note when queries stopped early due to ResultLimit
             if ($LimitReached) {
-                Write-IRT ("Reached ResultLimit of ${ResultLimit} records. " +
-                    "Keeping the most recent $($AllLogs.Count) events.") -Level Warn
+                Write-IRT ("Reached ResultLimit of ${ResultLimit} records. Any further " +
+                    "records were not retrieved; inserting a DATA MISSING marker.") -Level Warn
                 $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
                 Write-PSFMessage -Level 8 -Message (
                     "${FunctionName}: ResultLimit $ResultLimit reached at chunk " +
@@ -1042,6 +1051,26 @@ function Get-IRTUnifiedAuditLog {
             else {
                 Write-IRT "Total retrieved 0 logs." -Level Warn
                 return
+            }
+
+            # A ResultLimit stop leaves the rest of the search unretrieved, and the
+            # console warning is easy to miss. Mark it in the data the same way a
+            # failed query is marked. Inserted after the total is reported, so the
+            # count stays a count of real records. The window runs from the range
+            # start because chunks older than the one that hit the limit were never
+            # queried.
+            if ($LimitReached) {
+                $MarkerParams = @{
+                    DateChunk  = @{
+                        Start = $StartDateUtc
+                        End   = $DateChunks[$ChunkIndex - 1].End
+                    }
+                    Label      = "ResultLimit ${ResultLimit}"
+                    Reason     = "ResultLimit of ${ResultLimit} reached; any further " +
+                    'records in this window were not retrieved. Raise -ResultLimit.'
+                    RecordType = 'IRT_RESULT_LIMIT'
+                }
+                $Logs.Insert(0, (New-IRTUalGapMarker @MarkerParams))
             }
 
             # add metadata to results

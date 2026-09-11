@@ -14,7 +14,8 @@
 
     The integration block runs the real Get-IRTUnifiedAuditLog and stubs only the
     Exchange cmdlets beneath it, so a -Week selection is checked all the way down
-    to the window sent to Search-UnifiedAuditLog.
+    to the window sent to Search-UnifiedAuditLog, and a week cut short by
+    -ResultLimit is checked to carry the child's DATA MISSING marker into its file.
 
     Files are written into Pester's TestDrive. The function emits nothing to the
     pipeline, so tests find the files it wrote by listing -Path.
@@ -549,5 +550,31 @@ Describe 'Get-IRTTeamsExternalDomain with Get-IRTUnifiedAuditLog' -Tag 'integrat
         $File.Name | Should -Be 'TeamsExternalDomains_contoso_26-01-11.xml'
         $Content = Import-Clixml -Path $File.FullName
         $Content[0].RecordCount | Should -Be 3
+    }
+
+    It 'marks a week cut short by -ResultLimit as incomplete' {
+        # the stubbed search returns three records, so a limit of three is hit
+        $Params = @{
+            Start       = '2026-01-04'
+            End         = '2026-01-11'
+            Path        = $TestPath
+            ResultLimit = 3
+        }
+        $null = Get-IRTTeamsExternalDomain @Params
+        $File = Get-ChildItem -Path $TestPath -Filter '*.xml'
+        $Content = Import-Clixml -Path $File.FullName
+        $Content[0].DataGapCount | Should -Be 1
+    }
+
+    It 'leaves a week that stays under -ResultLimit unmarked' {
+        $Params = @{
+            Start = '2026-01-04'
+            End   = '2026-01-11'
+            Path  = $TestPath
+        }
+        $null = Get-IRTTeamsExternalDomain @Params
+        $File = Get-ChildItem -Path $TestPath -Filter '*.xml'
+        $Content = Import-Clixml -Path $File.FullName
+        $Content[0].DataGapCount | Should -Be 0
     }
 }

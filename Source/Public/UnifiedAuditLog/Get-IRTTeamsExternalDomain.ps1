@@ -78,7 +78,9 @@ function Get-IRTTeamsExternalDomain {
 
     .PARAMETER ResultLimit
     Maximum records to retrieve per weekly chunk. Stops at the next 5000-record
-    page boundary after the limit is reached. Default: 50000.
+    page boundary after the limit is reached. A week that hits the limit gets a DATA
+    MISSING marker in its file; re-query it with -Week and a higher -ResultLimit.
+    Default: 50000.
 
     .PARAMETER Force
     Re-query and overwrite weeks that already have a file in -Path. Without it,
@@ -118,6 +120,7 @@ function Get-IRTTeamsExternalDomain {
     Version: 1.3.0
     1.3.0 - Removed -ChunkDelaySeconds, which never took effect, and
     -ThrottleDelaySeconds. Retry backoff now uses the Get-IRTUnifiedAuditLog default.
+    A week cut short by -ResultLimit now carries a DATA MISSING marker.
     1.2.0 - Added MeetingParticipantDetail, UserAccepted, and UserBlocked.
     CallParticipantDetail moved to the domain group.
     1.1.0 - Added -Week to re-query specific weeks. No longer emits a FileInfo

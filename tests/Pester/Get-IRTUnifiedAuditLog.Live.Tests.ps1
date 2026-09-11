@@ -32,6 +32,10 @@
         Verifies the ResultLimit cap is enforced: the caller asked for at most
         5000 records and must never receive more.
 
+    'adds a ResultLimit marker exactly when the limit is reached'
+        A pull stopped by ResultLimit must say so in the data. One marker with
+        RecordType IRT_RESULT_LIMIT when 5000 records came back, none otherwise.
+
     'every record has a non-empty Identity'
         UAL records always carry a unique Identity. An empty Identity would
         indicate a parsing problem or a broken Formatted=true result.
@@ -75,8 +79,10 @@
     'every record Identity is unique'
         Extra duplicate pages must not leak repeat records into the result.
 
-    'inserts no data-gap marker'
-        Extending the ReturnLargeSet session must not push it into a failure.
+    'inserts no query-failure marker'
+        Extending the ReturnLargeSet session must not push it into a failure. A
+        ResultLimit marker is allowed: it only means the window holds more than
+        15000 records.
 #>
 
 InModuleScope M365IncidentResponseTools {
@@ -108,7 +114,10 @@ InModuleScope M365IncidentResponseTools {
                     Xml         = $false
                 }
                 Get-IRTUnifiedAuditLog @Params
-                $script:Logs30d = @($script:Captured30d | Where-Object { $_ -and -not $_.Metadata })
+                # records only: neither the metadata row nor a DATA MISSING marker is
+                # an audit record, and a pull that reaches the limit carries a marker
+                $IsRecord = { $_ -and -not $_.Metadata -and -not $_.IRTDataGap }
+                $script:Logs30d = @($script:Captured30d | Where-Object $IsRecord)
             }
 
             It 'returns at least 1 log record over 30 days' {
@@ -117,6 +126,13 @@ InModuleScope M365IncidentResponseTools {
 
             It 'returns no more than 5000 records' {
                 $script:Logs30d.Count | Should -BeLessOrEqual 5000
+            }
+
+            It 'adds a ResultLimit marker exactly when the limit is reached' {
+                $IsLimitMarker = { $_ -and $_.RecordType -eq 'IRT_RESULT_LIMIT' }
+                $Markers = @($script:Captured30d | Where-Object $IsLimitMarker)
+                $Expected = $script:Logs30d.Count -ge 5000 ? 1 : 0
+                $Markers.Count | Should -Be $Expected
             }
 
             It 'every record has a non-empty Identity' {
@@ -239,8 +255,11 @@ InModuleScope M365IncidentResponseTools {
                 $Ids.Count | Should -Be $script:LogsDup.Count
             }
 
-            It 'inserts no data-gap marker' {
-                @($script:LogsDup | Where-Object { $_.IRTDataGap }).Count | Should -Be 0
+            It 'inserts no query-failure marker' {
+                # a ResultLimit marker only means the window holds more than 15000
+                # records; a query-failure marker means paging broke
+                $IsFailure = { $_.IRTDataGap -and $_.RecordType -eq 'IRT_QUERY_FAILURE' }
+                @($script:LogsDup | Where-Object $IsFailure).Count | Should -Be 0
             }
         }
     }
