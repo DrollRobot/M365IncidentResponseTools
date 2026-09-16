@@ -20,7 +20,7 @@ function Show-IRTEntraAuditLog {
         [string] $TableStyle = $Global:IRT_Config.ExcelTableStyle,
         [string] $Font = $Global:IRT_Config.ExcelFont,
         [boolean] $IpInfo = [bool]$Global:IRT_Config.IpInfoAvailable,
-        [boolean] $Open = $true,
+        [boolean] $Open = [bool]$Global:IRT_Config.OpenSpreadsheets,
         [switch] $Cached
     )
 
