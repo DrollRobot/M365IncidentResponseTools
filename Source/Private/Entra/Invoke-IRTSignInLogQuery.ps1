@@ -85,7 +85,7 @@ function Invoke-IRTSignInLogQuery {
         Days           = 7
         Target         = $User.UserPrincipalName
         FileNamePrefix = 'EntraSignInLog'
-        FileNameBase   = 'EntraSignInLog_jsmith_7Days'
+        FileNameBase   = 'EntraSignInLog_jsmith_26-09-16_14-30'
         Title          = 'Entra sign in logs. jsmith. 7 days.'
         ShowCommand    = 'Show-IRTEntraUserSignInLog'
     }

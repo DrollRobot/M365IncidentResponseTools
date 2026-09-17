@@ -1,10 +1,46 @@
 function Show-IRTEntraUserSignInLog {
     <#
-	.SYNOPSIS
-	Processes Sign in log .XML file into Excel spreadsheet.
+    .SYNOPSIS
+    Processes user sign-in log objects into an Excel spreadsheet.
 
-	.NOTES
-	Version: 1.4.0
+    .DESCRIPTION
+    Takes user sign-in log objects produced by Get-IRTEntraUserSignInLog (or imported
+    from a raw XML export) and renders them into a formatted Excel workbook. Curated
+    columns are shown by default and all other sign-in fields are present but hidden.
+    Device code values in AuthenticationProtocol and OriginalTransferMethod are
+    highlighted. Enriches IP addresses with geolocation data when -IpInfo is enabled.
+
+    .PARAMETER Log
+    A list of user sign-in log objects with a metadata entry at index 0. Produced by
+    Get-IRTEntraUserSignInLog. Mutually exclusive with -XmlPath.
+
+    .PARAMETER XmlPath
+    Path to a raw XML file exported by Get-IRTEntraUserSignInLog. Mutually exclusive
+    with -Log.
+
+    .PARAMETER TableStyle
+    Excel table style. Defaults to IRT_Config.ExcelTableStyle.
+
+    .PARAMETER Font
+    Excel font name. Defaults to IRT_Config.ExcelFont.
+
+    .PARAMETER IpInfo
+    Enrich IP addresses with geolocation data. Default: $true.
+
+    .PARAMETER Open
+    Open the Excel file immediately after export. Default: $true.
+
+    .EXAMPLE
+    ```powershell
+    Show-IRTEntraUserSignInLog -XmlPath '.\EntraSignInLog_jsmith_26-09-16_14-30.xml'
+    ```
+    Rebuilds the sign-in log workbook from a raw XML export.
+
+    .OUTPUTS
+    None. Results are written to an Excel workbook.
+
+    .NOTES
+    Version: 1.4.0
     1.4.0 - SignInEventTypes is now shown by default (right after UserPrincipalName)
             so interactive and non-interactive sign-ins can be told apart in a mixed
             pull.
@@ -15,7 +51,7 @@ function Show-IRTEntraUserSignInLog {
     1.2.0 - Surfaced many more sign-in fields as columns (incl. AuthenticationProtocol);
             all non-curated columns are present but hidden by default.
     1.1.3 - Added timers/progress for testing.
-	#>
+    #>
     [CmdletBinding(DefaultParameterSetName = 'Objects')]
     param (
         [Parameter(Position = 0, ParameterSetName = 'Objects')]

@@ -28,6 +28,12 @@ function Show-IRTEntraSPSignInLog {
     .PARAMETER Open
     Open the Excel file immediately after export. Default: $true.
 
+    .EXAMPLE
+    ```powershell
+    Show-IRTEntraSPSignInLog -XmlPath '.\SPSignInLogs_30Days_contoso.com_MyApp_26-09-16_14-30.xml'
+    ```
+    Rebuilds the service principal sign-in log workbook from a raw XML export.
+
     .OUTPUTS
     None. Results are written to an Excel workbook.
 
