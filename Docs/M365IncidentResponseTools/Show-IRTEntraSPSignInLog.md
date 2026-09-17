@@ -4,64 +4,62 @@ external help file: M365IncidentResponseTools-Help.xml
 HelpUri: ''
 Locale: en-US
 Module Name: M365IncidentResponseTools
-ms.date: 09/07/2026
+ms.date: 09/16/2026
 PlatyPS schema version: 2024-05-01
-title: Get-IRTNonInteractiveSignIn
+title: Show-IRTEntraSPSignInLog
 ---
 
-# Get-IRTNonInteractiveSignIn
+# Show-IRTEntraSPSignInLog
 
 ## SYNOPSIS
 
-Downloads non-interactive Entra ID sign-in logs for one or more users.
+Processes service principal sign-in log objects into an Excel spreadsheet.
 
 ## SYNTAX
 
+### Objects (Default)
+
 ```
-Get-IRTNonInteractiveSignIn [[-UserObject] <psobject[]>] [-Days <int>] [-Beta <bool>] [-Xml <bool>]
- [-Script <bool>] [-Open <bool>] [<CommonParameters>]
+Show-IRTEntraSPSignInLog [[-Log] <List`1[psobject]>] [-TableStyle <string>] [-Font <string>]
+ [-IpInfo <bool>] [-Open <bool>] [<CommonParameters>]
+```
+
+### Xml
+
+```
+Show-IRTEntraSPSignInLog -XmlPath <string> [-TableStyle <string>] [-Font <string>] [-IpInfo <bool>]
+ [-Open <bool>] [<CommonParameters>]
 ```
 
 ## ALIASES
 
-GetNILog, GetNILogs, NILog, NILogs
+None.
 
 ## DESCRIPTION
 
-A convenience wrapper around Get-IRTEntraSignInLog that sets -NonInteractive automatically.
-Non-interactive sign-ins include token refresh events, legacy protocol logins, and
-service-to-service calls - often missed during investigations that focus only on
-interactive sign-ins.
-
-Date range and output behavior are identical to Get-IRTEntraSignInLog.
-Falls back to $Global:IRT_UserObjects if no -UserObject is passed.
+Takes service principal sign-in log objects produced by Get-IRTEntraSPSignInLog
+(or imported from a raw XML export) and renders them into a formatted Excel workbook.
+Enriches IP addresses with geolocation data when -IpInfo is enabled.
 
 ## EXAMPLES
 
 ### EXAMPLE 1
 
 ```powershell
-Get-IRTNonInteractiveSignIn
+Show-IRTEntraSPSignInLog -XmlPath '.\SPSignInLogs_30Days_contoso.com_MyApp_26-09-16_14-30.xml'
 ```
-Downloads non-interactive sign-in logs for the user in the global session.
-
-### EXAMPLE 2
-
-```powershell
-Get-IRTNonInteractiveSignIn -UserObject $User -Days 30
-```
-Downloads 30 days of non-interactive sign-ins for a specific user.
+Rebuilds the service principal sign-in log workbook from a raw XML export.
 
 ## PARAMETERS
 
-### -Beta
+### -Font
 
-Use the Microsoft Graph beta endpoint.
-Default: $true.
+Excel font name.
+Defaults to IRT_Config.ExcelFont.
 
 ```yaml
-Type: System.Boolean
-DefaultValue: True
+Type: System.String
+DefaultValue: $Global:IRT_Config.ExcelFont
 SupportsWildcards: false
 Aliases: []
 ParameterSets:
@@ -76,18 +74,43 @@ AcceptedValues: []
 HelpMessage: ''
 ```
 
-### -Days
+### -IpInfo
 
-Number of days back to search.
+Enrich IP addresses with geolocation data.
+Default: $true.
 
 ```yaml
-Type: System.Int32
-DefaultValue: 0
+Type: System.Boolean
+DefaultValue: '[bool]$Global:IRT_Config.IpInfoAvailable'
 SupportsWildcards: false
 Aliases: []
 ParameterSets:
 - Name: (All)
   Position: Named
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+### -Log
+
+A list of service principal sign-in log objects with a metadata entry at index 0.
+Produced by Get-IRTEntraSPSignInLog.
+Mutually exclusive with -XmlPath.
+
+```yaml
+Type: System.Collections.Generic.List`1[System.Management.Automation.PSObject]
+DefaultValue: ''
+SupportsWildcards: false
+Aliases:
+- Logs
+ParameterSets:
+- Name: Objects
+  Position: 0
   IsRequired: false
   ValueFromPipeline: false
   ValueFromPipelineByPropertyName: false
@@ -119,14 +142,14 @@ AcceptedValues: []
 HelpMessage: ''
 ```
 
-### -Script
+### -TableStyle
 
-Return raw objects instead of exporting to Excel.
-Default: $false.
+Excel table style.
+Defaults to IRT_Config.ExcelTableStyle.
 
 ```yaml
-Type: System.Boolean
-DefaultValue: False
+Type: System.String
+DefaultValue: $Global:IRT_Config.ExcelTableStyle
 SupportsWildcards: false
 Aliases: []
 ParameterSets:
@@ -141,43 +164,21 @@ AcceptedValues: []
 HelpMessage: ''
 ```
 
-### -UserObject
+### -XmlPath
 
-One or more user objects to query.
-Falls back to global session objects if omitted.
+Path to a raw XML file exported by Get-IRTEntraSPSignInLog.
+Mutually
+exclusive with -Log.
 
 ```yaml
-Type: System.Management.Automation.PSObject[]
+Type: System.String
 DefaultValue: ''
 SupportsWildcards: false
-Aliases:
-- UserObjects
-ParameterSets:
-- Name: (All)
-  Position: 0
-  IsRequired: false
-  ValueFromPipeline: false
-  ValueFromPipelineByPropertyName: false
-  ValueFromRemainingArguments: false
-DontShow: false
-AcceptedValues: []
-HelpMessage: ''
-```
-
-### -Xml
-
-Export raw XML alongside the Excel file.
-Defaults to IRT_Config.ExportXml.
-
-```yaml
-Type: System.Boolean
-DefaultValue: $Global:IRT_Config.ExportXml
-SupportsWildcards: false
 Aliases: []
 ParameterSets:
-- Name: (All)
+- Name: Xml
   Position: Named
-  IsRequired: false
+  IsRequired: true
   ValueFromPipeline: false
   ValueFromPipelineByPropertyName: false
   ValueFromRemainingArguments: false
@@ -197,7 +198,7 @@ This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable
 
 ## OUTPUTS
 
-### None by default. PSCustomObject[] when -Script is $true.
+### None. Results are written to an Excel workbook.
 
 ## NOTES
 

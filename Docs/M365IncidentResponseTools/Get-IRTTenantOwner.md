@@ -4,7 +4,7 @@ external help file: M365IncidentResponseTools-Help.xml
 HelpUri: ''
 Locale: en-US
 Module Name: M365IncidentResponseTools
-ms.date: 09/07/2026
+ms.date: 09/16/2026
 PlatyPS schema version: 2024-05-01
 title: Get-IRTTenantOwner
 ---
@@ -184,7 +184,10 @@ This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable
 
 The Graph lookup requires the CrossTenantInformation.ReadBasic.All scope.
 
-Version: 1.2.0
+Version: 1.2.1
+1.2.1 - -Cached no longer throws on a cache hit.
+The entry was assigned to $cached,
+which is the [switch] $Cached parameter under PowerShell's case-insensitive names.
 
 
 ## RELATED LINKS

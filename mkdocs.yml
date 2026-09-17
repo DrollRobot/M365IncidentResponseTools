@@ -95,9 +95,14 @@ nav:
       - Open-IRTTenantSheet: M365IncidentResponseTools/Open-IRTTenantSheet.md
       - Show-IRTServicePrincipal: M365IncidentResponseTools/Show-IRTServicePrincipal.md
     - Unified Audit Log:
+      - Get-IRTTeamsExternalDomain: M365IncidentResponseTools/Get-IRTTeamsExternalDomain.md
       - Get-IRTUnifiedAuditLog: M365IncidentResponseTools/Get-IRTUnifiedAuditLog.md
       - Open-IRTAllOperationsSheet: M365IncidentResponseTools/Open-IRTAllOperationsSheet.md
+      - Receive-IRTGraphUAL: M365IncidentResponseTools/Receive-IRTGraphUAL.md
+      - Show-IRTTeamsExternalDomain: M365IncidentResponseTools/Show-IRTTeamsExternalDomain.md
       - Show-IRTUnifiedAuditLog: M365IncidentResponseTools/Show-IRTUnifiedAuditLog.md
+      - Start-IRTGraphUAL: M365IncidentResponseTools/Start-IRTGraphUAL.md
+      - Wait-IRTGraphUAL: M365IncidentResponseTools/Wait-IRTGraphUAL.md
     - Users:
       - Disable-IRTUser: M365IncidentResponseTools/Disable-IRTUser.md
       - Enable-IRTUser: M365IncidentResponseTools/Enable-IRTUser.md

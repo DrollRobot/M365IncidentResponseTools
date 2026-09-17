@@ -4,30 +4,30 @@ external help file: M365IncidentResponseTools-Help.xml
 HelpUri: ''
 Locale: en-US
 Module Name: M365IncidentResponseTools
-ms.date: 09/07/2026
+ms.date: 09/16/2026
 PlatyPS schema version: 2024-05-01
-title: Show-IRTServicePrincipalSignIn
+title: Show-IRTEntraUserSignInLog
 ---
 
-# Show-IRTServicePrincipalSignIn
+# Show-IRTEntraUserSignInLog
 
 ## SYNOPSIS
 
-Processes service principal sign-in log objects into an Excel spreadsheet.
+Processes user sign-in log objects into an Excel spreadsheet.
 
 ## SYNTAX
 
 ### Objects (Default)
 
 ```
-Show-IRTServicePrincipalSignIn [[-Log] <List`1[psobject]>] [-TableStyle <string>] [-Font <string>]
+Show-IRTEntraUserSignInLog [[-Log] <List`1[psobject]>] [-TableStyle <string>] [-Font <string>]
  [-IpInfo <bool>] [-Open <bool>] [<CommonParameters>]
 ```
 
 ### Xml
 
 ```
-Show-IRTServicePrincipalSignIn -XmlPath <string> [-TableStyle <string>] [-Font <string>]
+Show-IRTEntraUserSignInLog -XmlPath <string> [-TableStyle <string>] [-Font <string>]
  [-IpInfo <bool>] [-Open <bool>] [<CommonParameters>]
 ```
 
@@ -37,11 +37,22 @@ None.
 
 ## DESCRIPTION
 
-Takes service principal sign-in log objects produced by Get-IRTServicePrincipalSignInLog
-(or imported from a raw XML export) and renders them into a formatted Excel workbook.
+Takes user sign-in log objects produced by Get-IRTEntraUserSignInLog (or imported
+from a raw XML export) and renders them into a formatted Excel workbook.
+Curated
+columns are shown by default and all other sign-in fields are present but hidden.
+Device code values in AuthenticationProtocol and OriginalTransferMethod are
+highlighted.
 Enriches IP addresses with geolocation data when -IpInfo is enabled.
 
 ## EXAMPLES
+
+### EXAMPLE 1
+
+```powershell
+Show-IRTEntraUserSignInLog -XmlPath '.\EntraSignInLog_jsmith_26-09-16_14-30.xml'
+```
+Rebuilds the sign-in log workbook from a raw XML export.
 
 ## PARAMETERS
 
@@ -91,8 +102,9 @@ HelpMessage: ''
 
 ### -Log
 
-A list of service principal sign-in log objects with a metadata entry at index 0.
-Produced by Get-IRTServicePrincipalSignInLog.
+A list of user sign-in log objects with a metadata entry at index 0.
+Produced by
+Get-IRTEntraUserSignInLog.
 Mutually exclusive with -XmlPath.
 
 ```yaml
@@ -159,9 +171,9 @@ HelpMessage: ''
 
 ### -XmlPath
 
-Path to a raw XML file exported by Get-IRTServicePrincipalSignInLog.
-Mutually
-exclusive with -Log.
+Path to a raw XML file exported by Get-IRTEntraUserSignInLog.
+Mutually exclusive
+with -Log.
 
 ```yaml
 Type: System.String
@@ -195,7 +207,19 @@ This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable
 
 ## NOTES
 
-Version: 1.0.0
+Version: 1.4.0
+1.4.0 - SignInEventTypes is now shown by default (right after UserPrincipalName)
+        so interactive and non-interactive sign-ins can be told apart in a mixed
+        pull.
+1.3.0 - OriginalTransferMethod is now shown by default immediately after
+        AuthenticationProtocol, and both columns are highlighted when a cell
+        contains a device code value.
+AutonomousSystemNumber now sits right after
+        IpAddress (still hidden by default).
+1.2.0 - Surfaced many more sign-in fields as columns (incl.
+AuthenticationProtocol);
+        all non-curated columns are present but hidden by default.
+1.1.3 - Added timers/progress for testing.
 
 
 ## RELATED LINKS

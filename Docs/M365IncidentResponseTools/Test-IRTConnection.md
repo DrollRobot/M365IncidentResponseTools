@@ -4,7 +4,7 @@ external help file: M365IncidentResponseTools-Help.xml
 HelpUri: ''
 Locale: en-US
 Module Name: M365IncidentResponseTools
-ms.date: 09/07/2026
+ms.date: 09/16/2026
 PlatyPS schema version: 2024-05-01
 title: Test-IRTConnection
 ---
@@ -23,7 +23,7 @@ Test-IRTConnection [-Quiet] [<CommonParameters>]
 
 ## ALIASES
 
-None.
+TestIRTConnection, IRTConnection
 
 ## DESCRIPTION
 
