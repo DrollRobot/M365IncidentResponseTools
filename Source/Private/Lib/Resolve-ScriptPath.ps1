@@ -19,7 +19,9 @@ function Resolve-ScriptPath {
     Resolve-ScriptPath -Path 'C:\Temp\File.exe' -File -FileExtension 'exe'
 
     .NOTES
-    Version: 1.0.2
+    Version: 1.1.0
+    1.1.0 - Removed -WriteToLog. Failures are reported only by the thrown error, which
+            callers already surface, instead of also being written to the console.
     1.0.2 - Resolved logic error with file extension detection.
     #>
     [CmdletBinding( DefaultParameterSetName = 'File' )]
@@ -33,27 +35,8 @@ function Resolve-ScriptPath {
         [Parameter( ParameterSetName = 'File' )]
         [switch] $File,
 
-        [string] $FileExtension,
-
-        [switch] $WriteToLog
+        [string] $FileExtension
     )
-
-    begin {
-
-        function Write-Preferred {
-            param(
-                [Parameter( Mandatory, Position = 0 )]
-                [string] $Message
-            )
-
-            if ( $WriteToLog ) {
-                Write-LogFile $Message
-            }
-            else {
-                Write-Host $Message
-            }
-        }
-    }
 
     process {
 
@@ -67,14 +50,12 @@ function Resolve-ScriptPath {
         }
         catch {
             $Message = "Unable to resolve path: ${Path}. Exiting."
-            Write-Preferred $Message
             throw $Message
         }
 
         # exit if path doesn't exist
         if ( -not $ResolvedPath ) {
             $Message = "Path does not exist: ${Path}. Exiting."
-            Write-Preferred $Message
             throw $Message
         }
 
@@ -88,7 +69,6 @@ function Resolve-ScriptPath {
             $Folder = Test-Path @TestPathParameters
             if ( -not $Folder ) {
                 $Message = "Path is not a folder: ${Path}. Exiting."
-                Write-Preferred $Message
                 throw $Message
             }
         }
@@ -102,7 +82,6 @@ function Resolve-ScriptPath {
             $File = Test-Path @TestPathParameters
             if ( -not $File ) {
                 $Message = "Path is not a file: ${Path}. Exiting."
-                Write-Preferred $Message
                 throw $Message
             }
 
@@ -118,7 +97,6 @@ function Resolve-ScriptPath {
                 if ( $FileName -notmatch "${FileExtension}$" ) {
                     $Message = "File extension does not match: " +
                         "${FileExtension},${FileName}. Exiting."
-                    Write-Preferred $Message
                     throw $Message
                 }
             }
