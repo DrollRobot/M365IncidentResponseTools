@@ -7,11 +7,14 @@ function Initialize-IRTFileLogging {
     Reads $Global:IRT_Config.LogFolderPath and configures the PSFramework 'logfile'
     logging provider to match:
 
-      - When LogFolderPath is set, the provider is enabled and every Write-PSFMessage
-        call (all levels) is written to <LogFolderPath>\IRT-<date>.log. A new file is
-        written per day and files older than 30 days are deleted automatically. There
-        is no size limit and no compression.
+      - When LogFolderPath is a folder (or a path that does not exist yet, which is
+        created), the provider is enabled and every Write-PSFMessage call (all levels)
+        is written to <LogFolderPath>\IRT-<date>.log. A new file is written per day and
+        files older than 30 days are deleted automatically. There is no size limit and
+        no compression.
       - When LogFolderPath is blank/null, the provider is disabled.
+      - When LogFolderPath points at an existing file, a warning is shown and the
+        provider is disabled, since no log could be written there.
 
     Called at module import (from Suffix.ps1) and again by Set-IRTConfig whenever the
     log folder setting changes, so a change takes effect immediately without reimporting
@@ -24,6 +27,10 @@ function Initialize-IRTFileLogging {
     Initialize-IRTFileLogging
     Applies the current LogFolderPath setting to the logfile provider.
 
+    .OUTPUTS
+    None. Configures the PSFramework logfile provider; writes a warning via Write-IRT
+    when the configured path cannot be used.
+
     .NOTES
     Version: 1.0.0
     #>
@@ -34,14 +41,32 @@ function Initialize-IRTFileLogging {
 
     $InstanceName = 'M365IRT'
     $LogFolder = $Global:IRT_Config.LogFolderPath
+    Write-PSFMessage -Level 8 -Message "LogFolderPath: '$LogFolder'"
 
-    # No folder configured: make sure file logging is off, then done.
+    $DisableReason = $null
     if ([string]::IsNullOrWhiteSpace($LogFolder)) {
+        $DisableReason = 'LogFolderPath is blank'
+    }
+    elseif (Test-Path -LiteralPath $LogFolder -PathType Leaf) {
+        # A file path would enable the provider but silently write nothing.
+        Write-IRT -Level Warn -Message (
+            "File logging is off: LogFolderPath '$LogFolder' is a file, not a folder.")
+        $DisableReason = 'LogFolderPath is a file'
+    }
+
+    # No usable folder: make sure file logging is off, then done.
+    if ($DisableReason) {
+        Write-PSFMessage -Level 8 -Message "Disabling file logging ($DisableReason)."
+        $DisableParams = @{
+            Name         = 'logfile'
+            InstanceName = $InstanceName
+            Enabled      = $false
+        }
         try {
-            Set-PSFLoggingProvider -Name logfile -InstanceName $InstanceName -Enabled $false
+            Set-PSFLoggingProvider @DisableParams
         }
         catch {
-            # The instance was never created - nothing to disable.
+            Write-PSFMessage -Level 8 -Message 'No logfile provider instance to disable.'
         }
         return
     }
@@ -49,7 +74,8 @@ function Initialize-IRTFileLogging {
     try {
         # The provider creates the folder if able, but create it up front so a bad
         # path surfaces here as a warning rather than silently producing no logs.
-        if (-not (Test-Path -Path $LogFolder)) {
+        if (-not (Test-Path -LiteralPath $LogFolder -PathType Container)) {
+            Write-PSFMessage -Level 8 -Message "Creating log folder '$LogFolder'."
             $null = New-Item -ItemType Directory -Path $LogFolder -Force
         }
 
@@ -69,9 +95,9 @@ function Initialize-IRTFileLogging {
             MutexName        = 'M365IRT-LogFile'
         }
         Set-PSFLoggingProvider @LoggingParams
+        Write-PSFMessage -Level 8 -Message "File logging enabled: '$DatedLogPath'."
     }
     catch {
-        Write-PSFMessage -Level Warning -Message (
-            "Failed to enable file logging in '$LogFolder': $_")
+        Write-IRT -Level Warn -Message "Failed to enable file logging in '$LogFolder': $_"
     }
 }
