@@ -304,7 +304,7 @@ function Get-IRTEntraSignInLog {
             if ( $NonInteractive ) {
                 $FilterStrings.Add( "signInEventTypes/any(t: t eq 'NonInteractiveUser')" )
             }
-            if ( $DeviceCodeOnly ) {
+            if ( $DeviceCode ) {
                 $FilterStrings.Add( "authenticationProtocol eq 'devicecode'" )
             }
             # base filters are constant per user; date bounds are added per chunk
