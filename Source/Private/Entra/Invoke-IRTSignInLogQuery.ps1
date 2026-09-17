@@ -74,6 +74,27 @@ function Invoke-IRTSignInLogQuery {
     .PARAMETER Xml
     Also write a raw XML export alongside the workbook.
 
+    .EXAMPLE
+    ```powershell
+    $Filter = [System.Collections.Generic.List[string]]::new()
+    $Filter.Add( "UserId eq '$($User.Id)'" )
+    $QueryParams = @{
+        BaseFilter     = $Filter
+        StartDateUtc   = (Get-Date).ToUniversalTime().AddDays(-7)
+        EndDateUtc     = (Get-Date).ToUniversalTime()
+        Days           = 7
+        Target         = $User.UserPrincipalName
+        FileNamePrefix = 'EntraSignInLog'
+        FileNameBase   = 'EntraSignInLog_jsmith_7Days'
+        Title          = 'Entra sign in logs. jsmith. 7 days.'
+        ShowCommand    = 'Show-IRTEntraUserSignInLog'
+    }
+    Invoke-IRTSignInLogQuery @QueryParams
+    ```
+    Pulls 7 days of sign-in logs for one user and exports them with
+    Show-IRTEntraUserSignInLog. Normally called by Get-IRTEntraUserSignInLog or
+    Get-IRTEntraSPSignInLog rather than directly.
+
     .OUTPUTS
     None. Results are exported via the Show- command and optional XML.
 
