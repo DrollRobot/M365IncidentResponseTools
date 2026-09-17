@@ -49,12 +49,32 @@ function Get-IRTUnifiedAuditLog {
     Base backoff (seconds) used when a Search-UnifiedAuditLog query fails (timeout,
     throttling, or a dropped session). Backoff grows exponentially per retry
     (base, base*2, base*4...) and the token is refreshed between attempts. The full
-    exception is written to the PSFramework debug log for troubleshooting. Default: 60.
+    exception is written to the PSFramework debug log for troubleshooting. Default: 30.
+
+    .PARAMETER HighCompleteness
+    Run the search on Exchange's high-completeness path. Without it the service
+    prioritises speed and may silently return an incomplete result set. Searches are
+    slower with it, which on wide date ranges raises the chance of a timeout or an
+    expired search session, so it is off by default. Pair it with a smaller -ChunkDays.
+    The switch is only sent to Search-UnifiedAuditLog when specified, so older
+    ExchangeOnlineManagement builds that lack the parameter still work by default.
 
     .PARAMETER ResultLimit
-    Maximum total records to retrieve across all queries and date chunks. Stops at the
-    next 5000-record page boundary after the limit is reached. Since queries run from
-    the most recent chunk backward, the most recent events are retained. Default: 50000.
+    Maximum total records to retrieve across all queries and date chunks. Counts
+    deduplicated records, so overlapping pages and overlapping queries do not spend the
+    limit on repeats. Stops at the next 5000-record page boundary after the limit is
+    reached. Since queries run from the most recent chunk backward, the most recent
+    events are retained. When the limit stops a pull early, a DATA MISSING marker row
+    (RecordType IRT_RESULT_LIMIT) is added to the results, so the truncation shows in
+    the exported data and not only in the console. Default: 50000.
+
+    .PARAMETER ExhaustedPageQueries
+    Number of full pages in a row that must add no new records before a query stops
+    paging. An exhausted search keeps returning full 5000-record pages of records it has
+    already served, so a page of nothing new is the end-of-set signal. A page that does
+    add records resets the count. Raise it to test whether the service still returns
+    new records after a page of duplicates; each extra page costs another request.
+    Default: 1.
 
     .PARAMETER Operation
     Filter results to specific UAL operation names.
@@ -67,6 +87,11 @@ function Get-IRTUnifiedAuditLog {
 
     .PARAMETER FreeText
     One or more free-text search strings passed to Search-UnifiedAuditLog.
+
+    .PARAMETER RecordType
+    Filter results to one or more UAL record types (e.g. MicrosoftTeams,
+    ExchangeItem, AzureActiveDirectoryStsLogon). Search-UnifiedAuditLog accepts a
+    single record type per call, so every query is run once per record type given.
 
     .PARAMETER Excel
     Export results to an Excel workbook. Default: $true.
@@ -81,23 +106,83 @@ function Get-IRTUnifiedAuditLog {
     .PARAMETER Cached
     Use pre-cached Graph data where available.
 
+    .PARAMETER PassThru
+    Emit the retrieved records to the pipeline in addition to any configured
+    exports. One collection is emitted per queried object (user, service
+    principal, or the single 'AllUsers' pseudo-object), and each collection
+    carries the same metadata object at index 0 that the XML export writes.
+    Intended for callers that post-process results in memory rather than
+    reading the exported files back off disk.
+
     .EXAMPLE
+    ```powershell
     Get-IRTUnifiedAuditLog
+    ```
     Queries the UAL for the last 30 days for the user in the global session.
 
     .EXAMPLE
+    ```powershell
     Get-IRTUnifiedAuditLog -UserObject $User -Days 90
+    ```
     Queries 90 days of UAL activity for a specific user.
 
     .EXAMPLE
+    ```powershell
     Get-IRTUnifiedAuditLog -AllUsers -Operation 'FileDeleted' -Start '2026-04-01' -End '2026-04-30'
+    ```
     Finds all FileDeleted events for any user during April 2026.
 
+    .EXAMPLE
+    ```powershell
+    Get-IRTUnifiedAuditLog -UserObject $User -Days 30 -RecordType 'MicrosoftTeams'
+    ```
+    Pulls only Microsoft Teams records for the user over the last 30 days.
+
+    .EXAMPLE
+    ```powershell
+    $Logs = Get-IRTUnifiedAuditLog -AllUsers -Days 7 -Excel $false -Xml $false -PassThru
+    ```
+    Returns the records in memory without writing any files.
+
+    .EXAMPLE
+    ```powershell
+    Get-IRTUnifiedAuditLog -UserObject $User -Days 7 -HighCompleteness -ChunkDays 1
+    ```
+    Runs the slower high-completeness search, one day per chunk to keep each query
+    inside the service's timeout. Use when a default search returns suspiciously
+    little and the gap has to be ruled out.
+
+    .EXAMPLE
+    ```powershell
+    Get-IRTUnifiedAuditLog -AllUsers -Days 7 -ExhaustedPageQueries 3
+    ```
+    Keeps paging each query until three full pages in a row add no new records. Compare
+    the 'Total retrieved' count against a default run to see whether stopping at the
+    first page of duplicates misses records.
+
     .OUTPUTS
-    None. Results are exported to an Excel workbook.
+    None by default. Results are exported to an Excel workbook. With -PassThru,
+    emits one [System.Collections.Generic.List[psobject]] per queried object.
 
     .NOTES
-    Version: 1.9.0
+    Version: 1.16.0
+    1.16.0 - A pull stopped early by -ResultLimit now gets a DATA MISSING marker row
+    (RecordType IRT_RESULT_LIMIT), so truncated results are visible in the output.
+    1.15.0 - Added -ExhaustedPageQueries to set how many all-duplicate pages in a row end a
+    query's paging. The default of 1 keeps the 1.13.0 behaviour.
+    1.14.0 - Added -HighCompleteness (off by default). Retry backoff now starts at 30s
+    instead of 60s.
+    1.13.0 - Paging now stops when the result set is exhausted. Search-UnifiedAuditLog
+    keeps returning full 5000-record pages of already-served records instead of a short
+    page, so the old page-size-only loop ran until ResultLimit or a session timeout.
+    Paging now ends when a full page adds no records the query has not already served.
+    Records are also deduplicated as pages arrive rather than at the end, so
+    -ResultLimit counts real records instead of repeats, and the console reports both
+    the deduplicated and raw record counts.
+    1.12.0 - Added -PassThru so callers can post-process records in memory
+    instead of reading the exported files back off disk.
+    1.11.0 - Added a data-gap marker for queries that fail after all retries.
+    1.10.0 - Added -RecordType to filter queries by UAL record type.
     1.9.0 - Exposed -ChunkDays to control date-chunk size, added per-chunk token
     refresh so long multi-chunk runs don't outlive the token's refresh window, an
     inter-chunk delay (-ChunkDelaySeconds), and retry-with-backoff
@@ -142,9 +227,16 @@ function Get-IRTUnifiedAuditLog {
 
         # base seconds for retry backoff when a query fails (timeout/throttle/session)
         [ValidateRange(1, 3600)]
-        [int] $ThrottleDelaySeconds = 60,
+        [int] $ThrottleDelaySeconds = 30,
+
+        # run the search on Exchange's slower but complete search path
+        [switch] $HighCompleteness,
 
         [int] $ResultLimit = 50000,
+
+        # full pages in a row that must add nothing new before a query stops paging
+        [ValidateRange(1, 100)]
+        [int] $ExhaustedPageQueries = 1,
 
         [Alias('Operations')]
         [string[]] $Operation,
@@ -155,10 +247,14 @@ function Get-IRTUnifiedAuditLog {
 
         [string[]] $FreeText,
 
+        [Alias('RecordTypes')]
+        [string[]] $RecordType,
+
         [boolean] $Excel = $true,
         [boolean] $WaitOnMessageTrace = $false,
         [boolean] $Xml = $Global:IRT_Config.ExportXml,
-        [switch] $Cached
+        [switch] $Cached,
+        [switch] $PassThru
     )
 
     begin {
@@ -170,6 +266,14 @@ function Get-IRTUnifiedAuditLog {
 
         # max attempts per Search-UnifiedAuditLog call before giving up on it
         $MaxRetry = 3
+
+        # Warnings that mean the query was refused or dropped rather than genuinely
+        # empty. EXO returns 401s from the sync-search path, and some transport
+        # faults, as a WARNING plus an empty result set instead of a terminating
+        # error. Left alone those are indistinguishable from a tenant with no
+        # matching audit activity, so a refused query would be reported to the
+        # analyst as 'no activity' - the worst way for an IR tool to fail.
+        $UalFailureWarning = 'Unauthorized|Failed to process request via|HttpRequestException'
 
         # helper: run a Search-UnifiedAuditLog call with retry. Exchange/UAL surfaces
         # transient failures (throttling, timeouts, dropped sessions) with varied and
@@ -189,7 +293,33 @@ function Get-IRTUnifiedAuditLog {
             while ($true) {
                 $Attempt++
                 try {
-                    return Search-UnifiedAuditLog @SearchParams -ErrorAction Stop
+                    # These warnings come from inside the EXO REST plumbing and do
+                    # NOT honour -WarningVariable (verified against a live tenant),
+                    # so merge the warning stream into the output and split it back
+                    # apart by record type.
+                    $CallParams = @{}
+                    $SearchParams.GetEnumerator() |
+                        ForEach-Object { $CallParams[$_.Key] = $_.Value }
+                    $CallParams['ErrorAction'] = 'Stop'
+
+                    $Merged = Search-UnifiedAuditLog @CallParams 3>&1
+
+                    $WarningType = [System.Management.Automation.WarningRecord]
+                    $Warnings = @($Merged | Where-Object { $_ -is $WarningType })
+                    $Result = @($Merged | Where-Object { $_ -isnot $WarningType })
+
+                    $Blocked = @($Warnings |
+                            Where-Object { $_ -match $UalFailureWarning })
+                    # pass through anything that was not a refusal
+                    foreach ($Warning in @($Warnings |
+                                Where-Object { $_ -notmatch $UalFailureWarning })) {
+                        Write-IRT "$Warning" -Level Warn
+                    }
+                    if ($Blocked.Count -gt 0 -and $Result.Count -eq 0) {
+                        throw ('Search returned no records and warned: ' +
+                            "$($Blocked[0])")
+                    }
+                    return $Result
                 }
                 catch {
                     $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
@@ -219,12 +349,14 @@ function Get-IRTUnifiedAuditLog {
             }
         }
 
-        # helper: build a visible "data missing" marker row to insert when a query
-        # fails after all retries. It mimics a UAL record closely enough to flow
+        # helper: build a visible "data missing" marker row to insert when part of a
+        # search was not retrieved: a query that failed after all retries, or a pull
+        # stopped early by ResultLimit. It mimics a UAL record closely enough to flow
         # through dedup, sort, and the sheet builders, so an incomplete dataset is
         # obvious in the spreadsheet itself - not just in the console/debug error.
-        # The full failure detail (window, query, exception) lands in the Raw column
-        # via AuditData.
+        # The full detail (window, query, reason) lands in the Raw column via
+        # AuditData. RecordType tells the two causes apart, because they need
+        # different fixes: retry the query, or raise -ResultLimit.
         function New-IRTUalGapMarker {
             [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
                 'PSUseShouldProcessForStateChangingFunctions', '',
@@ -232,27 +364,65 @@ function Get-IRTUnifiedAuditLog {
             param(
                 [hashtable] $DateChunk,
                 [string]    $Label,
-                [System.Management.Automation.ErrorRecord] $ErrorRecord
+                [string]    $Reason,
+                [ValidateSet('IRT_QUERY_FAILURE', 'IRT_RESULT_LIMIT')]
+                [string]    $RecordType = 'IRT_QUERY_FAILURE'
             )
+            $Cause = $RecordType -eq 'IRT_RESULT_LIMIT' ? 'ResultLimit reached' : 'query failed'
             $GapAuditData = [ordered]@{
-                Operation      = '*** DATA MISSING - query failed; results incomplete ***'
+                Operation      = "*** DATA MISSING - ${Cause}; results incomplete ***"
                 Workload       = 'IRT'
                 ResultStatus   = 'Failed'
                 FailedQuery    = $Label
                 WindowStartUtc = $DateChunk.Start.ToString('yyyy-MM-dd HH:mm:ssZ')
                 WindowEndUtc   = $DateChunk.End.ToString('yyyy-MM-dd HH:mm:ssZ')
-                Error          = $ErrorRecord.Exception.Message
+                Error          = $Reason
             } | ConvertTo-Json -Compress
             return [pscustomobject]@{
                 Identity     = "IRT-DATA-GAP-$([guid]::NewGuid())"
                 IRTDataGap   = $true
                 CreationDate = $DateChunk.End
-                RecordType   = 'IRT_QUERY_FAILURE'
+                RecordType   = $RecordType
                 Operations   = 'DataMissing'
                 UserIds      = '*** DATA MISSING - INCOMPLETE RESULTS ***'
                 AuditData    = $GapAuditData
             }
         }
+
+        # helper: append a page's records to the result list, skipping any
+        # Identity already stored. ReturnLargeSet pages overlap heavily, so
+        # deduplicating as pages arrive - rather than once at the very end -
+        # keeps -ResultLimit counting real records instead of repeats, and gives
+        # the paging loop a reliable "did this page add anything" signal.
+        # $SeenId spans every query for this object and decides what gets stored.
+        # $QuerySeenId is reset per query and only measures whether the current
+        # query's paging is still producing records it has not already served,
+        # so heavy overlap between two different queries cannot be mistaken for
+        # one query running out of pages.
+        # Returns the number of records new to the current query.
+        function Add-IRTUalUniqueRecord {
+            param(
+                [System.Collections.Generic.List[psobject]]  $Destination,
+                [System.Collections.Generic.HashSet[string]] $SeenId,
+                [System.Collections.Generic.HashSet[string]] $QuerySeenId,
+                [psobject[]] $Record
+            )
+            $NewToQuery = 0
+            foreach ($Item in $Record) {
+                $Id = [string]$Item.Identity
+                if ($QuerySeenId.Add($Id)) { $NewToQuery++ }
+                if ($SeenId.Add($Id)) { $Destination.Add($Item) }
+            }
+            return $NewToQuery
+        }
+
+        # NOTE: do not add a ResultIndex/ResultCount end-of-set check here. Under
+        # SessionCommand ReturnLargeSet those fields are page-relative, not
+        # cumulative: a full page reports ResultIndex 1..5000 and ResultCount
+        # 5000 regardless of how much of the set is left (measured against a live
+        # tenant). Treating ResultIndex -ge ResultCount as "complete" therefore
+        # ends every paged search after page one and silently drops the rest.
+        # The all-duplicates check in the paging loop is the end-of-set signal.
 
         # query profiles - add new entries here to support additional modes
         $ProfileTable = [ordered]@{
@@ -402,6 +572,13 @@ function Get-IRTUnifiedAuditLog {
 
             $AllLogs = [System.Collections.Generic.List[psobject]]::new()
 
+            # Records are deduplicated on the way in, not at the end, so
+            # $AllLogs.Count is always a count of real records and -ResultLimit
+            # cannot be spent on repeats. $RawRecordCount keeps the pre-dedup
+            # total so the console can report how much of the pull was overlap.
+            $UniqueLogIds = [System.Collections.Generic.HashSet[string]]::new()
+            $RawRecordCount = 0
+
             # users
             switch ( $ParameterSet ) {
                 'UserObject' {
@@ -439,6 +616,15 @@ function Get-IRTUnifiedAuditLog {
                 ResultSize     = 5000
                 SessionCommand = 'ReturnLargeSet'
                 Formatted      = $true
+            }
+
+            # Only send the switch when it was asked for. Passing
+            # -HighCompleteness:$false would still bind the parameter, which
+            # fails outright on ExchangeOnlineManagement builds that predate it.
+            if ($HighCompleteness) {
+                $BaseParams['HighCompleteness'] = $true
+                Write-PSFMessage -Level 8 -Message (
+                    "${FunctionName}: HighCompleteness enabled; searches will be slower.")
             }
 
             # add operations, if specified
@@ -568,6 +754,28 @@ function Get-IRTUnifiedAuditLog {
                 }
             }
 
+            # Search-UnifiedAuditLog takes a single -RecordType per call, so when
+            # record types are requested, expand the query table to run every
+            # query once per record type.
+            if (($RecordType | Measure-Object).Count -gt 0) {
+                $ExpandedTable = [ordered]@{}
+                $Key = 1
+                foreach ($Entry in $QueryTable.GetEnumerator()) {
+                    foreach ($Type in $RecordType) {
+                        $TypedParams = @{}
+                        $Entry.Value.Params.GetEnumerator() |
+                            ForEach-Object { $TypedParams[$_.Key] = $_.Value }
+                        $TypedParams['RecordType'] = $Type
+                        $ExpandedTable["$Key"] = @{
+                            Params        = $TypedParams
+                            ConsoleOutput = "RecordType ${Type}: " +
+                            $Entry.Value.ConsoleOutput
+                        }
+                        $Key++
+                    }
+                }
+                $QueryTable = $ExpandedTable
+            }
 
             #region RUN QUERIES
             $LimitReached = $false
@@ -632,21 +840,34 @@ function Get-IRTUnifiedAuditLog {
                             "DATA MISSING marker and continuing.") -Level Error
                         Write-Error -ErrorRecord $_
                         $MarkerParams = @{
-                            DateChunk   = $DateChunk
-                            Label       = "Query $QueryKey"
-                            ErrorRecord = $_
+                            DateChunk = $DateChunk
+                            Label     = "Query $QueryKey"
+                            Reason    = $_.Exception.Message
                         }
                         $AllLogs.Add( (New-IRTUalGapMarker @MarkerParams) )
                         continue
                     }
                     $LogCount = ($Page | Measure-Object).Count
+                    $RawRecordCount += $LogCount
+
+                    # identities served by this query's own paging session, used
+                    # to spot a page that is nothing but repeats
+                    $QuerySeenIds = [System.Collections.Generic.HashSet[string]]::new()
+                    $NewToQuery = 0
+                    # full pages in a row that added nothing new to this query
+                    $DuplicatePageStreak = 0
 
                     if ($LogCount -gt 0) {
 
-                        Write-IRT "Retrieved ${LogCount} logs."
-
-                        # add to list
-                        foreach ($i in $Page) { $AllLogs.Add($i) }
+                        # add to list, dropping records already seen
+                        $AddParams = @{
+                            Destination = $AllLogs
+                            SeenId      = $UniqueLogIds
+                            QuerySeenId = $QuerySeenIds
+                            Record      = $Page
+                        }
+                        $NewToQuery = Add-IRTUalUniqueRecord @AddParams
+                        Write-IRT "Retrieved ${LogCount} logs (${NewToQuery} new)."
 
                         # extract sessionid for paging
                         $SessionId = $Page[0].SessionId
@@ -658,8 +879,14 @@ function Get-IRTUnifiedAuditLog {
                         Write-IRT "Retrieved 0 logs." -Level Warn
                     }
 
-                    # retrieve pages until exhausted or ResultLimit reached
-                    while ($LogCount -eq 5000 -and $AllLogs.Count -lt $ResultLimit) {
+                    # Retrieve pages until -ExhaustedPageQueries full pages in a row
+                    # produce nothing this query has not already served, or
+                    # ResultLimit is reached. Page size alone is not an end-of-set
+                    # signal: an exhausted ReturnLargeSet search keeps returning
+                    # full pages of records it has already handed over.
+                    while ($LogCount -eq 5000 -and
+                        $DuplicatePageStreak -lt $ExhaustedPageQueries -and
+                        $AllLogs.Count -lt $ResultLimit) {
 
                         # Large searches can outlive the ~1h access token. Cheap no-op
                         # while the bound token is healthy; silent re-bind when not.
@@ -687,30 +914,79 @@ function Get-IRTUnifiedAuditLog {
                                 "pages kept.") -Level Error
                             Write-Error -ErrorRecord $_
                             $MarkerParams = @{
-                                DateChunk   = $DateChunk
-                                Label       = "Query $QueryKey page $PageCount"
-                                ErrorRecord = $_
+                                DateChunk = $DateChunk
+                                Label     = "Query $QueryKey page $PageCount"
+                                Reason    = $_.Exception.Message
                             }
                             $AllLogs.Add( (New-IRTUalGapMarker @MarkerParams) )
                             break
                         }
                         $LogCount = @($Page).Count
+                        $RawRecordCount += $LogCount
 
                         if ( $LogCount -gt 0 ) {
 
-                            Write-IRT "Retrieved ${LogCount} logs."
-
-                            # add to list
-                            foreach ($i in $Page) { $AllLogs.Add($i) }
+                            # add to list, dropping records already seen
+                            $AddParams = @{
+                                Destination = $AllLogs
+                                SeenId      = $UniqueLogIds
+                                QuerySeenId = $QuerySeenIds
+                                Record      = $Page
+                            }
+                            $NewToQuery = Add-IRTUalUniqueRecord @AddParams
+                            Write-IRT "Retrieved ${LogCount} logs (${NewToQuery} new)."
 
                             # extract sessionid for paging
                             $SessionId = $Page[0].SessionId
                         }
                         else {
                             Write-IRT "Retrieved 0 logs." -Level Warn
+                            $NewToQuery = 0
+                        }
+
+                        # A page of nothing new extends the duplicate streak. A page
+                        # that adds records resets it; if that follows duplicate
+                        # pages, a lower -ExhaustedPageQueries would have missed them.
+                        $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+                        if ($NewToQuery -gt 0) {
+                            if ($DuplicatePageStreak -gt 0) {
+                                Write-IRT ("Query $QueryKey page $PageCount added " +
+                                    "${NewToQuery} new records after " +
+                                    "${DuplicatePageStreak} all-duplicate page(s).") -Level Warn
+                                Write-PSFMessage -Level 8 -Message (
+                                    "${FunctionName}: Query $QueryKey page $PageCount " +
+                                    "reset a duplicate streak of " +
+                                    "$DuplicatePageStreak. [$Elapsed]")
+                            }
+                            $DuplicatePageStreak = 0
+                        }
+                        else {
+                            $DuplicatePageStreak++
+                            Write-PSFMessage -Level 8 -Message (
+                                "${FunctionName}: Query $QueryKey page $PageCount " +
+                                "added nothing new (duplicate streak " +
+                                "$DuplicatePageStreak of $ExhaustedPageQueries). [$Elapsed]")
                         }
 
                         $PageCount++
+                    }
+
+                    # note why paging stopped, so an analyst can tell a complete
+                    # pull from one that was cut short
+                    $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+                    if ($LogCount -eq 5000 -and
+                        $DuplicatePageStreak -ge $ExhaustedPageQueries) {
+                        # full pages of nothing new mean the service is re-serving
+                        # records it already returned; the query is done even
+                        # though the page size says otherwise
+                        Write-IRT ("Query $QueryKey returned $DuplicatePageStreak full " +
+                            "page(s) in a row, all already seen, ending at page " +
+                            "$($PageCount - 1). Treating the result set as " +
+                            "exhausted.") -Level Warn
+                        Write-PSFMessage -Level 8 -Message (
+                            "${FunctionName}: Query $QueryKey stopped paging after " +
+                            "$DuplicatePageStreak all-duplicate page(s), ending at " +
+                            "page $($PageCount - 1). [$Elapsed]")
                     }
 
                     if ($AllLogs.Count -ge $ResultLimit) { $LimitReached = $true; break }
@@ -732,8 +1008,8 @@ function Get-IRTUnifiedAuditLog {
 
             # note when queries stopped early due to ResultLimit
             if ($LimitReached) {
-                Write-IRT ("Reached ResultLimit of ${ResultLimit} records. " +
-                    "Keeping the most recent $($AllLogs.Count) events.") -Level Warn
+                Write-IRT ("Reached ResultLimit of ${ResultLimit} records. Any further " +
+                    "records were not retrieved; inserting a DATA MISSING marker.") -Level Warn
                 $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
                 Write-PSFMessage -Level 8 -Message (
                     "${FunctionName}: ResultLimit $ResultLimit reached at chunk " +
@@ -746,17 +1022,11 @@ function Get-IRTUnifiedAuditLog {
                 return
             }
 
-            #region UNIQUE, SORT
+            #region SORT
             $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-            Write-PSFMessage -Level 8 -Message "${FunctionName}: Dedupliacation, sorting [$Elapsed]"
-            # remove duplicates
-            $UniqueLogIds = [System.Collections.Generic.HashSet[string]]::new()
-            $Logs = [System.Collections.Generic.List[psobject]]::new()
-            foreach ($Log in $AllLogs) {
-                if ($UniqueLogIds.Add([string]$Log.Identity)) {
-                    $null = $Logs.Add($Log)
-                }
-            }
+            Write-PSFMessage -Level 8 -Message "${FunctionName}: Sorting [$Elapsed]"
+            # records were deduplicated as pages arrived, in Add-IRTUalUniqueRecord
+            $Logs = $AllLogs
             # build comparison script
             $PropertyName = 'CreationDate'
             $Descending = $true
@@ -775,11 +1045,32 @@ function Get-IRTUnifiedAuditLog {
             # count actual logs before adding metadata
             $TotalLogCount = ($Logs | Measure-Object).Count
             if ($TotalLogCount -gt 0) {
-                Write-IRT "Total retrieved ${TotalLogCount} logs."
+                Write-IRT ("Total retrieved ${TotalLogCount} logs " +
+                    "(${RawRecordCount} records returned before deduplication).")
             }
             else {
                 Write-IRT "Total retrieved 0 logs." -Level Warn
                 return
+            }
+
+            # A ResultLimit stop leaves the rest of the search unretrieved, and the
+            # console warning is easy to miss. Mark it in the data the same way a
+            # failed query is marked. Inserted after the total is reported, so the
+            # count stays a count of real records. The window runs from the range
+            # start because chunks older than the one that hit the limit were never
+            # queried.
+            if ($LimitReached) {
+                $MarkerParams = @{
+                    DateChunk  = @{
+                        Start = $StartDateUtc
+                        End   = $DateChunks[$ChunkIndex - 1].End
+                    }
+                    Label      = "ResultLimit ${ResultLimit}"
+                    Reason     = "ResultLimit of ${ResultLimit} reached; any further " +
+                    'records in this window were not retrieved. Raise -ResultLimit.'
+                    RecordType = 'IRT_RESULT_LIMIT'
+                }
+                $Logs.Insert(0, (New-IRTUalGapMarker @MarkerParams))
             }
 
             # add metadata to results
@@ -814,6 +1105,18 @@ function Get-IRTUnifiedAuditLog {
                     Cached = $Cached
                 }
                 & $ActiveProfile.ShowFunction @Params
+            }
+
+            # emit the records for in-memory consumers. -NoEnumerate keeps each
+            # object's result set as one collection so a multi-object run does
+            # not flatten into a single undifferentiated stream with metadata
+            # rows scattered through it.
+            if ($PassThru) {
+                $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+                Write-PSFMessage -Level 8 -Message (
+                    "${FunctionName}: PassThru emitting $($Logs.Count) objects " +
+                    "(includes metadata row) [$Elapsed]")
+                Write-Output -InputObject $Logs -NoEnumerate
             }
         }
     }

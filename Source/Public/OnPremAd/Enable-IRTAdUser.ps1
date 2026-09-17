@@ -14,11 +14,15 @@ function Enable-IRTAdUser {
     One or more AD user objects to enable. Falls back to global session objects if omitted.
 
     .EXAMPLE
+    ```powershell
     Enable-IRTAdUser
+    ```
     Re-enables the user(s) in the global session.
 
     .EXAMPLE
+    ```powershell
     Enable-IRTAdUser -UserObject $AdUser
+    ```
     Re-enables a specific user.
 
     .OUTPUTS

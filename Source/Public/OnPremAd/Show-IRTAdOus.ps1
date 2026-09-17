@@ -13,11 +13,15 @@ function Show-IRTAdOus {
     by default.
 
     .EXAMPLE
+    ```powershell
     Show-IRTAdOus
+    ```
     Lists all OUs with user and computer counts.
 
     .EXAMPLE
+    ```powershell
     Show-IRTAdOus | Where-Object { $_.Users -gt 0 }
+    ```
     Returns only OUs that contain at least one user.
 
     .OUTPUTS

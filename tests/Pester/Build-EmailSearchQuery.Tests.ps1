@@ -1,11 +1,11 @@
 #Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.0.0' }
 
 BeforeAll {
-    $QueryPath = '..\..\source\Private\Email\Build-EmailSearchQuery.ps1'
+    $QueryPath = '../../Source/Private/Email/Build-EmailSearchQuery.ps1'
     . (Join-Path -Path $PSScriptRoot -ChildPath $QueryPath)
 }
 
-Describe 'Build-EmailSearchQuery' {
+Describe 'Build-EmailSearchQuery' -Tag 'unit' {
 
     Context 'kind:email scoping' {
         It 'always begins with (kind:email)' {

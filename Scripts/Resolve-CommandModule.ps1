@@ -1,5 +1,9 @@
 #Requires -Version 7.0
 
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+    'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
+$ScriptVersion = '1.0.0'
+
 function Resolve-CommandModule {
     <#
     .SYNOPSIS
@@ -49,12 +53,12 @@ function Resolve-CommandModule {
         Resolves a single command and reports its module, path, and source.
 
     .EXAMPLE
-        Find-ScriptCommand -Path .\Connect-IRTGraph.ps1 | Resolve-CommandModule
+        Find-ScriptCommand -Path .\Get-Stuff.ps1 | Resolve-CommandModule
 
         Resolves every command found in a file, classifying each by source.
 
     .EXAMPLE
-        Find-ScriptCommand -Path .\Get-IRTUser.ps1 |
+        Find-ScriptCommand -Path .\Get-Stuff.ps1 |
             Resolve-CommandModule -HostModuleName 'M365IncidentResponseTools'
 
         Resolves every command, distinguishing the host module's own public and
@@ -101,17 +105,17 @@ function Resolve-CommandModule {
         if ($HostModuleName) {
             $HostModule = Get-Module -Name $HostModuleName
             if ($HostModule) {
-                $AllHostFunctions = [System.Collections.Generic.HashSet[string]](
+                $AllHostFunctions = [System.Collections.Generic.HashSet[string]]@(
                     $HostModule.Invoke({ Get-Command -Module $args[0] }, $HostModuleName) |
                         Where-Object { $_.CommandType -eq 'Function' } |
                         Select-Object -ExpandProperty Name
                 )
-                $PublicHostFunctions = [System.Collections.Generic.HashSet[string]](
+                $PublicHostFunctions = [System.Collections.Generic.HashSet[string]]@(
                     Get-Command -Module $HostModuleName |
                         Where-Object { $_.CommandType -eq 'Function' } |
                         Select-Object -ExpandProperty Name
                 )
-                $PrivateHostFunctions = [System.Collections.Generic.HashSet[string]](
+                $PrivateHostFunctions = [System.Collections.Generic.HashSet[string]]@(
                     $AllHostFunctions | Where-Object { -not $PublicHostFunctions.Contains($_) }
                 )
                 Write-Trace ("${FunctionName}: host module '$HostModuleName' -- " +

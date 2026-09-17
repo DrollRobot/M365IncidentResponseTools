@@ -33,19 +33,27 @@ function Find-IRTAdUser {
     scripts or the playbook.
 
     .EXAMPLE
+    ```powershell
     Find-IRTAdUser flast
+    ```
     Finds users matching 'flast' and sets the global user object if exactly one match.
 
     .EXAMPLE
+    ```powershell
     Find-IRTAdUser flast@contoso.com
+    ```
     Searches by email address.
 
     .EXAMPLE
+    ```powershell
     $Users = Find-IRTAdUser -Search 'flast','jsmith' -Script
+    ```
     Returns matching user objects for two search strings without setting globals.
 
     .EXAMPLE
+    ```powershell
     Find-IRTAdUser -FromClipboard
+    ```
     Reads the clipboard and searches for each line as a separate query.
 
     .OUTPUTS

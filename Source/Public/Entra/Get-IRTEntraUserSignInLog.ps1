@@ -47,7 +47,7 @@ function Get-IRTEntraUserSignInLog {
     .PARAMETER ChunkDelaySeconds
     Seconds to pause between chunk queries. A small pause reduces the chance of
     tripping Graph throttling limits on large multi-chunk pulls. Default: 2.
-    Set to 0 to disable. Only applies when the range spans more than one chunk.
+    Set to 0 to disable.
 
     .PARAMETER ThrottleDelaySeconds
     Base backoff (seconds) used when Graph throttles a request but does not return a
@@ -81,19 +81,27 @@ function Get-IRTEntraUserSignInLog {
     Export raw XML alongside the Excel file. Defaults to IRT_Config.ExportXml.
 
     .EXAMPLE
+    ```powershell
     Get-IRTEntraUserSignInLog
+    ```
     Downloads the last 30 days of sign-in logs for the user in the global session.
 
     .EXAMPLE
-    Get-IRTEntraUserSignInLog -UserObject $User -Days 90
-    Downloads 90 days of sign-in logs for a specific user.
+    ```powershell
+    Get-IRTEntraUserSignInLog -UserObject $User -Days 7
+    ```
+    Downloads 7 days of sign-in logs for a specific user.
 
     .EXAMPLE
+    ```powershell
     Get-IRTEntraUserSignInLog -IpAddress '203.0.113.5' -Days 14
+    ```
     Finds all sign-ins from a specific IP over the last 14 days.
 
     .EXAMPLE
+    ```powershell
     Get-IRTEntraUserSignInLog -NonInteractive
+    ```
     Downloads interactive and non-interactive sign-ins (3-day default) for the global user.
 
     .OUTPUTS
@@ -159,6 +167,7 @@ function Get-IRTEntraUserSignInLog {
         [ValidateRange(1, 3600)]
         [int] $ThrottleDelaySeconds = 60,
 
+        [Alias('NI')]
         [switch] $NonInteractive,
         [switch] $DeviceCode,
 

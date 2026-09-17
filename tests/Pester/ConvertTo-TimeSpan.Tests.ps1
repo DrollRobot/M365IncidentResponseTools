@@ -1,10 +1,10 @@
 #Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.0.0' }
 
 BeforeAll {
-    . (Join-Path -Path $PSScriptRoot -ChildPath '..\..\source\Private\Lib\ConvertTo-TimeSpan.ps1')
+    . (Join-Path -Path $PSScriptRoot -ChildPath '../../Source/Private/Lib/ConvertTo-TimeSpan.ps1')
 }
 
-Describe 'ConvertTo-TimeSpan' {
+Describe 'ConvertTo-TimeSpan' -Tag 'unit' {
 
     Context 'Valid durations' {
         It 'parses hours' {

@@ -38,15 +38,21 @@ function Get-IRTEntraAuditLog {
     Use pre-cached Graph data instead of making new API calls.
 
     .EXAMPLE
+    ```powershell
     Get-IRTEntraAuditLog
+    ```
     Downloads the last 30 days of Entra audit events for the user in the global session.
 
     .EXAMPLE
+    ```powershell
     Get-IRTEntraAuditLog -UserObject $User -Days 90
+    ```
     Downloads 90 days of audit events for a specific user.
 
     .EXAMPLE
+    ```powershell
     Get-IRTEntraAuditLog -AllUsers -Start '2026-04-01' -End '2026-04-30'
+    ```
     Downloads all tenant audit events for April 2026.
 
     .OUTPUTS

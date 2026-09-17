@@ -24,11 +24,15 @@ function Get-IRTEmailSearch {
     Identity of an email search to act on directly, skipping the picker.
 
     .EXAMPLE
+    ```powershell
     Get-IRTEmailSearch
+    ```
     Lists searches and launches the interactive action menu.
 
     .EXAMPLE
+    ```powershell
     Get-IRTEmailSearch -Name 'From:sus@hacker.com'
+    ```
     Skips the picker and opens the action menu for the named search.
 
     .OUTPUTS
@@ -61,7 +65,7 @@ function Get-IRTEmailSearch {
     }
 
     # prefix that identifies IRT-created searches, used by the bulk-delete option
-    $Prefix = $Global:IRT_Config.EmailSearchNamePrefix
+    $Prefix = (Get-IRTJobNamePrefix)
 
     # outer loop: pick a search (unless one was named), then run the action loop
     :picker while ($true) {

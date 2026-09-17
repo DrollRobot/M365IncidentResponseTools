@@ -15,11 +15,15 @@ function Show-IRTUser {
     objects if omitted.
 
     .EXAMPLE
+    ```powershell
     Show-IRTUser
+    ```
     Displays info for the user stored in the global session.
 
     .EXAMPLE
+    ```powershell
     Show-IRTUser -UserObject $User
+    ```
     Displays info for a specific user object.
 
     .OUTPUTS

@@ -9,7 +9,7 @@
     Connect-MgGraph, Disconnect-MgGraph, Invoke-MgGraphRequest,
     Test-GraphAdminConsent, Invoke-AdminConsent, and Write-IRT are mocked, so
     no MSAL, network, or browser activity occurs. Live behavior is covered by
-    the Online-tagged tests in Connect-IRT.Tests.ps1.
+    the 'live'-tagged tests in Connect-IRT.Tests.ps1.
 
 -- fresh connect (no existing MgContext) ----------------------------------
 
@@ -120,7 +120,7 @@ InModuleScope M365IncidentResponseTools {
         }
     }
 
-    Describe 'Connect-IRTGraph' {
+    Describe 'Connect-IRTGraph' -Tag 'unit' {
 
         BeforeEach {
             $script:SavedSession = (

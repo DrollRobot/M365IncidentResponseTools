@@ -190,12 +190,13 @@ function Set-IRTConfig {
             'Use -NoNewTab on Start-IRTPlaybook to override for a single run.'
             Options     = @('true', 'false')
         }
-        EmailSearchNamePrefix = @{
-            Summary     = 'Email search name prefix'
-            Description = 'Prefix prepended to every email search name created by ' +
-            'New-IRTEmailSearch (e.g. "IRT: "). Makes IRT-created searches easy to ' +
-            'identify and filter in the compliance portal. ' +
-            'Use -NamePrefix on New-IRTEmailSearch to override for a single search.'
+        JobNamePrefix = @{
+            Summary     = 'Job name prefix'
+            Description = 'Prefix prepended to the name of every long-lived job this ' +
+            'module creates on a tenant (e.g. "IRT: "): email searches from ' +
+            'New-IRTEmailSearch and audit log queries from Start-IRTGraphUAL. Makes ' +
+            'IRT-created entries easy to identify and filter. ' +
+            'Use -NamePrefix on either command to override for a single job.'
             Options     = $null  # free text
         }
     }

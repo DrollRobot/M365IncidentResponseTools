@@ -34,16 +34,22 @@ function Show-IRTServicePrincipal {
     fresh data from Graph.
 
     .EXAMPLE
+    ```powershell
     Find-ServicePrincipal MyApp
     Show-IRTServicePrincipal
+    ```
     Two-step workflow: find then display.
 
     .EXAMPLE
+    ```powershell
     Show-IRTServicePrincipal
+    ```
     Display info for the service principal already stored in the global session.
 
     .EXAMPLE
+    ```powershell
     Show-IRTServicePrincipal -ServicePrincipalObject $SP
+    ```
     Display info for a specific service principal object passed directly.
 
     .OUTPUTS

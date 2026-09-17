@@ -52,7 +52,8 @@ if ($env:TERM_PROGRAM -ne 'vscode') {
             $GraphCtx = Get-MgContext -ErrorAction Ignore
             if ($GraphCtx -and $GraphCtx.Account) {
                 try {
-                    $null = Invoke-MgGraphRequest -Uri 'v1.0/organization?$select=id&$top=1' -ErrorAction Stop
+                    $OrgUri = 'v1.0/organization?$select=id&$top=1'
+                    $null = Invoke-MgGraphRequest -Uri $OrgUri -ErrorAction Stop
                     $irt_connected += 'Graph'
                     if (-not $irt_domain) {
                         $irt_domain = ($GraphCtx.Account -split '@')[-1]

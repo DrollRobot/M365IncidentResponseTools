@@ -995,6 +995,49 @@ function Get-IRTPublicClient {
     return $NewApp
 }
 #EndRegion '.\Private\Connect\Get-IRTPublicClient.ps1' 93
+#Region '.\Private\Connect\Get-LoadedAssembly.ps1' -1
+
+function Get-LoadedAssembly {
+    <#
+    .SYNOPSIS
+    Returns an assembly already loaded into the current AppDomain, by simple name.
+
+    .DESCRIPTION
+    Internal helper. Wraps the AppDomain assembly query the MSAL loaders use to
+    decide whether they still need to call Add-Type. Assemblies cannot be
+    unloaded from a running process, so keeping this query in one mockable
+    function is what lets the loaders' Add-Type branches be tested regardless of
+    what the rest of the session has already loaded.
+
+    Matching is on the assembly's simple name, so 'Microsoft.Identity.Client'
+    does not match 'Microsoft.Identity.Client.Extensions.Msal'.
+
+    .PARAMETER Name
+    The simple assembly name to look for, e.g. 'Microsoft.Identity.Client'.
+
+    .EXAMPLE
+    Get-LoadedAssembly -Name 'Microsoft.Identity.Client'
+
+    Returns the loaded core MSAL assembly, or $null when it is not loaded.
+
+    .OUTPUTS
+    System.Reflection.Assembly. The first matching assembly, or $null.
+
+    .NOTES
+    Version: 1.0.0
+    #>
+    [CmdletBinding()]
+    [OutputType([System.Reflection.Assembly])]
+    param(
+        [Parameter(Mandatory)]
+        [string] $Name
+    )
+
+    [System.AppDomain]::CurrentDomain.GetAssemblies() |
+        Where-Object { $_.GetName().Name -eq $Name } |
+        Select-Object -First 1
+}
+#EndRegion '.\Private\Connect\Get-LoadedAssembly.ps1' 41
 #Region '.\Private\Connect\Get-TokenExpiry.ps1' -1
 
 function Get-TokenExpiry {
@@ -1104,7 +1147,7 @@ function Import-MsalAssembly {
     Import-MsalAssembly
 
     .NOTES
-    Version: 1.0.0
+    Version: 1.1.0
     #>
     [CmdletBinding()]
     [OutputType([System.Reflection.Assembly])]
@@ -1112,15 +1155,21 @@ function Import-MsalAssembly {
 
     Import-IRTModule -Name 'PSFramework'
 
-    $Assembly = [System.AppDomain]::CurrentDomain.GetAssemblies() |
-        Where-Object { $_.FullName -like 'Microsoft.Identity.Client,*' }
+    $Assembly = Get-LoadedAssembly -Name 'Microsoft.Identity.Client'
 
     if ($Assembly) {
         Write-PSFMessage -Level 8 -Message "MSAL assembly already loaded: $($Assembly.FullName)"
         return $Assembly
     }
 
+    # Microsoft.Graph.Authentication ships the MSAL DLL and is a declared
+    # dependency, but Get-Module only sees it once it is imported.
+    Import-IRTModule -Name 'Microsoft.Graph.Authentication'
     $GraphModule = Get-Module Microsoft.Graph.Authentication -ErrorAction SilentlyContinue
+    if (-not $GraphModule) {
+        throw ('Microsoft.Graph.Authentication could not be loaded. It is a required ' +
+            'dependency and supplies the MSAL assembly.')
+    }
     Write-PSFMessage -Level 8 -Message (
         "Microsoft.Graph.Authentication version: " +
         "$($GraphModule.Version)")
@@ -1139,10 +1188,9 @@ function Import-MsalAssembly {
     } catch {
         throw "Failed to load MSAL assembly from '$MsalDll': $_"
     }
-    return [System.AppDomain]::CurrentDomain.GetAssemblies() |
-        Where-Object { $_.FullName -like 'Microsoft.Identity.Client,*' }
+    return Get-LoadedAssembly -Name 'Microsoft.Identity.Client'
 }
-#EndRegion '.\Private\Connect\Import-MsalAssembly.ps1' 57
+#EndRegion '.\Private\Connect\Import-MsalAssembly.ps1' 62
 #Region '.\Private\Connect\Import-MsalExtensionAssembly.ps1' -1
 
 function Import-MsalExtensionAssembly {
@@ -1166,7 +1214,7 @@ function Import-MsalExtensionAssembly {
     [string] - the path to the loaded Extensions DLL.
 
     .NOTES
-    Version: 2.0.0
+    Version: 2.1.0
     #>
     [OutputType([string])]
     [CmdletBinding()]
@@ -1178,8 +1226,7 @@ function Import-MsalExtensionAssembly {
     $MsalFloor = [version]'4.61.3'  # Extensions.Msal 4.66.x minimum MSAL
 
     # Already loaded?
-    $Loaded = [System.AppDomain]::CurrentDomain.GetAssemblies() |
-        Where-Object { $_.GetName().Name -eq 'Microsoft.Identity.Client.Extensions.Msal' }
+    $Loaded = Get-LoadedAssembly -Name 'Microsoft.Identity.Client.Extensions.Msal'
     if ($Loaded) {
         Write-PSFMessage -Level 8 -Message (
             "Import-MsalExtensionAssembly: Already loaded from $($Loaded.Location)")
@@ -1187,9 +1234,7 @@ function Import-MsalExtensionAssembly {
     }
 
     # Verify the MSAL DLL Graph loaded meets the Extensions floor.
-    $Msal = [System.AppDomain]::CurrentDomain.GetAssemblies() |
-        Where-Object { $_.GetName().Name -eq 'Microsoft.Identity.Client' } |
-        Select-Object -First 1
+    $Msal = Get-LoadedAssembly -Name 'Microsoft.Identity.Client'
     if (-not $Msal) {
         throw 'Microsoft.Identity.Client is not loaded. ' +
         'Call Import-MsalAssembly before calling Import-MsalExtensionAssembly.'
@@ -1218,10 +1263,14 @@ function Import-MsalExtensionAssembly {
             'The module build is incomplete - re-install the module or run Build.ps1.')
     }
 
-    Add-Type -Path $DllPath
+    try {
+        Add-Type -Path $DllPath -ErrorAction Stop
+    } catch {
+        throw "Failed to load MSAL extensions assembly from '$DllPath': $_"
+    }
     return $DllPath
 }
-#EndRegion '.\Private\Connect\Import-MsalExtensionAssembly.ps1' 77
+#EndRegion '.\Private\Connect\Import-MsalExtensionAssembly.ps1' 78
 #Region '.\Private\Connect\Invoke-AdminConsent.ps1' -1
 
 function Invoke-AdminConsent {
@@ -2345,13 +2394,13 @@ function Read-EmailSearchCriteria {
                     # up - surface the behavior right where the value is entered.
                     if ($Item.Key -eq 'From') {
                         $TokenNote = "'From' matches whole tokens (the address is split " +
-                            "on @ . -), not substrings. 'microsoft' matches " +
-                            'anyone@microsoft.com but not microsoftonline.com. It also ' +
-                            'matches sender display names. ' +
-                            '(Microsoft Support <support@microsoftonline.com> would match)'
+                        "on @ . -), not substrings. 'microsoft' matches " +
+                        'anyone@microsoft.com but not microsoftonline.com. It also ' +
+                        'matches sender display names. ' +
+                        '(Microsoft Support <support@microsoftonline.com> would match)'
                         $WildcardNote = 'Use a wildcards for partial matching, ' +
-                            "e.g. 'microsoft*' (matches microsoft.com and " +
-                            'microsoftonline.com) (only trailing wildcards allowed)'
+                        "e.g. 'microsoft*' (matches microsoft.com and " +
+                        'microsoftonline.com) (only trailing wildcards allowed)'
 
                         # wrap each note to the same 100-char limit used for source so the
                         # hint does not overflow the terminal; 2-space hanging indent.
@@ -6212,6 +6261,108 @@ function New-RoleMemberObject {
     }
 }
 #EndRegion '.\Private\Role\New-RoleMemberObject.ps1' 51
+#Region '.\Private\ServicePrincipal\New-TenantSheet.ps1' -1
+
+function New-TenantSheet {
+    <#
+    .SYNOPSIS
+    Creates a new tenants worksheet containing the standard columns and sample rows.
+
+    .DESCRIPTION
+    Generates the tenants.xlsx workbook that Connect-IRTTenant reads. The worksheet
+    holds four columns -- TenantName, Aliases, TenantId and PasswordURLs -- plus three
+    sample rows showing the expected format for each.
+
+    The workbook is generated here in code rather than copied from a bundled .xlsx
+    template. Changing the column layout is an edit to the row definitions below, which
+    reviews as a readable diff, instead of a hand edit to an opaque binary file.
+
+    The parent directory is created when it does not already exist. An existing file at
+    Path is never overwritten; callers are expected to test for the file first.
+
+    .PARAMETER Path
+    Full path of the workbook to create.
+
+    .EXAMPLE
+    New-TenantSheet -Path "$env:APPDATA\M365IncidentResponseTools\tenants.xlsx"
+
+    Creates a starter tenants worksheet in the module's configuration directory.
+
+    .OUTPUTS
+    System.IO.FileInfo for the workbook that was created.
+    #>
+    [CmdletBinding(SupportsShouldProcess)]
+    [OutputType([System.IO.FileInfo])]
+    param (
+        [Parameter(Mandatory)]
+        [string] $Path
+    )
+
+    begin {
+        $FunctionName = $MyInvocation.MyCommand.Name
+
+        # Sample rows. Adding, removing or renaming a property here changes the
+        # worksheet layout; Connect-IRTTenant reads these column names.
+        $SampleTenants = @(
+            [PSCustomObject]@{
+                TenantName   = 'Contoso Inc'
+                Aliases      = 'Contoso|ContosoInc|contoso'
+                TenantId     = '00000000-0000-0000-0000-000000000000'
+                PasswordURLs = ''
+            }
+            [PSCustomObject]@{
+                TenantName   = 'Fabrikam LLC'
+                Aliases      = 'Fabrikam|FabrikamLLC|fab'
+                TenantId     = '11111111-1111-1111-1111-111111111111'
+                PasswordURLs = ''
+            }
+            [PSCustomObject]@{
+                TenantName   = 'GovClient'
+                Aliases      = 'GovClient|GovC'
+                TenantId     = '22222222-2222-2222-2222-222222222222'
+                PasswordURLs = ''
+            }
+        )
+    }
+
+    process {
+
+        if (Test-Path -LiteralPath $Path) {
+            throw "Tenants worksheet already exists: ${Path}"
+        }
+
+        if (-not $PSCmdlet.ShouldProcess($Path, 'Create tenants worksheet')) {
+            return
+        }
+
+        $ParentDir = Split-Path -Path $Path -Parent
+        if ($ParentDir -and -not (Test-Path -LiteralPath $ParentDir)) {
+            Write-PSFMessage -Level 8 -Message (
+                "${FunctionName}: creating parent directory '${ParentDir}'")
+            $null = New-Item -ItemType Directory -Path $ParentDir -Force
+        }
+
+        $RowCount = ($SampleTenants | Measure-Object).Count
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: writing ${RowCount} sample rows to '${Path}'")
+
+        $ExcelParams = @{
+            Path          = $Path
+            WorksheetName = 'tenants'
+            TableName     = 'Tenants'
+            TableStyle    = 'Medium15'
+            AutoSize      = $true
+            PassThru      = $true
+        }
+        $Package = $SampleTenants | Export-Excel @ExcelParams
+        Close-ExcelPackage -ExcelPackage $Package
+
+        Write-PSFMessage -Level 8 -Message "${FunctionName}: created '${Path}'"
+
+        Get-Item -LiteralPath $Path
+    }
+}
+#EndRegion '.\Private\ServicePrincipal\New-TenantSheet.ps1' 100
 #Region '.\Private\ServicePrincipal\Show-GraphServicePrincipalTree.ps1' -1
 
 function Show-GraphServicePrincipalTree {
@@ -8706,8 +8857,8 @@ function Copy-ConditionalFormatting {
                     "Copy-ConditionalFormatting: Copied '$typeName' rule -> $newAddrString")
             }
             catch {
-                $warnMsg = ("Skipped rule (type '{0}', source '{1}'): {2}" -f
-                    $typeName, $rule.Address.Address, $_.Exception.Message)
+                $warnMsg = "Skipped rule (type '$($typeName)', " +
+                "source '$($rule.Address.Address)'): $($_.Exception.Message)"
                 Write-PSFMessage -Level Warning -Message $warnMsg
             }
         }
@@ -9103,17 +9254,17 @@ function Import-IRTModule {
         }
     }
 
-    if (-not (Get-Module -Name 'PSFramework')) {
-        Import-LockedModule -ModuleName 'PSFramework'
-    }
+    # if (-not (Get-Module -Name 'PSFramework')) { # FIXME doesn't work with onprem functions
+    #     Import-LockedModule -ModuleName 'PSFramework'
+    # }
 
     foreach ($module in $Name) {
         if (Get-Module -Name $module) {
-            Write-PSFMessage -Level 8 -Message "Module already loaded, skipping: $module"
+            # Write-PSFMessage -Level 8 -Message "Module already loaded, skipping: $module"
             continue
         }
 
-        Write-PSFMessage -Level 8 -Message "Importing module: $module"
+        # Write-PSFMessage -Level 8 -Message "Importing module: $module"
         Import-LockedModule -ModuleName $module
     }
 }
@@ -9507,7 +9658,9 @@ function Clear-IRTTokenCache {
     force the next Connect-IRT to prompt interactively.
 
     .EXAMPLE
+    ```powershell
     Clear-IRTTokenCache
+    ```
     Wipes the cache. The next Connect-IRT call will require interactive sign-in.
 
     .OUTPUTS
@@ -9553,7 +9706,7 @@ function Clear-IRTTokenCache {
         Write-IRT 'No token cache file found.'
     }
 }
-#EndRegion '.\Public\Connect\Clear-IRTTokenCache.ps1' 69
+#EndRegion '.\Public\Connect\Clear-IRTTokenCache.ps1' 71
 #Region '.\Public\Connect\Connect-IRT.ps1' -1
 
 function Connect-IRT {
@@ -9613,21 +9766,27 @@ function Connect-IRT {
     granted the necessary delegated permissions.
 
     .EXAMPLE
+    ```powershell
     Connect-IRT -TenantId $tid
+    ```
     Connects to Graph and Exchange Online.
 
     .EXAMPLE
+    ```powershell
     Connect-IRT -TenantId $tid -Exchange -Cloud USGov
+    ```
     Connects to Exchange in a USGov cloud, skipping OIDC discovery.
 
     .EXAMPLE
+    ```powershell
     Connect-IRT -Refresh
+    ```
     Silently re-acquires tokens for all services in the existing session.
 
     .NOTES
     Version: 1.1.0
     #>
-    [Alias('ConnectIRT')]
+    [Alias('ConnectIRT', 'IRTConnect')]
     [CmdletBinding(DefaultParameterSetName = 'TenantId')]
     param (
         [Parameter(Mandatory, ParameterSetName = 'TenantId')]
@@ -9867,7 +10026,7 @@ function Connect-IRT {
         }
     }
 }
-#EndRegion '.\Public\Connect\Connect-IRT.ps1' 312
+#EndRegion '.\Public\Connect\Connect-IRT.ps1' 318
 #Region '.\Public\Connect\Connect-IRTRunspaceExchange.ps1' -1
 
 function Connect-IRTRunspaceExchange {
@@ -9893,7 +10052,9 @@ function Connect-IRTRunspaceExchange {
     Connect-IRT / Update-IRTToken instead.
 
     .EXAMPLE
+    ```powershell
     Connect-IRTRunspaceExchange
+    ```
     Inside a playbook step: ensures this runspace has a live Exchange
     connection with a fresh token.
 
@@ -9994,7 +10155,7 @@ function Connect-IRTRunspaceExchange {
         "ConnectionId: $($NewConnection.ConnectionId), " +
         "BoundTokenExpiry: $($TokenResult.ExpiresOn.UtcDateTime)")
 }
-#EndRegion '.\Public\Connect\Connect-IRTRunspaceExchange.ps1' 125
+#EndRegion '.\Public\Connect\Connect-IRTRunspaceExchange.ps1' 127
 #Region '.\Public\Connect\Connect-IRTTenant.ps1' -1
 
 function Connect-IRTTenant {
@@ -10012,7 +10173,7 @@ function Connect-IRTTenant {
     across multiple tenants belonging to the same client.
 
     The tenants worksheet should be stored at $env:APPDATA\M365IncidentResponseTools\tenants.xlsx.
-    A template file (TenantsTemplate.xlsx) is included in the Data folder for reference.
+    Run Open-IRTTenantSheet to generate a starter worksheet with the expected columns.
 
     .PARAMETER Alias
     A string to match against tenant alias patterns. Matched as a regex against the
@@ -10038,15 +10199,21 @@ function Connect-IRTTenant {
     Open the browser in private/incognito mode.
 
     .EXAMPLE
+    ```powershell
     Connect-IRTTenant contoso
+    ```
     Looks up 'contoso' in the tenants worksheet and connects to all services.
 
     .EXAMPLE
+    ```powershell
     Connect-IRTTenant fab -Graph
+    ```
     Looks up 'fab' in the tenants worksheet and connects to Graph only.
 
     .EXAMPLE
+    ```powershell
     irttenant bestcompany
+    ```
     Uses the alias to connect to the matching tenant.
 
     .NOTES
@@ -10054,7 +10221,7 @@ function Connect-IRTTenant {
     1.2.0 - Multiple-match now prompts user with a selection menu instead of throwing.
     1.1.0 - Updated to use xlsx file instead of csv.
     #>
-    [Alias('IRTTenant')]
+    [Alias('IRTTenant', 'TenantIRT')]
     [CmdletBinding()]
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
         'PSAvoidUsingPlainTextForPassword', 'PasswordBrowser')]
@@ -10154,7 +10321,7 @@ function Connect-IRTTenant {
         Connect-IRT @ConnectParams
     }
 }
-#EndRegion '.\Public\Connect\Connect-IRTTenant.ps1' 158
+#EndRegion '.\Public\Connect\Connect-IRTTenant.ps1' 164
 #Region '.\Public\Connect\Disconnect-IRT.ps1' -1
 
 function Disconnect-IRT {
@@ -10318,11 +10485,15 @@ function Get-IRTAccessToken {
     app for Exchange and IPPS).
 
     .EXAMPLE
+    ```powershell
     Get-IRTAccessToken -Service Exchange -Silent
+    ```
     Returns a fresh Exchange token from the cache without ever prompting.
 
     .EXAMPLE
+    ```powershell
     (Get-IRTAccessToken -Service Graph).AccessToken
+    ```
     Returns just the bearer token string for a manual Graph REST call.
 
     .OUTPUTS
@@ -10521,7 +10692,7 @@ function Get-IRTAccessToken {
         return $Result
     }
 }
-#EndRegion '.\Public\Connect\Get-IRTAccessToken.ps1' 253
+#EndRegion '.\Public\Connect\Get-IRTAccessToken.ps1' 257
 #Region '.\Public\Connect\Open-IRTTab.ps1' -1
 
 function Open-IRTTab {
@@ -10546,15 +10717,21 @@ function Open-IRTTab {
     run in multiple console hosts.
 
     .EXAMPLE
+    ```powershell
     Open-IRTTab
+    ```
     Opens a new tab. Connects to the current tenant if a session is active.
 
     .EXAMPLE
+    ```powershell
     Open-IRTTab -Quiet
+    ```
     Opens a new tab if in Windows Terminal; silently does nothing otherwise.
 
     .EXAMPLE
+    ```powershell
     Open-IRTTab -Title '[IRT] Secondary'
+    ```
     Opens a new tab with a custom title.
 
     .OUTPUTS
@@ -10618,7 +10795,7 @@ function Open-IRTTab {
         & wt $WtArgs
     }
 }
-#EndRegion '.\Public\Connect\Open-IRTTab.ps1' 95
+#EndRegion '.\Public\Connect\Open-IRTTab.ps1' 101
 #Region '.\Public\Connect\Test-IRTConnection.ps1' -1
 
 function Test-IRTConnection {
@@ -10636,16 +10813,21 @@ function Test-IRTConnection {
     tenant (matched by TenantId), $false otherwise. Suppresses all output.
 
     .EXAMPLE
+    ```powershell
     Test-IRTConnection
+    ```
     Displays connection status for Graph and Exchange.
 
     .EXAMPLE
+    ```powershell
     if (-not (Test-IRTConnection -Quiet)) { throw 'Not fully connected.' }
+    ```
     Silently asserts that both services are connected to the same tenant.
 
     .NOTES
     Version: 1.0.0
     #>
+    [Alias('TestIRTConnection', 'IRTConnection')]
     [OutputType([bool])]
     [CmdletBinding()]
     param (
@@ -10760,7 +10942,7 @@ function Test-IRTConnection {
         }
     }
 }
-#EndRegion '.\Public\Connect\Test-IRTConnection.ps1' 140
+#EndRegion '.\Public\Connect\Test-IRTConnection.ps1' 145
 #Region '.\Public\Connect\Update-IRTToken.ps1' -1
 
 function Update-IRTToken {
@@ -10805,16 +10987,22 @@ function Update-IRTToken {
     status reflects the state after any refresh that was performed.
 
     .EXAMPLE
+    ```powershell
     Update-IRTToken -Service 'Graph'
+    ```
     Checks and re-binds the Graph token if it is expiring within 5 minutes.
     Writes an error if the Graph session does not exist.
 
     .EXAMPLE
+    ```powershell
     Update-IRTToken -Service 'Graph', 'Exchange'
+    ```
     Checks both Graph and Exchange tokens and refreshes whichever is expiring soon.
 
     .EXAMPLE
+    ```powershell
     Update-IRTToken
+    ```
     Checks all three services (Graph, Exchange, IPPS).
 
     .OUTPUTS
@@ -10985,7 +11173,7 @@ function Update-IRTToken {
         return $status
     }
 }
-#EndRegion '.\Public\Connect\Update-IRTToken.ps1' 223
+#EndRegion '.\Public\Connect\Update-IRTToken.ps1' 229
 #Region '.\Public\Device\Disable-IRTDevice.ps1' -1
 
 function Disable-IRTDevice {
@@ -11051,23 +11239,74 @@ function Find-IRTDevice {
     or other Entra/Intune identifiers. Creates $IRT_DeviceObjects from combined Entra + Intune
     device records.
 
-    .EXAMPLE
-    Find-IRTDevice DESKTOP-ABC123
-    Find-IRTDevice -Search DESKTOP-ABC123,LAPTOP-XYZ789
-    Find-IRTDevice flast@domain.com
-    Find-IRTDevice -Search bf7573a5844f   # partial device id / Entra id / Intune id
-    Find-IRTDevice -Search SN1234567890   # serial number (Intune)
+    .DESCRIPTION
+    Searches the cached combined Entra + Intune device records for one or more search strings.
+    Each string is matched against DisplayName, DeviceId, OperatingSystem, OwnerUPN, the Entra
+    object id, the Entra registered-owner display names, and the Intune object id, device name,
+    serial number, email address, and IMEI.
 
-    .EXAMPLE
-    Find-IRTDevice -FromClipboard
-    Reads the clipboard and searches for each line as a separate query.
+    Matching devices are stored in $Global:IRT_DeviceObjects. Use -VarPrefix to change the
+    variable name (e.g. 'Admin' > $Global:IRT_AdminDeviceObjects). A search that returns more
+    than one device is reported but contributes nothing unless -AllMatches is used. Use -Script
+    to suppress global side effects and return the objects directly.
+
+    .PARAMETER Search
+    One or more search strings. Each string is independently searched across all supported
+    fields.
 
     .PARAMETER FromClipboard
     Read one search query per line from the clipboard instead of supplying -Search. Each
     non-empty line is treated as a separate search string. Mutually exclusive with -Search.
 
+    .PARAMETER VarPrefix
+    Optional prefix inserted after 'IRT_' in the global variable name
+    (e.g. 'Admin' > $Global:IRT_AdminDeviceObjects). Useful when working with multiple sets of
+    devices simultaneously.
+
+    .PARAMETER Script
+    Return objects directly and suppress console output and global variable assignment. Use when
+    calling from scripts or the playbook.
+
+    .PARAMETER AllMatches
+    Keep every device returned by a search instead of only searches that match exactly one
+    device. Results are deduplicated by Entra object id.
+
+    .EXAMPLE
+    ```powershell
+    Find-IRTDevice DESKTOP-ABC123
+    ```
+    Finds devices matching 'DESKTOP-ABC123' and creates $IRT_DeviceObjects.
+
+    .EXAMPLE
+    ```powershell
+    Find-IRTDevice -Search DESKTOP-ABC123,LAPTOP-XYZ789
+    ```
+    Searches for two devices, one query per string.
+
+    .EXAMPLE
+    ```powershell
+    Find-IRTDevice -Search SN1234567890
+    ```
+    Searches by Intune serial number. Partial device, Entra, and Intune ids also match.
+
+    .EXAMPLE
+    ```powershell
+    $Devices = Find-IRTDevice -Search 'DESKTOP-ABC123' -AllMatches -Script
+    ```
+    Returns every matching device object without setting globals or writing to the console.
+
+    .EXAMPLE
+    ```powershell
+    Find-IRTDevice -FromClipboard
+    ```
+    Reads the clipboard and searches for each line as a separate query.
+
+    .OUTPUTS
+    System.Management.Automation.PSObject[]
+
     .NOTES
-    Version: 1.3.0
+    Version: 1.3.1
+    1.3.1 - Added missing help sections so PlatyPS can generate the command page.
     1.3.0 - Added -FromClipboard to read one search query per clipboard line.
     1.2.0 - Added -AllMatches to collect all matching devices and deduplicate results.
     #>
@@ -11197,7 +11436,7 @@ function Find-IRTDevice {
         }
     }
 }
-#EndRegion '.\Public\Device\Find-IRTDevice.ps1' 154
+#EndRegion '.\Public\Device\Find-IRTDevice.ps1' 205
 #Region '.\Public\Device\Get-IRTAllEntraDevice.ps1' -1
 
 function Get-IRTAllEntraDevice {
@@ -11230,11 +11469,15 @@ function Get-IRTAllEntraDevice {
     Worksheet font. Defaults to IRT_Config.ExcelFont.
 
     .EXAMPLE
+    ```powershell
     Get-IRTAllEntraDevice
+    ```
     Exports all Entra devices to a spreadsheet and opens it.
 
     .EXAMPLE
+    ```powershell
     Get-IRTAllEntraDevice -Open $false -Xml $true
+    ```
     Writes the spreadsheet and a raw XML dump without opening the workbook.
 
     .OUTPUTS
@@ -11470,7 +11713,7 @@ function Get-IRTAllEntraDevice {
         }
     }
 }
-#EndRegion '.\Public\Device\Get-IRTAllEntraDevice.ps1' 271
+#EndRegion '.\Public\Device\Get-IRTAllEntraDevice.ps1' 275
 #Region '.\Public\Device\Remove-IRTDevice.ps1' -1
 
 function Remove-IRTDevice {
@@ -11498,16 +11741,22 @@ function Remove-IRTDevice {
 	(-WhatIf / -Confirm) still applies.
 
 	.EXAMPLE
+	```powershell
 	Remove-IRTDevice
+	```
 	Operates on $IRT_DeviceObjects. Prompts for name confirmation before each deletion.
 
 	.EXAMPLE
+	```powershell
 	Find-IRTDevice DESKTOP-ABC123
 	Remove-IRTDevice
+	```
 	Find a device by name, then delete it (with confirmation prompt).
 
 	.EXAMPLE
+	```powershell
 	Remove-IRTDevice -Force -WhatIf
+	```
 	Show what would be deleted without prompting or actually deleting anything.
 
 	.NOTES
@@ -11598,7 +11847,7 @@ function Remove-IRTDevice {
         Write-IRT ''
     }
 }
-#EndRegion '.\Public\Device\Remove-IRTDevice.ps1' 126
+#EndRegion '.\Public\Device\Remove-IRTDevice.ps1' 132
 #Region '.\Public\Device\Show-IRTDevice.ps1' -1
 
 function Show-IRTDevice {
@@ -11735,11 +11984,15 @@ function Get-IRTEmailSearch {
     Identity of an email search to act on directly, skipping the picker.
 
     .EXAMPLE
+    ```powershell
     Get-IRTEmailSearch
+    ```
     Lists searches and launches the interactive action menu.
 
     .EXAMPLE
+    ```powershell
     Get-IRTEmailSearch -Name 'From:sus@hacker.com'
+    ```
     Skips the picker and opens the action menu for the named search.
 
     .OUTPUTS
@@ -12108,7 +12361,7 @@ function Get-IRTEmailSearch {
         }
     }
 }
-#EndRegion '.\Public\Email\Get-IRTEmailSearch.ps1' 400
+#EndRegion '.\Public\Email\Get-IRTEmailSearch.ps1' 404
 #Region '.\Public\Email\Get-IRTMessageTrace.ps1' -1
 
 function Get-IRTMessageTrace {
@@ -12167,15 +12420,21 @@ function Get-IRTMessageTrace {
     Excel font name. Defaults to IRT_Config.ExcelFont.
 
     .EXAMPLE
+    ```powershell
     Get-IRTMessageTrace
+    ```
     Downloads message trace for the user in the global session (last 10 days).
 
     .EXAMPLE
+    ```powershell
     Get-IRTMessageTrace -UserObject $User -Days 30
+    ```
     Downloads 30 days of message trace for a specific user.
 
     .EXAMPLE
+    ```powershell
     Get-IRTMessageTrace -AllUsers -Start '2026-04-01' -End '2026-04-30'
+    ```
     Downloads all tenant message trace for April 2026.
 
     .OUTPUTS
@@ -12597,7 +12856,7 @@ function Get-IRTMessageTrace {
         }
     }
 }
-#EndRegion '.\Public\Email\Get-IRTMessageTrace.ps1' 487
+#EndRegion '.\Public\Email\Get-IRTMessageTrace.ps1' 493
 #Region '.\Public\Email\New-IRTEmailSearch.ps1' -1
 
 function New-IRTEmailSearch {
@@ -12665,15 +12924,21 @@ function New-IRTEmailSearch {
     prompting. Never overwrites an existing search.
 
     .EXAMPLE
+    ```powershell
     New-IRTEmailSearch
+    ```
     Launches the interactive query builder.
 
     .EXAMPLE
+    ```powershell
     New-IRTEmailSearch -From 'sus@hacker.com' -Subject 'Payroll' -Start '5/28/26'
+    ```
     Builds a search for mail from a sender on or after the start date.
 
     .EXAMPLE
+    ```powershell
     New-IRTEmailSearch -Subject 'invoice' -Start '5/28/26' -End '5/29/26'
+    ```
     Builds a search over an absolute date range.
 
     .OUTPUTS
@@ -12896,7 +13161,7 @@ function New-IRTEmailSearch {
 
     return $Result
 }
-#EndRegion '.\Public\Email\New-IRTEmailSearch.ps1' 297
+#EndRegion '.\Public\Email\New-IRTEmailSearch.ps1' 303
 #Region '.\Public\Email\Show-IRTMessageTrace.ps1' -1
 
 function Show-IRTMessageTrace {
@@ -13267,15 +13532,21 @@ function Get-IRTEntraAuditLog {
     Use pre-cached Graph data instead of making new API calls.
 
     .EXAMPLE
+    ```powershell
     Get-IRTEntraAuditLog
+    ```
     Downloads the last 30 days of Entra audit events for the user in the global session.
 
     .EXAMPLE
+    ```powershell
     Get-IRTEntraAuditLog -UserObject $User -Days 90
+    ```
     Downloads 90 days of audit events for a specific user.
 
     .EXAMPLE
+    ```powershell
     Get-IRTEntraAuditLog -AllUsers -Start '2026-04-01' -End '2026-04-30'
+    ```
     Downloads all tenant audit events for April 2026.
 
     .OUTPUTS
@@ -13459,7 +13730,7 @@ function Get-IRTEntraAuditLog {
         }
     }
 }
-#EndRegion '.\Public\Entra\Get-IRTEntraAuditLog.ps1' 233
+#EndRegion '.\Public\Entra\Get-IRTEntraAuditLog.ps1' 239
 #Region '.\Public\Entra\Get-IRTEntraSignInLog.ps1' -1
 
 function Get-IRTEntraSignInLog {
@@ -13507,7 +13778,7 @@ function Get-IRTEntraSignInLog {
     .PARAMETER ChunkDelaySeconds
     Seconds to pause between chunk queries. A small pause reduces the chance of
     tripping Graph throttling limits on large multi-chunk pulls. Default: 2.
-    Set to 0 to disable. Only applies when the range spans more than one chunk.
+    Set to 0 to disable.
 
     .PARAMETER ThrottleDelaySeconds
     Base backoff (seconds) used when Graph throttles a request but does not return a
@@ -13534,15 +13805,21 @@ function Get-IRTEntraSignInLog {
     Export raw XML alongside the Excel file. Defaults to IRT_Config.ExportXml.
 
     .EXAMPLE
+    ```powershell
     Get-IRTEntraSignInLog
+    ```
     Downloads the last 30 days of sign-in logs for the user in the global session.
 
     .EXAMPLE
-    Get-IRTEntraSignInLog -UserObject $User -Days 90
-    Downloads 90 days of sign-in logs for a specific user.
+    ```powershell
+    Get-IRTEntraSignInLog -UserObject $User -Days 7
+    ```
+    Downloads 7 days of sign-in logs for a specific user.
 
     .EXAMPLE
+    ```powershell
     Get-IRTEntraSignInLog -IpAddress '203.0.113.5' -Days 14
+    ```
     Finds all sign-ins from a specific IP over the last 14 days.
 
     .OUTPUTS
@@ -13591,6 +13868,7 @@ function Get-IRTEntraSignInLog {
         [ValidateRange(1, 3600)]
         [int] $ThrottleDelaySeconds = 60,
 
+        [Alias('NI')]
         [switch] $NonInteractive,
         [switch] $DeviceCode,
 
@@ -13768,7 +14046,7 @@ function Get-IRTEntraSignInLog {
             if ( $NonInteractive ) {
                 $FilterStrings.Add( "signInEventTypes/any(t: t eq 'NonInteractiveUser')" )
             }
-            if ( $DeviceCodeOnly ) {
+            if ( $DeviceCode ) {
                 $FilterStrings.Add( "authenticationProtocol eq 'devicecode'" )
             }
             # base filters are constant per user; date bounds are added per chunk
@@ -13968,7 +14246,7 @@ function Get-IRTEntraSignInLog {
         }
     }
 }
-#EndRegion '.\Public\Entra\Get-IRTEntraSignInLog.ps1' 507
+#EndRegion '.\Public\Entra\Get-IRTEntraSignInLog.ps1' 514
 #Region '.\Public\Entra\Get-IRTNonInteractiveSignIn.ps1' -1
 
 function Get-IRTNonInteractiveSignIn {
@@ -14004,11 +14282,15 @@ function Get-IRTNonInteractiveSignIn {
     Open the Excel file immediately after export. Default: $true.
 
     .EXAMPLE
+    ```powershell
     Get-IRTNonInteractiveSignIn
+    ```
     Downloads non-interactive sign-in logs for the user in the global session.
 
     .EXAMPLE
+    ```powershell
     Get-IRTNonInteractiveSignIn -UserObject $User -Days 30
+    ```
     Downloads 30 days of non-interactive sign-ins for a specific user.
 
     .OUTPUTS
@@ -14055,7 +14337,7 @@ function Get-IRTNonInteractiveSignIn {
         Get-IRTEntraSignInLog @Params
     }
 }
-#EndRegion '.\Public\Entra\Get-IRTNonInteractiveSignIn.ps1' 85
+#EndRegion '.\Public\Entra\Get-IRTNonInteractiveSignIn.ps1' 89
 #Region '.\Public\Entra\Get-IRTServicePrincipalSignInLog.ps1' -1
 
 function Get-IRTServicePrincipalSignInLog {
@@ -14110,16 +14392,22 @@ function Get-IRTServicePrincipalSignInLog {
     Export raw XML alongside the Excel file. Defaults to IRT_Config.ExportXml.
 
     .EXAMPLE
+    ```powershell
     Find-IRTServicePrincipal MyApp
     Get-IRTServicePrincipalSignInLog
+    ```
     Two-step workflow: find the SP then download its sign-in logs.
 
     .EXAMPLE
+    ```powershell
     Get-IRTServicePrincipalSignInLog -ServicePrincipalObject $SP -Days 90
+    ```
     Downloads 90 days of sign-in logs for a specific service principal.
 
     .EXAMPLE
+    ```powershell
     Get-IRTServicePrincipalSignInLog -AllServicePrincipals -Days 7
+    ```
     Downloads 7 days of sign-in logs for all service principals in the tenant.
 
     .OUTPUTS
@@ -14338,7 +14626,7 @@ function Get-IRTServicePrincipalSignInLog {
         }
     }
 }
-#EndRegion '.\Public\Entra\Get-IRTServicePrincipalSignInLog.ps1' 281
+#EndRegion '.\Public\Entra\Get-IRTServicePrincipalSignInLog.ps1' 287
 #Region '.\Public\Entra\Show-IRTEntraAuditLog.ps1' -1
 
 function Show-IRTEntraAuditLog {
@@ -15577,27 +15865,38 @@ function Get-TenantOidc {
     known cloud key to its endpoint record.
 
     .EXAMPLE
+    ```powershell
     Get-TenantOidc -TenantId 'f8cdef31-a31e-4b4a-93e4-5f571e91255a'
+    ```
 
     .EXAMPLE
+    ```powershell
     Get-TenantOidc -Domain 'contoso.com'
+    ```
 
     .EXAMPLE
+    ```powershell
     $oidc = Get-TenantOidc -TenantId $value
     Write-Host (
         "TenantId: $( $oidc.TenantId ) | Cloud: $( $oidc.Cloud ) | " +
         "Graph: $( $oidc.msgraph_host )")
+    ```
 
     .EXAMPLE
+    ```powershell
     # Resolve a known cloud key to its endpoints without probing.
     $endpoints = (Get-TenantOidc -CloudTable)['USGov']
     $endpoints.Graph   # https://graph.microsoft.us
+    ```
 
     .EXAMPLE
+    ```powershell
     # List all supported cloud keys.
     (Get-TenantOidc -CloudTable).Keys
+    ```
 
     .EXAMPLE
+    ```powershell
     # Shape of the CloudConfig object (also returned as $oidc.CloudConfig after a probe).
     # All keys present on every cloud entry:
     #
@@ -15611,6 +15910,7 @@ function Get-TenantOidc {
     $cc = (Get-TenantOidc -CloudTable)['Commercial']
     $cc.GraphEnv        # Global
     $cc.ExchangeEnv     # O365Default
+    ```
 
     .OUTPUTS
     PSCustomObject (augmented OIDC discovery document), or $null if not found.
@@ -15733,7 +16033,7 @@ function Get-TenantOidc {
 
     return $null
 }
-#EndRegion '.\Public\Lib\Get-TenantOidc.ps1' 203
+#EndRegion '.\Public\Lib\Get-TenantOidc.ps1' 215
 #Region '.\Public\Mailbox\Add-IRTMailboxFullAccess.ps1' -1
 
 function Add-IRTMailboxFullAccess {
@@ -15949,11 +16249,15 @@ function Get-IRTInboxRule {
     Export raw XML alongside the Excel file. Defaults to IRT_Config.ExportXml.
 
     .EXAMPLE
+    ```powershell
     Get-IRTInboxRule
+    ```
     Retrieves and exports inbox rules for the user in the global session.
 
     .EXAMPLE
+    ```powershell
     Get-IRTInboxRule -UserObject $User
+    ```
     Retrieves inbox rules for a specific user.
 
     .OUTPUTS
@@ -16231,7 +16535,7 @@ function Get-IRTInboxRule {
         }
     }
 }
-#EndRegion '.\Public\Mailbox\Get-IRTInboxRule.ps1' 313
+#EndRegion '.\Public\Mailbox\Get-IRTInboxRule.ps1' 317
 #Region '.\Public\Mailbox\Open-IRTMailboxInOwa.ps1' -1
 
 function Open-IRTMailboxInOwa {
@@ -16411,11 +16715,15 @@ function Show-IRTMailbox {
     Use pre-cached Exchange data where available instead of making new API calls.
 
     .EXAMPLE
+    ```powershell
     Show-IRTMailbox
+    ```
     Displays mailbox details for the user in the global session.
 
     .EXAMPLE
+    ```powershell
     Show-IRTMailbox -UserObject $User
+    ```
     Displays mailbox details for a specific user.
 
     .OUTPUTS
@@ -16539,7 +16847,7 @@ function Show-IRTMailbox {
         }
     }
 }
-#EndRegion '.\Public\Mailbox\Show-IRTMailbox.ps1' 149
+#EndRegion '.\Public\Mailbox\Show-IRTMailbox.ps1' 153
 #Region '.\Public\Mailbox\Show-IRTMailboxAccess.ps1' -1
 
 function Show-IRTMailboxAccess {
@@ -16634,11 +16942,15 @@ function Disable-IRTAdUser {
     One or more AD user objects to disable. Falls back to global session objects if omitted.
 
     .EXAMPLE
+    ```powershell
     Disable-IRTAdUser
+    ```
     Disables the user(s) in the global session.
 
     .EXAMPLE
+    ```powershell
     Disable-IRTAdUser -UserObject $AdUser
+    ```
     Disables a specific user.
 
     .OUTPUTS
@@ -16673,7 +16985,7 @@ function Disable-IRTAdUser {
 
     Set-AdUserEnabled @Params
 }
-#EndRegion '.\Public\OnPremAd\Disable-IRTAdUser.ps1' 56
+#EndRegion '.\Public\OnPremAd\Disable-IRTAdUser.ps1' 60
 #Region '.\Public\OnPremAd\Enable-IRTAdUser.ps1' -1
 
 function Enable-IRTAdUser {
@@ -16692,11 +17004,15 @@ function Enable-IRTAdUser {
     One or more AD user objects to enable. Falls back to global session objects if omitted.
 
     .EXAMPLE
+    ```powershell
     Enable-IRTAdUser
+    ```
     Re-enables the user(s) in the global session.
 
     .EXAMPLE
+    ```powershell
     Enable-IRTAdUser -UserObject $AdUser
+    ```
     Re-enables a specific user.
 
     .OUTPUTS
@@ -16731,7 +17047,7 @@ function Enable-IRTAdUser {
 
     Set-AdUserEnabled @Params
 }
-#EndRegion '.\Public\OnPremAd\Enable-IRTAdUser.ps1' 56
+#EndRegion '.\Public\OnPremAd\Enable-IRTAdUser.ps1' 60
 #Region '.\Public\OnPremAd\Find-IRTAdDevice.ps1' -1
 
 function Find-IRTAdDevice {
@@ -16768,20 +17084,28 @@ function Find-IRTAdDevice {
     scripts or the playbook.
 
     .EXAMPLE
+    ```powershell
     Find-IRTAdDevice DESKTOP-ABC123
+    ```
     Finds computers matching 'DESKTOP-ABC123' and sets the global device object if exactly
     one match.
 
     .EXAMPLE
+    ```powershell
     Find-IRTAdDevice desktop-abc123.contoso.com
+    ```
     Searches by DNS host name.
 
     .EXAMPLE
+    ```powershell
     $Devices = Find-IRTAdDevice -Search 'DESKTOP-ABC123','LAPTOP-XYZ789' -Script
+    ```
     Returns matching computer objects for two search strings without setting globals.
 
     .EXAMPLE
+    ```powershell
     Find-IRTAdDevice -FromClipboard
+    ```
     Reads the clipboard and searches for each line as a separate query.
 
     .OUTPUTS
@@ -16912,7 +17236,7 @@ function Find-IRTAdDevice {
         }
     }
 }
-#EndRegion '.\Public\OnPremAd\Find-IRTAdDevice.ps1' 179
+#EndRegion '.\Public\OnPremAd\Find-IRTAdDevice.ps1' 187
 #Region '.\Public\OnPremAd\Find-IRTAdOu.ps1' -1
 
 function Find-IRTAdOu {
@@ -16935,11 +17259,15 @@ function Find-IRTAdOu {
     variable. Useful when calling from scripts.
 
     .EXAMPLE
+    ```powershell
     Find-IRTAdOu 'Workstations'
+    ```
     Finds all OUs with 'Workstations' in their name and sets $Global:OuObject if exactly one match.
 
     .EXAMPLE
+    ```powershell
     $Ou = Find-IRTAdOu -Search 'contoso.com/Workstations' -Script
+    ```
     Returns the OU object directly for use in a script.
 
     .OUTPUTS
@@ -17035,7 +17363,7 @@ function Find-IRTAdOu {
         }
     }
 }
-#EndRegion '.\Public\OnPremAd\Find-IRTAdOu.ps1' 121
+#EndRegion '.\Public\OnPremAd\Find-IRTAdOu.ps1' 125
 #Region '.\Public\OnPremAd\Find-IRTAdUser.ps1' -1
 
 function Find-IRTAdUser {
@@ -17073,19 +17401,27 @@ function Find-IRTAdUser {
     scripts or the playbook.
 
     .EXAMPLE
+    ```powershell
     Find-IRTAdUser flast
+    ```
     Finds users matching 'flast' and sets the global user object if exactly one match.
 
     .EXAMPLE
+    ```powershell
     Find-IRTAdUser flast@contoso.com
+    ```
     Searches by email address.
 
     .EXAMPLE
+    ```powershell
     $Users = Find-IRTAdUser -Search 'flast','jsmith' -Script
+    ```
     Returns matching user objects for two search strings without setting globals.
 
     .EXAMPLE
+    ```powershell
     Find-IRTAdUser -FromClipboard
+    ```
     Reads the clipboard and searches for each line as a separate query.
 
     .OUTPUTS
@@ -17235,7 +17571,7 @@ function Find-IRTAdUser {
         }
     }
 }
-#EndRegion '.\Public\OnPremAd\Find-IRTAdUser.ps1' 198
+#EndRegion '.\Public\OnPremAd\Find-IRTAdUser.ps1' 206
 #Region '.\Public\OnPremAd\Find-IRTDomainController.ps1' -1
 
 function Find-IRTDomainController {
@@ -17249,11 +17585,15 @@ function Find-IRTDomainController {
     a reachable domain controller; exits with an error if AD is unavailable.
 
     .EXAMPLE
+    ```powershell
     Find-IRTDomainController
+    ```
     Returns the Name of every domain controller in the domain.
 
     .EXAMPLE
+    ```powershell
     $DCs = Find-IRTDomainController
+    ```
     Captures the list of DC names for use in a loop or downstream command.
 
     .OUTPUTS
@@ -17277,7 +17617,7 @@ function Find-IRTDomainController {
 
     Get-ADDomainController -Filter * | Select-Object Name
 }
-#EndRegion '.\Public\OnPremAd\Find-IRTDomainController.ps1' 40
+#EndRegion '.\Public\OnPremAd\Find-IRTDomainController.ps1' 44
 #Region '.\Public\OnPremAd\Get-IRTAdAdminUser.ps1' -1
 
 function Get-IRTAdAdminUser {
@@ -17297,11 +17637,15 @@ function Get-IRTAdAdminUser {
     Export results to a CSV file instead of displaying them in the console.
 
     .EXAMPLE
+    ```powershell
     Get-IRTAdAdminUser
+    ```
     Displays all AdminCount=1 users in a formatted table.
 
     .EXAMPLE
+    ```powershell
     Get-IRTAdAdminUser -Csv
+    ```
     Exports the list to AdAdminUsers_<domain>_<date>.csv in C:\Temp.
 
     .OUTPUTS
@@ -17381,7 +17725,7 @@ function Get-IRTAdAdminUser {
         }
     }
 }
-#EndRegion '.\Public\OnPremAd\Get-IRTAdAdminUser.ps1' 102
+#EndRegion '.\Public\OnPremAd\Get-IRTAdAdminUser.ps1' 106
 #Region '.\Public\OnPremAd\Push-IRTAdSync.ps1' -1
 
 function Push-IRTAdSync {
@@ -17413,15 +17757,21 @@ function Push-IRTAdSync {
     Maximum number of parallel runspaces used for server discovery. Default: 20.
 
     .EXAMPLE
+    ```powershell
     Push-IRTAdSync
+    ```
     Automatically discovers and triggers a delta sync.
 
     .EXAMPLE
+    ```powershell
     Push-IRTAdSync -SyncServer 'sync01.contoso.com'
+    ```
     Triggers sync on a known server without discovery.
 
     .EXAMPLE
+    ```powershell
     Push-IRTAdSync -ResetCredentials
+    ```
     Re-prompts for domain admin credentials before syncing.
 
     .OUTPUTS
@@ -17705,7 +18055,7 @@ function Push-IRTAdSync {
         }
     }
 }
-#EndRegion '.\Public\OnPremAd\Push-IRTAdSync.ps1' 322
+#EndRegion '.\Public\OnPremAd\Push-IRTAdSync.ps1' 328
 #Region '.\Public\OnPremAd\Reset-IRTAdUserPassword.ps1' -1
 
 function Reset-IRTAdUserPassword {
@@ -17760,28 +18110,40 @@ function Reset-IRTAdUserPassword {
     password. The user will be required to set a new password on their next sign-in.
 
     .EXAMPLE
+    ```powershell
     Reset-IRTAdUserPassword -RandomCharacters
+    ```
     Generates and sets a random password for the user in the global session.
 
     .EXAMPLE
+    ```powershell
     Reset-IRTAdUserPassword -UserObjects $User -RandomCharacters
+    ```
     Resets the password for a specific user object using a random password.
 
     .EXAMPLE
+    ```powershell
     Reset-IRTAdUserPassword -Custom
+    ```
     Prompts the operator to enter a custom password for the global session user.
 
     .EXAMPLE
+    ```powershell
     Reset-IRTAdUserPassword -UserObjects $User -ForceChangePasswordNextSignIn
+    ```
     Forces the user to set a new password on their next sign-in, without changing
     the current password.
 
     .EXAMPLE
+    ```powershell
     Reset-IRTAdUserPassword -RandomCharacters -Length 48
+    ```
     Resets the password using a random 48-character password.
 
     .EXAMPLE
+    ```powershell
     Reset-IRTAdUserPassword -UserObjects $User -RandomCharacters -WhatIf
+    ```
     Shows what would happen without actually resetting the password.
 
     .OUTPUTS
@@ -17937,7 +18299,7 @@ function Reset-IRTAdUserPassword {
         }
     }
 }
-#EndRegion '.\Public\OnPremAd\Reset-IRTAdUserPassword.ps1' 230
+#EndRegion '.\Public\OnPremAd\Reset-IRTAdUserPassword.ps1' 242
 #Region '.\Public\OnPremAd\Show-IRTAdDevice.ps1' -1
 
 function Show-IRTAdDevice {
@@ -17955,11 +18317,15 @@ function Show-IRTAdDevice {
     if omitted.
 
     .EXAMPLE
+    ```powershell
     Show-IRTAdDevice
+    ```
     Displays info for the device in $Global:IRT_DeviceObject.
 
     .EXAMPLE
+    ```powershell
     Show-IRTAdDevice -DeviceObject $AdComputer
+    ```
     Displays info for a specific AD computer object.
 
     .OUTPUTS
@@ -18084,7 +18450,7 @@ function Show-IRTAdDevice {
         }
     }
 }
-#EndRegion '.\Public\OnPremAd\Show-IRTAdDevice.ps1' 145
+#EndRegion '.\Public\OnPremAd\Show-IRTAdDevice.ps1' 149
 #Region '.\Public\OnPremAd\Show-IRTAdOus.ps1' -1
 
 function Show-IRTAdOus {
@@ -18102,11 +18468,15 @@ function Show-IRTAdOus {
     by default.
 
     .EXAMPLE
+    ```powershell
     Show-IRTAdOus
+    ```
     Lists all OUs with user and computer counts.
 
     .EXAMPLE
+    ```powershell
     Show-IRTAdOus | Where-Object { $_.Users -gt 0 }
+    ```
     Returns only OUs that contain at least one user.
 
     .OUTPUTS
@@ -18176,7 +18546,7 @@ function Show-IRTAdOus {
         }
     }
 }
-#EndRegion '.\Public\OnPremAd\Show-IRTAdOus.ps1' 90
+#EndRegion '.\Public\OnPremAd\Show-IRTAdOus.ps1' 94
 #Region '.\Public\OnPremAd\Show-IRTAdUser.ps1' -1
 
 function Show-IRTAdUser {
@@ -18193,11 +18563,15 @@ function Show-IRTAdUser {
     One or more AD user objects to display. Falls back to global session objects if omitted.
 
     .EXAMPLE
+    ```powershell
     Show-IRTAdUser
+    ```
     Displays info for the user(s) in the global session.
 
     .EXAMPLE
+    ```powershell
     Show-IRTAdUser -UserObjects $AdUser
+    ```
     Displays info for a specific AD user object.
 
     .OUTPUTS
@@ -18331,7 +18705,7 @@ function Show-IRTAdUser {
         }
     }
 }
-#EndRegion '.\Public\OnPremAd\Show-IRTAdUser.ps1' 153
+#EndRegion '.\Public\OnPremAd\Show-IRTAdUser.ps1' 157
 #Region '.\Public\Role\Get-IRTAdminRole.ps1' -1
 
 function Get-IRTAdminRole {
@@ -18372,15 +18746,21 @@ function Get-IRTAdminRole {
     When exporting to Excel, open the file immediately after writing. Default: $true.
 
     .EXAMPLE
+    ```powershell
     Get-IRTAdminRole
+    ```
     Displays all role members grouped by type in the console.
 
     .EXAMPLE
+    ```powershell
     Get-IRTAdminRole -Excel -Highlight 'jsmith@contoso.com'
+    ```
     Exports an Excel report and flags any row matching 'jsmith@contoso.com'.
 
     .EXAMPLE
+    ```powershell
     $RoleMembers = Get-IRTAdminRole -Script
+    ```
     Returns raw objects for further processing.
 
     .OUTPUTS
@@ -18685,7 +19065,7 @@ function Get-IRTAdminRole {
         }
     }
 }
-#EndRegion '.\Public\Role\Get-IRTAdminRole.ps1' 352
+#EndRegion '.\Public\Role\Get-IRTAdminRole.ps1' 358
 #Region '.\Public\ServicePrincipal\Find-IRTRiskyServicePrincipal.ps1' -1
 
 function Find-IRTRiskyServicePrincipal {
@@ -18710,11 +19090,15 @@ function Find-IRTRiskyServicePrincipal {
     API calls. Speeds up repeated runs during the same session.
 
     .EXAMPLE
+    ```powershell
     Find-IRTRiskyServicePrincipal
+    ```
     Queries all threat intelligence feeds and reports any matches in the tenant.
 
     .EXAMPLE
+    ```powershell
     Find-IRTRiskyServicePrincipal -Cached
+    ```
     Same as above but uses cached Graph data from the current session.
 
     .OUTPUTS
@@ -18838,7 +19222,7 @@ function Find-IRTRiskyServicePrincipal {
         }
     }
 }
-#EndRegion '.\Public\ServicePrincipal\Find-IRTRiskyServicePrincipal.ps1' 151
+#EndRegion '.\Public\ServicePrincipal\Find-IRTRiskyServicePrincipal.ps1' 155
 #Region '.\Public\ServicePrincipal\Find-IRTServicePrincipal.ps1' -1
 
 function Find-IRTServicePrincipal {
@@ -18891,27 +19275,39 @@ function Find-IRTServicePrincipal {
     principal produce only one entry in the output.
 
     .EXAMPLE
+    ```powershell
     Find-IRTServicePrincipal MyApp
+    ```
     Find a single service principal by display name.
 
     .EXAMPLE
+    ```powershell
     Find-IRTServicePrincipal -Search MyApp,AnotherApp
+    ```
     Find multiple service principals in one call.
 
     .EXAMPLE
+    ```powershell
     Find-IRTServicePrincipal -Search 00000003-0000-0000-c000-000000000000
+    ```
     Find by full or partial AppId (Microsoft Graph in this example).
 
     .EXAMPLE
+    ```powershell
     Find-IRTServicePrincipal -Search bf7573a5844f
+    ```
     Find by partial object ID.
 
     .EXAMPLE
+    ```powershell
     Find-IRTServicePrincipal MyApp -Script
+    ```
     Return the matched object directly without console output or setting the global variable.
 
     .EXAMPLE
+    ```powershell
     Find-IRTServicePrincipal -FromClipboard
+    ```
     Reads the clipboard and searches for each line as a separate query.
 
     .OUTPUTS
@@ -19055,7 +19451,7 @@ function Find-IRTServicePrincipal {
         }
     }
 }
-#EndRegion '.\Public\ServicePrincipal\Find-IRTServicePrincipal.ps1' 215
+#EndRegion '.\Public\ServicePrincipal\Find-IRTServicePrincipal.ps1' 227
 #Region '.\Public\ServicePrincipal\Get-IRTServicePrincipal.ps1' -1
 
 function Get-IRTServicePrincipal {
@@ -19290,13 +19686,19 @@ function Get-IRTTenantOwner {
     tenants not found. Useful when calling in bulk where partial results are expected.
 
     .EXAMPLE
+    ```powershell
     Get-IRTTenantOwner -TenantId 'f8cdef31-a31e-4b4a-93e4-5f571e91255a' # Microsoft tenant id
+    ```
 
     .EXAMPLE
+    ```powershell
     $guids | Get-IRTTenantOwner
+    ```
 
     .EXAMPLE
+    ```powershell
     Get-IRTTenantOwner $tid -SkipGraph
+    ```
 
     .NOTES
     The Graph lookup requires the CrossTenantInformation.ReadBasic.All scope.
@@ -19518,7 +19920,7 @@ function Get-IRTTenantOwner {
         }
     }
 }
-#EndRegion '.\Public\ServicePrincipal\Get-IRTTenantOwner.ps1' 273
+#EndRegion '.\Public\ServicePrincipal\Get-IRTTenantOwner.ps1' 279
 #Region '.\Public\ServicePrincipal\Get-IRTUserServicePrincipal.ps1' -1
 
 function Get-IRTUserServicePrincipal { # FIXME rename to Get-IRTUserAppConsent
@@ -19553,11 +19955,15 @@ function Get-IRTUserServicePrincipal { # FIXME rename to Get-IRTUserAppConsent
     Use pre-cached Graph service principal data instead of making new API calls.
 
     .EXAMPLE
+    ```powershell
     Get-IRTUserServicePrincipal
+    ```
     Shows OAuth app consents for the user in the global session.
 
     .EXAMPLE
+    ```powershell
     Get-IRTUserServicePrincipal -UserObject $User
+    ```
     Shows OAuth app consents for a specific user.
 
     .OUTPUTS
@@ -19746,7 +20152,7 @@ function Get-IRTUserServicePrincipal { # FIXME rename to Get-IRTUserAppConsent
         }
     }
 }
-#EndRegion '.\Public\ServicePrincipal\Get-IRTUserServicePrincipal.ps1' 226
+#EndRegion '.\Public\ServicePrincipal\Get-IRTUserServicePrincipal.ps1' 230
 #Region '.\Public\ServicePrincipal\Open-IRTTenantOwnerCSV.ps1' -1
 
 function Open-IRTTenantOwnerCSV {
@@ -19760,7 +20166,9 @@ function Open-IRTTenantOwnerCSV {
     runtime. If the file does not exist yet, a warning is displayed.
 
     .EXAMPLE
+    ```powershell
     Open-IRTTenantOwnerCSV
+    ```
 
     .NOTES
     Version: 1.0.0
@@ -19788,19 +20196,39 @@ function Open-IRTTenantOwnerCSV {
     Write-PSFMessage -Level 8 -Message "Opening $cachePath"
     Start-Process $cachePath
 }
-#EndRegion '.\Public\ServicePrincipal\Open-IRTTenantOwnerCSV.ps1' 40
+#EndRegion '.\Public\ServicePrincipal\Open-IRTTenantOwnerCSV.ps1' 42
 #Region '.\Public\ServicePrincipal\Open-IRTTenantSheet.ps1' -1
 
 function Open-IRTTenantSheet {
     <#
     .SYNOPSIS
-    Opens the tenants worksheet for editing. Creates it from the template if it doesn't exist.
+    Opens the tenants worksheet for editing. Creates it if it doesn't exist.
+
+    .DESCRIPTION
+    Opens the tenants worksheet that Connect-IRTTenant reads. When the file is not
+    present it is generated first, with the standard columns and a few sample rows
+    showing the expected format, then opened in the default handler for .xlsx files.
 
     .PARAMETER TenantFile
     Path to the tenants worksheet. Defaults to $env:APPDATA\M365IncidentResponseTools\tenants.xlsx.
 
+    .EXAMPLE
+    ```powershell
+    Open-IRTTenantSheet
+    ```
+    Opens the tenants worksheet, generating it first if this is the first run.
+
+    .EXAMPLE
+    ```powershell
+    Open-IRTTenantSheet -TenantFile 'C:\Cases\tenants.xlsx'
+    ```
+    Opens a tenants worksheet stored outside the default configuration directory.
+
+    .OUTPUTS
+    None. The worksheet is opened in the default application for .xlsx files.
+
     .NOTES
-    Version: 1.0.0
+    Version: 1.1.0
     #>
     [Alias(
         'Open-IRTTenantWorksheet', 'OpenIRTTenantWorksheet',
@@ -19812,6 +20240,8 @@ function Open-IRTTenantSheet {
     )
 
     begin {
+        $FunctionName = $MyInvocation.MyCommand.Name
+
         if (-not $TenantFile) {
             $TenantFile = $Global:IRT_Config.TenantsSheetPath
         }
@@ -19819,29 +20249,18 @@ function Open-IRTTenantSheet {
 
     process {
 
-        if (-not ( Test-Path $TenantFile )) {
-
-            $ConfigDir = Split-Path $TenantFile
-            $ModuleRoot = $MyInvocation.MyCommand.Module.ModuleBase
-            $TemplateParams = @{
-                Path                = $ModuleRoot
-                ChildPath           = 'Data'
-                AdditionalChildPath = 'TenantsTemplate.xlsx'
-            }
-            $TemplateFile = Join-Path @TemplateParams
-
-            if (-not (Test-Path $ConfigDir)) {
-                $null = New-Item -ItemType Directory -Path $ConfigDir -Force
-            }
-
-            Copy-Item -Path $TemplateFile -Destination $TenantFile
-            Write-IRT "Created tenants worksheet file from template: ${TenantFile}"
+        if (-not (Test-Path -LiteralPath $TenantFile)) {
+            Write-PSFMessage -Level 8 -Message (
+                "${FunctionName}: no worksheet at '${TenantFile}', generating one")
+            $null = New-TenantSheet -Path $TenantFile
+            Write-IRT "Created tenants worksheet: ${TenantFile}"
         }
 
+        Write-PSFMessage -Level 8 -Message "${FunctionName}: opening '${TenantFile}'"
         Invoke-Item $TenantFile
     }
 }
-#EndRegion '.\Public\ServicePrincipal\Open-IRTTenantSheet.ps1' 51
+#EndRegion '.\Public\ServicePrincipal\Open-IRTTenantSheet.ps1' 62
 #Region '.\Public\ServicePrincipal\Show-IRTServicePrincipal.ps1' -1
 
 function Show-IRTServicePrincipal {
@@ -19880,16 +20299,22 @@ function Show-IRTServicePrincipal {
     fresh data from Graph.
 
     .EXAMPLE
+    ```powershell
     Find-ServicePrincipal MyApp
     Show-IRTServicePrincipal
+    ```
     Two-step workflow: find then display.
 
     .EXAMPLE
+    ```powershell
     Show-IRTServicePrincipal
+    ```
     Display info for the service principal already stored in the global session.
 
     .EXAMPLE
+    ```powershell
     Show-IRTServicePrincipal -ServicePrincipalObject $SP
+    ```
     Display info for a specific service principal object passed directly.
 
     .OUTPUTS
@@ -20160,7 +20585,329 @@ function Show-IRTServicePrincipal {
         }
     }
 }
-#EndRegion '.\Public\ServicePrincipal\Show-IRTServicePrincipal.ps1' 317
+#EndRegion '.\Public\ServicePrincipal\Show-IRTServicePrincipal.ps1' 323
+#Region '.\Public\UnifiedAuditLog\Get-IRTTeamsExternalDomain.ps1' -1
+
+function Get-IRTTeamsExternalDomain {
+    <#
+    .SYNOPSIS
+    Pulls the Unified Audit Log records that reveal which external domains and
+    tenants the organisation communicates with over Microsoft Teams.
+
+    .DESCRIPTION
+    Queries the Unified Audit Log for the Teams operations whose audit records
+    carry the identity of the remote party in a chat, channel post, meeting, or
+    call. Collating these records shows which outside organisations tenant users
+    actually talk to, which is the starting point for scoping a compromise that
+    spread through Teams federation or guest access.
+
+    The requested date range is split into calendar weeks running Sunday through
+    Saturday, and each week is queried and exported separately as a CLIXML file
+    named for the Sunday that begins the week. Splitting the pull this way keeps
+    each Search-UnifiedAuditLog window small enough to return reliably, and lets
+    an interrupted run resume: weeks that already have a file on disk are skipped
+    unless -Force is passed.
+
+    A file is written for every week that is queried, including weeks with no
+    matching activity. An empty file therefore means "queried, nothing found",
+    which is a different and much more useful statement than a missing file.
+
+    Weeks are queried newest first, so the most recent activity lands on disk
+    soonest.
+
+    Operations queried:
+
+        MessageSent            - chat and channel messages
+        MessageCreatedHasLink  - messages containing a link
+        MessageUpdated         - message edits
+        MessageEditedHasLink   - edits to messages containing a link
+        ChatCreated            - new chat threads
+        MemberAdded            - members joining a chat or team
+        ReactedToMessage       - message reactions (remote tenant ID only)
+        CallParticipantDetail  - call and meeting participants (remote tenant
+                                 ID only)
+
+    The last two record the remote party's tenant GUID but not its domain name,
+    so they still identify the external organisation - just not by a name a human
+    can read without resolving the GUID.
+
+    Requires an active Exchange Online connection, and a Microsoft Graph
+    connection for the tenant domain used in file names.
+
+    .PARAMETER Days
+    Number of days back to search. Cannot be used with -Start / -End.
+    Default: 180.
+
+    .PARAMETER Start
+    Start of date range (parseable date string). Used with -End for an absolute
+    range.
+
+    .PARAMETER End
+    End of date range (parseable date string). Used with -Start for an absolute
+    range.
+
+    .PARAMETER Path
+    Directory to write the weekly CLIXML files into. Default: current directory.
+
+    .PARAMETER ResultLimit
+    Maximum records to retrieve per weekly chunk. Stops at the next 5000-record
+    page boundary after the limit is reached. Default: 50000.
+
+    .PARAMETER ChunkDelaySeconds
+    Seconds to pause between queries to reduce the chance of tripping Exchange
+    throttling limits. Default: 2. Set to 0 to disable.
+
+    .PARAMETER ThrottleDelaySeconds
+    Base backoff (seconds) used when a query fails. Passed through to
+    Get-IRTUnifiedAuditLog, which grows the backoff exponentially per retry.
+    Default: 60.
+
+    .PARAMETER Force
+    Re-query and overwrite weeks that already have a file in -Path. Without it,
+    existing weekly files are left alone so an interrupted run can be resumed
+    without repeating completed work.
+
+    .EXAMPLE
+    ```powershell
+    Get-IRTTeamsExternalDomain
+    ```
+    Pulls the last 180 days, writing one CLIXML file per Sunday-Saturday week
+    into the current directory.
+
+    .EXAMPLE
+    ```powershell
+    Get-IRTTeamsExternalDomain -Days 30 -Path 'C:\Cases\Contoso'
+    ```
+    Pulls the last 30 days into a specific folder.
+
+    .EXAMPLE
+    ```powershell
+    Get-IRTTeamsExternalDomain -Start '2026-01-01' -End '2026-03-31' -Force
+    ```
+    Pulls an absolute range, re-querying weeks that already have files.
+
+    .OUTPUTS
+    [System.IO.FileInfo] One object per weekly CLIXML file written.
+
+    .NOTES
+    Version: 1.0.0
+    #>
+    [Alias('GetTeamsExtDomain', 'GetTeamsExtDomains')]
+    [CmdletBinding()]
+    [OutputType([System.IO.FileInfo])]
+    param (
+        [int]    $Days, # default value set at #DEFAULTDAYS
+        [string] $Start,
+        [string] $End,
+
+        [string] $Path = (Get-Location).Path,
+
+        [int] $ResultLimit = 50000,
+
+        # seconds to pause between queries to avoid tripping throttle limits
+        [ValidateRange(0, 3600)]
+        [int] $ChunkDelaySeconds = 2,
+
+        # base seconds for retry backoff, passed through to Get-IRTUnifiedAuditLog
+        [ValidateRange(1, 3600)]
+        [int] $ThrottleDelaySeconds = 60,
+
+        [switch] $Force
+    )
+
+    begin {
+        Import-IRTModule -Name 'PSFramework'
+        $FunctionName = $MyInvocation.MyCommand.Name
+        $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+
+        #DEFAULTDAYS
+        $DefaultDays = 180
+
+        $FileNamePrefix = 'TeamsExternalDomains'
+        $SheetTitle = 'Teams external domains'
+
+        # Operations whose audit records name the remote party's domain.
+        $DomainOperations = @(
+            'MessageSent'
+            'MessageCreatedHasLink'
+            'MessageUpdated'
+            'MessageEditedHasLink'
+            'ChatCreated'
+            'MemberAdded'
+        )
+        # Operations that record only the remote tenant's GUID. Still identifies
+        # the external organisation, but the GUID has to be resolved separately
+        # before it means anything to an analyst.
+        $TenantIdOperations = @(
+            'ReactedToMessage'
+            'CallParticipantDetail'
+        )
+        $Operations = $DomainOperations + $TenantIdOperations
+
+        # No -RecordType filter is applied. Several of these operation names also
+        # appear outside the Teams workload, and dropping those records to tidy
+        # the result set would hide external contact from the analyst - the one
+        # failure mode this function exists to prevent.
+
+        # validate output directory
+        if (-not (Test-Path -Path $Path -PathType 'Container')) {
+            $ErrorParams = @{
+                Category    = 'ObjectNotFound'
+                Message     = "-Path '${Path}' is not an existing directory."
+                ErrorAction = 'Stop'
+            }
+            Write-Error @ErrorParams
+        }
+        $Path = (Resolve-Path -Path $Path).Path
+
+        # parse date range
+        $DateRangeParams = @{
+            Days        = $Days
+            Start       = $Start
+            End         = $End
+            DefaultDays = $DefaultDays
+        }
+        $DateRange = Resolve-DateRange @DateRangeParams
+        $LocalStart = $DateRange.StartUtc.ToLocalTime()
+        $LocalEnd = $DateRange.EndUtc.ToLocalTime()
+
+        # Align chunk boundaries to the Sunday on or before the range start.
+        # DayOfWeek is 0 for Sunday, so subtracting it from the date lands on
+        # that week's Sunday midnight in local time.
+        $FirstSunday = $LocalStart.Date.AddDays( - [int]$LocalStart.DayOfWeek)
+
+        # Build one chunk per calendar week. The queried window is clamped to
+        # the range the caller actually asked for, so the first and last weeks
+        # can be partial; that is recorded in each file's metadata rather than
+        # silently widening the pull.
+        $WeekChunks = [System.Collections.Generic.List[hashtable]]::new()
+        $WeekStart = $FirstSunday
+        while ($WeekStart -lt $LocalEnd) {
+            $WeekEnd = $WeekStart.AddDays(7)
+            $QueryStart = $WeekStart -gt $LocalStart ? $WeekStart : $LocalStart
+            $QueryEnd = $WeekEnd -lt $LocalEnd ? $WeekEnd : $LocalEnd
+            $WeekChunks.Add(@{
+                    WeekStart = $WeekStart
+                    Start     = $QueryStart
+                    End       = $QueryEnd
+                    Partial   = ($QueryStart -gt $WeekStart) -or ($QueryEnd -lt $WeekEnd)
+                })
+            $WeekStart = $WeekEnd
+        }
+        # query newest first so the most recent activity lands on disk soonest
+        $WeekChunks.Reverse()
+        $WeekCount = $WeekChunks.Count
+
+        $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: Range $($LocalStart.ToString('yyyy-MM-dd HH:mm')) to " +
+            "$($LocalEnd.ToString('yyyy-MM-dd HH:mm')) split into ${WeekCount} " +
+            "weekly chunks [$Elapsed]")
+    }
+
+    process {
+
+        # tenant label for file names
+        $DomainName = Get-DefaultDomain
+
+        Write-IRT ("Querying ${WeekCount} weeks of Teams external contact " +
+            "records for ${DomainName}.")
+
+        $ChunkIndex = 0
+        foreach ($Chunk in $WeekChunks) {
+            $ChunkIndex++
+
+            $WeekStartString = $Chunk.WeekStart.ToString('yy-MM-dd')
+            $FileNameBase = "${FileNamePrefix}_${DomainName}_${WeekStartString}"
+            $XmlOutputPath = Join-Path -Path $Path -ChildPath "${FileNameBase}.xml"
+
+            $WindowFormat = 'M/d/yy h:mmtt'
+            $WindowStart = $Chunk.Start.ToString($WindowFormat)
+            $WindowEnd = $Chunk.End.ToString($WindowFormat)
+            $Label = "Week ${ChunkIndex} of ${WeekCount} (${WindowStart} to ${WindowEnd})"
+
+            # resume support: a week that already has a file was already queried
+            if ((Test-Path -Path $XmlOutputPath -PathType 'Leaf') -and -not $Force) {
+                Write-IRT "${Label}: file exists, skipping. Use -Force to re-query."
+                Write-PSFMessage -Level 8 -Message (
+                    "${FunctionName}: Skipping existing file ${XmlOutputPath}")
+                continue
+            }
+
+            Write-IRT "${Label}: querying."
+            $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+            Write-PSFMessage -Level 8 -Message (
+                "${FunctionName}: ${Label} to ${XmlOutputPath} [$Elapsed]")
+
+            # Reuse the shared UAL query function so this pull inherits its
+            # paging, token refresh, retry/backoff, and data-gap marking.
+            $UalParams = @{
+                AllUsers             = $true
+                Operation            = $Operations
+                Start                = $Chunk.Start.ToString('yyyy-MM-dd HH:mm:ss')
+                End                  = $Chunk.End.ToString('yyyy-MM-dd HH:mm:ss')
+                ChunkDays            = 7
+                ChunkDelaySeconds    = $ChunkDelaySeconds
+                ThrottleDelaySeconds = $ThrottleDelaySeconds
+                ResultLimit          = $ResultLimit
+                Excel                = $false
+                Xml                  = $false
+                PassThru             = $true
+            }
+            $Returned = Get-IRTUnifiedAuditLog @UalParams
+
+            # strip the child function's metadata row; this function writes its
+            # own, describing the week rather than the whole requested range
+            $Records = [System.Collections.Generic.List[psobject]]::new()
+            foreach ($Record in $Returned) {
+                if ($null -eq $Record) { continue }
+                if ($Record.Metadata) { continue }
+                $Records.Add($Record)
+            }
+
+            $RecordCount = $Records.Count
+            $GapCount = @($Records | Where-Object { $_.IRTDataGap }).Count
+            if ($GapCount -gt 0) {
+                Write-IRT ("${Label}: ${GapCount} DATA MISSING marker(s) present; " +
+                    "this week is incomplete.") -Level Warn
+            }
+
+            # build metadata for this week
+            $WeekLabel = $Chunk.WeekStart.ToString('M/d/yy')
+            $TitleSuffix = " for ${DomainName}. Week of ${WeekLabel}, " +
+            "${WindowStart} to ${WindowEnd}."
+            $Metadata = [pscustomobject]@{
+                Metadata        = $true
+                FileNamePrefix  = $FileNamePrefix
+                FileName        = $FileNameBase
+                SheetTitle      = $SheetTitle
+                Title           = "${SheetTitle}${TitleSuffix}"
+                TitleSuffix     = $TitleSuffix
+                ProfileTag      = $null
+                WeekStart       = $Chunk.WeekStart
+                CoveredStartUtc = $Chunk.Start.ToUniversalTime()
+                CoveredEndUtc   = $Chunk.End.ToUniversalTime()
+                PartialWeek     = $Chunk.Partial
+                RecordCount     = $RecordCount
+                DataGapCount    = $GapCount
+                Operations      = $Operations
+                TenantIdOnlyOps = $TenantIdOperations
+            }
+            $Records.Insert(0, $Metadata)
+
+            # A file is written even when the week is empty, so that a missing
+            # file means "not queried" rather than "nothing found".
+            Write-IRT "${Label}: ${RecordCount} records. Saving to ${XmlOutputPath}"
+            $Records | Export-Clixml -Depth 10 -Path $XmlOutputPath
+
+            Get-Item -Path $XmlOutputPath
+        }
+
+        $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+        Write-PSFMessage -Level 8 -Message "${FunctionName}: Complete [$Elapsed]"
+    }
+}
+#EndRegion '.\Public\UnifiedAuditLog\Get-IRTTeamsExternalDomain.ps1' 320
 #Region '.\Public\UnifiedAuditLog\Get-IRTUnifiedAuditLog.ps1' -1
 
 function Get-IRTUnifiedAuditLog {
@@ -20233,6 +20980,11 @@ function Get-IRTUnifiedAuditLog {
     .PARAMETER FreeText
     One or more free-text search strings passed to Search-UnifiedAuditLog.
 
+    .PARAMETER RecordType
+    Filter results to one or more UAL record types (e.g. MicrosoftTeams,
+    ExchangeItem, AzureActiveDirectoryStsLogon). Search-UnifiedAuditLog accepts a
+    single record type per call, so every query is run once per record type given.
+
     .PARAMETER Excel
     Export results to an Excel workbook. Default: $true.
 
@@ -20246,23 +20998,53 @@ function Get-IRTUnifiedAuditLog {
     .PARAMETER Cached
     Use pre-cached Graph data where available.
 
+    .PARAMETER PassThru
+    Emit the retrieved records to the pipeline in addition to any configured
+    exports. One collection is emitted per queried object (user, service
+    principal, or the single 'AllUsers' pseudo-object), and each collection
+    carries the same metadata object at index 0 that the XML export writes.
+    Intended for callers that post-process results in memory rather than
+    reading the exported files back off disk.
+
     .EXAMPLE
+    ```powershell
     Get-IRTUnifiedAuditLog
+    ```
     Queries the UAL for the last 30 days for the user in the global session.
 
     .EXAMPLE
+    ```powershell
     Get-IRTUnifiedAuditLog -UserObject $User -Days 90
+    ```
     Queries 90 days of UAL activity for a specific user.
 
     .EXAMPLE
+    ```powershell
     Get-IRTUnifiedAuditLog -AllUsers -Operation 'FileDeleted' -Start '2026-04-01' -End '2026-04-30'
+    ```
     Finds all FileDeleted events for any user during April 2026.
 
+    .EXAMPLE
+    ```powershell
+    Get-IRTUnifiedAuditLog -UserObject $User -Days 30 -RecordType 'MicrosoftTeams'
+    ```
+    Pulls only Microsoft Teams records for the user over the last 30 days.
+
+    .EXAMPLE
+    ```powershell
+    $Logs = Get-IRTUnifiedAuditLog -AllUsers -Days 7 -Excel $false -Xml $false -PassThru
+    ```
+    Returns the records in memory without writing any files.
+
     .OUTPUTS
-    None. Results are exported to an Excel workbook.
+    None by default. Results are exported to an Excel workbook. With -PassThru,
+    emits one [System.Collections.Generic.List[psobject]] per queried object.
 
     .NOTES
-    Version: 1.9.0
+    Version: 1.12.0
+    1.12.0 - Added -PassThru so callers can post-process records in memory
+    instead of reading the exported files back off disk.
+    1.10.0 - Added -RecordType to filter queries by UAL record type.
     1.9.0 - Exposed -ChunkDays to control date-chunk size, added per-chunk token
     refresh so long multi-chunk runs don't outlive the token's refresh window, an
     inter-chunk delay (-ChunkDelaySeconds), and retry-with-backoff
@@ -20320,10 +21102,14 @@ function Get-IRTUnifiedAuditLog {
 
         [string[]] $FreeText,
 
+        [Alias('RecordTypes')]
+        [string[]] $RecordType,
+
         [boolean] $Excel = $true,
         [boolean] $WaitOnMessageTrace = $false,
         [boolean] $Xml = $Global:IRT_Config.ExportXml,
-        [switch] $Cached
+        [switch] $Cached,
+        [switch] $PassThru
     )
 
     begin {
@@ -20335,6 +21121,14 @@ function Get-IRTUnifiedAuditLog {
 
         # max attempts per Search-UnifiedAuditLog call before giving up on it
         $MaxRetry = 3
+
+        # Warnings that mean the query was refused or dropped rather than genuinely
+        # empty. EXO returns 401s from the sync-search path, and some transport
+        # faults, as a WARNING plus an empty result set instead of a terminating
+        # error. Left alone those are indistinguishable from a tenant with no
+        # matching audit activity, so a refused query would be reported to the
+        # analyst as 'no activity' - the worst way for an IR tool to fail.
+        $UalFailureWarning = 'Unauthorized|Failed to process request via|HttpRequestException'
 
         # helper: run a Search-UnifiedAuditLog call with retry. Exchange/UAL surfaces
         # transient failures (throttling, timeouts, dropped sessions) with varied and
@@ -20354,7 +21148,33 @@ function Get-IRTUnifiedAuditLog {
             while ($true) {
                 $Attempt++
                 try {
-                    return Search-UnifiedAuditLog @SearchParams -ErrorAction Stop
+                    # These warnings come from inside the EXO REST plumbing and do
+                    # NOT honour -WarningVariable (verified against a live tenant),
+                    # so merge the warning stream into the output and split it back
+                    # apart by record type.
+                    $CallParams = @{}
+                    $SearchParams.GetEnumerator() |
+                        ForEach-Object { $CallParams[$_.Key] = $_.Value }
+                    $CallParams['ErrorAction'] = 'Stop'
+
+                    $Merged = Search-UnifiedAuditLog @CallParams 3>&1
+
+                    $WarningType = [System.Management.Automation.WarningRecord]
+                    $Warnings = @($Merged | Where-Object { $_ -is $WarningType })
+                    $Result = @($Merged | Where-Object { $_ -isnot $WarningType })
+
+                    $Blocked = @($Warnings |
+                            Where-Object { $_ -match $UalFailureWarning })
+                    # pass through anything that was not a refusal
+                    foreach ($Warning in @($Warnings |
+                                Where-Object { $_ -notmatch $UalFailureWarning })) {
+                        Write-IRT "$Warning" -Level Warn
+                    }
+                    if ($Blocked.Count -gt 0 -and $Result.Count -eq 0) {
+                        throw ('Search returned no records and warned: ' +
+                            "$($Blocked[0])")
+                    }
+                    return $Result
                 }
                 catch {
                     $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
@@ -20733,6 +21553,28 @@ function Get-IRTUnifiedAuditLog {
                 }
             }
 
+            # Search-UnifiedAuditLog takes a single -RecordType per call, so when
+            # record types are requested, expand the query table to run every
+            # query once per record type.
+            if (($RecordType | Measure-Object).Count -gt 0) {
+                $ExpandedTable = [ordered]@{}
+                $Key = 1
+                foreach ($Entry in $QueryTable.GetEnumerator()) {
+                    foreach ($Type in $RecordType) {
+                        $TypedParams = @{}
+                        $Entry.Value.Params.GetEnumerator() |
+                            ForEach-Object { $TypedParams[$_.Key] = $_.Value }
+                        $TypedParams['RecordType'] = $Type
+                        $ExpandedTable["$Key"] = @{
+                            Params        = $TypedParams
+                            ConsoleOutput = "RecordType ${Type}: " +
+                            $Entry.Value.ConsoleOutput
+                        }
+                        $Key++
+                    }
+                }
+                $QueryTable = $ExpandedTable
+            }
 
             #region RUN QUERIES
             $LimitReached = $false
@@ -20980,10 +21822,22 @@ function Get-IRTUnifiedAuditLog {
                 }
                 & $ActiveProfile.ShowFunction @Params
             }
+
+            # emit the records for in-memory consumers. -NoEnumerate keeps each
+            # object's result set as one collection so a multi-object run does
+            # not flatten into a single undifferentiated stream with metadata
+            # rows scattered through it.
+            if ($PassThru) {
+                $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+                Write-PSFMessage -Level 8 -Message (
+                    "${FunctionName}: PassThru emitting $($Logs.Count) objects " +
+                    "(includes metadata row) [$Elapsed]")
+                Write-Output -InputObject $Logs -NoEnumerate
+            }
         }
     }
 }
-#EndRegion '.\Public\UnifiedAuditLog\Get-IRTUnifiedAuditLog.ps1' 821
+#EndRegion '.\Public\UnifiedAuditLog\Get-IRTUnifiedAuditLog.ps1' 928
 #Region '.\Public\UnifiedAuditLog\Open-IRTAllOperationsSheet.ps1' -1
 
 function Open-IRTAllOperationsSheet {
@@ -21329,22 +22183,76 @@ function Find-IRTUser {
     .SYNOPSIS
     Finds graph user by displayname, email address, or user id guid. Creates $UserObjects variable.
 
-    .EXAMPLE
-    Find-IRTUser flast
-    Find-IRTUser -Search flast,flast,flast
-    Find-IRTUser flast@domain.com
-    Find-IRTUser -Search bf7573a5844f (partial user id number)
+    .DESCRIPTION
+    Searches Graph users for one or more search strings. Each string is matched against
+    DisplayName, UserPrincipalName, the user object id, ProxyAddresses, and
+    OnPremisesSamAccountName.
 
-    .EXAMPLE
-    Find-IRTUser -FromClipboard
-    Reads the clipboard and searches for each line as a separate query.
+    Matching users are stored in $Global:IRT_UserObjects. Use -VarPrefix to change the variable
+    name (e.g. 'Admin' > $Global:IRT_AdminUserObjects). A search that returns more than one user
+    is reported but contributes nothing unless -AllMatches is used. Use -Script to suppress
+    global side effects and return the objects directly.
+
+    .PARAMETER Search
+    One or more search strings. Each string is independently searched across all supported
+    fields.
 
     .PARAMETER FromClipboard
     Read one search query per line from the clipboard instead of supplying -Search. Each
     non-empty line is treated as a separate search string. Mutually exclusive with -Search.
 
+    .PARAMETER VarPrefix
+    Optional prefix inserted after 'IRT_' in the global variable name
+    (e.g. 'Admin' > $Global:IRT_AdminUserObjects). Useful when working with multiple sets of
+    users simultaneously.
+
+    .PARAMETER Cached
+    Search the cached user list instead of requesting fresh users from Graph.
+
+    .PARAMETER Script
+    Return objects directly and suppress console output and global variable assignment. Use when
+    calling from scripts or the playbook.
+
+    .PARAMETER AllMatches
+    Keep every user returned by a search instead of only searches that match exactly one user.
+    Results are deduplicated by user object id.
+
+    .EXAMPLE
+    ```powershell
+    Find-IRTUser flast
+    ```
+    Finds users matching 'flast' and creates $IRT_UserObjects.
+
+    .EXAMPLE
+    ```powershell
+    Find-IRTUser -Search flast,jsmith
+    ```
+    Searches for two users, one query per string.
+
+    .EXAMPLE
+    ```powershell
+    Find-IRTUser bf7573a5844f
+    ```
+    Searches by partial user id. Email addresses and proxy addresses also match.
+
+    .EXAMPLE
+    ```powershell
+    $Users = Find-IRTUser -Search 'flast' -AllMatches -Script
+    ```
+    Returns every matching user object without setting globals or writing to the console.
+
+    .EXAMPLE
+    ```powershell
+    Find-IRTUser -FromClipboard
+    ```
+    Reads the clipboard and searches for each line as a separate query.
+
+    .OUTPUTS
+    System.Management.Automation.PSObject[]
+
     .NOTES
-    Version: 1.3.0
+    Version: 1.3.1
+    1.3.1 - Added missing help sections so PlatyPS can generate the command page.
     1.3.0 - Added -FromClipboard to read one search query per clipboard line.
     1.2.0 - Added -AllMatches to collect all matching users and deduplicate results.
     1.1.4 - Fixed bug with $UserObjects not being a collection.
@@ -21465,7 +22373,7 @@ function Find-IRTUser {
         }
     }
 }
-#EndRegion '.\Public\User\Find-IRTUser.ps1' 142
+#EndRegion '.\Public\User\Find-IRTUser.ps1' 196
 #Region '.\Public\User\Reset-IRTUserPassword.ps1' -1
 
 function Reset-IRTUserPassword {
@@ -21535,33 +22443,47 @@ function Reset-IRTUserPassword {
     Use this to undo a previous -ForceChangePasswordNextSignIn call.
 
     .EXAMPLE
+    ```powershell
     Reset-IRTUserPassword -RandomCharacters
+    ```
     Resets the password for the user stored in the global session using a random password.
     The new password is printed to the console.
 
     .EXAMPLE
+    ```powershell
     Reset-IRTUserPassword -UserObject $User -RandomCharacters
+    ```
     Resets the password for a specific user object using a random password.
 
     .EXAMPLE
+    ```powershell
     Reset-IRTUserPassword -Custom
+    ```
     Prompts the operator to enter a custom password, then applies it to the global session user.
 
     .EXAMPLE
+    ```powershell
     Reset-IRTUserPassword -UserObject $User -ForceChangePasswordNextSignIn
+    ```
     Forces the user to set a new password (with MFA) on their next sign-in, without
     changing the current password.
 
     .EXAMPLE
+    ```powershell
     Reset-IRTUserPassword -RandomCharacters -Length 48
+    ```
     Resets the password using a random 48-character password.
 
     .EXAMPLE
+    ```powershell
     Reset-IRTUserPassword -UserObject $User -RandomCharacters -WhatIf
+    ```
     Shows what would happen without actually resetting the password.
 
     .EXAMPLE
+    ```powershell
     Reset-IRTUserPassword -UserObject $User -ClearForceChangePasswordNextSignIn
+    ```
     Clears the forced-change flag on the user's account.
 
     .OUTPUTS
@@ -21710,7 +22632,7 @@ function Reset-IRTUserPassword {
         }
     }
 }
-#EndRegion '.\Public\User\Reset-IRTUserPassword.ps1' 243
+#EndRegion '.\Public\User\Reset-IRTUserPassword.ps1' 257
 #Region '.\Public\User\Revoke-IRTUserSession.ps1' -1
 
 function Revoke-IRTUserSession {
@@ -21905,11 +22827,15 @@ function Show-IRTUser {
     objects if omitted.
 
     .EXAMPLE
+    ```powershell
     Show-IRTUser
+    ```
     Displays info for the user stored in the global session.
 
     .EXAMPLE
+    ```powershell
     Show-IRTUser -UserObject $User
+    ```
     Displays info for a specific user object.
 
     .OUTPUTS
@@ -21985,7 +22911,7 @@ function Show-IRTUser {
         }
     }
 }
-#EndRegion '.\Public\User\Show-IRTUser.ps1' 98
+#EndRegion '.\Public\User\Show-IRTUser.ps1' 102
 #Region '.\Public\User\Show-IRTUserMfa.ps1' -1
 
 function Show-IRTUserMfa {
@@ -22017,11 +22943,15 @@ function Show-IRTUserMfa {
     Open the Excel file immediately after export. Default: $true.
 
     .EXAMPLE
+    ```powershell
     Show-IRTUserMfa
+    ```
     Displays MFA methods for the user in the global session.
 
     .EXAMPLE
+    ```powershell
     Show-IRTUserMfa -UserObject $User
+    ```
     Displays MFA methods for a specific user.
 
     .OUTPUTS
@@ -22480,7 +23410,7 @@ function Show-IRTUserMfa {
         }
     }
 }
-#EndRegion '.\Public\User\Show-IRTUserMfa.ps1' 493
+#EndRegion '.\Public\User\Show-IRTUserMfa.ps1' 497
 #Region '.\Public\Utility\Compress-IRTInvestigationFolder.ps1' -1
 
 function Compress-IRTInvestigationFolder {
@@ -22591,17 +23521,23 @@ function Copy-IRTFunction {
     Accepts pipeline input.
 
     .EXAMPLE
+    ```powershell
     Copy-IRTFunction
+    ```
 
     Copies the default set of IRT helper functions to the clipboard.
 
     .EXAMPLE
+    ```powershell
     Copy-IRTFunction -FunctionName 'Get-IRTMessageTrace'
+    ```
 
     Copies the default set plus Get-IRTMessageTrace.
 
     .EXAMPLE
+    ```powershell
     'Get-IRTInboxRule', 'Get-IRTMessageTrace' | Copy-IRTFunction
+    ```
 
     Copies the default set plus both named functions via the pipeline.
 
@@ -22746,7 +23682,7 @@ if (-not `$Global:IRT_Config) {
         Write-IRT "Copied $Resolved function(s) to clipboard."
     }
 }
-#EndRegion '.\Public\Utility\Copy-IRTFunction.ps1' 180
+#EndRegion '.\Public\Utility\Copy-IRTFunction.ps1' 186
 #Region '.\Public\Utility\Find-IRTDirectoryObject.ps1' -1
 
 function Find-IRTDirectoryObject {
@@ -22885,11 +23821,15 @@ function Get-IRTLicenseReport {
     so existing callers do not break.
 
     .EXAMPLE
+    ```powershell
     Get-IRTLicenseReport
+    ```
     Displays a color-formatted license table in the console.
 
     .EXAMPLE
+    ```powershell
     $Licenses = Get-IRTLicenseReport -Objects
+    ```
     Returns raw license objects for further processing.
 
     .OUTPUTS
@@ -22974,7 +23914,7 @@ function Get-IRTLicenseReport {
 
                 # highlight E5 SKUs in yellow - they unlock extra security tooling
                 $IsE5 = $_.LicenseFullName -match '\bE5\b' -or
-                    $_.SkuPartNumber -match 'SPE_E5|ENTERPRISEPREMIUM'
+                $_.SkuPartNumber -match 'SPE_E5|ENTERPRISEPREMIUM'
                 if ( $IsE5 ) {
                     $E5Licenses.Add( $LicenseName )
                     $LicenseName = "${Highlight}${LicenseName}${Reset}"
@@ -23003,7 +23943,7 @@ function Get-IRTLicenseReport {
         }
     }
 }
-#EndRegion '.\Public\Utility\Get-IRTLicenseReport.ps1' 139
+#EndRegion '.\Public\Utility\Get-IRTLicenseReport.ps1' 143
 #Region '.\Public\Utility\Import-IRT.ps1' -1
 
 function Import-IRT {
@@ -23019,7 +23959,9 @@ function Import-IRT {
         import penalty.
 
     .EXAMPLE
+        ```powershell
         Import-IRT
+        ```
 
         Loads M365IncidentResponseTools into the current session. Run this once at
         the start of a session to warm up the module before using any IRT commands.
@@ -23037,7 +23979,7 @@ function Import-IRT {
     [OutputType([void])]
     param()
 }
-#EndRegion '.\Public\Utility\Import-IRT.ps1' 32
+#EndRegion '.\Public\Utility\Import-IRT.ps1' 34
 #Region '.\Public\Utility\Import-IRTConfig.ps1' -1
 
 function Import-IRTConfig {
@@ -23125,11 +24067,15 @@ function New-IRTInvestigationFolder {
     Optional ticket or case number to include in the folder name.
 
     .EXAMPLE
+    ```powershell
     New-IRTInvestigationFolder
+    ```
     Creates a folder like: investigation_contoso_jsmith_26-05-03_14-30
 
     .EXAMPLE
+    ```powershell
     New-IRTInvestigationFolder -Ticket 'INC-1234' -UserObject $User
+    ```
     Creates a folder that includes the ticket number and user name.
 
     .OUTPUTS
@@ -23227,7 +24173,7 @@ function New-IRTInvestigationFolder {
         }
     }
 }
-#EndRegion '.\Public\Utility\New-IRTInvestigationFolder.ps1' 124
+#EndRegion '.\Public\Utility\New-IRTInvestigationFolder.ps1' 128
 #Region '.\Public\Utility\Open-IRTConfig.ps1' -1
 
 function Open-IRTConfig {
@@ -23594,16 +24540,22 @@ function Start-IRTPlaybook {
     limited memory or Graph throttling is a concern.
 
     .EXAMPLE
+    ```powershell
     Find-GraphUser 'jsmith@contoso.com'
     Start-IRTPlaybook
+    ```
     Look up a user, then run the full playbook using the global user object.
 
     .EXAMPLE
+    ```powershell
     Start-IRTPlaybook -UserObject $User -Ticket 'INC-1234'
+    ```
     Run the playbook for an already-resolved user object and name the output folder INC-1234.
 
     .EXAMPLE
+    ```powershell
     Start-IRTPlaybook -UserObject $User -NoFolder -MaxRunspaces 5
+    ```
     Run without writing files, using a limited runspace pool.
 
     .OUTPUTS
@@ -23946,7 +24898,7 @@ function Start-IRTPlaybook {
                 $InitialSessionState.Variables.Add($SsveType::new($Key, $SharedRefs[$Key], ''))
             }
 
-            # Seed the dependency-check table too. Confirm-Dependencies.ps1
+            # Seed the dependency-check table too. Confirm-Dependency.ps1
             # (ScriptsToProcess) records each verified module root in the generic
             # $Global:ModuleDependenciesChecked hashtable; passing it down lets the
             # parallel runspaces skip the Get-Module -ListAvailable scan the parent
@@ -24062,7 +25014,7 @@ function Start-IRTPlaybook {
             "${FunctionName}: Playbook complete. Total elapsed: $TotalElapsed")
     }
 }
-#EndRegion '.\Public\Utility\Start-IRTPlaybook.ps1' 503
+#EndRegion '.\Public\Utility\Start-IRTPlaybook.ps1' 509
 #Region '.\Suffix.ps1' -1
 
 # ModuleBuilder Notes: Code in this file will be appended to the built .psm1 file.
@@ -24138,4 +25090,3 @@ if ($Global:IRT_LoadStopwatch) {
     Remove-Variable -Name 'IRT_LoadStopwatch' -Scope Global
 }
 #EndRegion '.\Suffix.ps1' 73
-

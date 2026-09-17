@@ -18,11 +18,15 @@ function Show-IRTMailbox {
     Use pre-cached Exchange data where available instead of making new API calls.
 
     .EXAMPLE
+    ```powershell
     Show-IRTMailbox
+    ```
     Displays mailbox details for the user in the global session.
 
     .EXAMPLE
+    ```powershell
     Show-IRTMailbox -UserObject $User
+    ```
     Displays mailbox details for a specific user.
 
     .OUTPUTS

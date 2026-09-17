@@ -1,10 +1,10 @@
 #Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.0.0' }
 
 BeforeAll {
-    . (Join-Path -Path $PSScriptRoot -ChildPath '..\..\source\Private\Graph\Resolve-DateRange.ps1')
+    . (Join-Path -Path $PSScriptRoot -ChildPath '../../Source/Private/Graph/Resolve-DateRange.ps1')
 }
 
-Describe 'Resolve-DateRange' {
+Describe 'Resolve-DateRange' -Tag 'unit' {
 
     Context 'Relative range (-Days)' {
         It 'returns RangeType of Relative' {

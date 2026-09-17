@@ -28,11 +28,15 @@ function Get-IRTInboxRule {
     Export raw XML alongside the Excel file. Defaults to IRT_Config.ExportXml.
 
     .EXAMPLE
+    ```powershell
     Get-IRTInboxRule
+    ```
     Retrieves and exports inbox rules for the user in the global session.
 
     .EXAMPLE
+    ```powershell
     Get-IRTInboxRule -UserObject $User
+    ```
     Retrieves inbox rules for a specific user.
 
     .OUTPUTS

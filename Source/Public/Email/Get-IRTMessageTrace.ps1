@@ -54,15 +54,21 @@ function Get-IRTMessageTrace {
     Excel font name. Defaults to IRT_Config.ExcelFont.
 
     .EXAMPLE
+    ```powershell
     Get-IRTMessageTrace
+    ```
     Downloads message trace for the user in the global session (last 10 days).
 
     .EXAMPLE
+    ```powershell
     Get-IRTMessageTrace -UserObject $User -Days 30
+    ```
     Downloads 30 days of message trace for a specific user.
 
     .EXAMPLE
+    ```powershell
     Get-IRTMessageTrace -AllUsers -Start '2026-04-01' -End '2026-04-30'
+    ```
     Downloads all tenant message trace for April 2026.
 
     .OUTPUTS

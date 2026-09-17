@@ -117,7 +117,7 @@ InModuleScope M365IncidentResponseTools {
         }
     }
 
-    Describe 'Connect-IRTIPPS' {
+    Describe 'Connect-IRTIPPS' -Tag 'unit' {
 
         BeforeEach {
             $script:SavedSession = (

@@ -59,7 +59,7 @@ InModuleScope M365IncidentResponseTools {
         }
     }
 
-    Describe 'Get-IRTPublicClient' {
+    Describe 'Get-IRTPublicClient' -Tag 'integration' {
 
         BeforeEach {
             $script:SavedSession = (

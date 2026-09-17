@@ -9,11 +9,15 @@ function Find-IRTDomainController {
     a reachable domain controller; exits with an error if AD is unavailable.
 
     .EXAMPLE
+    ```powershell
     Find-IRTDomainController
+    ```
     Returns the Name of every domain controller in the domain.
 
     .EXAMPLE
+    ```powershell
     $DCs = Find-IRTDomainController
+    ```
     Captures the list of DC names for use in a loop or downstream command.
 
     .OUTPUTS

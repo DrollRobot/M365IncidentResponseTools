@@ -11,4 +11,3 @@ $Path = "$ModuleRoot\Source\M365IncidentResponseTools.psd1" # source
 # $Path = "$ModuleRoot\M365IncidentResponseTools.psd1" # built
 Write-Host "Importing from: $Path" -ForegroundColor Green
 Import-Module $Path -Force
-

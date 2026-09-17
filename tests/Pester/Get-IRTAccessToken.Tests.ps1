@@ -11,7 +11,7 @@
     GetAccountsAsync / AcquireTokenSilent script-methods return completed .NET
     Tasks, so the production GetAwaiter().GetResult() call chain executes for
     real without any network I/O. Live token acquisition is covered by the
-    Online-tagged tests in Connect-IRT.Tests.ps1.
+    'live'-tagged tests in Connect-IRT.Tests.ps1.
 
 -- guard rails ------------------------------------------------------------
 
@@ -180,7 +180,7 @@ InModuleScope M365IncidentResponseTools {
         }
     }
 
-    Describe 'Get-IRTAccessToken' {
+    Describe 'Get-IRTAccessToken' -Tag 'unit' {
 
         BeforeEach {
             $script:SavedSession = (
