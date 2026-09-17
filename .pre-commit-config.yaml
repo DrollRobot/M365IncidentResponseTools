@@ -1,0 +1,69 @@
+# .pre-commit-config.yaml
+
+# install
+# powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+# curl -LsSf https://astral.sh/uv/install.sh | sh
+# uv tool install pre-commit
+# pre-commit install
+# pre-commit install --hook-type pre-push
+# pre-commit autoupdate
+
+# exclude build artifacts
+exclude: '^Output/'
+
+default_stages: [pre-commit]
+
+ci:
+  autoupdate_schedule: monthly
+
+repos:
+  # Generic hygiene
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-added-large-files
+      - id: check-merge-conflict
+
+  # detect-secrets
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+      - id: detect-secrets
+        args: ['--baseline', '.secrets.baseline']
+
+  # PowerShell lint checks
+  - repo: local
+    hooks:
+      - id: ps-module-syntax
+        name: PowerShell syntax
+        entry: pwsh -NoProfile -File Tests.ps1 -Test ModuleSyntax -Quiet
+        language: system
+        files: \.(ps1|psm1|psd1)$
+
+      - id: ps-lint
+        name: PowerShell lint
+        entry: pwsh -NoProfile -File Tests.ps1 -Test Lint -Quiet
+        language: system
+        files: \.(ps1|psm1|psd1)$
+
+  # Pre-push checks
+  - repo: local
+    hooks:
+      - id: pester-prepush
+        name: pester (prepush)
+        entry: pwsh -NoProfile -File Tests.ps1 -Test NotLive -Quiet
+        language: system
+        stages: [pre-push]
+        pass_filenames: false
+        always_run: true
+
+      - id: pssa-prepush
+        name: PSScriptAnalyzer (prepush)
+        entry: pwsh -NoProfile -File Tests.ps1 -Test PSSA -Quiet
+        language: system
+        stages: [pre-push]
+        pass_filenames: false
+        always_run: true
