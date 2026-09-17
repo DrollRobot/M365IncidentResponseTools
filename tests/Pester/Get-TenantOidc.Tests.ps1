@@ -7,11 +7,11 @@
 param()
 
 BeforeAll {
-    $Dir = Join-Path -Path $PSScriptRoot -ChildPath '..\..\source\Public\Lib'
+    $Dir = Join-Path -Path $PSScriptRoot -ChildPath '../../Source/Public/Lib'
     . (Join-Path -Path $Dir -ChildPath 'Get-TenantOidc.ps1')
 }
 
-Describe 'Get-TenantOidc -CloudTable' {
+Describe 'Get-TenantOidc -CloudTable' -Tag 'unit' {
 
     BeforeAll {
         $Table = Get-TenantOidc -CloudTable

@@ -55,7 +55,7 @@ InModuleScope M365IncidentResponseTools {
         }
     }
 
-    Describe 'Select-IRTMsalAccount' {
+    Describe 'Select-IRTMsalAccount' -Tag 'unit' {
 
         Context 'environment filtering' {
 

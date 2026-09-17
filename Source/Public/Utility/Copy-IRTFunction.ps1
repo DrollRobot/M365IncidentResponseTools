@@ -22,17 +22,23 @@ function Copy-IRTFunction {
     Accepts pipeline input.
 
     .EXAMPLE
+    ```powershell
     Copy-IRTFunction
+    ```
 
     Copies the default set of IRT helper functions to the clipboard.
 
     .EXAMPLE
+    ```powershell
     Copy-IRTFunction -FunctionName 'Get-IRTMessageTrace'
+    ```
 
     Copies the default set plus Get-IRTMessageTrace.
 
     .EXAMPLE
+    ```powershell
     'Get-IRTInboxRule', 'Get-IRTMessageTrace' | Copy-IRTFunction
+    ```
 
     Copies the default set plus both named functions via the pipeline.
 

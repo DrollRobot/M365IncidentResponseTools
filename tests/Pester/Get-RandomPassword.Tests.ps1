@@ -1,11 +1,11 @@
 #Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.0.0' }
 
 BeforeAll {
-    $RelPath = '..\..\source\Private\Utility\Get-RandomPassword.ps1'
+    $RelPath = '../../Source/Private/Utility/Get-RandomPassword.ps1'
     . (Join-Path -Path $PSScriptRoot -ChildPath $RelPath)
 }
 
-Describe 'Get-RandomPassword' {
+Describe 'Get-RandomPassword' -Tag 'unit' {
 
     Context 'Length' {
         It 'returns a string of the requested length' {

@@ -136,7 +136,7 @@
 
 InModuleScope M365IncidentResponseTools {
 
-    Describe 'Add-IpInfoToSheet' {
+    Describe 'Add-IpInfoToSheet' -Tag 'unit' {
 
         BeforeAll {
             Mock Write-IRT {}

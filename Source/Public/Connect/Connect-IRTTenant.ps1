@@ -13,7 +13,7 @@ function Connect-IRTTenant {
     across multiple tenants belonging to the same client.
 
     The tenants worksheet should be stored at $env:APPDATA\M365IncidentResponseTools\tenants.xlsx.
-    A template file (TenantsTemplate.xlsx) is included in the Data folder for reference.
+    Run Open-IRTTenantSheet to generate a starter worksheet with the expected columns.
 
     .PARAMETER Alias
     A string to match against tenant alias patterns. Matched as a regex against the
@@ -39,15 +39,21 @@ function Connect-IRTTenant {
     Open the browser in private/incognito mode.
 
     .EXAMPLE
+    ```powershell
     Connect-IRTTenant contoso
+    ```
     Looks up 'contoso' in the tenants worksheet and connects to all services.
 
     .EXAMPLE
+    ```powershell
     Connect-IRTTenant fab -Graph
+    ```
     Looks up 'fab' in the tenants worksheet and connects to Graph only.
 
     .EXAMPLE
+    ```powershell
     irttenant bestcompany
+    ```
     Uses the alias to connect to the matching tenant.
 
     .NOTES
@@ -55,7 +61,7 @@ function Connect-IRTTenant {
     1.2.0 - Multiple-match now prompts user with a selection menu instead of throwing.
     1.1.0 - Updated to use xlsx file instead of csv.
     #>
-    [Alias('IRTTenant')]
+    [Alias('IRTTenant', 'TenantIRT')]
     [CmdletBinding()]
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
         'PSAvoidUsingPlainTextForPassword', 'PasswordBrowser')]

@@ -68,8 +68,6 @@
     .\Remove-WorkTree.ps1 issue-42 -Yes
 
 .NOTES
-    Script version 1.2.1.
-
     Requirements:
       - PowerShell 7.4 or later.
       - The PR for 'wt/<slug>' has already been merged into the integration branch.
@@ -110,10 +108,9 @@ param(
 $ErrorActionPreference = 'Stop'
 $PSNativeCommandUseErrorActionPreference = $true
 
-# Version of this helper script itself. Bump on every change so copies in other
-# repos can be compared: patch = bugfix, minor = new flag/behavior, major =
-# breaking CLI change.
-$ScriptVersion = '1.2.1'
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+    'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
+$ScriptVersion = '1.2.3'
 
 # Answer every confirmation prompt with 'y' (set from -Yes). Script-scoped so
 # the helper functions below can read it.
@@ -191,7 +188,7 @@ function Invoke-Step {
         $branch = git branch --show-current
         Write-Host "Repository is currently on branch '$branch'." -ForegroundColor Yellow
         Write-Host "Any steps already completed above have NOT been undone." -ForegroundColor Yellow
-        exit 1
+        throw 'Aborted by user.'
     }
     & $Action
 }
@@ -273,7 +270,8 @@ function Read-WorktreeChoice {
 
 # --- intro (shown up front, before anything is touched) ---------------------
 
-Write-Info "Script version" $ScriptVersion
+if ($MyInvocation.InvocationName -eq '.') { return }
+
 Write-Host ''
 
 Write-Host 'Remove-WorkTree - tear down a finished worktree' -ForegroundColor Cyan
@@ -347,7 +345,7 @@ if (-not $branchExists) {
 if (-not $wtRegistered -and -not $branchExists) {
     Write-Host ''
     Write-Host "Nothing to clean up for slug '$Slug'." -ForegroundColor Green
-    exit 0
+    return
 }
 
 # Operate from the main worktree for every step. This guarantees the worktree

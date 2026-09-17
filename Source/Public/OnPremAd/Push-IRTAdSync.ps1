@@ -27,15 +27,21 @@ function Push-IRTAdSync {
     Maximum number of parallel runspaces used for server discovery. Default: 20.
 
     .EXAMPLE
+    ```powershell
     Push-IRTAdSync
+    ```
     Automatically discovers and triggers a delta sync.
 
     .EXAMPLE
+    ```powershell
     Push-IRTAdSync -SyncServer 'sync01.contoso.com'
+    ```
     Triggers sync on a known server without discovery.
 
     .EXAMPLE
+    ```powershell
     Push-IRTAdSync -ResetCredentials
+    ```
     Re-prompts for domain admin credentials before syncing.
 
     .OUTPUTS

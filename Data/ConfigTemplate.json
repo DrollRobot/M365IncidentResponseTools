@@ -18,5 +18,5 @@
     "IPConditionalFormattingTemplatePath": null,
     "LogFolderPath": null,
     "PlaybookOpenNewTab": true,
-    "EmailSearchNamePrefix": "IRT: "
+    "JobNamePrefix": "IRT: "
 }

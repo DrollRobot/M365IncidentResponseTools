@@ -1,11 +1,11 @@
 #Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.0.0' }
 
 BeforeAll {
-    $RelPath = '..\..\source\Private\Utility\Format-PhoneNumber.ps1'
+    $RelPath = '../../Source/Private/Utility/Format-PhoneNumber.ps1'
     . (Join-Path -Path $PSScriptRoot -ChildPath $RelPath)
 }
 
-Describe 'Format-PhoneNumber' {
+Describe 'Format-PhoneNumber' -Tag 'unit' {
 
     Context 'US/Canada numbers (+1)' {
         It 'formats +1 to 123-456-7890' {

@@ -12,11 +12,15 @@ function Show-IRTAdUser {
     One or more AD user objects to display. Falls back to global session objects if omitted.
 
     .EXAMPLE
+    ```powershell
     Show-IRTAdUser
+    ```
     Displays info for the user(s) in the global session.
 
     .EXAMPLE
+    ```powershell
     Show-IRTAdUser -UserObjects $AdUser
+    ```
     Displays info for a specific AD user object.
 
     .OUTPUTS

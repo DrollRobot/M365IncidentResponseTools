@@ -3,6 +3,7 @@ site_description: PowerShell module for Microsoft 365 incident response investig
 site_url: https://DrollRobot.github.io/M365IncidentResponseTools/
 repo_url: https://github.com/DrollRobot/M365IncidentResponseTools
 repo_name: DrollRobot/M365IncidentResponseTools
+docs_dir: Docs
 
 theme:
   name: material
@@ -36,84 +37,98 @@ nav:
   - Home: index.md
   - Getting Started: getting-started.md
   - Connect to M365: connect.md
-  - Investigation: investigation.md
-  - Remediation: remediation.md
+  - Investigation:
+    - Users: investigation-user.md
+    - Service Principals: investigation-sp.md
+  - Devices: devices.md
+  - Remediation:
+    - M365: remediation-user.md
+    - On-Premises AD: remediation-ad.md
   - Command Reference:
-    - Overview: commands/M365IncidentResponseTools.md
     - Playbook:
-      - Start-IRTPlaybook: commands/Start-IRTPlaybook.md
-    - Applications:
-      - Find-RiskyApplication: commands/Find-RiskyApplication.md
-      - Get-IRTTenantInfo: commands/Get-IRTTenantInfo.md
-      - Get-UserApplication: commands/Get-UserApplication.md
-      - Show-TenantServicePrincipal: commands/Show-TenantServicePrincipal.md
+      - Start-IRTPlaybook: M365IncidentResponseTools/Start-IRTPlaybook.md
     - Connect:
-      - Connect-IRT: commands/Connect-IRT.md
-      - Connect-IRTExchange: commands/Connect-IRTExchange.md
-      - Connect-IRTGraph: commands/Connect-IRTGraph.md
-      - Connect-IRTIPPS: commands/Connect-IRTIPPS.md
-      - Connect-IRTTenant: commands/Connect-IRTTenant.md
-      - Disconnect-IRT: commands/Disconnect-IRT.md
-      - Open-IRTTenantWorksheet: commands/Open-IRTTenantWorksheet.md
-      - Test-IRTConnection: commands/Test-IRTConnection.md
+      - Clear-IRTTokenCache: M365IncidentResponseTools/Clear-IRTTokenCache.md
+      - Connect-IRT: M365IncidentResponseTools/Connect-IRT.md
+      - Connect-IRTRunspaceExchange: M365IncidentResponseTools/Connect-IRTRunspaceExchange.md
+      - Connect-IRTTenant: M365IncidentResponseTools/Connect-IRTTenant.md
+      - Disconnect-IRT: M365IncidentResponseTools/Disconnect-IRT.md
+      - Get-IRTAccessToken: M365IncidentResponseTools/Get-IRTAccessToken.md
+      - Open-IRTTab: M365IncidentResponseTools/Open-IRTTab.md
+      - Test-IRTConnection: M365IncidentResponseTools/Test-IRTConnection.md
+      - Update-IRTToken: M365IncidentResponseTools/Update-IRTToken.md
     - Devices:
-      - Show-DeviceInfo: commands/Show-DeviceInfo.md
+      - Disable-IRTDevice: M365IncidentResponseTools/Disable-IRTDevice.md
+      - Enable-IRTDevice: M365IncidentResponseTools/Enable-IRTDevice.md
+      - Find-IRTDevice: M365IncidentResponseTools/Find-IRTDevice.md
+      - Get-IRTAllEntraDevice: M365IncidentResponseTools/Get-IRTAllEntraDevice.md
+      - Remove-IRTDevice: M365IncidentResponseTools/Remove-IRTDevice.md
+      - Show-IRTDevice: M365IncidentResponseTools/Show-IRTDevice.md
+    - Email:
+      - Get-IRTEmailSearch: M365IncidentResponseTools/Get-IRTEmailSearch.md
+      - Get-IRTMessageTrace: M365IncidentResponseTools/Get-IRTMessageTrace.md
+      - New-IRTEmailSearch: M365IncidentResponseTools/New-IRTEmailSearch.md
+      - Show-IRTMessageTrace: M365IncidentResponseTools/Show-IRTMessageTrace.md
     - Entra Logs:
-      - Get-EntraAuditLog: commands/Get-EntraAuditLog.md
-      - Get-NonInteractiveLog: commands/Get-NonInteractiveLog.md
-      - Get-SignInLog: commands/Get-SignInLog.md
-      - Show-EntraAuditLog: commands/Show-EntraAuditLog.md
-      - Show-SignInLog: commands/Show-SignInLog.md
+      - Get-IRTEntraAuditLog: M365IncidentResponseTools/Get-IRTEntraAuditLog.md
+      - Get-IRTEntraSignInLog: M365IncidentResponseTools/Get-IRTEntraSignInLog.md
+      - Get-IRTNonInteractiveSignIn: M365IncidentResponseTools/Get-IRTNonInteractiveSignIn.md
+      - Get-IRTServicePrincipalSignInLog: M365IncidentResponseTools/Get-IRTServicePrincipalSignInLog.md
+      - Show-IRTEntraAuditLog: M365IncidentResponseTools/Show-IRTEntraAuditLog.md
+      - Show-IRTEntraSignInLog: M365IncidentResponseTools/Show-IRTEntraSignInLog.md
+      - Show-IRTServicePrincipalSignIn: M365IncidentResponseTools/Show-IRTServicePrincipalSignIn.md
     - Mailbox:
-      - Get-IRTInboxRule: commands/Get-IRTInboxRule.md
-      - Get-UserMailboxPermission: commands/Get-UserMailboxPermission.md
-      - Grant-MailboxFullAccess: commands/Grant-MailboxFullAccess.md
-      - Open-MailboxInOWA: commands/Open-MailboxInOWA.md
-      - Remove-MailboxFullAccess: commands/Remove-MailboxFullAccess.md
-      - Show-Mailbox: commands/Show-Mailbox.md
-      - Show-MailboxAccess: commands/Show-MailboxAccess.md
-    - Message Trace:
-      - Get-IRTMessageTrace: commands/Get-IRTMessageTrace.md
-      - Show-IRTMessageTrace: commands/Show-IRTMessageTrace.md
+      - Add-IRTMailboxFullAccess: M365IncidentResponseTools/Add-IRTMailboxFullAccess.md
+      - Get-IRTInboxRule: M365IncidentResponseTools/Get-IRTInboxRule.md
+      - Open-IRTMailboxInOwa: M365IncidentResponseTools/Open-IRTMailboxInOwa.md
+      - Remove-IRTMailboxFullAccess: M365IncidentResponseTools/Remove-IRTMailboxFullAccess.md
+      - Show-IRTMailbox: M365IncidentResponseTools/Show-IRTMailbox.md
+      - Show-IRTMailboxAccess: M365IncidentResponseTools/Show-IRTMailboxAccess.md
     - Roles:
-      - Get-AdminRole: commands/Get-AdminRole.md
+      - Get-IRTAdminRole: M365IncidentResponseTools/Get-IRTAdminRole.md
+    - Service Principals:
+      - Find-IRTRiskyServicePrincipal: M365IncidentResponseTools/Find-IRTRiskyServicePrincipal.md
+      - Find-IRTServicePrincipal: M365IncidentResponseTools/Find-IRTServicePrincipal.md
+      - Get-IRTServicePrincipal: M365IncidentResponseTools/Get-IRTServicePrincipal.md
+      - Get-IRTTenantOwner: M365IncidentResponseTools/Get-IRTTenantOwner.md
+      - Get-IRTUserServicePrincipal: M365IncidentResponseTools/Get-IRTUserServicePrincipal.md
+      - Open-IRTTenantOwnerCSV: M365IncidentResponseTools/Open-IRTTenantOwnerCSV.md
+      - Open-IRTTenantSheet: M365IncidentResponseTools/Open-IRTTenantSheet.md
+      - Show-IRTServicePrincipal: M365IncidentResponseTools/Show-IRTServicePrincipal.md
     - Unified Audit Log:
-      - Get-UALog: commands/Get-UALog.md
-      - Show-UALog: commands/Show-UALog.md
+      - Get-IRTUnifiedAuditLog: M365IncidentResponseTools/Get-IRTUnifiedAuditLog.md
+      - Open-IRTAllOperationsSheet: M365IncidentResponseTools/Open-IRTAllOperationsSheet.md
+      - Show-IRTUnifiedAuditLog: M365IncidentResponseTools/Show-IRTUnifiedAuditLog.md
     - Users:
-      - Find-User: commands/Find-User.md
-      - Get-FullUserObject: commands/Get-FullUserObject.md
-      - Revoke-UserSession: commands/Revoke-UserSession.md
-      - Set-UsageLocation: commands/Set-UsageLocation.md
-      - Show-UserInfo: commands/Show-UserInfo.md
-      - Show-UserMFA: commands/Show-UserMFA.md
+      - Disable-IRTUser: M365IncidentResponseTools/Disable-IRTUser.md
+      - Enable-IRTUser: M365IncidentResponseTools/Enable-IRTUser.md
+      - Find-IRTUser: M365IncidentResponseTools/Find-IRTUser.md
+      - Reset-IRTUserPassword: M365IncidentResponseTools/Reset-IRTUserPassword.md
+      - Revoke-IRTUserSession: M365IncidentResponseTools/Revoke-IRTUserSession.md
+      - Set-IRTUserUsageLocation: M365IncidentResponseTools/Set-IRTUserUsageLocation.md
+      - Show-IRTUser: M365IncidentResponseTools/Show-IRTUser.md
+      - Show-IRTUserMfa: M365IncidentResponseTools/Show-IRTUserMfa.md
     - Utilities:
-      - Compress-InvestigationFolder: commands/Compress-InvestigationFolder.md
-      - Copy-IRTFunction: commands/Copy-IRTFunction.md
-      - Find-GraphDirectoryObject: commands/Find-GraphDirectoryObject.md
-      - Get-IRTUserObject: commands/Get-IRTUserObject.md
-      - Get-LicenseReport: commands/Get-LicenseReport.md
-      - Import-IRTConfig: commands/Import-IRTConfig.md
-      - New-InvestigationFolder: commands/New-InvestigationFolder.md
-      - Open-IRTConfig: commands/Open-IRTConfig.md
-      - Request-DirectoryRole: commands/Request-DirectoryRole.md
-      - Request-DirectoryRoleTemplate: commands/Request-DirectoryRoleTemplate.md
-      - Request-GraphDevice: commands/Request-GraphDevice.md
-      - Request-GraphGroup: commands/Request-GraphGroup.md
-      - Request-GraphOauth2Grant: commands/Request-GraphOauth2Grant.md
-      - Request-GraphServicePrincipal: commands/Request-GraphServicePrincipal.md
-      - Request-GraphUser: commands/Request-GraphUser.md
-      - Resolve-IRTDateRange: commands/Resolve-IRTDateRange.md
-      - Set-IRTConfig: commands/Set-IRTConfig.md
-      - Write-IRT: commands/Write-IRT.md
+      - Compress-IRTInvestigationFolder: M365IncidentResponseTools/Compress-IRTInvestigationFolder.md
+      - Copy-IRTFunction: M365IncidentResponseTools/Copy-IRTFunction.md
+      - Find-IRTDirectoryObject: M365IncidentResponseTools/Find-IRTDirectoryObject.md
+      - Get-IRTLicenseReport: M365IncidentResponseTools/Get-IRTLicenseReport.md
+      - Get-TenantOidc: M365IncidentResponseTools/Get-TenantOidc.md
+      - Import-IRT: M365IncidentResponseTools/Import-IRT.md
+      - Import-IRTConfig: M365IncidentResponseTools/Import-IRTConfig.md
+      - New-IRTInvestigationFolder: M365IncidentResponseTools/New-IRTInvestigationFolder.md
+      - Open-IRTConfig: M365IncidentResponseTools/Open-IRTConfig.md
+      - Set-IRTConfig: M365IncidentResponseTools/Set-IRTConfig.md
     - On-Premises AD:
-      - Disable-AdUser: commands/Disable-AdUser.md
-      - Enable-AdUser: commands/Enable-AdUser.md
-      - Find-AdOu: commands/Find-AdOu.md
-      - Find-AdUser: commands/Find-AdUser.md
-      - Find-AllDomainController: commands/Find-AllDomainController.md
-      - Get-AdAdminUser: commands/Get-AdAdminUser.md
-      - Push-AdSync: commands/Push-AdSync.md
-      - Reset-IRTAdUserPassword: commands/Reset-IRTAdUserPassword.md
-      - Show-AdOus: commands/Show-AdOus.md
-      - Show-AdUserInfo: commands/Show-AdUserInfo.md
+      - Disable-IRTAdUser: M365IncidentResponseTools/Disable-IRTAdUser.md
+      - Enable-IRTAdUser: M365IncidentResponseTools/Enable-IRTAdUser.md
+      - Find-IRTAdDevice: M365IncidentResponseTools/Find-IRTAdDevice.md
+      - Find-IRTAdOu: M365IncidentResponseTools/Find-IRTAdOu.md
+      - Find-IRTAdUser: M365IncidentResponseTools/Find-IRTAdUser.md
+      - Find-IRTDomainController: M365IncidentResponseTools/Find-IRTDomainController.md
+      - Get-IRTAdAdminUser: M365IncidentResponseTools/Get-IRTAdAdminUser.md
+      - Push-IRTAdSync: M365IncidentResponseTools/Push-IRTAdSync.md
+      - Reset-IRTAdUserPassword: M365IncidentResponseTools/Reset-IRTAdUserPassword.md
+      - Show-IRTAdDevice: M365IncidentResponseTools/Show-IRTAdDevice.md
+      - Show-IRTAdOus: M365IncidentResponseTools/Show-IRTAdOus.md
+      - Show-IRTAdUser: M365IncidentResponseTools/Show-IRTAdUser.md

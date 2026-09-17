@@ -20,11 +20,15 @@ function Find-IRTRiskyServicePrincipal {
     API calls. Speeds up repeated runs during the same session.
 
     .EXAMPLE
+    ```powershell
     Find-IRTRiskyServicePrincipal
+    ```
     Queries all threat intelligence feeds and reports any matches in the tenant.
 
     .EXAMPLE
+    ```powershell
     Find-IRTRiskyServicePrincipal -Cached
+    ```
     Same as above but uses cached Graph data from the current session.
 
     .OUTPUTS

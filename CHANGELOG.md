@@ -3,7 +3,50 @@
 All notable changes to this project will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [v2.11.0] - 2026-09-08
+
+### Added
+
+- `Get-IRTUnifiedAuditLog`: new `-RecordType` filter restricts a search to one or more
+  UAL record types (for example `ExchangeItem`, `AzureActiveDirectoryStsLogon`).
+
+### Changed
+
+- Command help now renders EXAMPLE blocks as fenced PowerShell code on the
+  documentation site.
+- User investigation documentation gained a `-RecordType` example, corrected the note
+  implying a bare `Get-IRTUnifiedAuditLog` covers 30 days (it defaults to 1 day), and
+  synced the sign-in log examples with current behavior.
+
+### Fixed
+
+- Unified audit log searches that Exchange Online refused are no longer reported as
+  "Retrieved 0 logs". Exchange returns some failures, such as `Unauthorized` from the
+  sync-search path, as a warning with an empty result rather than as an error, which
+  was indistinguishable from a tenant with no matching activity. These searches are
+  now retried, and if they keep failing the results carry a DATA MISSING marker.
+- MSAL assembly load failures now report the real cause. A failed cache-extension
+  load surfaces the underlying error instead of a misleading "Unable to find type"
+  message, and a missing Microsoft.Graph.Authentication import names the dependency
+  instead of reporting an empty file path.
+
+## [v2.10.1] - 2026-08-02
+
+### Changed
+
+- The import banner now shows the installed module version and a link to the
+  documentation site.
+- Added documentation for user investigations, service principal investigations,
+  remediation in active directory.
+
+### Fixed
+
+- On-prem commands run against a remote session no longer fail on module import.
+  PSFramework is not available in those sessions, and the module no longer tries
+  to load it there.
+- Fixed many broken links in documentation site.
+
+## [v2.10.0] - 2026-06-30
 
 ### Added
 
@@ -12,6 +55,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   sign-in otherwise). Useful for manual REST calls and custom scripts.
 - `Connect-IRTRunspaceExchange`: new public command that establishes a runspace-local
   Exchange connection with a silently-minted token. Used by playbook steps.
+- `Get-IRTAllEntraDevice`: new public command that exports every Entra ID device to a
+  spreadsheet, newest registration first.
+- `Get-IRTEmailSearch`: new public command; an interactive manager for existing
+  compliance email searches that can start, wait on, view results for, purge matched
+  email from, or delete a search.
+- `Find-IRT*` search commands: new `-FromClipboard` switch reads each non-empty
+  clipboard line as a separate search term.
+- `Get-IRTEntraSignInLog`: new `-DeviceCode` switch filters results to device-code
+  authentications.
 - The MSAL cache extension assembly is now bundled with the module instead of being
   downloaded from nuget.org during the first Connect, so the persistent token cache
   works offline and can no longer silently degrade.
@@ -34,6 +86,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `Get-IRTLicenseReport`: output is now a plain table. This removes the dependency on
   the external Write-PSObject script, which produced corrupted output and errors when
   run inside playbook runspaces. `-Runspace` is retained as a no-op for compatibility.
+- `Get-IRTLicenseReport`: E5 SKUs are now highlighted in the output so high-value
+  licenses stand out at a glance.
+- `Get-IRTEntraSignInLog`: large date-range queries are now split into chunks to avoid
+  the Graph 300-second timeout that caused big sign-in log pulls to fail.
+- `Get-IRTUnifiedAuditLog`: queries are chunked and retried, and the command now flags
+  when a chunk could not be fully retrieved so partial results are not mistaken for
+  complete ones.
 
 ### Fixed
 
@@ -63,6 +122,21 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   records the module root in `$Global:ModuleDependenciesChecked` (a module-agnostic
   table, since the dependency scripts are portable), and re-imports plus all playbook
   runspace workers skip the scan. Speeds up module re-import and playbook startup.
+- Dependency check no longer crashes with "The property 'InstalledMax' cannot be found
+  on this object" when more than one required module is missing, so the install
+  prompt is shown correctly instead of aborting.
+- `Connect-IRT`: the session now reports the account it is actually bound to, and the
+  Graph connected-state check is evaluated correctly.
+- `Get-IRTEntraSignInLog`: fixed a degenerate trailing chunk produced when splitting a
+  sign-in log query by date range.
+- ip_info enrichment no longer fails on large sign-in log pulls.
+
+### Security
+
+- `Connect-IRT` / `Get-IRTAccessToken`: access tokens minted for a different tenant are
+  now rejected, and the session refuses to bind to a mismatched account. Previously a
+  silently-acquired token from an account's home tenant could bind a session to a tenant
+  with no relationship to the intended target.
 
 
 ## [v2.9.2] - 2026-06-10
@@ -97,7 +171,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - IP address conditional formatting rules are now read from a spreadsheet at a configurable
   path, allowing users to create their own conditional formatting rules.
 - Added automatic cloud detection using OIDC data. You no longer have to specify `-GCCHigh`
-  with Connect-IRT. (though, you can still specify a cloud with `-Cloud UsGov/Commercial` 
+  with Connect-IRT. (though, you can still specify a cloud with `-Cloud UsGov/Commercial`
   to bypass OIDC lookup)
 
 ### Fixed

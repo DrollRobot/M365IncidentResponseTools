@@ -40,16 +40,22 @@ function Update-IRTToken {
     status reflects the state after any refresh that was performed.
 
     .EXAMPLE
+    ```powershell
     Update-IRTToken -Service 'Graph'
+    ```
     Checks and re-binds the Graph token if it is expiring within 5 minutes.
     Writes an error if the Graph session does not exist.
 
     .EXAMPLE
+    ```powershell
     Update-IRTToken -Service 'Graph', 'Exchange'
+    ```
     Checks both Graph and Exchange tokens and refreshes whichever is expiring soon.
 
     .EXAMPLE
+    ```powershell
     Update-IRTToken
+    ```
     Checks all three services (Graph, Exchange, IPPS).
 
     .OUTPUTS

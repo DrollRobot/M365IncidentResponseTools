@@ -50,16 +50,22 @@ function Get-IRTServicePrincipalSignInLog {
     Export raw XML alongside the Excel file. Defaults to IRT_Config.ExportXml.
 
     .EXAMPLE
+    ```powershell
     Find-IRTServicePrincipal MyApp
     Get-IRTServicePrincipalSignInLog
+    ```
     Two-step workflow: find the SP then download its sign-in logs.
 
     .EXAMPLE
+    ```powershell
     Get-IRTServicePrincipalSignInLog -ServicePrincipalObject $SP -Days 90
+    ```
     Downloads 90 days of sign-in logs for a specific service principal.
 
     .EXAMPLE
+    ```powershell
     Get-IRTServicePrincipalSignInLog -AllServicePrincipals -Days 7
+    ```
     Downloads 7 days of sign-in logs for all service principals in the tenant.
 
     .OUTPUTS

@@ -55,7 +55,7 @@ InModuleScope M365IncidentResponseTools {
         }
     }
 
-    Describe 'Test-IRTConnection' {
+    Describe 'Test-IRTConnection' -Tag 'unit' {
 
         BeforeEach {
             $script:SavedSession = (

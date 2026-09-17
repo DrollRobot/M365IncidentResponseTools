@@ -78,7 +78,7 @@ AfterAll {
         ForEach-Object { Remove-Item -Path "Function:\$_" -ErrorAction SilentlyContinue }
 }
 
-Describe 'Get-IRTAllEntraDevice' {
+Describe 'Get-IRTAllEntraDevice' -Tag 'unit' {
 
     BeforeEach {
         $Mod = 'M365IncidentResponseTools'

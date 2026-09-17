@@ -20,7 +20,9 @@ function Clear-IRTTokenCache {
     force the next Connect-IRT to prompt interactively.
 
     .EXAMPLE
+    ```powershell
     Clear-IRTTokenCache
+    ```
     Wipes the cache. The next Connect-IRT call will require interactive sign-in.
 
     .OUTPUTS

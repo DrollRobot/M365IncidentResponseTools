@@ -1,11 +1,11 @@
 #Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.0.0' }
 
 BeforeAll {
-    $Dir = Join-Path -Path $PSScriptRoot -ChildPath '..\..\source\Private\Utility'
+    $Dir = Join-Path -Path $PSScriptRoot -ChildPath '../../Source/Private/Utility'
     . (Join-Path -Path $Dir -ChildPath 'Convert-DecimalToExcelColumn.ps1')
 }
 
-Describe 'Convert-DecimalToExcelColumn' {
+Describe 'Convert-DecimalToExcelColumn' -Tag 'unit' {
 
     Context 'Single-letter columns (1-26)' {
         It 'converts 1 to A' {

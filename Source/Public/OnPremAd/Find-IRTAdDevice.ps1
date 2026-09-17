@@ -32,20 +32,28 @@ function Find-IRTAdDevice {
     scripts or the playbook.
 
     .EXAMPLE
+    ```powershell
     Find-IRTAdDevice DESKTOP-ABC123
+    ```
     Finds computers matching 'DESKTOP-ABC123' and sets the global device object if exactly
     one match.
 
     .EXAMPLE
+    ```powershell
     Find-IRTAdDevice desktop-abc123.contoso.com
+    ```
     Searches by DNS host name.
 
     .EXAMPLE
+    ```powershell
     $Devices = Find-IRTAdDevice -Search 'DESKTOP-ABC123','LAPTOP-XYZ789' -Script
+    ```
     Returns matching computer objects for two search strings without setting globals.
 
     .EXAMPLE
+    ```powershell
     Find-IRTAdDevice -FromClipboard
+    ```
     Reads the clipboard and searches for each line as a separate query.
 
     .OUTPUTS

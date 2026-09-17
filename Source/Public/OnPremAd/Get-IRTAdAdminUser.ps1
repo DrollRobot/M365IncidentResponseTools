@@ -15,11 +15,15 @@ function Get-IRTAdAdminUser {
     Export results to a CSV file instead of displaying them in the console.
 
     .EXAMPLE
+    ```powershell
     Get-IRTAdAdminUser
+    ```
     Displays all AdminCount=1 users in a formatted table.
 
     .EXAMPLE
+    ```powershell
     Get-IRTAdAdminUser -Csv
+    ```
     Exports the list to AdAdminUsers_<domain>_<date>.csv in C:\Temp.
 
     .OUTPUTS

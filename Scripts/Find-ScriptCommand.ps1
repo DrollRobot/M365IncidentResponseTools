@@ -1,3 +1,7 @@
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+    'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
+$ScriptVersion = '1.0.0'
+
 function Find-ScriptCommand {
     <#
     .SYNOPSIS
@@ -29,7 +33,7 @@ function Find-ScriptCommand {
         names are found or skipped.
 
     .EXAMPLE
-        Find-ScriptCommand -Path .\Connect-IRTGraph.ps1
+        Find-ScriptCommand -Path .\Get-Stuff.ps1
 
         Returns the unique command names invoked in the specified file.
 

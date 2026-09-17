@@ -132,7 +132,7 @@ InModuleScope M365IncidentResponseTools {
         }
     }
 
-    Describe 'Update-IRTToken' {
+    Describe 'Update-IRTToken' -Tag 'unit' {
 
         # Save and restore the auth globals around every test so the suite
         # is safe to run while the developer is actively connected to a tenant.

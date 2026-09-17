@@ -128,7 +128,7 @@ InModuleScope M365IncidentResponseTools {
         Remove-Item -Path 'function:Global:Get-OrganizationConfig' -ErrorAction SilentlyContinue
     }
 
-    Describe 'Connect-IRTExchange' {
+    Describe 'Connect-IRTExchange' -Tag 'unit' {
 
         BeforeEach {
             $script:SavedSession = (

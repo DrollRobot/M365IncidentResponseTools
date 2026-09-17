@@ -28,11 +28,15 @@ function Get-IRTAllEntraDevice {
     Worksheet font. Defaults to IRT_Config.ExcelFont.
 
     .EXAMPLE
+    ```powershell
     Get-IRTAllEntraDevice
+    ```
     Exports all Entra devices to a spreadsheet and opens it.
 
     .EXAMPLE
+    ```powershell
     Get-IRTAllEntraDevice -Open $false -Xml $true
+    ```
     Writes the spreadsheet and a raw XML dump without opening the workbook.
 
     .OUTPUTS

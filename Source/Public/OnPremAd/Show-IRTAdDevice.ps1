@@ -13,11 +13,15 @@ function Show-IRTAdDevice {
     if omitted.
 
     .EXAMPLE
+    ```powershell
     Show-IRTAdDevice
+    ```
     Displays info for the device in $Global:IRT_DeviceObject.
 
     .EXAMPLE
+    ```powershell
     Show-IRTAdDevice -DeviceObject $AdComputer
+    ```
     Displays info for a specific AD computer object.
 
     .OUTPUTS

@@ -14,11 +14,15 @@ function Disable-IRTAdUser {
     One or more AD user objects to disable. Falls back to global session objects if omitted.
 
     .EXAMPLE
+    ```powershell
     Disable-IRTAdUser
+    ```
     Disables the user(s) in the global session.
 
     .EXAMPLE
+    ```powershell
     Disable-IRTAdUser -UserObject $AdUser
+    ```
     Disables a specific user.
 
     .OUTPUTS

@@ -1,11 +1,11 @@
 #Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.0.0' }
 
 BeforeAll {
-    $NamePath = '..\..\source\Private\Email\Build-EmailSearchName.ps1'
+    $NamePath = '../../Source/Private/Email/Build-EmailSearchName.ps1'
     . (Join-Path -Path $PSScriptRoot -ChildPath $NamePath)
 }
 
-Describe 'Build-EmailSearchName' {
+Describe 'Build-EmailSearchName' -Tag 'unit' {
 
     Context 'Recipient and keyword fields' {
         It 'renders each populated field as Label:value joined by the separator' {

@@ -87,7 +87,7 @@ AfterAll {
         ForEach-Object { Remove-Item -Path "Function:\$_" -ErrorAction SilentlyContinue }
 }
 
-Describe 'Get-IRTEntraSignInLog' {
+Describe 'Get-IRTEntraSignInLog' -Tag 'unit' {
 
     BeforeEach {
         $Mod = 'M365IncidentResponseTools'
