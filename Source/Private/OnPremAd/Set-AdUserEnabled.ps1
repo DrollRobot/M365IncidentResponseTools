@@ -5,11 +5,14 @@ function Set-AdUserEnabled {
     Called by Disable-IRTAdUser and Enable-IRTAdUser.
 
     .DESCRIPTION
-    Core implementation for enabling or disabling AD user accounts. For each user, calls
-    Enable-AdAccount or Disable-AdAccount using $env:ComputerName as the target DC, then
-    re-fetches the account to confirm the Enabled state changed. Triggers AD replication
-    via repadmin if running on a DC, and Start-ADSyncSyncCycle if the ADSync service is
-    local. Not typically called directly - use Disable-AdUser or Enable-AdUser instead.
+    Core implementation for enabling or disabling AD user accounts. Picks one writable
+    domain controller (this computer if it is one, otherwise a discovered DC), then for
+    each user calls Enable-AdAccount or Disable-AdAccount on that DC and re-fetches the
+    account from it to confirm the Enabled state changed. Runs
+    from any device with the ActiveDirectory module, not only a DC. Pushes AD replication
+    from that DC via repadmin (skipped with a warning if repadmin isn't installed), and
+    runs Start-ADSyncSyncCycle if the ADSync service is local. Not typically called
+    directly - use Disable-AdUser or Enable-AdUser instead.
 
     .PARAMETER UserObject
     One or more AD user objects to modify. Falls back to global session objects if omitted.
@@ -25,7 +28,9 @@ function Set-AdUserEnabled {
     None. Status is written to the console.
 
     .NOTES
-    Version: 1.0.0
+    Version: 1.1.0
+    1.1.0 - Targets one writable DC (this computer if it is one, otherwise a discovered
+            DC), so it no longer needs to run on a DC. Replication is pushed from that DC.
     #>
     [CmdletBinding(SupportsShouldProcess = $true)]
     param(
@@ -78,6 +83,10 @@ function Set-AdUserEnabled {
             return
         }
 
+        # make every change on one writable DC, so the readback sees it and replication
+        # pushes it from where it was made
+        $DomainController = Get-TargetDomainController
+
         Write-IRT ''
 
         foreach ( $ScriptUserObject in $ScriptUserObjects ) {
@@ -86,7 +95,7 @@ function Set-AdUserEnabled {
             Write-IRT "`n$($Action.TrimEnd('e'))ing $($ScriptUserObject.SamAccountName)."
             $Params = @{
                 Identity = $ScriptUserObject
-                Server   = $env:ComputerName
+                Server   = $DomainController
             }
             if ($PSCmdlet.ShouldProcess($ScriptUserObject.SamAccountName, "$Action account")) {
                 if ( $Enabled ) {
@@ -102,7 +111,7 @@ function Set-AdUserEnabled {
             $Params = @{
                 Identity   = $ScriptUserObject
                 Properties = $UserProperties
-                Server     = $env:ComputerName
+                Server     = $DomainController
             }
             $NewObject = Get-AdUser @Params
             $OutputObjects.Add( $NewObject )
@@ -111,14 +120,7 @@ function Set-AdUserEnabled {
         # show results
         $OutputObjects | Format-Table $UserProperties
 
-        # push ad replication
-        if ( Test-RunningOnDomainController ) {
-            Write-IRT "Pushing AD replication."
-            $null = & repadmin /syncall $env:ComputerName /APed *>&1
-        }
-        else {
-            Write-IRT "Not running on a domain controller; skipping replication push." -Level Warn
-        }
+        Push-AdReplication -Server $DomainController
 
         # push azure sync, if on this server
         $SyncService = Get-Service -Name "adsync" -ErrorAction SilentlyContinue

@@ -6,13 +6,21 @@ function Push-IRTAdSync {
     .DESCRIPTION
     Triggers an AD-to-Entra delta sync as quickly as possible. The execution path is:
 
-    1. If running on a domain controller, fires 'repadmin /syncall /AdeP' to force
-       intra-AD replication first.
+    1. If Active Directory is available from this device, pushes intra-AD replication
+       from a writable DC via repadmin (this computer if it is one, otherwise a
+       discovered DC). Skipped with a warning otherwise.
     2. If the ADSync service is running locally, invokes Start-ADSyncSyncCycle directly
        and exits.
-    3. Otherwise, discovers candidate servers (DCs first, then other enabled AD computers
-       by last logon) in parallel using a runspace pool and invokes the sync cycle
-       remotely on the first server found to have the service.
+    3. Otherwise, checks candidate servers in parallel using a runspace pool (opening a
+       PSSession and looking for the service) and invokes the sync cycle remotely on the
+       first server to report the service. Each check is handled as soon as it finishes,
+       so slow or unreachable servers don't delay the push, and checks still running
+       afterward are stopped. Candidates are the -SyncServer names if given, or else
+       discovered from AD (DCs first, then other enabled servers by last logon).
+
+    The ActiveDirectory module is only required for AD discovery. It is not needed when
+    the ADSync service is on this device or when -SyncServer is given; without it, only
+    the replication push is skipped.
 
     Domain admin credentials are cached in $Global:Storage for the session.
     Use -ResetCredentials to force a re-prompt.
@@ -21,7 +29,8 @@ function Push-IRTAdSync {
     Clear the cached domain admin credentials and prompt again before connecting.
 
     .PARAMETER SyncServer
-    Target one or more specific server names directly, bypassing AD discovery.
+    Target one or more specific server names directly, bypassing AD discovery. The
+    ActiveDirectory module is not required when this is used.
 
     .PARAMETER ThrottleLimit
     Maximum number of parallel runspaces used for server discovery. Default: 20.
@@ -48,7 +57,13 @@ function Push-IRTAdSync {
     None. Progress is written to the console.
 
     .NOTES
-    Version: 2.0.0
+    Version: 2.1.0
+    2.1.0 - ActiveDirectory module only required for AD discovery.
+            Removed ping check; session and service check errors are reported per server.
+            Server checks are handled as they finish instead of in query order.
+            AD replication is pushed from this computer if it is a writable DC, otherwise
+            from a discovered DC, so it no longer requires running on a DC.
+            Fixed single-DC domains merging all discovered server names into one hostname.
     2.0.0 - Parallel server discovery via runspace pool (ping, open session, service check).
             Added -SyncServer parameter to target specific servers directly, bypassing AD query.
             Added -ThrottleLimit parameter.
@@ -72,18 +87,25 @@ function Push-IRTAdSync {
         [int] $ThrottleLimit = 20
     )
 
-    begin {
-        Import-IRTModule -Name 'ActiveDirectory'
-    }
-
     process {
 
-        if (Test-RunningOnDomainController) {
-            Write-IRT "Pushing AD replication..."
-            $null = repadmin /syncall /AdeP
+        # push AD replication first when AD is available. optional: the sync server may not
+        # have the ActiveDirectory module, and a failure here must not block the sync
+        $AdAvailable = Test-AdAvailable
+        if ($AdAvailable) {
+            Import-IRTModule -Name 'ActiveDirectory'
+            try {
+                $DomainController = Get-TargetDomainController
+                Push-AdReplication -Server $DomainController
+            }
+            catch {
+                $Msg = "Finding a domain controller failed. Skipping AD replication push: $_"
+                Write-IRT $Msg -Level Warn
+            }
         }
         else {
-            Write-IRT "Not running on a domain controller. Skipping AD replication." -Level Warn
+            $Msg = "Active Directory not available on this device. Skipping AD replication push."
+            Write-IRT $Msg -Level Warn
         }
 
         # if sync service is running on this server, push sync locally
@@ -101,12 +123,12 @@ function Push-IRTAdSync {
 
         # build the ordered candidate server list
         if ($SyncServer) {
-            # user supplied explicit targets - skip AD query, RSAT check, and DC check entirely
+            # user supplied explicit targets - skip AD query and RSAT check entirely
             $ServerNamesInQueryOrder = $SyncServer
         }
         else {
             # require AD RSAT for discovery
-            if (-not (Test-AdAvailable)) {
+            if (-not $AdAvailable) {
                 $Msg = "Active Directory can't be reached from this device. " +
                 "Specify hostnames with -SyncServer."
                 Write-IRT $Msg -Level Error
@@ -123,9 +145,12 @@ function Push-IRTAdSync {
             ).Name
 
             # domain controllers first, then remaining servers by last logon date
-            $DomainControllerNames = (Get-ADDomainController -Filter *).Name
-            $NonDCServerNames = $ServerNames |
-                Where-Object { $_ -notin $DomainControllerNames }
+            # @() on both: with a single DC, .Name is a string, and string + array
+            # concatenates every name into one bogus hostname
+            $DomainControllerNames = @((Get-ADDomainController -Filter *).Name)
+            $NonDCServerNames = @(
+                $ServerNames | Where-Object { $_ -notin $DomainControllerNames }
+            )
             $ServerNamesInQueryOrder = $DomainControllerNames + $NonDCServerNames
         }
 
@@ -153,7 +178,9 @@ function Push-IRTAdSync {
         Get-PSSession | Remove-PSSession
 
         ########################################################################
-        # parallel discovery: ping + open session + check adsync service
+        # parallel discovery: open session + check adsync service
+        # no ping first: hosts may block ICMP but still accept PS remoting, so session
+        # errors are the reachability check
 
         $DiscoveryScriptBlock = {
             param(
@@ -163,23 +190,11 @@ function Push-IRTAdSync {
 
             $Result = [PSCustomObject]@{
                 ComputerName  = $ComputerName
-                Reachable     = $false
                 SessionOpened = $false
                 AdsyncPresent = $false
                 Session       = $null
                 Error         = $null
             }
-
-            # ping
-            try {
-                $Reply = ([System.Net.NetworkInformation.Ping]::new()).Send($ComputerName, 1000)
-                $Result.Reachable = $Reply.Status -eq 'Success'
-            }
-            catch {
-                $Result.Reachable = $false
-            }
-
-            if (-not $Result.Reachable) { return $Result }
 
             # open session
             try {
@@ -192,18 +207,21 @@ function Push-IRTAdSync {
                 $Result.SessionOpened = $true
             }
             catch {
-                $Result.Error = "Session failed: $_"
+                $Result.Error = "$_"
                 return $Result
             }
 
             # check for adsync service
             try {
-                $Result.AdsyncPresent = Invoke-Command -Session $Result.Session -ScriptBlock {
-                    [bool](Get-Service 'adsync' -ErrorAction SilentlyContinue)
+                $CheckParams = @{
+                    Session     = $Result.Session
+                    ScriptBlock = { [bool](Get-Service 'adsync' -ErrorAction SilentlyContinue) }
+                    ErrorAction = 'Stop'
                 }
+                $Result.AdsyncPresent = Invoke-Command @CheckParams
             }
             catch {
-                $Result.Error = "Service check failed: $_"
+                $Result.Error = "$_"
             }
 
             # close session now if adsync is not present - only keep sessions where adsync was found
@@ -241,10 +259,11 @@ function Push-IRTAdSync {
             $Total = $Runspaces.Count
             $Done = 0
             $Synced = $false
+            $Pending = [System.Collections.Generic.List[hashtable]]::new($Runspaces)
 
-            # process runspaces in priority order;
-            # EndInvoke blocks per entry while others keep running
-            foreach ($RS in $Runspaces) {
+            # handle each check as soon as it finishes, so a slow or unreachable server
+            # never delays the push; checks still running after a push are stopped in finally
+            while ($Pending.Count -gt 0 -and -not $Synced) {
 
                 $ProgressParams = @{
                     Activity        = 'Discovering sync server'
@@ -253,52 +272,72 @@ function Push-IRTAdSync {
                 }
                 Write-Progress @ProgressParams
 
-                $DiscoveryResult = ($RS.PS.EndInvoke($RS.Handle))[0]
-                $RS.PS.Dispose()
-                $RS.PS = $null
-                $Done++
-
-                $CN = $RS.ComputerName
-
-                if (-not $DiscoveryResult.Reachable) {
-                    Write-IRT "Pinging ${CN}: FAILED." -Level Warn
+                $Finished = @($Pending | Where-Object { $_.Handle.IsCompleted })
+                if ($Finished.Count -eq 0) {
+                    Start-Sleep -Milliseconds 100
                     continue
                 }
 
-                if (-not $DiscoveryResult.SessionOpened) {
-                    $Msg = "Opening session on ${CN} failed: $($DiscoveryResult.Error)"
-                    Write-IRT $Msg -Level Warn
-                    continue
-                }
+                foreach ($RS in $Finished) {
 
-                if (-not $DiscoveryResult.AdsyncPresent) {
-                    Write-IRT "Adsync service not present on ${CN}."
-                    continue
-                }
+                    $null = $Pending.Remove($RS)
+                    $DiscoveryResult = ($RS.PS.EndInvoke($RS.Handle))[0]
+                    $RS.PS.Dispose()
+                    $RS.PS = $null
+                    $Done++
 
-                # adsync found - attempt push
-                Write-IRT "Adsync service found on ${CN}. Pushing sync..."
-                try {
-                    $SyncResult = Invoke-Command -Session $DiscoveryResult.Session -ScriptBlock {
-                        [string]( Start-ADSyncSyncCycle -PolicyType Delta ).Result
+                    $CN = $RS.ComputerName
+
+                    if (-not $DiscoveryResult.SessionOpened) {
+                        $Msg = "Opening session on ${CN} failed: $($DiscoveryResult.Error)"
+                        Write-IRT $Msg -Level Warn
+                        continue
                     }
 
-                    if ($SyncResult -eq 'Success') {
-                        Write-IRT "Sync pushed successfully on ${CN}."
-                        $Synced = $true
+                    if ($DiscoveryResult.Error) {
+                        $Msg = "Checking adsync service on ${CN} failed: " +
+                        "$($DiscoveryResult.Error)"
+                        Write-IRT $Msg -Level Warn
+                        continue
                     }
-                    else {
-                        Write-IRT "Sync failed on ${CN} (result: $SyncResult)." -Level Error
-                    }
-                }
-                catch {
-                    Write-IRT "Sync failed on ${CN}: $_" -Level Error
-                }
-                finally {
-                    Remove-PSSession -Session $DiscoveryResult.Session -ErrorAction SilentlyContinue
-                }
 
-                if ($Synced) { break }
+                    if (-not $DiscoveryResult.AdsyncPresent) {
+                        Write-IRT "Adsync service not present on ${CN}."
+                        continue
+                    }
+
+                    # adsync found - attempt push
+                    Write-IRT "Adsync service found on ${CN}. Pushing sync..."
+                    try {
+                        $SyncParams = @{
+                            Session     = $DiscoveryResult.Session
+                            ScriptBlock = {
+                                [string]( Start-ADSyncSyncCycle -PolicyType Delta ).Result
+                            }
+                        }
+                        $SyncResult = Invoke-Command @SyncParams
+
+                        if ($SyncResult -eq 'Success') {
+                            Write-IRT "Sync pushed successfully on ${CN}."
+                            $Synced = $true
+                        }
+                        else {
+                            Write-IRT "Sync failed on ${CN} (result: $SyncResult)." -Level Error
+                        }
+                    }
+                    catch {
+                        Write-IRT "Sync failed on ${CN}: $_" -Level Error
+                    }
+                    finally {
+                        $RemoveParams = @{
+                            Session     = $DiscoveryResult.Session
+                            ErrorAction = 'SilentlyContinue'
+                        }
+                        Remove-PSSession @RemoveParams
+                    }
+
+                    if ($Synced) { break }
+                }
             }
 
             if (-not $Synced) {
@@ -309,7 +348,7 @@ function Push-IRTAdSync {
         finally {
             Write-Progress -Activity 'Discovering sync server' -Completed
 
-            # stop and dispose any runspaces not yet processed (e.g. after an early break)
+            # stop and dispose any runspaces not yet processed (e.g. still checking after a push)
             foreach ($RS in $Runspaces) {
                 if ($null -ne $RS.PS) {
                     try { $RS.PS.Stop() } catch {}
