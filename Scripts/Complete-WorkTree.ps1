@@ -20,8 +20,8 @@
          `gh pr create`.
       3. Resolve the PR base: the base recorded at worktree creation
          (branch.<branch>.prBase) if present, else the branch's upstream -- but
-         only while it still names an integration branch, since `git push -u`
-         repoints tracking to the branch itself. Refuses to target main.
+         only while it still names an integration branch, since `git push -u` repoints
+         tracking to the branch itself. Refuses to target main.
       4. Show the PR.md body and confirm the title.
       5. Push the branch with -u.
       6. Open the PR with `gh pr create --base <base> --body-file PR.md`.
