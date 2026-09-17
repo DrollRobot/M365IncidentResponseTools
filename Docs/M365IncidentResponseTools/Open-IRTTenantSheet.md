@@ -4,7 +4,7 @@ external help file: M365IncidentResponseTools-Help.xml
 HelpUri: ''
 Locale: en-US
 Module Name: M365IncidentResponseTools
-ms.date: 09/07/2026
+ms.date: 09/16/2026
 PlatyPS schema version: 2024-05-01
 title: Open-IRTTenantSheet
 ---
@@ -13,7 +13,7 @@ title: Open-IRTTenantSheet
 
 ## SYNOPSIS
 
-{{ Fill in the Synopsis }}
+Opens the tenants worksheet for editing. Creates it if it doesn't exist.
 
 ## SYNTAX
 
@@ -27,13 +27,26 @@ Open-IRTTenantWorksheet, OpenIRTTenantWorksheet, OpenIRTTenantSheet, IRTTenantSh
 
 ## DESCRIPTION
 
-{{ Fill in the Description }}
+Opens the tenants worksheet that Connect-IRTTenant reads.
+When the file is not
+present it is generated first, with the standard columns and a few sample rows
+showing the expected format, then opened in the default handler for .xlsx files.
 
 ## EXAMPLES
 
-### Example 1
+### EXAMPLE 1
 
-{{ Add example description here }}
+```powershell
+Open-IRTTenantSheet
+```
+Opens the tenants worksheet, generating it first if this is the first run.
+
+### EXAMPLE 2
+
+```powershell
+Open-IRTTenantSheet -TenantFile 'C:\Cases\tenants.xlsx'
+```
+Opens a tenants worksheet stored outside the default configuration directory.
 
 ## PARAMETERS
 
@@ -70,9 +83,12 @@ This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable
 
 ## OUTPUTS
 
+### None. The worksheet is opened in the default application for .xlsx files.
+
 ## NOTES
 
-{{ Fill in the Notes }}
+Version: 1.1.0
+
 
 ## RELATED LINKS
 

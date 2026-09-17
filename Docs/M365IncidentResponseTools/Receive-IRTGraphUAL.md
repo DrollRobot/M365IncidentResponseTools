@@ -6,106 +6,81 @@ Locale: en-US
 Module Name: M365IncidentResponseTools
 ms.date: 09/16/2026
 PlatyPS schema version: 2024-05-01
-title: Get-IRTEntraAuditLog
+title: Receive-IRTGraphUAL
 ---
 
-# Get-IRTEntraAuditLog
+# Receive-IRTGraphUAL
 
 ## SYNOPSIS
 
-Downloads Entra ID (Azure AD) audit log events for one or more users.
+Downloads the records from finished audit search jobs and exports them.
 
 ## SYNTAX
 
+### Group (Default)
+
 ```
-Get-IRTEntraAuditLog [[-UserObject] <psobject[]>] [-Days <int>] [-Start <string>] [-End <string>]
- [-AllUsers] [-Beta] [-Open <bool>] [-Xml <bool>] [-Cached] [<CommonParameters>]
+Receive-IRTGraphUAL [-Group] <string[]> [-Excel <bool>] [-Xml <bool>] [-Cached] [-PassThru]
+ [-WhatIf] [-Confirm] [<CommonParameters>]
+```
+
+### Id
+
+```
+Receive-IRTGraphUAL -Id <string[]> [-Excel <bool>] [-Xml <bool>] [-Cached] [-PassThru] [-WhatIf]
+ [-Confirm] [<CommonParameters>]
 ```
 
 ## ALIASES
 
-EALog, EALogs, GetEALog, GetEALogs
+None.
 
 ## DESCRIPTION
 
-Queries the Entra ID directory audit log via Microsoft Graph for activity related
-to the specified users over a configurable date range.
-Results are exported to an
-Excel workbook.
-Use -AllUsers to pull the full tenant audit log regardless of user.
+Retrieves every record from one or more finished Graph audit search jobs, merges them,
+and hands the result to Show-IRTUnifiedAuditLog so the output is the same workbook
+Get-IRTUnifiedAuditLog produces.
 
-Date range defaults to the last 30 days when no -Days, -Start, or -End is specified.
+Records are deduplicated by id and sorted newest first.
+The API returns each record
+once per job and does not sort them, and a group normally contains overlapping jobs,
+such as a keyword search on a user principal name alongside one on their object id, so
+both steps matter.
+
+Jobs that failed have a DATA MISSING marker inserted in their place, so an incomplete
+export is visible in the workbook rather than looking like a quiet period.
+
+Finished searches cannot be removed from the tenant.
+The API has no delete, so they
+stay listed until Purview expires them after about thirty days.
+To make that
+manageable, the exported file is named after the search that produced it, carrying the
+same creation stamp and group id, so a file on disk can be matched by eye to a search
+in the listing.
+Downloading the same group twice overwrites the same file rather than
+producing a second one.
 
 ## EXAMPLES
 
 ### EXAMPLE 1
 
 ```powershell
-Get-IRTEntraAuditLog
+Receive-IRTGraphUAL -Group '3f9a1c2b'
 ```
-Downloads the last 30 days of Entra audit events for the user in the global session.
+Downloads a group and exports the workbook.
 
 ### EXAMPLE 2
 
 ```powershell
-Get-IRTEntraAuditLog -UserObject $User -Days 90
+$Records = Receive-IRTGraphUAL -Group '3f9a1c2b' -Excel $false -PassThru
 ```
-Downloads 90 days of audit events for a specific user.
-
-### EXAMPLE 3
-
-```powershell
-Get-IRTEntraAuditLog -AllUsers -Start '2026-04-01' -End '2026-04-30'
-```
-Downloads all tenant audit events for April 2026.
+Returns the records in memory without writing files.
 
 ## PARAMETERS
 
-### -AllUsers
-
-Pull the full tenant audit log without filtering by user.
-
-```yaml
-Type: System.Management.Automation.SwitchParameter
-DefaultValue: False
-SupportsWildcards: false
-Aliases: []
-ParameterSets:
-- Name: (All)
-  Position: Named
-  IsRequired: false
-  ValueFromPipeline: false
-  ValueFromPipelineByPropertyName: false
-  ValueFromRemainingArguments: false
-DontShow: false
-AcceptedValues: []
-HelpMessage: ''
-```
-
-### -Beta
-
-Use the Microsoft Graph beta endpoint instead of v1.0.
-
-```yaml
-Type: System.Management.Automation.SwitchParameter
-DefaultValue: False
-SupportsWildcards: false
-Aliases: []
-ParameterSets:
-- Name: (All)
-  Position: Named
-  IsRequired: false
-  ValueFromPipeline: false
-  ValueFromPipelineByPropertyName: false
-  ValueFromRemainingArguments: false
-DontShow: false
-AcceptedValues: []
-HelpMessage: ''
-```
-
 ### -Cached
 
-Use pre-cached Graph data instead of making new API calls.
+Use pre-cached Graph data where available when building the workbook.
 
 ```yaml
 Type: System.Management.Automation.SwitchParameter
@@ -124,38 +99,16 @@ AcceptedValues: []
 HelpMessage: ''
 ```
 
-### -Days
+### -Confirm
 
-Number of days back to search.
-Cannot be used with -Start / -End.
-
-```yaml
-Type: System.Int32
-DefaultValue: 0
-SupportsWildcards: false
-Aliases: []
-ParameterSets:
-- Name: (All)
-  Position: Named
-  IsRequired: false
-  ValueFromPipeline: false
-  ValueFromPipelineByPropertyName: false
-  ValueFromRemainingArguments: false
-DontShow: false
-AcceptedValues: []
-HelpMessage: ''
-```
-
-### -End
-
-End of date range (parseable date string).
-Used with -Start for an absolute range.
+Prompts you for confirmation before running the cmdlet.
 
 ```yaml
-Type: System.String
+Type: System.Management.Automation.SwitchParameter
 DefaultValue: ''
 SupportsWildcards: false
-Aliases: []
+Aliases:
+- cf
 ParameterSets:
 - Name: (All)
   Position: Named
@@ -168,9 +121,9 @@ AcceptedValues: []
 HelpMessage: ''
 ```
 
-### -Open
+### -Excel
 
-Open the Excel file immediately after export.
+Export to an Excel workbook.
 Default: $true.
 
 ```yaml
@@ -190,14 +143,57 @@ AcceptedValues: []
 HelpMessage: ''
 ```
 
-### -Start
+### -Group
 
-Start of date range (parseable date string).
-Used with -End for an absolute range.
+One or more group ids to download, as returned by Start-IRTGraphUAL.
 
 ```yaml
-Type: System.String
+Type: System.String[]
 DefaultValue: ''
+SupportsWildcards: false
+Aliases:
+- GroupId
+ParameterSets:
+- Name: Group
+  Position: 0
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+### -Id
+
+One or more individual job ids, for collecting a single job rather than a group.
+
+```yaml
+Type: System.String[]
+DefaultValue: ''
+SupportsWildcards: false
+Aliases:
+- JobId
+ParameterSets:
+- Name: Id
+  Position: Named
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+### -PassThru
+
+Emit the record collection instead of only exporting it.
+
+```yaml
+Type: System.Management.Automation.SwitchParameter
+DefaultValue: False
 SupportsWildcards: false
 Aliases: []
 ParameterSets:
@@ -212,20 +208,19 @@ AcceptedValues: []
 HelpMessage: ''
 ```
 
-### -UserObject
+### -WhatIf
 
-One or more user objects to query.
-Falls back to global session objects if omitted.
+Runs the command in a mode that only reports what would happen without performing the actions.
 
 ```yaml
-Type: System.Management.Automation.PSObject[]
+Type: System.Management.Automation.SwitchParameter
 DefaultValue: ''
 SupportsWildcards: false
 Aliases:
-- UserObjects
+- wi
 ParameterSets:
 - Name: (All)
-  Position: 0
+  Position: Named
   IsRequired: false
   ValueFromPipeline: false
   ValueFromPipelineByPropertyName: false
@@ -237,7 +232,7 @@ HelpMessage: ''
 
 ### -Xml
 
-Export raw XML alongside the Excel file.
+Export the raw records to XML as well.
 Defaults to IRT_Config.ExportXml.
 
 ```yaml
@@ -268,11 +263,16 @@ This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable
 
 ## OUTPUTS
 
-### None. Results are exported to an Excel workbook.
+### None by default. With -PassThru
+
+### System.Collections.Generic.List`1[[System.Management.Automation.PSObject, System.Management.Automation, Version=7.6.0.500, Culture=neutral, PublicKeyToken=31bf3856ad364e35]]
 
 ## NOTES
 
 Version: 1.1.0
+1.1.0 - Removed -ResultLimit.
+It only existed because of Search-UnifiedAuditLog's
+paging model; a Graph download ends on its own, and every record is kept.
 
 
 ## RELATED LINKS

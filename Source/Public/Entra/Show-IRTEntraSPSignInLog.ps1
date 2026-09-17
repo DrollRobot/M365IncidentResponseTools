@@ -1,19 +1,19 @@
-function Show-IRTServicePrincipalSignIn {
+function Show-IRTEntraSPSignInLog {
     <#
     .SYNOPSIS
     Processes service principal sign-in log objects into an Excel spreadsheet.
 
     .DESCRIPTION
-    Takes service principal sign-in log objects produced by Get-IRTServicePrincipalSignInLog
+    Takes service principal sign-in log objects produced by Get-IRTEntraSPSignInLog
     (or imported from a raw XML export) and renders them into a formatted Excel workbook.
     Enriches IP addresses with geolocation data when -IpInfo is enabled.
 
     .PARAMETER Log
     A list of service principal sign-in log objects with a metadata entry at index 0.
-    Produced by Get-IRTServicePrincipalSignInLog. Mutually exclusive with -XmlPath.
+    Produced by Get-IRTEntraSPSignInLog. Mutually exclusive with -XmlPath.
 
     .PARAMETER XmlPath
-    Path to a raw XML file exported by Get-IRTServicePrincipalSignInLog. Mutually
+    Path to a raw XML file exported by Get-IRTEntraSPSignInLog. Mutually
     exclusive with -Log.
 
     .PARAMETER TableStyle
@@ -27,6 +27,12 @@ function Show-IRTServicePrincipalSignIn {
 
     .PARAMETER Open
     Open the Excel file immediately after export. Default: $true.
+
+    .EXAMPLE
+    ```powershell
+    Show-IRTEntraSPSignInLog -XmlPath '.\SPSignInLogs_30Days_contoso.com_MyApp_26-09-16_14-30.xml'
+    ```
+    Rebuilds the service principal sign-in log workbook from a raw XML export.
 
     .OUTPUTS
     None. Results are written to an Excel workbook.

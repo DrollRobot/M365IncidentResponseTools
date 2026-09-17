@@ -71,12 +71,11 @@ nav:
       - Show-IRTMessageTrace: M365IncidentResponseTools/Show-IRTMessageTrace.md
     - Entra Logs:
       - Get-IRTEntraAuditLog: M365IncidentResponseTools/Get-IRTEntraAuditLog.md
-      - Get-IRTEntraSignInLog: M365IncidentResponseTools/Get-IRTEntraSignInLog.md
-      - Get-IRTNonInteractiveSignIn: M365IncidentResponseTools/Get-IRTNonInteractiveSignIn.md
-      - Get-IRTServicePrincipalSignInLog: M365IncidentResponseTools/Get-IRTServicePrincipalSignInLog.md
+      - Get-IRTEntraSPSignInLog: M365IncidentResponseTools/Get-IRTEntraSPSignInLog.md
+      - Get-IRTEntraUserSignInLog: M365IncidentResponseTools/Get-IRTEntraUserSignInLog.md
       - Show-IRTEntraAuditLog: M365IncidentResponseTools/Show-IRTEntraAuditLog.md
-      - Show-IRTEntraSignInLog: M365IncidentResponseTools/Show-IRTEntraSignInLog.md
-      - Show-IRTServicePrincipalSignIn: M365IncidentResponseTools/Show-IRTServicePrincipalSignIn.md
+      - Show-IRTEntraSPSignInLog: M365IncidentResponseTools/Show-IRTEntraSPSignInLog.md
+      - Show-IRTEntraUserSignInLog: M365IncidentResponseTools/Show-IRTEntraUserSignInLog.md
     - Mailbox:
       - Add-IRTMailboxFullAccess: M365IncidentResponseTools/Add-IRTMailboxFullAccess.md
       - Get-IRTInboxRule: M365IncidentResponseTools/Get-IRTInboxRule.md
@@ -96,9 +95,14 @@ nav:
       - Open-IRTTenantSheet: M365IncidentResponseTools/Open-IRTTenantSheet.md
       - Show-IRTServicePrincipal: M365IncidentResponseTools/Show-IRTServicePrincipal.md
     - Unified Audit Log:
+      - Get-IRTTeamsExternalDomain: M365IncidentResponseTools/Get-IRTTeamsExternalDomain.md
       - Get-IRTUnifiedAuditLog: M365IncidentResponseTools/Get-IRTUnifiedAuditLog.md
       - Open-IRTAllOperationsSheet: M365IncidentResponseTools/Open-IRTAllOperationsSheet.md
+      - Receive-IRTGraphUAL: M365IncidentResponseTools/Receive-IRTGraphUAL.md
+      - Show-IRTTeamsExternalDomain: M365IncidentResponseTools/Show-IRTTeamsExternalDomain.md
       - Show-IRTUnifiedAuditLog: M365IncidentResponseTools/Show-IRTUnifiedAuditLog.md
+      - Start-IRTGraphUAL: M365IncidentResponseTools/Start-IRTGraphUAL.md
+      - Wait-IRTGraphUAL: M365IncidentResponseTools/Wait-IRTGraphUAL.md
     - Users:
       - Disable-IRTUser: M365IncidentResponseTools/Disable-IRTUser.md
       - Enable-IRTUser: M365IncidentResponseTools/Enable-IRTUser.md
