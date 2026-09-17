@@ -7081,6 +7081,229 @@ function Build-UserLoginOperationsSheet {
     }
 }
 #EndRegion '.\Private\UnifiedAuditLog\Build-UserLoginOperationsSheet.ps1' 260
+#Region '.\Private\UnifiedAuditLog\ConvertTo-TeamsParty.ps1' -1
+
+function ConvertTo-TeamsParty {
+    <#
+    .SYNOPSIS
+    Normalizes a UPN, domain, and/or tenant ID from a Teams audit record into one
+    party object.
+
+    .DESCRIPTION
+    Internal helper for the Teams external contact parsers. Each parser describes the
+    people in an event as parties: a domain, a tenant ID, or both when the record pairs
+    them (a member's UPN next to their OrganizationId, or a SIP domain entry). This
+    function does the cleanup every parser needs:
+
+        - Takes the domain from the part of a UPN after the last '@'.
+        - Decodes guest UPNs. A B2B guest account lives in the resource tenant, so its
+          UPN ends in that tenant's onmicrosoft.com domain and its OrganizationId is
+          that tenant's ID. The guest's real domain is encoded before '#EXT#'
+          (jane_contoso.com#EXT#@tenant.onmicrosoft.com), so the domain is read from
+          there and the tenant ID is dropped.
+        - Lowercases domains and drops values that are not domain names, such as 'n/a'
+          or a PSTN phone number in place of a UPN.
+        - Drops tenant IDs that are not GUIDs, and the all-zero GUID Teams records for
+          PSTN calls.
+
+    Nothing is output when neither a domain nor a tenant ID survives.
+
+    .PARAMETER Upn
+    User principal name or email address. Ignored when it has no '@'.
+
+    .PARAMETER Domain
+    Domain name. Used only when -Upn does not supply one.
+
+    .PARAMETER TenantId
+    Entra tenant ID paired with the UPN or domain.
+
+    .EXAMPLE
+    ```powershell
+    ConvertTo-TeamsParty -Upn $Member.UPN -TenantId $Member.OrganizationId
+    ```
+    Returns the member's domain paired with their tenant ID.
+
+    .EXAMPLE
+    ```powershell
+    ConvertTo-TeamsParty -Upn 'jane_contoso.com#EXT#@fabrikam.onmicrosoft.com'
+    ```
+    Returns the guest's home domain, contoso.com, with no tenant ID.
+
+    .OUTPUTS
+    [pscustomobject] with Domain and TenantId properties, either of which may be $null.
+    Nothing when both are empty.
+
+    .NOTES
+    Version: 1.0.0
+
+    Logs through Write-PSFMessage from PSFramework, which Show-IRTTeamsExternalDomain
+    imports once. Import-IRTModule is not called here because this runs for every
+    record.
+    #>
+    [CmdletBinding()]
+    [OutputType([pscustomobject])]
+    param (
+        [AllowNull()]
+        [AllowEmptyString()]
+        [string] $Upn,
+
+        [AllowNull()]
+        [AllowEmptyString()]
+        [string] $Domain,
+
+        [AllowNull()]
+        [AllowEmptyString()]
+        [string] $TenantId
+    )
+
+    $DomainPattern = '^[a-z0-9-]+(\.[a-z0-9-]+)+$'
+    $GuestMarker = '#EXT#'
+    $Comparison = [System.StringComparison]::OrdinalIgnoreCase
+
+    $Candidate = $Domain
+    $IsGuest = $false
+    if ($Upn -and $Upn.Contains('@')) {
+        $GuestIndex = $Upn.IndexOf($GuestMarker, $Comparison)
+        if ($GuestIndex -ge 0) {
+            # the guest's own domain follows the last underscore before #EXT#; the
+            # OrganizationId next to it belongs to the resource tenant, not the guest
+            $IsGuest = $true
+            $LocalPart = $Upn.Substring(0, $GuestIndex)
+            $Candidate = $LocalPart.Substring($LocalPart.LastIndexOf('_') + 1)
+        }
+        else {
+            $Candidate = $Upn.Substring($Upn.LastIndexOf('@') + 1)
+        }
+    }
+
+    $PartyDomain = $null
+    if ($Candidate) {
+        $Candidate = $Candidate.Trim().ToLowerInvariant()
+        if ($Candidate -match $DomainPattern) {
+            $PartyDomain = $Candidate
+        }
+    }
+
+    $PartyTenantId = $null
+    $ParsedGuid = [guid]::Empty
+    if (-not $IsGuest -and $TenantId -and [guid]::TryParse($TenantId, [ref] $ParsedGuid)) {
+        if ($ParsedGuid -ne [guid]::Empty) {
+            $PartyTenantId = $ParsedGuid.ToString()
+        }
+    }
+
+    if (-not $PartyDomain -and -not $PartyTenantId) {
+        Write-PSFMessage -Level 9 -Message (
+            "ConvertTo-TeamsParty: nothing usable in Upn='${Upn}', Domain='${Domain}', " +
+            "TenantId='${TenantId}'")
+        return
+    }
+
+    [pscustomobject]@{
+        Domain   = $PartyDomain
+        TenantId = $PartyTenantId
+    }
+}
+#EndRegion '.\Private\UnifiedAuditLog\ConvertTo-TeamsParty.ps1' 122
+#Region '.\Private\UnifiedAuditLog\ConvertTo-UalRecord.ps1' -1
+
+function ConvertTo-UalRecord {
+    <#
+    .SYNOPSIS
+    Converts a Graph audit log record into the record shape Show-IRTUnifiedAuditLog expects.
+
+    .DESCRIPTION
+    Internal helper. The Graph audit search API and Search-UnifiedAuditLog return the same
+    events in different shapes. Rather than teach every sheet builder a second shape, the
+    Graph record is translated here into the classic one, so Show-IRTUnifiedAuditLog and
+    everything under Build-*Sheet keep working untouched.
+
+    Property mapping:
+
+        Identity     <- id
+        CreationDate <- createdDateTime, as UTC [datetime]
+        RecordType   <- auditLogRecordType (already PascalCase, matching the classic value)
+        Operations   <- operation
+        UserIds      <- userPrincipalName, falling back to userId
+        AuditData    <- auditData, serialized to a JSON string
+
+    Two details matter.
+
+    AuditData is emitted as a JSON string rather than an object because
+    Show-IRTUnifiedAuditLog runs ConvertFrom-Json over every row's AuditData. Handing it
+    a string keeps that path identical to the Search-UnifiedAuditLog path.
+
+    Graph decorates auditData with OData annotation keys ('@odata.type',
+    'Actor@odata.type', 'RecordType@odata.type' and so on) that the classic API does not
+    emit. They are stripped recursively, otherwise they would surface in the workbook's
+    Raw column and add noise to every row.
+
+    Extra Graph-only properties (UserType, Service, ClientIp, ObjectId,
+    OrganizationId) are carried through. The sheet builders ignore them; they are useful
+    when reading the raw objects directly.
+
+    .PARAMETER Record
+    One Graph audit log record, as returned by the records endpoint.
+
+    .EXAMPLE
+    ```powershell
+    $Legacy = $GraphRecords | ForEach-Object { ConvertTo-UalRecord -Record $_ }
+    ```
+    Converts a page of Graph records for handoff to Show-IRTUnifiedAuditLog.
+
+    .OUTPUTS
+    [pscustomobject] in the Search-UnifiedAuditLog record shape.
+
+    .NOTES
+    Version: 1.0.0
+    #>
+    [CmdletBinding()]
+    [OutputType([pscustomobject])]
+    param(
+        [Parameter(Mandatory, ValueFromPipeline)]
+        [object] $Record
+    )
+
+    process {
+        # CreationDate feeds .ToLocalTime() in the sheet builders and a [datetime]
+        # comparison in the sort, so it has to be a real DateTime, not a string.
+        $Created = $null
+        if ($Record.createdDateTime) {
+            try {
+                $Created = ([datetime]$Record.createdDateTime).ToUniversalTime()
+            }
+            catch {
+                $Created = $null
+            }
+        }
+
+        # UserIds drives the actor column and the service principal detection in
+        # Build-AllOperationSheet, which expects a UPN or a ServicePrincipal_ string.
+        $UserIds = $Record.userPrincipalName
+        if (-not $UserIds) { $UserIds = $Record.userId }
+
+        $AuditData = Remove-ODataAnnotation -InputObject $Record.auditData
+        $AuditDataJson = $null
+        if ($null -ne $AuditData) {
+            $AuditDataJson = $AuditData | ConvertTo-Json -Depth 10 -Compress
+        }
+
+        return [pscustomobject]@{
+            Identity       = [string]$Record.id
+            CreationDate   = $Created
+            RecordType     = [string]$Record.auditLogRecordType
+            Operations     = [string]$Record.operation
+            UserIds        = [string]$UserIds
+            AuditData      = $AuditDataJson
+            UserType       = [string]$Record.userType
+            Service        = [string]$Record.service
+            ClientIp       = [string]$Record.clientIp
+            ObjectId       = [string]$Record.objectId
+            OrganizationId = [string]$Record.organizationId
+        }
+    }
+}
+#EndRegion '.\Private\UnifiedAuditLog\ConvertTo-UalRecord.ps1' 97
 #Region '.\Private\UnifiedAuditLog\Get-AddRemoveRoleSummary.ps1' -1
 
 function Get-AddRemoveRoleSummary {
@@ -7186,6 +7409,117 @@ function Get-AttachmentAccessSummary {
     }
 }
 #EndRegion '.\Private\UnifiedAuditLog\Get-AttachmentAccessSummary.ps1' 36
+#Region '.\Private\UnifiedAuditLog\Get-CallParticipantDetailParty.ps1' -1
+
+function Get-CallParticipantDetailParty {
+    <#
+    .SYNOPSIS
+    Returns the parties named in a CallParticipantDetail audit record.
+
+    .DESCRIPTION
+    Parser for Show-IRTTeamsExternalDomain. CallParticipantDetail records one
+    participant's time on a call. The participant is listed under Attendees with their
+    UPN and OrganizationId, ParticipantInfo lists the tenant IDs on the call, and
+    ResourceTenantId is the tenant that hosts it. UserId is the participant's UPN
+    without a tenant ID.
+
+    PSTN callers have a phone number in place of a UPN and the all-zero GUID as
+    ResourceTenantId. ConvertTo-TeamsParty drops both, so a phone call adds nothing.
+
+    Parties from the tenant being investigated are returned too; the caller removes
+    them.
+
+    .PARAMETER AuditData
+    The record's AuditData, already converted from JSON.
+
+    .EXAMPLE
+    ```powershell
+    Get-CallParticipantDetailParty -AuditData ($Record.AuditData | ConvertFrom-Json)
+    ```
+    Returns a party for each domain and tenant ID in the record.
+
+    .OUTPUTS
+    [pscustomobject] party objects with Domain and TenantId properties.
+
+    .NOTES
+    Version: 1.0.0
+
+    Logs through Write-PSFMessage from PSFramework, which Show-IRTTeamsExternalDomain
+    imports once. Import-IRTModule is not called here because this runs for every
+    record.
+    #>
+    [CmdletBinding()]
+    [OutputType([pscustomobject])]
+    param (
+        [Parameter(Mandatory)]
+        [psobject] $AuditData
+    )
+
+    Write-PSFMessage -Level 9 -Message "Get-CallParticipantDetailParty: $($AuditData.Id)"
+
+    foreach ($Attendee in @($AuditData.Attendees)) {
+        if ($null -eq $Attendee) { continue }
+        ConvertTo-TeamsParty -Upn $Attendee.UPN -TenantId $Attendee.OrganizationId
+    }
+    Get-TeamsParticipantInfoParty -ParticipantInfo $AuditData.ParticipantInfo
+    ConvertTo-TeamsParty -TenantId $AuditData.ResourceTenantId
+    ConvertTo-TeamsParty -Upn $AuditData.UserId
+}
+#EndRegion '.\Private\UnifiedAuditLog\Get-CallParticipantDetailParty.ps1' 55
+#Region '.\Private\UnifiedAuditLog\Get-ChatCreatedParty.ps1' -1
+
+function Get-ChatCreatedParty {
+    <#
+    .SYNOPSIS
+    Returns the parties named in a ChatCreated audit record.
+
+    .DESCRIPTION
+    Parser for Show-IRTTeamsExternalDomain. ChatCreated records a new chat thread.
+    Each chat member is listed under Members with their UPN and OrganizationId, the
+    conversation is summarised under ParticipantInfo, the creator is UserId (paired
+    with UserTenantId when the record carries it), and ResourceTenantId is the tenant
+    that hosts the chat.
+
+    Parties from the tenant being investigated are returned too; the caller removes
+    them.
+
+    .PARAMETER AuditData
+    The record's AuditData, already converted from JSON.
+
+    .EXAMPLE
+    ```powershell
+    Get-ChatCreatedParty -AuditData ($Record.AuditData | ConvertFrom-Json)
+    ```
+    Returns a party for each domain and tenant ID in the record.
+
+    .OUTPUTS
+    [pscustomobject] party objects with Domain and TenantId properties.
+
+    .NOTES
+    Version: 1.0.0
+
+    Logs through Write-PSFMessage from PSFramework, which Show-IRTTeamsExternalDomain
+    imports once. Import-IRTModule is not called here because this runs for every
+    record.
+    #>
+    [CmdletBinding()]
+    [OutputType([pscustomobject])]
+    param (
+        [Parameter(Mandatory)]
+        [psobject] $AuditData
+    )
+
+    Write-PSFMessage -Level 9 -Message "Get-ChatCreatedParty: $($AuditData.Id)"
+
+    foreach ($Member in @($AuditData.Members)) {
+        if ($null -eq $Member) { continue }
+        ConvertTo-TeamsParty -Upn $Member.UPN -TenantId $Member.OrganizationId
+    }
+    Get-TeamsParticipantInfoParty -ParticipantInfo $AuditData.ParticipantInfo
+    ConvertTo-TeamsParty -Upn $AuditData.UserId -TenantId $AuditData.UserTenantId
+    ConvertTo-TeamsParty -TenantId $AuditData.ResourceTenantId
+}
+#EndRegion '.\Private\UnifiedAuditLog\Get-ChatCreatedParty.ps1' 52
 #Region '.\Private\UnifiedAuditLog\Get-ExchangeItemCreateSendSummary.ps1' -1
 
 function Get-ExchangeItemCreateSendSummary {
@@ -7364,6 +7698,671 @@ function Get-ExchangeItemUpdateSummary {
     }
 }
 #EndRegion '.\Private\UnifiedAuditLog\Get-ExchangeItemUpdateSummary.ps1' 43
+#Region '.\Private\UnifiedAuditLog\Get-GraphUALErrorStatus.ps1' -1
+
+function Get-GraphUALErrorStatus {
+    <#
+    .SYNOPSIS
+    Extracts a short HTTP status name from a Graph SDK exception message.
+
+    .DESCRIPTION
+    Internal helper. The Graph PowerShell SDK reports failures in two shapes, and folds
+    its own internal retries into one very long message. A throttled request can arrive
+    as several hundred characters containing four copies of the same JSON error body.
+    This reduces either shape to a single status token so callers can branch on it and
+    log something readable.
+
+    Recognised shapes:
+        "... status code: TooManyRequests.{"error":{...}}"
+        "Response status code does not indicate success: InternalServerError (...)"
+
+    Returns 'Unknown' when neither shape matches.
+
+    .PARAMETER Message
+    The exception message to parse.
+
+    .EXAMPLE
+    ```powershell
+    Get-GraphUALErrorStatus -Message $_.Exception.Message
+    ```
+    Returns a token such as 'TooManyRequests' or 'InternalServerError'.
+
+    .OUTPUTS
+    [string] a status name such as 'TooManyRequests', or 'Unknown'.
+
+    .NOTES
+    Version: 1.0.0
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param(
+        [string] $Message
+    )
+
+    if (-not $Message) { return 'Unknown' }
+    if ($Message -match 'status code:\s*([A-Za-z]+)') { return $Matches[1] }
+    if ($Message -match 'does not indicate success:\s*([A-Za-z]+)') { return $Matches[1] }
+    return 'Unknown'
+}
+#EndRegion '.\Private\UnifiedAuditLog\Get-GraphUALErrorStatus.ps1' 45
+#Region '.\Private\UnifiedAuditLog\Get-GraphUALJob.ps1' -1
+
+function Get-GraphUALJob {
+    <#
+    .SYNOPSIS
+    Lists audit search jobs on the tenant, parsed and grouped.
+
+    .DESCRIPTION
+    Internal helper. Fetches the audit log query collection and turns each entry into an
+    object carrying both what the API reports (id, status, filters) and what the display
+    name encodes (object name, profile, group, age).
+
+    The collection is always fetched whole. The endpoint ignores $top, $filter, $select and
+    $orderby, so every filter here is applied locally.
+
+    Jobs whose names this module did not write are included only with -All. They are
+    listed with a null GroupId, since there is no way to know what they belong to or how
+    to rebuild their output.
+
+    Every job the tenant still holds is listed, including ones already downloaded. The API
+    has no delete, so a finished search stays visible until Purview expires it after about
+    thirty days. Downloaded results are matched to their search by name instead: the
+    exported file carries the same stamp and group id as the search that produced it.
+
+    .PARAMETER All
+    Include jobs that were not created by this module.
+
+    .PARAMETER Prefix
+    Name prefix identifying this module's jobs. Defaults to IRT_Config.JobNamePrefix.
+
+    .EXAMPLE
+    ```powershell
+    Get-GraphUALJob
+    ```
+    Lists this module's audit search jobs on the tenant.
+
+    .OUTPUTS
+    [pscustomobject[]] one per job, with Id, DisplayName, Status, GroupId, ObjectName,
+    ProfileTag, Days, Stamp, Index, Label, Created, StartUtc, EndUtc, FilePrefix and
+    SheetTitle.
+
+    .NOTES
+    Version: 1.0.0
+    #>
+    [CmdletBinding()]
+    [OutputType([psobject[]])]
+    param(
+        [switch] $All,
+
+        [string] $Prefix = (Get-IRTJobNamePrefix)
+    )
+
+    Import-IRTModule -Name 'PSFramework'
+    $FunctionName = $MyInvocation.MyCommand.Name
+
+    $Response = Invoke-GraphUALRequest -Path 'queries'
+    if (-not $Response.Ok) {
+        Write-IRT "Could not list audit searches: $($Response.Status)" -Level Error
+        return [psobject[]]@()
+    }
+
+    $Jobs = [System.Collections.Generic.List[psobject]]::new()
+
+    # profile metadata is needed to rebuild file names and sheet titles at download time,
+    # and the display name only carries the tag
+    $ProfileInfo = @{
+        Default         = @{
+            FilePrefix = 'UnifiedAuditLogs'
+            SheetTitle = 'Unified audit logs'
+        }
+        RiskyOperations = @{
+            FilePrefix = 'UALRiskyOperations'
+            SheetTitle = 'UAL risky operations'
+        }
+        SignInLogs      = @{
+            FilePrefix = 'UALSignInLogs'
+            SheetTitle = 'UAL sign-in logs'
+        }
+    }
+
+    foreach ($Query in @($Response.Result.value)) {
+
+        $Parsed = Read-GraphUALName -Name $Query.displayName -Prefix $Prefix
+        $IsOurs = $null -ne $Parsed
+        if (-not $IsOurs -and -not $All) { continue }
+
+        $Info = $ProfileInfo[$Parsed.ProfileTag]
+        if (-not $Info) {
+            $Info = @{ FilePrefix = 'UnifiedAuditLogs'; SheetTitle = 'Unified audit logs' }
+        }
+
+        # a filter summary is what makes one job in a group distinguishable from another
+        $Label = Get-GraphUALJobLabel -Query $Query
+
+        $StartUtc = $null
+        $EndUtc = $null
+        try {
+            if ($Query.filterStartDateTime) {
+                $StartUtc = ([datetime]$Query.filterStartDateTime).ToUniversalTime()
+            }
+            if ($Query.filterEndDateTime) {
+                $EndUtc = ([datetime]$Query.filterEndDateTime).ToUniversalTime()
+            }
+        }
+        catch {
+            Write-PSFMessage -Level 9 -Message (
+                "${FunctionName}: unparseable filter dates on '$($Query.displayName)'.")
+        }
+
+        $Jobs.Add([pscustomobject]@{
+                Id          = [string]$Query.id
+                DisplayName = [string]$Query.displayName
+                Status      = [string]$Query.status
+                IsOurs      = $IsOurs
+                GroupId     = $Parsed.GroupId
+                ObjectName  = $Parsed ? $Parsed.ObjectName : '(external)'
+                ProfileTag  = $Parsed ? $Parsed.ProfileTag : 'Default'
+                Days        = $Parsed ? $Parsed.Days : 0
+                Index       = $Parsed ? $Parsed.Index : 0
+                Created     = $Parsed.Created
+                Stamp       = $Parsed.Stamp
+                Label       = $Label
+                StartUtc    = $StartUtc
+                EndUtc      = $EndUtc
+                FilePrefix  = $Info.FilePrefix
+                SheetTitle  = $Info.SheetTitle
+            })
+    }
+
+    Write-PSFMessage -Level 8 -Message "${FunctionName}: returning $($Jobs.Count) job(s)."
+    return $Jobs.ToArray()
+}
+#EndRegion '.\Private\UnifiedAuditLog\Get-GraphUALJob.ps1' 131
+#Region '.\Private\UnifiedAuditLog\Get-GraphUALJobLabel.ps1' -1
+
+function Get-GraphUALJobLabel {
+    <#
+    .SYNOPSIS
+    Summarises an audit search job's filters in one short line.
+
+    .DESCRIPTION
+    Internal helper. Jobs in a group differ only by their filters, and the display name
+    does not record which filter a job carries, only its index. This reads the filters
+    back off the query object so a listing can show what each job actually covers.
+
+    Values are truncated because a keyword filter is often a full user principal name or a
+    GUID, and several of those on one line make a table unreadable.
+
+    Returns 'unfiltered' when the job carries no filters at all, which is worth seeing
+    plainly since only one such job may run at a time.
+
+    .PARAMETER Query
+    The query object from the audit log query listing.
+
+    .EXAMPLE
+    ```powershell
+    Get-GraphUALJobLabel -Query $Query
+    ```
+    Returns something like 'keyword jdoe@contoso.com' or 'recordType MicrosoftTeams'.
+
+    .OUTPUTS
+    [string] a short description of the job's filters.
+
+    .NOTES
+    Version: 1.0.0
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param(
+        [object] $Query
+    )
+
+    $MaxLength = 40
+    $Parts = [System.Collections.Generic.List[string]]::new()
+
+    if ($Query.keywordFilter) {
+        $Parts.Add("keyword $($Query.keywordFilter)")
+    }
+    if ($Query.userPrincipalNameFilters -and @($Query.userPrincipalNameFilters).Count -gt 0) {
+        $Parts.Add("actor $(@($Query.userPrincipalNameFilters) -join ',')")
+    }
+    if ($Query.recordTypeFilters -and @($Query.recordTypeFilters).Count -gt 0) {
+        $Parts.Add("recordType $(@($Query.recordTypeFilters) -join ',')")
+    }
+    if ($Query.ipAddressFilters -and @($Query.ipAddressFilters).Count -gt 0) {
+        $Parts.Add("ip $(@($Query.ipAddressFilters) -join ',')")
+    }
+    if ($Query.operationFilters -and @($Query.operationFilters).Count -gt 0) {
+        # the risky-operations profile passes dozens; a count reads better than a list
+        $Parts.Add("$(@($Query.operationFilters).Count) operation(s)")
+    }
+
+    if ($Parts.Count -eq 0) { return 'unfiltered' }
+
+    $Label = $Parts -join ' '
+    if ($Label.Length -gt $MaxLength) { $Label = $Label.Substring(0, $MaxLength - 3) + '...' }
+    return $Label
+}
+#EndRegion '.\Private\UnifiedAuditLog\Get-GraphUALJobLabel.ps1' 64
+#Region '.\Private\UnifiedAuditLog\Get-GraphUALKnownRecordType.ps1' -1
+
+function Get-GraphUALKnownRecordType {
+    <#
+    .SYNOPSIS
+    Returns the record type names recorded in the operations sheet.
+
+    .DESCRIPTION
+    Internal helper. Reads the distinct RecordType values from the operations sheet
+    (IRT_Config.AllOperationsSheetPath) into a case-insensitive set, cached in
+    $Global:IRT_GraphUALRecordTypes for the rest of the session.
+
+    The comparison is case-insensitive because the audit search API treats record type
+    filters that way, and because the sheet itself is inconsistent about casing.
+
+    Non-string values are skipped: the bundled sheet contains a literal 50, an integer
+    record type that was written without being resolved to a name.
+
+    Returns an empty set when the sheet is missing or unreadable. Callers treat that as
+    "cannot validate" rather than as an error, since the sheet is an aid and not a
+    requirement.
+
+    .PARAMETER Cached
+    Return the session cache if it is populated, without re-reading the sheet.
+
+    .EXAMPLE
+    ```powershell
+    $Known = Get-GraphUALKnownRecordType
+    $Known.Contains('microsoftteams')
+    ```
+    Reads the sheet and tests a value without regard to casing.
+
+    .OUTPUTS
+    [System.Collections.Generic.HashSet[string]] of record type names, case-insensitive.
+
+    .NOTES
+    Version: 1.0.0
+    #>
+    [CmdletBinding()]
+    # Object[] is declared alongside the set because every return uses the comma
+    # operator; the caller still receives the HashSet, but the statement type is an array.
+    [OutputType([System.Collections.Generic.HashSet[string]], [object[]])]
+    param(
+        [switch] $Cached
+    )
+
+    Import-IRTModule -Name 'PSFramework'
+    $FunctionName = $MyInvocation.MyCommand.Name
+
+    # Every return uses the comma operator. A HashSet is IEnumerable, so a bare return
+    # unrolls it to a plain string array, and .Contains() on an array is case-sensitive
+    # regardless of the comparer the set was built with. That would quietly undo the
+    # case-insensitive matching this function exists to provide.
+    $IsSet = $Global:IRT_GraphUALRecordTypes -is [System.Collections.Generic.HashSet[string]]
+    if ($Cached -and $IsSet -and $Global:IRT_GraphUALRecordTypes.Count -gt 0) {
+        return , $Global:IRT_GraphUALRecordTypes
+    }
+
+    $Comparer = [System.StringComparer]::OrdinalIgnoreCase
+    $Types = [System.Collections.Generic.HashSet[string]]::new($Comparer)
+
+    $SheetPath = $Global:IRT_Config.AllOperationsSheetPath
+    if (-not $SheetPath -or -not (Test-Path -LiteralPath $SheetPath)) {
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: operations sheet not found at '$SheetPath'.")
+        $Global:IRT_GraphUALRecordTypes = $Types
+        return , $Types
+    }
+
+    Import-IRTModule -Name 'ImportExcel'
+    try {
+        $ExcelParams = @{
+            Path          = $SheetPath
+            WorksheetName = 'Operations'
+            ErrorAction   = 'Stop'
+        }
+        $Rows = Import-Excel @ExcelParams
+    }
+    catch {
+        Write-PSFMessage -Level Warning -ErrorRecord $_ -Message (
+            "${FunctionName}: could not read '$SheetPath'; record type validation is off.")
+        $Global:IRT_GraphUALRecordTypes = $Types
+        return , $Types
+    }
+
+    foreach ($Row in $Rows) {
+        $Value = $Row.RecordType
+        # skip blanks and the stray integer record types the sheet has collected
+        if (-not $Value) { continue }
+        if ($Value -isnot [string]) { continue }
+        $Trimmed = $Value.Trim()
+        if ($Trimmed) { [void]$Types.Add($Trimmed) }
+    }
+
+    Write-PSFMessage -Level 8 -Message (
+        "${FunctionName}: loaded $($Types.Count) record type(s) from the operations sheet.")
+    $Global:IRT_GraphUALRecordTypes = $Types
+    return , $Types
+}
+#EndRegion '.\Private\UnifiedAuditLog\Get-GraphUALKnownRecordType.ps1' 98
+#Region '.\Private\UnifiedAuditLog\Get-GraphUALOpenUnfilteredJob.ps1' -1
+
+function Get-GraphUALOpenUnfilteredJob {
+    <#
+    .SYNOPSIS
+    Returns an audit search job that is running without filters, if one exists.
+
+    .DESCRIPTION
+    Internal helper. The service permits only one unfiltered audit log query to be open at
+    a time. A second one is refused with TooManyRequests, and the Graph SDK spends about
+    24 seconds retrying before the caller sees it, producing a generic throttling error
+    that says nothing about the real cause.
+
+    Checking the listing first turns that into an immediate message naming the job that is
+    in the way.
+
+    A job counts as unfiltered when it carries no keyword, record type, operation, user
+    principal name, IP address, object id, service or administrative unit filter. Note
+    that the singular serviceFilter key documented for the create call is not persisted,
+    so only the plural serviceFilters is worth inspecting.
+
+    Returns $null when nothing is blocking, including when the listing itself fails: a
+    check that cannot run should not stop a search from being attempted.
+
+    .EXAMPLE
+    ```powershell
+    $Blocking = Get-GraphUALOpenUnfilteredJob
+    if ($Blocking) { Write-IRT "Blocked by $($Blocking.displayName)" -Level Error }
+    ```
+    Reports the job occupying the single unfiltered slot.
+
+    .OUTPUTS
+    The blocking query object, or $null.
+
+    .NOTES
+    Version: 1.0.0
+    #>
+    [CmdletBinding()]
+    param()
+
+    Import-IRTModule -Name 'PSFramework'
+    $FunctionName = $MyInvocation.MyCommand.Name
+
+    $Response = Invoke-GraphUALRequest -Path 'queries'
+    if (-not $Response.Ok) {
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: could not list queries; skipping the unfiltered check.")
+        return $null
+    }
+
+    $FilterKeys = @(
+        'keywordFilter'
+        'recordTypeFilters'
+        'operationFilters'
+        'userPrincipalNameFilters'
+        'ipAddressFilters'
+        'objectIdFilters'
+        'serviceFilters'
+        'administrativeUnitIdFilters'
+    )
+
+    foreach ($Query in @($Response.Result.value)) {
+        if ($Query.status -notin @('notStarted', 'running')) { continue }
+
+        $HasFilter = $false
+        foreach ($Key in $FilterKeys) {
+            $Value = $Query.$Key
+            # an empty array is the API's way of saying "no filter", so test for content
+            if ($Value -and @($Value).Count -gt 0) { $HasFilter = $true; break }
+        }
+        if (-not $HasFilter) {
+            Write-PSFMessage -Level 8 -Message (
+                "${FunctionName}: unfiltered job '$($Query.displayName)' is $($Query.status).")
+            return $Query
+        }
+    }
+
+    return $null
+}
+#EndRegion '.\Private\UnifiedAuditLog\Get-GraphUALOpenUnfilteredJob.ps1' 78
+#Region '.\Private\UnifiedAuditLog\Get-GraphUALRecord.ps1' -1
+
+function Get-GraphUALRecord {
+    <#
+    .SYNOPSIS
+    Retrieves every record from one finished audit search job, following paging.
+
+    .DESCRIPTION
+    Internal helper. Pages the records endpoint until it runs out of nextLinks.
+
+    The page size is fixed at 999. The endpoint rejects anything larger, and this is the
+    largest page the service will return.
+
+    A failure partway through is reported rather than thrown, and the pages already
+    retrieved are returned with it. A partial download plus a visible gap marker is more
+    useful during an investigation than losing thousands of records to one failed request.
+
+    .PARAMETER JobId
+    Id of the job to read.
+
+    .EXAMPLE
+    ```powershell
+    $Page = Get-GraphUALRecord -JobId $Id
+    ```
+    Retrieves every record from a job.
+
+    .OUTPUTS
+    [pscustomobject] with properties:
+        Records - the raw Graph records
+        Count   - how many were retrieved
+        Pages   - how many requests were made
+        Error   - the failure message if paging stopped early, else $null
+
+    .NOTES
+    Version: 1.1.0
+    1.1.0 - Removed -Remaining; paging always runs to the last page.
+    #>
+    [CmdletBinding()]
+    [OutputType([pscustomobject])]
+    param(
+        [Parameter(Mandatory)]
+        [string] $JobId
+    )
+
+    Import-IRTModule -Name 'PSFramework'
+    $FunctionName = $MyInvocation.MyCommand.Name
+
+    # 999 is the ceiling; the endpoint refuses larger values
+    $PageSize = 999
+    $Records = [System.Collections.Generic.List[object]]::new()
+    $Pages = 0
+    $PageError = $null
+
+    $Response = Invoke-GraphUALRequest -Path "queries/${JobId}/records?`$top=${PageSize}"
+
+    while ($true) {
+        if (-not $Response.Ok) {
+            $PageError = $Response.Error
+            break
+        }
+
+        $Pages++
+        foreach ($Item in @($Response.Result.value)) { $Records.Add($Item) }
+
+        $NextLink = $Response.Result.'@odata.nextLink'
+        if (-not $NextLink) { break }
+
+        Write-PSFMessage -Level 9 -Message (
+            "${FunctionName}: job $JobId page $($Pages + 1), $($Records.Count) so far.")
+        $Response = Invoke-GraphUALRequest -Uri $NextLink
+    }
+
+    return [pscustomobject]@{
+        Records = $Records
+        Count   = $Records.Count
+        Pages   = $Pages
+        Error   = $PageError
+    }
+}
+#EndRegion '.\Private\UnifiedAuditLog\Get-GraphUALRecord.ps1' 78
+#Region '.\Private\UnifiedAuditLog\Get-GraphUALRetryDelay.ps1' -1
+
+function Get-GraphUALRetryDelay {
+    <#
+    .SYNOPSIS
+    Works out how many seconds to wait before retrying a failed Graph request.
+
+    .DESCRIPTION
+    Internal helper. Prefers the server's own Retry-After value, first from the response
+    header object and then from the message text, because honouring it is both faster and
+    politer than guessing. Falls back to exponential backoff from a base delay
+    (base, base*2, base*4, ...) when Graph sends no Retry-After, which it often does not.
+
+    The result is capped at one hour so a malformed header cannot park a session
+    indefinitely.
+
+    .PARAMETER ErrorRecord
+    The error record from the failed request.
+
+    .PARAMETER Attempt
+    Which attempt just failed, counting from 1. Drives the exponential fallback.
+
+    .PARAMETER BaseSeconds
+    Base delay for the exponential fallback. Default: 30.
+
+    .EXAMPLE
+    ```powershell
+    $Wait = Get-GraphUALRetryDelay -ErrorRecord $_ -Attempt 2 -BaseSeconds 30
+    ```
+    Returns the server's Retry-After if present, otherwise 60.
+
+    .OUTPUTS
+    [int] seconds to wait.
+
+    .NOTES
+    Version: 1.0.0
+    #>
+    [CmdletBinding()]
+    [OutputType([int])]
+    param(
+        [System.Management.Automation.ErrorRecord] $ErrorRecord,
+
+        [ValidateRange(1, 100)]
+        [int] $Attempt = 1,
+
+        [ValidateRange(1, 3600)]
+        [int] $BaseSeconds = 30
+    )
+
+    $MaxWait = 3600
+    $RetryAfter = $null
+
+    # preferred source: the parsed response header
+    try {
+        $Delta = $ErrorRecord.Exception.Response.Headers.RetryAfter.Delta
+        if ($null -ne $Delta) { $RetryAfter = [int]$Delta.TotalSeconds }
+    }
+    catch {
+        $RetryAfter = $null
+    }
+
+    # fallback: some SDK errors only carry the delay in the message text
+    if (-not $RetryAfter -and $ErrorRecord) {
+        $Message = [string]$ErrorRecord.Exception.Message
+        if ($Message -match 'try again (?:in|after)[^0-9]*([0-9]+)\s*second') {
+            $RetryAfter = [int]$Matches[1]
+        }
+    }
+
+    if ($RetryAfter -and $RetryAfter -gt 0) {
+        return [Math]::Min($RetryAfter, $MaxWait)
+    }
+
+    $Wait = [int]($BaseSeconds * [Math]::Pow(2, $Attempt - 1))
+    return [Math]::Min($Wait, $MaxWait)
+}
+#EndRegion '.\Private\UnifiedAuditLog\Get-GraphUALRetryDelay.ps1' 75
+#Region '.\Private\UnifiedAuditLog\Get-GraphUALRiskyOperation.ps1' -1
+
+function Get-GraphUALRiskyOperation {
+    <#
+    .SYNOPSIS
+    Returns the operation names marked high risk in the operations sheet.
+
+    .DESCRIPTION
+    Internal helper for the -RiskyOperation switch. Reads the operations sheet
+    (IRT_Config.AllOperationsSheetPath) and returns the Operation values whose Risk column
+    reads 'High'.
+
+    Only operation names are returned, not the workload or record type they came from.
+    That matches how the audit search API filters, and it means a High marking on any one
+    row is enough to include the operation regardless of which workload row carries the
+    mark. The corollary is that risk cannot be expressed per workload: an operation is
+    either included for every workload or none.
+
+    Duplicate names are collapsed. The sheet holds several operations on more than one
+    row, one per workload, and the API takes a plain list.
+
+    Returns an empty array when the sheet is missing or unreadable, and warns, because a
+    risky-operations search that silently becomes an unfiltered one would be a surprise.
+
+    .EXAMPLE
+    ```powershell
+    $Operations = Get-GraphUALRiskyOperation
+    ```
+    Returns the distinct high risk operation names.
+
+    .OUTPUTS
+    [string[]] distinct operation names marked high risk.
+
+    .NOTES
+    Version: 1.0.0
+    #>
+    [CmdletBinding()]
+    [OutputType([string[]])]
+    param()
+
+    Import-IRTModule -Name 'PSFramework'
+    $FunctionName = $MyInvocation.MyCommand.Name
+
+    $SheetPath = $Global:IRT_Config.AllOperationsSheetPath
+    if (-not $SheetPath -or -not (Test-Path -LiteralPath $SheetPath)) {
+        Write-IRT ("Operations sheet not found at '$SheetPath'. " +
+            'Cannot determine high risk operations.') -Level Warn
+        return [string[]]@()
+    }
+
+    Import-IRTModule -Name 'ImportExcel'
+    try {
+        $ExcelParams = @{
+            Path          = $SheetPath
+            WorksheetName = 'Operations'
+            ErrorAction   = 'Stop'
+        }
+        $Rows = Import-Excel @ExcelParams
+    }
+    catch {
+        Write-IRT "Could not read the operations sheet at '$SheetPath'." -Level Warn
+        Write-PSFMessage -Level Warning -ErrorRecord $_ -Message (
+            "${FunctionName}: failed to read '$SheetPath'.")
+        return [string[]]@()
+    }
+
+    $Operations = @($Rows |
+            Where-Object { $_.Risk -eq 'High' -and $_.Operation } |
+            ForEach-Object { [string]$_.Operation } |
+            Sort-Object -Unique)
+
+    Write-PSFMessage -Level 8 -Message (
+        "${FunctionName}: $($Operations.Count) distinct high risk operation(s).")
+
+    if ($Operations.Count -eq 0) {
+        Write-IRT ('No operations are marked High in the operations sheet. ' +
+            'The search would cover everything; narrow it or mark some rows.') -Level Warn
+    }
+
+    return [string[]]$Operations
+}
+#EndRegion '.\Private\UnifiedAuditLog\Get-GraphUALRiskyOperation.ps1' 80
 #Region '.\Private\UnifiedAuditLog\Get-InboxRuleSummary.ps1' -1
 
 function Get-InboxRuleSummary {
@@ -7562,6 +8561,326 @@ function Get-MailItemsAccessedSummary {
     }
 }
 #EndRegion '.\Private\UnifiedAuditLog\Get-MailItemsAccessedSummary.ps1' 67
+#Region '.\Private\UnifiedAuditLog\Get-MeetingParticipantDetailParty.ps1' -1
+
+function Get-MeetingParticipantDetailParty {
+    <#
+    .SYNOPSIS
+    Returns the parties named in a MeetingParticipantDetail audit record.
+
+    .DESCRIPTION
+    Parser for Show-IRTTeamsExternalDomain. MeetingParticipantDetail records one
+    attendee's time in a meeting. The attendee is listed under Attendees with their
+    UPN and OrganizationId, and whoever let them in is under Attendees.InviterInfo in
+    the same form. Guest attendees appear with a #EXT# guest UPN, which
+    ConvertTo-TeamsParty decodes. Organizer.OrganizationId is the organiser's tenant,
+    which is an outside organisation when a tenant user joins someone else's meeting.
+    ResourceTenantId is the tenant that hosts the meeting, and UserId is the attendee's
+    UPN without a tenant ID.
+
+    Parties from the tenant being investigated are returned too; the caller removes
+    them.
+
+    .PARAMETER AuditData
+    The record's AuditData, already converted from JSON.
+
+    .EXAMPLE
+    ```powershell
+    Get-MeetingParticipantDetailParty -AuditData ($Record.AuditData | ConvertFrom-Json)
+    ```
+    Returns a party for each domain and tenant ID in the record.
+
+    .OUTPUTS
+    [pscustomobject] party objects with Domain and TenantId properties.
+
+    .NOTES
+    Version: 1.0.0
+
+    Logs through Write-PSFMessage from PSFramework, which Show-IRTTeamsExternalDomain
+    imports once. Import-IRTModule is not called here because this runs for every
+    record.
+    #>
+    [CmdletBinding()]
+    [OutputType([pscustomobject])]
+    param (
+        [Parameter(Mandatory)]
+        [psobject] $AuditData
+    )
+
+    Write-PSFMessage -Level 9 -Message "Get-MeetingParticipantDetailParty: $($AuditData.Id)"
+
+    foreach ($Attendee in @($AuditData.Attendees)) {
+        if ($null -eq $Attendee) { continue }
+        ConvertTo-TeamsParty -Upn $Attendee.UPN -TenantId $Attendee.OrganizationId
+        $Inviter = $Attendee.InviterInfo
+        if ($Inviter) {
+            ConvertTo-TeamsParty -Upn $Inviter.UPN -TenantId $Inviter.OrganizationId
+        }
+    }
+    if ($AuditData.Organizer) {
+        ConvertTo-TeamsParty -TenantId $AuditData.Organizer.OrganizationId
+    }
+    ConvertTo-TeamsParty -TenantId $AuditData.ResourceTenantId
+    ConvertTo-TeamsParty -Upn $AuditData.UserId
+}
+#EndRegion '.\Private\UnifiedAuditLog\Get-MeetingParticipantDetailParty.ps1' 61
+#Region '.\Private\UnifiedAuditLog\Get-MemberAddedParty.ps1' -1
+
+function Get-MemberAddedParty {
+    <#
+    .SYNOPSIS
+    Returns the parties named in a MemberAdded audit record.
+
+    .DESCRIPTION
+    Parser for Show-IRTTeamsExternalDomain. MemberAdded records people joining a chat,
+    team, or channel. Each added member is listed under Members with their UPN and,
+    for chats, their OrganizationId. Guest members appear with a #EXT# guest UPN,
+    which ConvertTo-TeamsParty decodes. Chat records also carry ParticipantInfo, the
+    person who added them is UserId (paired with UserTenantId when the record carries
+    it), and ResourceTenantId is the tenant that hosts the chat.
+
+    Parties from the tenant being investigated are returned too; the caller removes
+    them.
+
+    .PARAMETER AuditData
+    The record's AuditData, already converted from JSON.
+
+    .EXAMPLE
+    ```powershell
+    Get-MemberAddedParty -AuditData ($Record.AuditData | ConvertFrom-Json)
+    ```
+    Returns a party for each domain and tenant ID in the record.
+
+    .OUTPUTS
+    [pscustomobject] party objects with Domain and TenantId properties.
+
+    .NOTES
+    Version: 1.0.0
+
+    Logs through Write-PSFMessage from PSFramework, which Show-IRTTeamsExternalDomain
+    imports once. Import-IRTModule is not called here because this runs for every
+    record.
+    #>
+    [CmdletBinding()]
+    [OutputType([pscustomobject])]
+    param (
+        [Parameter(Mandatory)]
+        [psobject] $AuditData
+    )
+
+    Write-PSFMessage -Level 9 -Message "Get-MemberAddedParty: $($AuditData.Id)"
+
+    foreach ($Member in @($AuditData.Members)) {
+        if ($null -eq $Member) { continue }
+        ConvertTo-TeamsParty -Upn $Member.UPN -TenantId $Member.OrganizationId
+    }
+    Get-TeamsParticipantInfoParty -ParticipantInfo $AuditData.ParticipantInfo
+    ConvertTo-TeamsParty -Upn $AuditData.UserId -TenantId $AuditData.UserTenantId
+    ConvertTo-TeamsParty -TenantId $AuditData.ResourceTenantId
+}
+#EndRegion '.\Private\UnifiedAuditLog\Get-MemberAddedParty.ps1' 53
+#Region '.\Private\UnifiedAuditLog\Get-MessageCreatedHasLinkParty.ps1' -1
+
+function Get-MessageCreatedHasLinkParty {
+    <#
+    .SYNOPSIS
+    Returns the parties named in a MessageCreatedHasLink audit record.
+
+    .DESCRIPTION
+    Parser for Show-IRTTeamsExternalDomain. MessageCreatedHasLink records a new
+    message containing a link, image, or file. Everyone in the conversation is listed
+    under ParticipantInfo, the sender is UserId (paired with UserTenantId when the
+    record carries it), and ResourceTenantId is the tenant that hosts the chat.
+
+    The URLs in MessageURLs and MessageLinks are message content, not participants,
+    so addresses inside them (such as mailto: links) are not read.
+
+    Parties from the tenant being investigated are returned too; the caller removes
+    them.
+
+    .PARAMETER AuditData
+    The record's AuditData, already converted from JSON.
+
+    .EXAMPLE
+    ```powershell
+    Get-MessageCreatedHasLinkParty -AuditData ($Record.AuditData | ConvertFrom-Json)
+    ```
+    Returns a party for each domain and tenant ID in the record.
+
+    .OUTPUTS
+    [pscustomobject] party objects with Domain and TenantId properties.
+
+    .NOTES
+    Version: 1.0.0
+
+    Logs through Write-PSFMessage from PSFramework, which Show-IRTTeamsExternalDomain
+    imports once. Import-IRTModule is not called here because this runs for every
+    record.
+    #>
+    [CmdletBinding()]
+    [OutputType([pscustomobject])]
+    param (
+        [Parameter(Mandatory)]
+        [psobject] $AuditData
+    )
+
+    Write-PSFMessage -Level 9 -Message "Get-MessageCreatedHasLinkParty: $($AuditData.Id)"
+
+    Get-TeamsParticipantInfoParty -ParticipantInfo $AuditData.ParticipantInfo
+    ConvertTo-TeamsParty -Upn $AuditData.UserId -TenantId $AuditData.UserTenantId
+    ConvertTo-TeamsParty -TenantId $AuditData.ResourceTenantId
+}
+#EndRegion '.\Private\UnifiedAuditLog\Get-MessageCreatedHasLinkParty.ps1' 50
+#Region '.\Private\UnifiedAuditLog\Get-MessageEditedHasLinkParty.ps1' -1
+
+function Get-MessageEditedHasLinkParty {
+    <#
+    .SYNOPSIS
+    Returns the parties named in a MessageEditedHasLink audit record.
+
+    .DESCRIPTION
+    Parser for Show-IRTTeamsExternalDomain. MessageEditedHasLink records an edit to a
+    message containing a link, image, or file. Everyone in the conversation is listed
+    under ParticipantInfo, the editor is UserId (paired with UserTenantId when the
+    record carries it), and ResourceTenantId is the tenant that hosts the chat.
+
+    The URLs in MessageURLs and MessageLinks are message content, not participants,
+    so addresses inside them (such as mailto: links) are not read.
+
+    Parties from the tenant being investigated are returned too; the caller removes
+    them.
+
+    .PARAMETER AuditData
+    The record's AuditData, already converted from JSON.
+
+    .EXAMPLE
+    ```powershell
+    Get-MessageEditedHasLinkParty -AuditData ($Record.AuditData | ConvertFrom-Json)
+    ```
+    Returns a party for each domain and tenant ID in the record.
+
+    .OUTPUTS
+    [pscustomobject] party objects with Domain and TenantId properties.
+
+    .NOTES
+    Version: 1.0.0
+
+    Logs through Write-PSFMessage from PSFramework, which Show-IRTTeamsExternalDomain
+    imports once. Import-IRTModule is not called here because this runs for every
+    record.
+    #>
+    [CmdletBinding()]
+    [OutputType([pscustomobject])]
+    param (
+        [Parameter(Mandatory)]
+        [psobject] $AuditData
+    )
+
+    Write-PSFMessage -Level 9 -Message "Get-MessageEditedHasLinkParty: $($AuditData.Id)"
+
+    Get-TeamsParticipantInfoParty -ParticipantInfo $AuditData.ParticipantInfo
+    ConvertTo-TeamsParty -Upn $AuditData.UserId -TenantId $AuditData.UserTenantId
+    ConvertTo-TeamsParty -TenantId $AuditData.ResourceTenantId
+}
+#EndRegion '.\Private\UnifiedAuditLog\Get-MessageEditedHasLinkParty.ps1' 50
+#Region '.\Private\UnifiedAuditLog\Get-MessageSentParty.ps1' -1
+
+function Get-MessageSentParty {
+    <#
+    .SYNOPSIS
+    Returns the parties named in a MessageSent audit record.
+
+    .DESCRIPTION
+    Parser for Show-IRTTeamsExternalDomain. MessageSent records a chat or channel
+    message. Everyone in the conversation is listed under ParticipantInfo, the sender
+    is UserId (paired with UserTenantId when the record carries it), and
+    ResourceTenantId is the tenant that hosts the chat.
+
+    Parties from the tenant being investigated are returned too; the caller removes
+    them.
+
+    .PARAMETER AuditData
+    The record's AuditData, already converted from JSON.
+
+    .EXAMPLE
+    ```powershell
+    Get-MessageSentParty -AuditData ($Record.AuditData | ConvertFrom-Json)
+    ```
+    Returns a party for each domain and tenant ID in the record.
+
+    .OUTPUTS
+    [pscustomobject] party objects with Domain and TenantId properties.
+
+    .NOTES
+    Version: 1.0.0
+
+    Logs through Write-PSFMessage from PSFramework, which Show-IRTTeamsExternalDomain
+    imports once. Import-IRTModule is not called here because this runs for every
+    record.
+    #>
+    [CmdletBinding()]
+    [OutputType([pscustomobject])]
+    param (
+        [Parameter(Mandatory)]
+        [psobject] $AuditData
+    )
+
+    Write-PSFMessage -Level 9 -Message "Get-MessageSentParty: $($AuditData.Id)"
+
+    Get-TeamsParticipantInfoParty -ParticipantInfo $AuditData.ParticipantInfo
+    ConvertTo-TeamsParty -Upn $AuditData.UserId -TenantId $AuditData.UserTenantId
+    ConvertTo-TeamsParty -TenantId $AuditData.ResourceTenantId
+}
+#EndRegion '.\Private\UnifiedAuditLog\Get-MessageSentParty.ps1' 47
+#Region '.\Private\UnifiedAuditLog\Get-MessageUpdatedParty.ps1' -1
+
+function Get-MessageUpdatedParty {
+    <#
+    .SYNOPSIS
+    Returns the parties named in a MessageUpdated audit record.
+
+    .DESCRIPTION
+    Parser for Show-IRTTeamsExternalDomain. MessageUpdated records an edit to a chat
+    or channel message. Everyone in the conversation is listed under ParticipantInfo,
+    the editor is UserId (paired with UserTenantId when the record carries it), and
+    ResourceTenantId is the tenant that hosts the chat.
+
+    Parties from the tenant being investigated are returned too; the caller removes
+    them.
+
+    .PARAMETER AuditData
+    The record's AuditData, already converted from JSON.
+
+    .EXAMPLE
+    ```powershell
+    Get-MessageUpdatedParty -AuditData ($Record.AuditData | ConvertFrom-Json)
+    ```
+    Returns a party for each domain and tenant ID in the record.
+
+    .OUTPUTS
+    [pscustomobject] party objects with Domain and TenantId properties.
+
+    .NOTES
+    Version: 1.0.0
+
+    Logs through Write-PSFMessage from PSFramework, which Show-IRTTeamsExternalDomain
+    imports once. Import-IRTModule is not called here because this runs for every
+    record.
+    #>
+    [CmdletBinding()]
+    [OutputType([pscustomobject])]
+    param (
+        [Parameter(Mandatory)]
+        [psobject] $AuditData
+    )
+
+    Write-PSFMessage -Level 9 -Message "Get-MessageUpdatedParty: $($AuditData.Id)"
+
+    Get-TeamsParticipantInfoParty -ParticipantInfo $AuditData.ParticipantInfo
+    ConvertTo-TeamsParty -Upn $AuditData.UserId -TenantId $AuditData.UserTenantId
+    ConvertTo-TeamsParty -TenantId $AuditData.ResourceTenantId
+}
+#EndRegion '.\Private\UnifiedAuditLog\Get-MessageUpdatedParty.ps1' 47
 #Region '.\Private\UnifiedAuditLog\Get-PageViewedSummary.ps1' -1
 
 function Get-PageViewedSummary {
@@ -7666,6 +8985,56 @@ function Get-PIMRoleAssignedSummary {
     }
 }
 #EndRegion '.\Private\UnifiedAuditLog\Get-PIMRoleAssignedSummary.ps1' 63
+#Region '.\Private\UnifiedAuditLog\Get-ReactedToMessageParty.ps1' -1
+
+function Get-ReactedToMessageParty {
+    <#
+    .SYNOPSIS
+    Returns the parties named in a ReactedToMessage audit record.
+
+    .DESCRIPTION
+    Parser for Show-IRTTeamsExternalDomain. ReactedToMessage records a reaction to a
+    message. The conversation is summarised under ParticipantInfo, which for this
+    operation usually lists tenant IDs but no domains. A domain appears only when the
+    person reacting is from outside, as UserId paired with UserTenantId.
+    ResourceTenantId is the tenant that hosts the chat.
+
+    Parties from the tenant being investigated are returned too; the caller removes
+    them.
+
+    .PARAMETER AuditData
+    The record's AuditData, already converted from JSON.
+
+    .EXAMPLE
+    ```powershell
+    Get-ReactedToMessageParty -AuditData ($Record.AuditData | ConvertFrom-Json)
+    ```
+    Returns a party for each domain and tenant ID in the record.
+
+    .OUTPUTS
+    [pscustomobject] party objects with Domain and TenantId properties.
+
+    .NOTES
+    Version: 1.0.0
+
+    Logs through Write-PSFMessage from PSFramework, which Show-IRTTeamsExternalDomain
+    imports once. Import-IRTModule is not called here because this runs for every
+    record.
+    #>
+    [CmdletBinding()]
+    [OutputType([pscustomobject])]
+    param (
+        [Parameter(Mandatory)]
+        [psobject] $AuditData
+    )
+
+    Write-PSFMessage -Level 9 -Message "Get-ReactedToMessageParty: $($AuditData.Id)"
+
+    Get-TeamsParticipantInfoParty -ParticipantInfo $AuditData.ParticipantInfo
+    ConvertTo-TeamsParty -Upn $AuditData.UserId -TenantId $AuditData.UserTenantId
+    ConvertTo-TeamsParty -TenantId $AuditData.ResourceTenantId
+}
+#EndRegion '.\Private\UnifiedAuditLog\Get-ReactedToMessageParty.ps1' 48
 #Region '.\Private\UnifiedAuditLog\Get-SearchQueryPerformedSummary.ps1' -1
 
 function Get-SearchQueryPerformedSummary {
@@ -7796,6 +9165,60 @@ function Get-SharePointFileOperationSummary {
     }
 }
 #EndRegion '.\Private\UnifiedAuditLog\Get-SharePointFileOperationSummary.ps1' 51
+#Region '.\Private\UnifiedAuditLog\Get-TeamsParticipantInfoParty.ps1' -1
+
+function Get-TeamsParticipantInfoParty {
+    <#
+    .SYNOPSIS
+    Returns the parties listed in a Teams audit record's ParticipantInfo block.
+
+    .DESCRIPTION
+    Internal helper for the Teams external contact parsers. Chat, message, and call
+    records summarise everyone in the conversation under ParticipantInfo:
+
+        ParticipatingSIPDomains - domain and tenant ID pairs
+        ParticipatingDomains    - domains on their own
+        ParticipatingTenantIds  - tenant IDs on their own
+
+    Every entry is returned as a party. The three lists overlap, so one organisation
+    usually appears several times; the caller de-duplicates.
+
+    .PARAMETER ParticipantInfo
+    The ParticipantInfo object from parsed AuditData. $null returns nothing.
+
+    .EXAMPLE
+    ```powershell
+    Get-TeamsParticipantInfoParty -ParticipantInfo $AuditData.ParticipantInfo
+    ```
+    Returns a party for each domain, tenant ID, and SIP domain pair in the record.
+
+    .OUTPUTS
+    [pscustomobject] party objects from ConvertTo-TeamsParty.
+
+    .NOTES
+    Version: 1.0.0
+    #>
+    [CmdletBinding()]
+    [OutputType([pscustomobject])]
+    param (
+        [AllowNull()]
+        [psobject] $ParticipantInfo
+    )
+
+    if ($null -eq $ParticipantInfo) { return }
+
+    foreach ($Entry in @($ParticipantInfo.ParticipatingSIPDomains)) {
+        if ($null -eq $Entry) { continue }
+        ConvertTo-TeamsParty -Domain $Entry.DomainName -TenantId $Entry.TenantId
+    }
+    foreach ($Name in @($ParticipantInfo.ParticipatingDomains)) {
+        ConvertTo-TeamsParty -Domain $Name
+    }
+    foreach ($Id in @($ParticipantInfo.ParticipatingTenantIds)) {
+        ConvertTo-TeamsParty -TenantId $Id
+    }
+}
+#EndRegion '.\Private\UnifiedAuditLog\Get-TeamsParticipantInfoParty.ps1' 52
 #Region '.\Private\UnifiedAuditLog\Get-TeamsSessionStartedSummary.ps1' -1
 
 function Get-TeamsSessionStartedSummary {
@@ -7892,6 +9315,1001 @@ function Get-UpdateUserSummary {
     }
 }
 #EndRegion '.\Private\UnifiedAuditLog\Get-UpdateUserSummary.ps1' 39
+#Region '.\Private\UnifiedAuditLog\Get-UserAcceptedParty.ps1' -1
+
+function Get-UserAcceptedParty {
+    <#
+    .SYNOPSIS
+    Returns the parties named in a UserAccepted audit record.
+
+    .DESCRIPTION
+    Parser for Show-IRTTeamsExternalDomain. UserAccepted records a tenant user
+    accepting an external user. The external user is listed under Members with their
+    OrganizationId but no UPN, so this operation yields tenant IDs only.
+
+    Parties from the tenant being investigated are returned too; the caller removes
+    them.
+
+    .PARAMETER AuditData
+    The record's AuditData, already converted from JSON.
+
+    .EXAMPLE
+    ```powershell
+    Get-UserAcceptedParty -AuditData ($Record.AuditData | ConvertFrom-Json)
+    ```
+    Returns a party for each tenant ID in the record.
+
+    .OUTPUTS
+    [pscustomobject] party objects with Domain and TenantId properties.
+
+    .NOTES
+    Version: 1.0.0
+
+    Logs through Write-PSFMessage from PSFramework, which Show-IRTTeamsExternalDomain
+    imports once. Import-IRTModule is not called here because this runs for every
+    record.
+    #>
+    [CmdletBinding()]
+    [OutputType([pscustomobject])]
+    param (
+        [Parameter(Mandatory)]
+        [psobject] $AuditData
+    )
+
+    Write-PSFMessage -Level 9 -Message "Get-UserAcceptedParty: $($AuditData.Id)"
+
+    foreach ($Member in @($AuditData.Members)) {
+        if ($null -eq $Member) { continue }
+        ConvertTo-TeamsParty -Upn $Member.UPN -TenantId $Member.OrganizationId
+    }
+}
+#EndRegion '.\Private\UnifiedAuditLog\Get-UserAcceptedParty.ps1' 47
+#Region '.\Private\UnifiedAuditLog\Get-UserBlockedParty.ps1' -1
+
+function Get-UserBlockedParty {
+    <#
+    .SYNOPSIS
+    Returns the parties named in a UserBlocked audit record.
+
+    .DESCRIPTION
+    Parser for Show-IRTTeamsExternalDomain. UserBlocked records a tenant user blocking
+    an external user. The blocked user is listed under Members with their
+    OrganizationId but no UPN, so this operation yields tenant IDs only.
+
+    Parties from the tenant being investigated are returned too; the caller removes
+    them.
+
+    .PARAMETER AuditData
+    The record's AuditData, already converted from JSON.
+
+    .EXAMPLE
+    ```powershell
+    Get-UserBlockedParty -AuditData ($Record.AuditData | ConvertFrom-Json)
+    ```
+    Returns a party for each tenant ID in the record.
+
+    .OUTPUTS
+    [pscustomobject] party objects with Domain and TenantId properties.
+
+    .NOTES
+    Version: 1.0.0
+
+    Logs through Write-PSFMessage from PSFramework, which Show-IRTTeamsExternalDomain
+    imports once. Import-IRTModule is not called here because this runs for every
+    record.
+    #>
+    [CmdletBinding()]
+    [OutputType([pscustomobject])]
+    param (
+        [Parameter(Mandatory)]
+        [psobject] $AuditData
+    )
+
+    Write-PSFMessage -Level 9 -Message "Get-UserBlockedParty: $($AuditData.Id)"
+
+    foreach ($Member in @($AuditData.Members)) {
+        if ($null -eq $Member) { continue }
+        ConvertTo-TeamsParty -Upn $Member.UPN -TenantId $Member.OrganizationId
+    }
+}
+#EndRegion '.\Private\UnifiedAuditLog\Get-UserBlockedParty.ps1' 47
+#Region '.\Private\UnifiedAuditLog\Invoke-GraphUALRequest.ps1' -1
+
+function Invoke-GraphUALRequest {
+    <#
+    .SYNOPSIS
+    Sends one request to the Microsoft Graph audit log query API, with retry.
+
+    .DESCRIPTION
+    Internal helper for the Start/Wait/Receive-IRTGraphUAL family. Wraps
+    Invoke-MgGraphRequest with the behaviour the audit search endpoint needs:
+
+      - Builds the URI from IRT_Config.GraphUALApiVersion (default 'v1.0') when the
+        caller passes a relative -Path, and passes an absolute -Uri through unchanged so
+        an @odata.nextLink can be followed directly.
+      - Falls back to the beta endpoint, once per session, when v1.0 answers
+        "Resource not found for the segment 'auditLog'". Some tenants have the v1.0
+        route documented but not enabled.
+      - Refreshes the Graph token before each attempt. A wait loop can outlive the token.
+      - Retries throttling and timeouts, honouring Retry-After when Graph sends one and
+        backing off exponentially when it does not. The Graph SDK already retries 429
+        internally about three times over ~24 seconds, so the retry count here is low by
+        design.
+
+    Errors are returned as a result object rather than thrown, so callers can record a
+    failure per job and carry on with the rest of a group.
+
+    .PARAMETER Path
+    Path relative to the audit log root, for example 'queries' or
+    'queries/<id>/records?$top=999'. Mutually exclusive with -Uri.
+
+    .PARAMETER Uri
+    Absolute URI, used to follow an @odata.nextLink. Mutually exclusive with -Path.
+
+    .PARAMETER Method
+    HTTP method. Default: GET.
+
+    .PARAMETER Body
+    Request body for POST. Serialized as JSON by Invoke-MgGraphRequest.
+
+    .PARAMETER OutputType
+    Invoke-MgGraphRequest output type. Default: HashTable. Pass 'Json' to inspect the
+    raw response.
+
+    .PARAMETER MaxRetry
+    Attempts before giving up on a retryable failure. Default: 3.
+
+    .PARAMETER ThrottleDelaySeconds
+    Base backoff in seconds when Graph throttles without a Retry-After header. Grows
+    exponentially per retry. Default: 30.
+
+    .EXAMPLE
+    ```powershell
+    Invoke-GraphUALRequest -Path 'queries'
+    ```
+    Lists the tenant's audit log queries.
+
+    .EXAMPLE
+    ```powershell
+    $Body = @{ displayName = 'IRT: test'; filterStartDateTime = '2026-09-01T00:00:00Z' }
+    Invoke-GraphUALRequest -Method 'POST' -Path 'queries' -Body $Body
+    ```
+    Creates an audit log query.
+
+    .OUTPUTS
+    [pscustomobject] with properties:
+        Ok      - [bool] whether the request succeeded
+        Result  - the response body, or $null on failure
+        Error   - [string] exception message on failure, else $null
+        Status  - [string] short HTTP status name when one could be parsed
+        Seconds - [int] elapsed seconds
+
+    .NOTES
+    Version: 1.0.0
+    #>
+    [CmdletBinding(DefaultParameterSetName = 'Path')]
+    [OutputType([pscustomobject])]
+    param(
+        [Parameter(Mandatory, ParameterSetName = 'Path')]
+        [string] $Path,
+
+        [Parameter(Mandatory, ParameterSetName = 'Uri')]
+        [string] $Uri,
+
+        [ValidateSet('GET', 'POST', 'DELETE', 'PATCH')]
+        [string] $Method = 'GET',
+
+        [hashtable] $Body,
+
+        [ValidateSet('HashTable', 'Json', 'PSObject')]
+        [string] $OutputType = 'HashTable',
+
+        [ValidateRange(1, 10)]
+        [int] $MaxRetry = 3,
+
+        [ValidateRange(1, 3600)]
+        [int] $ThrottleDelaySeconds = 30
+    )
+
+    Import-IRTModule -Name 'Microsoft.Graph.Authentication', 'PSFramework'
+    $FunctionName = $MyInvocation.MyCommand.Name
+    $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+
+    # Session-scoped API version. Starts from config, then sticks at 'beta' for the rest
+    # of the session once a v1.0 call proves the route is missing, so one tenant-wide
+    # fact is learned once instead of on every request.
+    if (-not $Global:IRT_GraphUALApiVersion) {
+        $Configured = $Global:IRT_Config.GraphUALApiVersion
+        $Global:IRT_GraphUALApiVersion = $Configured ? $Configured : 'v1.0'
+    }
+
+    # A relative path is resolved against the current API version; an absolute URI
+    # (a nextLink) already carries its own version and is used as given.
+    $UsingPath = $PSCmdlet.ParameterSetName -eq 'Path'
+
+    $Attempt = 0
+    while ($true) {
+        $Attempt++
+
+        if ($UsingPath) {
+            $Version = $Global:IRT_GraphUALApiVersion
+            $RequestUri = "https://graph.microsoft.com/${Version}/security/auditLog/${Path}"
+        }
+        else {
+            $RequestUri = $Uri
+        }
+
+        # a long wait or a large download can outlive the token; cheap no-op when healthy
+        $null = Update-IRTToken -Service 'Graph'
+
+        $Params = @{
+            Method      = $Method
+            Uri         = $RequestUri
+            OutputType  = $OutputType
+            ErrorAction = 'Stop'
+        }
+        if ($Body) {
+            $Params['Body'] = $Body
+            $Params['ContentType'] = 'application/json'
+        }
+
+        Write-PSFMessage -Level 9 -Message "${FunctionName}: $Method $RequestUri"
+
+        try {
+            $Result = Invoke-MgGraphRequest @Params
+            return [pscustomobject]@{
+                Ok      = $true
+                Result  = $Result
+                Error   = $null
+                Status  = 'OK'
+                Seconds = [int]$Stopwatch.Elapsed.TotalSeconds
+            }
+        }
+        catch {
+            $Message = $_.Exception.Message
+            $Status = Get-GraphUALErrorStatus -Message $Message
+
+            # v1.0 documented but not enabled on this tenant: switch to beta and retry
+            # the same request once. The switch persists for the session.
+            $SegmentMissing = $Message -match "Resource not found for the segment 'auditLog'"
+            if ($SegmentMissing -and $UsingPath -and
+                $Global:IRT_GraphUALApiVersion -ne 'beta') {
+                Write-IRT ('Audit search v1.0 is not available on this tenant. ' +
+                    'Falling back to the beta endpoint.') -Level Warn
+                Write-PSFMessage -Level 8 -Message (
+                    "${FunctionName}: v1.0 route missing; switching to beta for the session.")
+                $Global:IRT_GraphUALApiVersion = 'beta'
+                continue
+            }
+
+            $IsThrottle = $Status -eq 'TooManyRequests' -or $Message -match '429'
+            $IsTimeout = $Message -match
+            'HttpClient\.Timeout|request was canceled|task was canceled'
+
+            if (($IsThrottle -or $IsTimeout) -and $Attempt -lt $MaxRetry) {
+                $DelayParams = @{
+                    ErrorRecord = $_
+                    Attempt     = $Attempt
+                    BaseSeconds = $ThrottleDelaySeconds
+                }
+                $Wait = Get-GraphUALRetryDelay @DelayParams
+                $Reason = $IsThrottle ? 'Throttled by Graph' : 'Request timed out'
+                Write-IRT ("${Reason}. Waiting ${Wait}s then retrying " +
+                    "(${Attempt}/${MaxRetry}).") -Level Warn
+                Write-PSFMessage -Level 8 -ErrorRecord $_ -Message (
+                    "${FunctionName}: ${Reason}; retry ${Attempt}/${MaxRetry} after ${Wait}s.")
+                Start-Sleep -Seconds $Wait
+                continue
+            }
+
+            Write-PSFMessage -Level Warning -ErrorRecord $_ -Message (
+                "${FunctionName}: $Method $RequestUri failed after ${Attempt} attempt(s): " +
+                "$Status - $Message")
+
+            return [pscustomobject]@{
+                Ok      = $false
+                Result  = $null
+                Error   = $Message
+                Status  = $Status
+                Seconds = [int]$Stopwatch.Elapsed.TotalSeconds
+            }
+        }
+    }
+}
+#EndRegion '.\Private\UnifiedAuditLog\Invoke-GraphUALRequest.ps1' 202
+#Region '.\Private\UnifiedAuditLog\New-GraphUALName.ps1' -1
+
+function New-GraphUALName {
+    <#
+    .SYNOPSIS
+    Builds the displayName that identifies one audit search job on the tenant.
+
+    .DESCRIPTION
+    Internal helper. The Graph audit log query API stores no metadata of its own: a
+    listed query has filters and a status but no created timestamp and nowhere to record
+    which investigation it belongs to. Jobs also outlive the PowerShell session that
+    created them, by up to thirty days. The displayName is therefore the only place to
+    put everything needed to list, age, group and rebuild a search later.
+
+    Format:
+
+        <Prefix>UAL|<ObjectName>|<ProfileTag>|<Days>d|<yyMMdd-HHmm>|g<GroupId>|j<Index>
+
+    for example:
+
+        IRT: UAL|jdoe|Default|30d|260909-1412|g3f9a1c2b|j1
+
+    The prefix matches the one used for email compliance searches
+    (IRT_Config.JobNamePrefix) so every IRT-created artifact on a tenant is
+    recognisable by the same marker. Fields are pipe separated because a pipe cannot
+    appear in any of the values: ObjectName is sanitized here, and the rest are generated.
+
+    .PARAMETER ObjectName
+    Short name of the thing being searched, usually the user's mailbox alias or a
+    sanitized service principal display name. Non alphanumeric characters are stripped.
+
+    .PARAMETER ProfileTag
+    Profile the search belongs to: 'Default', 'RiskyOperations' or 'SignInLogs'.
+
+    .PARAMETER Days
+    Number of days the search covers, used for display only.
+
+    .PARAMETER GroupId
+    Eight character group id shared by every job in one search.
+
+    .PARAMETER Index
+    Position of this job within its group, counting from 1.
+
+    .PARAMETER Stamp
+    Creation stamp in yyMMdd-HHmm form. Defaults to now. Every job in a group should
+    share one stamp, so the caller normally generates it once and passes it in.
+
+    .PARAMETER Prefix
+    Name prefix. Defaults to IRT_Config.JobNamePrefix.
+
+    .EXAMPLE
+    ```powershell
+    $Params = @{
+        ObjectName = 'jdoe'
+        ProfileTag = 'Default'
+        Days       = 30
+        GroupId    = '3f9a1c2b'
+        Index      = 1
+    }
+    New-GraphUALName @Params
+    ```
+    Returns 'IRT: UAL|jdoe|Default|30d|260909-1412|g3f9a1c2b|j1'.
+
+    .OUTPUTS
+    [string] the displayName to submit to Graph.
+
+    .NOTES
+    Version: 1.0.0
+    #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+        'PSUseShouldProcessForStateChangingFunctions', '',
+        Justification = 'Builds a string; changes no state.')]
+    [CmdletBinding()]
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory)]
+        [string] $ObjectName,
+
+        [Parameter(Mandatory)]
+        [string] $ProfileTag,
+
+        [Parameter(Mandatory)]
+        [int] $Days,
+
+        [Parameter(Mandatory)]
+        [string] $GroupId,
+
+        [Parameter(Mandatory)]
+        [int] $Index,
+
+        [string] $Stamp,
+
+        [string] $Prefix = (Get-IRTJobNamePrefix)
+    )
+
+    if (-not $Stamp) { $Stamp = (Get-Date).ToString('yyMMdd-HHmm') }
+
+    # the pipe is the field separator, so it must not survive in a value. Strip anything
+    # that is not alphanumeric, then fall back to a placeholder if nothing is left.
+    $SafeName = $ObjectName -replace '[^a-zA-Z0-9]', ''
+    if (-not $SafeName) { $SafeName = 'unknown' }
+
+    $Parts = @(
+        'UAL'
+        $SafeName
+        $ProfileTag
+        "${Days}d"
+        $Stamp
+        "g${GroupId}"
+        "j${Index}"
+    )
+
+    return $Prefix + ($Parts -join '|')
+}
+#EndRegion '.\Private\UnifiedAuditLog\New-GraphUALName.ps1' 113
+#Region '.\Private\UnifiedAuditLog\New-UalGapMarker.ps1' -1
+
+function New-UalGapMarker {
+    <#
+    .SYNOPSIS
+    Builds a visible "data missing" row to stand in for records that could not be retrieved.
+
+    .DESCRIPTION
+    Internal helper. When part of a search fails, the result is a workbook that looks like
+    a quiet period rather than an incomplete one, which is the worst possible outcome
+    during an investigation. This produces a row that mimics a UAL record closely enough
+    to flow through deduplication, sorting and the sheet builders, so the gap is obvious
+    in the spreadsheet itself and not only in the console.
+
+    Build-AllOperationSheet checks the IRTDataGap property and keeps these rows on every
+    sheet regardless of any operation filtering.
+
+    The full explanation goes into AuditData, which surfaces in the workbook's Raw column.
+
+    .PARAMETER Reason
+    What went wrong, recorded in the marker's audit data.
+
+    .PARAMETER Label
+    Which query or job failed.
+
+    .PARAMETER Date
+    Timestamp to sort the marker by. Defaults to now. Passing the end of the search window
+    keeps the marker at the top of a newest-first sheet.
+
+    .EXAMPLE
+    ```powershell
+    New-UalGapMarker -Reason 'Job finished as failed' -Label 'keyword jdoe@contoso.com'
+    ```
+    Returns a marker row for insertion into the record collection.
+
+    .OUTPUTS
+    [pscustomobject] in the UAL record shape, with IRTDataGap set.
+
+    .NOTES
+    Version: 1.0.0
+    #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+        'PSUseShouldProcessForStateChangingFunctions', '',
+        Justification = 'Builds an in-memory marker object; changes no state.')]
+    [CmdletBinding()]
+    [OutputType([pscustomobject])]
+    param(
+        [string] $Reason,
+
+        [string] $Label,
+
+        [datetime] $Date = (Get-Date)
+    )
+
+    $AuditData = [ordered]@{
+        Operation    = '*** DATA MISSING - query failed; results incomplete ***'
+        Workload     = 'IRT'
+        ResultStatus = 'Failed'
+        FailedQuery  = $Label
+        Error        = $Reason
+    } | ConvertTo-Json -Compress
+
+    return [pscustomobject]@{
+        Identity     = "IRT-DATA-GAP-$([guid]::NewGuid())"
+        IRTDataGap   = $true
+        CreationDate = $Date
+        RecordType   = 'IRT_QUERY_FAILURE'
+        Operations   = 'DataMissing'
+        UserIds      = '*** DATA MISSING - INCOMPLETE RESULTS ***'
+        AuditData    = $AuditData
+    }
+}
+#EndRegion '.\Private\UnifiedAuditLog\New-UalGapMarker.ps1' 71
+#Region '.\Private\UnifiedAuditLog\Read-GraphUALName.ps1' -1
+
+function Read-GraphUALName {
+    <#
+    .SYNOPSIS
+    Parses an audit search displayName back into its parts.
+
+    .DESCRIPTION
+    Internal helper. Inverse of New-GraphUALName. Used when listing jobs on a tenant,
+    where the displayName is the only record of which investigation a job belongs to,
+    how old it is, and which group it shares with its siblings.
+
+    Returns $null for anything that does not match the expected shape, including jobs
+    created by another tool, by the Purview portal, or by an older version of this
+    module. Callers should treat $null as "show it but do not try to act on it".
+
+    Age is derived from the stamp rather than from the API, because a listed query object
+    carries no created or modified timestamp.
+
+    .PARAMETER Name
+    The displayName to parse.
+
+    .PARAMETER Prefix
+    Expected name prefix. Defaults to IRT_Config.JobNamePrefix. A name that does
+    not start with this prefix is not ours and returns $null.
+
+    .EXAMPLE
+    ```powershell
+    Read-GraphUALName -Name 'IRT: UAL|jdoe|Default|30d|260909-1412|g3f9a1c2b|j1'
+    ```
+    Returns an object with ObjectName 'jdoe', ProfileTag 'Default', Days 30, GroupId
+    '3f9a1c2b' and Index 1.
+
+    .EXAMPLE
+    ```powershell
+    Read-GraphUALName -Name 'Some analyst search'
+    ```
+    Returns $null.
+
+    .OUTPUTS
+    [pscustomobject] with properties ObjectName, ProfileTag, Days, Stamp, Created,
+    GroupId, Index; or $null when the name does not match.
+
+    .NOTES
+    Version: 1.0.0
+    #>
+    [CmdletBinding()]
+    [OutputType([pscustomobject])]
+    param(
+        [string] $Name,
+
+        [string] $Prefix = (Get-IRTJobNamePrefix)
+    )
+
+    if (-not $Name) { return $null }
+    if ($Prefix -and -not $Name.StartsWith($Prefix)) { return $null }
+
+    $Body = $Prefix ? $Name.Substring($Prefix.Length) : $Name
+    $Parts = $Body -split '\|'
+
+    # UAL | ObjectName | ProfileTag | <n>d | stamp | g<id> | j<n>
+    if ($Parts.Count -ne 7) { return $null }
+    if ($Parts[0] -ne 'UAL') { return $null }
+    if ($Parts[3] -notmatch '^(\d+)d$') { return $null }
+    $Days = [int]$Matches[1]
+    if ($Parts[5] -notmatch '^g(.+)$') { return $null }
+    $GroupId = $Matches[1]
+    if ($Parts[6] -notmatch '^j(\d+)$') { return $null }
+    $Index = [int]$Matches[1]
+
+    # the stamp is local time at creation; a job from a differently configured machine
+    # could fail to parse, so treat Created as best effort rather than required
+    $Stamp = $Parts[4]
+    $Created = $null
+    try {
+        $Culture = [System.Globalization.CultureInfo]::InvariantCulture
+        $Created = [datetime]::ParseExact($Stamp, 'yyMMdd-HHmm', $Culture)
+    }
+    catch {
+        $Created = $null
+    }
+
+    return [pscustomobject]@{
+        ObjectName = $Parts[1]
+        ProfileTag = $Parts[2]
+        Days       = $Days
+        Stamp      = $Stamp
+        Created    = $Created
+        GroupId    = $GroupId
+        Index      = $Index
+    }
+}
+#EndRegion '.\Private\UnifiedAuditLog\Read-GraphUALName.ps1' 91
+#Region '.\Private\UnifiedAuditLog\Remove-ODataAnnotation.ps1' -1
+
+function Remove-ODataAnnotation {
+    <#
+    .SYNOPSIS
+    Recursively strips OData annotation keys from a Graph response object.
+
+    .DESCRIPTION
+    Internal helper. Graph decorates response objects with OData annotation keys that
+    describe the wire type rather than the event: a bare '@odata.type', and a
+    '<Property>@odata.type' companion for many properties. A single audit record's
+    auditData can carry a dozen of them.
+
+    They are noise once the object has been deserialized, and they would otherwise be
+    serialized straight into the workbook's Raw column, so they are removed before the
+    record is handed on. Nested dictionaries and arrays are cleaned too, since the
+    annotations appear at every level.
+
+    Anything that is not a dictionary or an array is returned unchanged.
+
+    .PARAMETER InputObject
+    The object to clean. Usually a hashtable from Invoke-MgGraphRequest.
+
+    .EXAMPLE
+    ```powershell
+    $Clean = Remove-ODataAnnotation -InputObject $Record.auditData
+    ```
+    Returns the audit data without any '@odata.*' keys.
+
+    .OUTPUTS
+    The same shape as the input, without OData annotation keys.
+
+    .NOTES
+    Version: 1.0.0
+    #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+        'PSUseShouldProcessForStateChangingFunctions', '',
+        Justification = 'Returns a cleaned copy; changes no state.')]
+    [CmdletBinding()]
+    [OutputType([object], [System.Collections.Specialized.OrderedDictionary], [object[]])]
+    param(
+        [object] $InputObject
+    )
+
+    if ($null -eq $InputObject) { return $null }
+
+    if ($InputObject -is [System.Collections.IDictionary]) {
+        $Clean = [ordered]@{}
+        foreach ($Key in $InputObject.Keys) {
+            # drops both the bare '@odata.type' and per-property 'Foo@odata.type' keys
+            if ([string]$Key -like '*@odata.*') { continue }
+            $Clean[$Key] = Remove-ODataAnnotation -InputObject $InputObject[$Key]
+        }
+        return $Clean
+    }
+
+    # a string is enumerable, so test it before the generic collection branch
+    if ($InputObject -is [string]) { return $InputObject }
+
+    if ($InputObject -is [System.Collections.IEnumerable]) {
+        $Items = @()
+        foreach ($Item in $InputObject) {
+            $Items += , (Remove-ODataAnnotation -InputObject $Item)
+        }
+        # A bare `return $Items` unwraps a single-element array into the element itself,
+        # which would turn "Actor": [{...}] into "Actor": {...}. The sheet builders read
+        # AuditData.Actor[0].ID to resolve service principal names, so that indexer has
+        # to keep working for a one-element array. The comma keeps it an array.
+        return , $Items
+    }
+
+    return $InputObject
+}
+#EndRegion '.\Private\UnifiedAuditLog\Remove-ODataAnnotation.ps1' 72
+#Region '.\Private\UnifiedAuditLog\Select-GraphUALFocus.ps1' -1
+
+function Select-GraphUALFocus {
+    <#
+    .SYNOPSIS
+    Works out which audit search groups a wait should follow.
+
+    .DESCRIPTION
+    Internal helper for Wait-IRTGraphUAL. Resolves the focus in the least surprising way
+    for each situation:
+
+      - An explicit -Group wins outright, with no prompt.
+      - A single outstanding group is selected without asking, since there is nothing to
+        choose between.
+      - Several outstanding groups produce a numbered menu, with an option to follow all
+        of them at once.
+
+    The menu is skipped when the host cannot prompt, such as inside a script or a
+    scheduled run, and every outstanding group is followed instead. That keeps automation
+    working without a hidden prompt stalling it.
+
+    Only groups this module created can be followed. Searches made by the portal or
+    another tool are listed for context by Wait-IRTGraphUAL's -All switch, but there is no
+    way to know how to rebuild their output, so they are never focus candidates.
+
+    .PARAMETER Jobs
+    Job objects from Get-GraphUALJob.
+
+    .PARAMETER Group
+    Explicitly requested group ids. When supplied, returned as-is.
+
+    .EXAMPLE
+    ```powershell
+    $Focus = Select-GraphUALFocus -Jobs $Jobs
+    ```
+    Picks the group to follow, prompting only when there is a real choice.
+
+    .OUTPUTS
+    [string[]] group ids to follow. Empty when the user quit the menu.
+
+    .NOTES
+    Version: 1.0.0
+    #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+        'PSAvoidUsingWriteHost', '',
+        Justification = 'Interactive menu, consistent with Get-IRTEmailSearch.')]
+    [CmdletBinding()]
+    [OutputType([string[]])]
+    param(
+        [psobject[]] $Jobs,
+
+        [string[]] $Group
+    )
+
+    Import-IRTModule -Name 'PSFramework'
+    $FunctionName = $MyInvocation.MyCommand.Name
+
+    if ($Group) { return [string[]]$Group }
+
+    # only our own searches can be rebuilt into a workbook, so only they can be followed
+    $Ours = @($Jobs | Where-Object { $_.IsOurs -and $_.GroupId })
+    $GroupIds = @($Ours.GroupId | Sort-Object -Unique)
+
+    if ($GroupIds.Count -eq 0) { return [string[]]@() }
+    if ($GroupIds.Count -eq 1) { return [string[]]$GroupIds }
+
+    # a prompt in a non-interactive host would hang a script with no visible cause
+    if (-not (Test-IRTInteractiveHost)) {
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: host is not interactive; following all $($GroupIds.Count) group(s).")
+        return [string[]]$GroupIds
+    }
+
+    $Options = [ordered]@{}
+    $Index = 0
+    $Lookup = @{}
+    foreach ($Id in $GroupIds) {
+        $Index++
+        $Entry = @($Ours | Where-Object { $_.GroupId -eq $Id })
+        $First = $Entry[0]
+        $Done = @($Entry | Where-Object {
+                $_.Status -in @('succeeded', 'failed', 'cancelled')
+            }).Count
+        $Text = "$($First.ObjectName) $($First.ProfileTag), $($First.Days)d " +
+        "($Done/$($Entry.Count) finished)"
+        $Options["$Index"] = @{ String = $Text }
+        $Lookup[$Text] = $Id
+    }
+    $AllText = "All $($GroupIds.Count) searches"
+    $Options['A'] = @{ String = $AllText }
+    $Options['Q'] = @{ String = 'Quit' }
+
+    $MenuParams = @{
+        Options = $Options
+        Title   = 'Which audit searches should be watched?'
+        List    = $true
+    }
+    $Choice = Build-Menu @MenuParams
+
+    if ($Choice -eq 'Quit') { return [string[]]@() }
+    if ($Choice -eq $AllText) { return [string[]]$GroupIds }
+    if ($Lookup.ContainsKey($Choice)) { return [string[]]@($Lookup[$Choice]) }
+
+    return [string[]]$GroupIds
+}
+#EndRegion '.\Private\UnifiedAuditLog\Select-GraphUALFocus.ps1' 104
+#Region '.\Private\UnifiedAuditLog\Show-GraphUALStatus.ps1' -1
+
+function Show-GraphUALStatus {
+    <#
+    .SYNOPSIS
+    Prints one status line per audit search group.
+
+    .DESCRIPTION
+    Internal helper for the Wait-IRTGraphUAL poll loop. Groups the jobs, counts their
+    statuses, and prints a line per group with the elapsed wait time.
+
+    Groups being waited on are printed in normal colour and other outstanding groups are
+    dimmed, so a 35 minute wait does not hide the fact that other searches are also in
+    flight, or make it look as though they are being waited on too.
+
+    Age comes from the group's creation stamp rather than from the API, which reports no
+    created timestamp for a query.
+
+    .PARAMETER Jobs
+    Job objects from Get-GraphUALJob.
+
+    .PARAMETER Focus
+    Group ids currently being waited on.
+
+    .PARAMETER Elapsed
+    How long the caller has been waiting.
+
+    .EXAMPLE
+    ```powershell
+    Show-GraphUALStatus -Jobs $Jobs -Focus $Focus -Elapsed $Stopwatch.Elapsed
+    ```
+    Prints the status table for one poll tick.
+
+    .OUTPUTS
+    None. Writes to the host.
+
+    .NOTES
+    Version: 1.0.0
+    #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+        'PSAvoidUsingWriteHost', '',
+        Justification = 'Interactive status table, consistent with Get-IRTEmailSearch.')]
+    [CmdletBinding()]
+    param(
+        [psobject[]] $Jobs,
+
+        [string[]] $Focus,
+
+        [timespan] $Elapsed
+    )
+
+    if (($Jobs | Measure-Object).Count -eq 0) { return }
+
+    $Waited = $Elapsed.ToString('hh\:mm\:ss')
+    Write-Host ''
+    Write-Host "  Audit searches (waiting ${Waited}):" -ForegroundColor Cyan
+
+    # searches from the portal or another tool have no group id; they are listed one per
+    # row at the end rather than collapsed into a single nameless group
+    $Foreign = @($Jobs | Where-Object { -not $_.GroupId })
+    $Groups = $Jobs | Where-Object { $_.GroupId } | Group-Object GroupId | Sort-Object Name
+    $NameWidth = (@($Groups | ForEach-Object {
+                "$($_.Group[0].ObjectName) $($_.Group[0].ProfileTag)".Length
+            }) | Measure-Object -Maximum).Maximum
+    if (-not $NameWidth -or $NameWidth -lt 12) { $NameWidth = 12 }
+
+    foreach ($Entry in $Groups) {
+        $First = $Entry.Group[0]
+        $IsFocused = $First.GroupId -in $Focus
+
+        $Counts = $Entry.Group | Group-Object Status | Sort-Object Name |
+            ForEach-Object { "$($_.Count) $($_.Name)" }
+
+        $Age = ''
+        if ($First.Created) {
+            $Span = (Get-Date) - $First.Created
+            $Age = $Span.TotalHours -ge 1 ?
+            "$([int]$Span.TotalHours)h$($Span.Minutes)m" : "$([int]$Span.TotalMinutes)m"
+        }
+
+        $Name = "$($First.ObjectName) $($First.ProfileTag)".PadRight($NameWidth)
+        $Marker = $IsFocused ? '*' : ' '
+        $Line = "  $Marker $Name  $($First.Days)d  $($Age.PadLeft(6))  " +
+        "[$($First.GroupId)]  $($Counts -join ', ')"
+
+        $Color = $IsFocused ? 'Gray' : 'DarkGray'
+        Write-Host $Line -ForegroundColor $Color
+    }
+
+    if ($Foreign.Count -gt 0) {
+        $Header = "    other searches on this tenant ($($Foreign.Count)):"
+        Write-Host $Header -ForegroundColor DarkGray
+        foreach ($Job in $Foreign) {
+            $Name = $Job.DisplayName
+            if ($Name.Length -gt 48) { $Name = $Name.Substring(0, 45) + '...' }
+            Write-Host "      $Name  [$($Job.Status)]" -ForegroundColor DarkGray
+        }
+    }
+}
+#EndRegion '.\Private\UnifiedAuditLog\Show-GraphUALStatus.ps1' 98
+#Region '.\Private\UnifiedAuditLog\Test-GraphUALRecordType.ps1' -1
+
+function Test-GraphUALRecordType {
+    <#
+    .SYNOPSIS
+    Warns when a -RecordType value has never been seen in the operations sheet.
+
+    .DESCRIPTION
+    Internal helper. The Graph audit search API answers an unrecognised record type with
+    HTTP 500, which is indistinguishable from the service being unwell, and the failure
+    only surfaces after the job has been submitted. A client-side check turns that into
+    an immediate, readable warning naming the likely typo.
+
+    The known values come from the RecordType column of the operations sheet
+    (IRT_Config.AllOperationsSheetPath), which records what this tenant's logs have
+    actually contained. That is deliberately preferred over Microsoft's published enum:
+    the v1.0 enum page runs hundreds of members behind beta, and both lag what the service
+    really emits, so validating against documentation would reject legitimate searches.
+
+    Because the sheet only knows what has been witnessed, an unknown value is a warning
+    and never a hard stop. A sheet that has not yet seen MicrosoftTodoAudit is not
+    evidence that MicrosoftTodoAudit is invalid. The search runs either way.
+
+    Non-string RecordType values in the sheet are skipped. The bundled sheet contains a
+    literal 50, an integer record type that reached it without being resolved to a name.
+
+    .PARAMETER RecordType
+    One or more record type names to check.
+
+    .PARAMETER Cached
+    Reuse the record types already loaded this session instead of re-reading the sheet.
+
+    .EXAMPLE
+    ```powershell
+    Test-GraphUALRecordType -RecordType 'MicrosoftTeams', 'MicrosoftTeems'
+    ```
+    Returns 'MicrosoftTeems' and warns that it looks like a typo for 'MicrosoftTeams'.
+
+    .OUTPUTS
+    [string[]] the values that were not recognised. Empty when everything is known, or
+    when the sheet could not be read.
+
+    .NOTES
+    Version: 1.0.0
+    #>
+    [CmdletBinding()]
+    [OutputType([string[]])]
+    param(
+        [string[]] $RecordType,
+
+        [switch] $Cached
+    )
+
+    Import-IRTModule -Name 'PSFramework'
+    $FunctionName = $MyInvocation.MyCommand.Name
+
+    if (($RecordType | Measure-Object).Count -eq 0) { return [string[]]@() }
+
+    $Known = Get-GraphUALKnownRecordType -Cached:$Cached
+    if (($Known | Measure-Object).Count -eq 0) {
+        # no sheet, or an unreadable one. Skip the check rather than warn on everything.
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: no record types available from the operations sheet; " +
+            'skipping validation.')
+        return [string[]]@()
+    }
+
+    $Unknown = [System.Collections.Generic.List[string]]::new()
+    foreach ($Type in $RecordType) {
+        if (-not $Type) { continue }
+        if ($Known.Contains($Type)) { continue }
+        $Unknown.Add($Type)
+
+        # suggest by prefix first, then by substring either way round, which covers
+        # truncations and the usual transpositions
+        $Suggestions = @($Known | Where-Object {
+                $_ -like "$Type*" -or $_ -like "*$Type*" -or $Type -like "*$_*"
+            } | Sort-Object | Select-Object -First 3)
+
+        $Msg = "Record type '$Type' has not been seen in the operations sheet."
+        if ($Suggestions.Count -gt 0) {
+            $Msg += " Did you mean: $($Suggestions -join ', ')?"
+        }
+        $Msg += ' Searching anyway.'
+        Write-IRT $Msg -Level Warn
+        Write-PSFMessage -Level 8 -Message "${FunctionName}: unknown record type '$Type'."
+    }
+
+    return [string[]]$Unknown
+}
+#EndRegion '.\Private\UnifiedAuditLog\Test-GraphUALRecordType.ps1' 89
+#Region '.\Private\UnifiedAuditLog\Test-IRTInteractiveHost.ps1' -1
+
+function Test-IRTInteractiveHost {
+    <#
+    .SYNOPSIS
+    Reports whether the current host can prompt the user.
+
+    .DESCRIPTION
+    Internal helper. A menu shown in a host that cannot read input does not fail visibly;
+    it blocks, with nothing on screen to explain why. This checks before prompting so
+    callers can fall back to a sensible default instead.
+
+    Two conditions make a host non-interactive here: PowerShell started with
+    -NonInteractive, and a runspace worker, where a prompt would be invisible to whoever
+    started the parent command.
+
+    .EXAMPLE
+    ```powershell
+    if (Test-IRTInteractiveHost) { $Choice = Build-Menu @MenuParams }
+    ```
+    Prompts only when there is someone to answer.
+
+    .OUTPUTS
+    [bool] whether the host can prompt.
+
+    .NOTES
+    Version: 1.0.0
+    #>
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param()
+
+    if ($Global:IRT_IsRunspaceWorker) { return $false }
+
+    # -NonInteractive is surfaced on the command line rather than as a host property
+    $CommandLine = [Environment]::GetCommandLineArgs() -join ' '
+    if ($CommandLine -match '-NonInteractive') { return $false }
+
+    return $true
+}
+#EndRegion '.\Private\UnifiedAuditLog\Test-IRTInteractiveHost.ps1' 39
 #Region '.\Private\User\Format-SentinelDate.ps1' -1
 
 function Format-SentinelDate {
@@ -9142,6 +11560,50 @@ function Get-IRTClipboardSearch {
     }
 }
 #EndRegion '.\Private\Utility\Get-IRTClipboardSearch.ps1' 53
+#Region '.\Private\Utility\Get-IRTJobNamePrefix.ps1' -1
+
+function Get-IRTJobNamePrefix {
+    <#
+    .SYNOPSIS
+    Returns the prefix used to name jobs this module creates on a tenant.
+
+    .DESCRIPTION
+    Internal helper. Several features leave long-lived jobs behind on a tenant: email
+    compliance searches, and Graph audit log queries. Both are prefixed with the same
+    configurable marker so an analyst can tell at a glance which entries in a tenant were
+    created by this module rather than by the portal or another tool.
+
+    The setting is IRT_Config.JobNamePrefix. It was previously EmailSearchNamePrefix,
+    which only described the first feature to use it, so the old key is still honoured for
+    anyone whose saved configuration predates the rename.
+
+    Falls back to 'IRT: ' when neither key is set.
+
+    .EXAMPLE
+    ```powershell
+    $Prefix = Get-IRTJobNamePrefix
+    ```
+    Returns 'IRT: ' unless the configuration overrides it.
+
+    .OUTPUTS
+    [string] the configured prefix.
+
+    .NOTES
+    Version: 1.0.0
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param()
+
+    $Config = $Global:IRT_Config
+    if ($Config) {
+        if ($Config.JobNamePrefix) { return [string]$Config.JobNamePrefix }
+        # honour the pre-rename key so an existing saved config keeps working
+        if ($Config.EmailSearchNamePrefix) { return [string]$Config.EmailSearchNamePrefix }
+    }
+    return 'IRT: '
+}
+#EndRegion '.\Private\Utility\Get-IRTJobNamePrefix.ps1' 42
 #Region '.\Private\Utility\Get-RandomPassword.ps1' -1
 
 function Get-RandomPassword {
@@ -9373,6 +11835,112 @@ function Import-ReferenceData {
         "TenantCache=$($Global:IRT_TenantInfoTable.Count)")
 }
 #EndRegion '.\Private\Utility\Import-ReferenceData.ps1' 102
+#Region '.\Private\Utility\Initialize-IRTFileLogging.ps1' -1
+
+function Initialize-IRTFileLogging {
+    <#
+    .SYNOPSIS
+    Enables or disables PSFramework file logging from the LogFolderPath config value.
+
+    .DESCRIPTION
+    Reads $Global:IRT_Config.LogFolderPath and configures the PSFramework 'logfile'
+    logging provider to match:
+
+      - When LogFolderPath is a folder (or a path that does not exist yet, which is
+        created), the provider is enabled and every Write-PSFMessage call (all levels)
+        is written to <LogFolderPath>\IRT-<date>.log. A new file is written per day and
+        files older than 30 days are deleted automatically. There is no size limit and
+        no compression.
+      - When LogFolderPath is blank/null, the provider is disabled.
+      - When LogFolderPath points at an existing file, a warning is shown and the
+        provider is disabled, since no log could be written there.
+
+    Called at module import (from Suffix.ps1) and again by Set-IRTConfig whenever the
+    log folder setting changes, so a change takes effect immediately without reimporting
+    the module. Wrapped so a bad path cannot break module import or the config menu.
+
+    The caller skips this for runspace workers: PSFramework's logging queue is process
+    wide, so the main session's provider already captures worker messages.
+
+    .EXAMPLE
+    Initialize-IRTFileLogging
+    Applies the current LogFolderPath setting to the logfile provider.
+
+    .OUTPUTS
+    None. Configures the PSFramework logfile provider; writes a warning via Write-IRT
+    when the configured path cannot be used.
+
+    .NOTES
+    Version: 1.0.0
+    #>
+    [CmdletBinding()]
+    param()
+
+    Import-IRTModule -Name 'PSFramework'
+
+    $InstanceName = 'M365IRT'
+    $LogFolder = $Global:IRT_Config.LogFolderPath
+    Write-PSFMessage -Level 8 -Message "LogFolderPath: '$LogFolder'"
+
+    $DisableReason = $null
+    if ([string]::IsNullOrWhiteSpace($LogFolder)) {
+        $DisableReason = 'LogFolderPath is blank'
+    }
+    elseif (Test-Path -LiteralPath $LogFolder -PathType Leaf) {
+        # A file path would enable the provider but silently write nothing.
+        Write-IRT -Level Warn -Message (
+            "File logging is off: LogFolderPath '$LogFolder' is a file, not a folder.")
+        $DisableReason = 'LogFolderPath is a file'
+    }
+
+    # No usable folder: make sure file logging is off, then done.
+    if ($DisableReason) {
+        Write-PSFMessage -Level 8 -Message "Disabling file logging ($DisableReason)."
+        $DisableParams = @{
+            Name         = 'logfile'
+            InstanceName = $InstanceName
+            Enabled      = $false
+        }
+        try {
+            Set-PSFLoggingProvider @DisableParams
+        }
+        catch {
+            Write-PSFMessage -Level 8 -Message 'No logfile provider instance to disable.'
+        }
+        return
+    }
+
+    try {
+        # The provider creates the folder if able, but create it up front so a bad
+        # path surfaces here as a warning rather than silently producing no logs.
+        if (-not (Test-Path -LiteralPath $LogFolder -PathType Container)) {
+            Write-PSFMessage -Level 8 -Message "Creating log folder '$LogFolder'."
+            $null = New-Item -ItemType Directory -Path $LogFolder -Force
+        }
+
+        # One file per day (%Date% resolves to yyyy-MM-dd). The glob matches every
+        # dated file and feeds the age-based cleanup (LogRetentionTime).
+        $DatedLogPath = Join-Path -Path $LogFolder -ChildPath 'IRT-%Date%.log'
+        $LogRotateGlob = Join-Path -Path $LogFolder -ChildPath 'IRT-*.log'
+
+        $LoggingParams = @{
+            Name             = 'logfile'
+            InstanceName     = $InstanceName
+            FilePath         = $DatedLogPath
+            FileType         = 'TXT'
+            Enabled          = $true
+            LogRotatePath    = $LogRotateGlob
+            LogRetentionTime = '30d'
+            MutexName        = 'M365IRT-LogFile'
+        }
+        Set-PSFLoggingProvider @LoggingParams
+        Write-PSFMessage -Level 8 -Message "File logging enabled: '$DatedLogPath'."
+    }
+    catch {
+        Write-IRT -Level Warn -Message "Failed to enable file logging in '$LogFolder': $_"
+    }
+}
+#EndRegion '.\Private\Utility\Initialize-IRTFileLogging.ps1' 104
 #Region '.\Private\Utility\Invoke-IRTNativeCommand.ps1' -1
 
 function Invoke-IRTNativeCommand {
@@ -12025,7 +14593,7 @@ function Get-IRTEmailSearch {
     }
 
     # prefix that identifies IRT-created searches, used by the bulk-delete option
-    $Prefix = $Global:IRT_Config.EmailSearchNamePrefix
+    $Prefix = (Get-IRTJobNamePrefix)
 
     # outer loop: pick a search (unless one was named), then run the action loop
     :picker while ($true) {
@@ -12913,7 +15481,7 @@ function New-IRTEmailSearch {
 
     .PARAMETER NamePrefix
     String prepended to the search name (whether auto-generated or supplied via -Name).
-    Defaults to IRT_Config.EmailSearchNamePrefix ('IRT: '). The prefix is not re-applied
+    Defaults to IRT_Config.JobNamePrefix ('IRT: '). The prefix is not re-applied
     if the resolved name already starts with it. Pass '' to omit the prefix.
 
     .PARAMETER ExchangeLocation
@@ -12947,7 +15515,7 @@ function New-IRTEmailSearch {
 
     .NOTES
     Version: 1.2.0
-    1.2.0 - Prepend a configurable name prefix (IRT_Config.EmailSearchNamePrefix, default 'IRT: ').
+    1.2.0 - Prepend a configurable name prefix (IRT_Config.JobNamePrefix, default 'IRT: ').
     1.1.0 - Create and start when connected to IPPS; when offline, save criteria and warn.
     #>
     [CmdletBinding(SupportsShouldProcess)]
@@ -12963,7 +15531,7 @@ function New-IRTEmailSearch {
         [string[]] $Body,
         [string[]] $AttachmentName,
         [string] $Name,
-        [string] $NamePrefix = $Global:IRT_Config.EmailSearchNamePrefix,
+        [string] $NamePrefix = (Get-IRTJobNamePrefix),
         [string[]] $ExchangeLocation = 'All',
         [switch] $Force
     )
@@ -19703,7 +22271,9 @@ function Get-IRTTenantOwner {
     .NOTES
     The Graph lookup requires the CrossTenantInformation.ReadBasic.All scope.
 
-    Version: 1.2.0
+    Version: 1.2.1
+    1.2.1 - -Cached no longer throws on a cache hit. The entry was assigned to $cached,
+    which is the [switch] $Cached parameter under PowerShell's case-insensitive names.
     #>
     [CmdletBinding()]
     param (
@@ -19775,19 +22345,21 @@ function Get-IRTTenantOwner {
 
             # --- Cache lookup ---
             if ($Cached -and $Global:IRT_TenantInfoTable.ContainsKey($Tid)) {
-                $cached = $Global:IRT_TenantInfoTable[$Tid]
+                # Not $cached: variable names are case-insensitive, so that would assign
+                # the entry to the [switch] $Cached parameter and throw on every hit.
+                $CacheHit = $Global:IRT_TenantInfoTable[$Tid]
                 Write-PSFMessage -Level 8 -Message (
-                    "Cache hit for '$Tid' (cached $($cached.CachedAt), " +
-                    "DisplayName='$($cached.DisplayName)')")
+                    "Cache hit for '$Tid' (cached $($CacheHit.CachedAt), " +
+                    "DisplayName='$($CacheHit.DisplayName)')")
                 [pscustomobject]@{
-                    TenantId            = $cached.TenantId
+                    TenantId            = $CacheHit.TenantId
                     Exists              = $true
-                    DisplayName         = $cached.DisplayName
-                    DefaultDomain       = $cached.DefaultDomain
-                    FederationBrandName = $cached.FederationBrandName
-                    Cloud               = $cached.Cloud
-                    GraphHost           = $cached.GraphHost
-                    TokenEndpoint       = $cached.TokenEndpoint
+                    DisplayName         = $CacheHit.DisplayName
+                    DefaultDomain       = $CacheHit.DefaultDomain
+                    FederationBrandName = $CacheHit.FederationBrandName
+                    Cloud               = $CacheHit.Cloud
+                    GraphHost           = $CacheHit.GraphHost
+                    TokenEndpoint       = $CacheHit.TokenEndpoint
                     Source              = 'Cache'
                 }
                 continue
@@ -19920,7 +22492,7 @@ function Get-IRTTenantOwner {
         }
     }
 }
-#EndRegion '.\Public\ServicePrincipal\Get-IRTTenantOwner.ps1' 279
+#EndRegion '.\Public\ServicePrincipal\Get-IRTTenantOwner.ps1' 283
 #Region '.\Public\ServicePrincipal\Get-IRTUserServicePrincipal.ps1' -1
 
 function Get-IRTUserServicePrincipal { # FIXME rename to Get-IRTUserAppConsent
@@ -20606,7 +23178,8 @@ function Get-IRTTeamsExternalDomain {
     named for the Sunday that begins the week. Splitting the pull this way keeps
     each Search-UnifiedAuditLog window small enough to return reliably, and lets
     an interrupted run resume: weeks that already have a file on disk are skipped
-    unless -Force is passed.
+    unless -Force is passed. To retry particular weeks, such as ones that reported
+    DATA MISSING markers, pass their numbers to -Week.
 
     A file is written for every week that is queried, including weeks with no
     matching activity. An empty file therefore means "queried, nothing found",
@@ -20617,19 +23190,24 @@ function Get-IRTTeamsExternalDomain {
 
     Operations queried:
 
-        MessageSent            - chat and channel messages
-        MessageCreatedHasLink  - messages containing a link
-        MessageUpdated         - message edits
-        MessageEditedHasLink   - edits to messages containing a link
-        ChatCreated            - new chat threads
-        MemberAdded            - members joining a chat or team
-        ReactedToMessage       - message reactions (remote tenant ID only)
-        CallParticipantDetail  - call and meeting participants (remote tenant
-                                 ID only)
+        MessageSent              - chat and channel messages
+        MessageCreatedHasLink    - messages containing a link
+        MessageUpdated           - message edits
+        MessageEditedHasLink     - edits to messages containing a link
+        ChatCreated              - new chat threads
+        MemberAdded              - members joining a chat or team
+        MeetingParticipantDetail - meeting attendees, including guests
+        CallParticipantDetail    - call participants
+        ReactedToMessage         - message reactions (remote tenant ID only)
+        UserAccepted             - external user accepted (remote tenant ID only)
+        UserBlocked              - external user blocked (remote tenant ID only)
 
-    The last two record the remote party's tenant GUID but not its domain name,
+    The last three record the remote party's tenant GUID but not its domain name,
     so they still identify the external organisation - just not by a name a human
     can read without resolving the GUID.
+
+    Guest accounts appear under this tenant's ID, with the guest's home domain
+    encoded in the UPN before #EXT# (jane_contoso.com#EXT#@tenant.onmicrosoft.com).
 
     Requires an active Exchange Online connection, and a Microsoft Graph
     connection for the tenant domain used in file names.
@@ -20646,21 +23224,25 @@ function Get-IRTTeamsExternalDomain {
     End of date range (parseable date string). Used with -Start for an absolute
     range.
 
+    .PARAMETER Week
+    One or more week numbers to query, as shown in the "Week N of M" console
+    label. Weeks are numbered newest first, so week 1 is the most recent. Only the
+    named weeks are queried, and each is re-queried even if its file already
+    exists, since a failed query still writes a file holding DATA MISSING markers.
+
+    The numbers only point at the same weeks if the range resolves the same way as
+    the original run, so retry with the same -Start / -End. With -Days (or the
+    default), every week's number goes up by one each time a Sunday passes; check
+    the dates in the console label before trusting a retry.
+
     .PARAMETER Path
     Directory to write the weekly CLIXML files into. Default: current directory.
 
     .PARAMETER ResultLimit
     Maximum records to retrieve per weekly chunk. Stops at the next 5000-record
-    page boundary after the limit is reached. Default: 50000.
-
-    .PARAMETER ChunkDelaySeconds
-    Seconds to pause between queries to reduce the chance of tripping Exchange
-    throttling limits. Default: 2. Set to 0 to disable.
-
-    .PARAMETER ThrottleDelaySeconds
-    Base backoff (seconds) used when a query fails. Passed through to
-    Get-IRTUnifiedAuditLog, which grows the backoff exponentially per retry.
-    Default: 60.
+    page boundary after the limit is reached. A week that hits the limit gets a DATA
+    MISSING marker in its file; re-query it with -Week and a higher -ResultLimit.
+    Default: 50000.
 
     .PARAMETER Force
     Re-query and overwrite weeks that already have a file in -Path. Without it,
@@ -20686,31 +23268,40 @@ function Get-IRTTeamsExternalDomain {
     ```
     Pulls an absolute range, re-querying weeks that already have files.
 
+    .EXAMPLE
+    ```powershell
+    Get-IRTTeamsExternalDomain -Start '2026-01-01' -End '2026-03-31' -Week 4, 9
+    ```
+    Re-queries only weeks 4 and 9 of that range, for example after they reported
+    DATA MISSING markers. Their existing files are overwritten.
+
     .OUTPUTS
-    [System.IO.FileInfo] One object per weekly CLIXML file written.
+    None. Writes one CLIXML file per queried week into -Path.
 
     .NOTES
-    Version: 1.0.0
+    Version: 1.3.0
+    1.3.0 - Removed -ChunkDelaySeconds, which never took effect, and
+    -ThrottleDelaySeconds. Retry backoff now uses the Get-IRTUnifiedAuditLog default.
+    A week cut short by -ResultLimit now carries a DATA MISSING marker.
+    1.2.0 - Added MeetingParticipantDetail, UserAccepted, and UserBlocked.
+    CallParticipantDetail moved to the domain group.
+    1.1.0 - Added -Week to re-query specific weeks. No longer emits a FileInfo
+    object for each file written.
     #>
     [Alias('GetTeamsExtDomain', 'GetTeamsExtDomains')]
     [CmdletBinding()]
-    [OutputType([System.IO.FileInfo])]
     param (
         [int]    $Days, # default value set at #DEFAULTDAYS
         [string] $Start,
         [string] $End,
 
+        # retry specific weeks by the number shown in the console label
+        [ValidateRange(1, [int]::MaxValue)]
+        [int[]] $Week,
+
         [string] $Path = (Get-Location).Path,
 
         [int] $ResultLimit = 50000,
-
-        # seconds to pause between queries to avoid tripping throttle limits
-        [ValidateRange(0, 3600)]
-        [int] $ChunkDelaySeconds = 2,
-
-        # base seconds for retry backoff, passed through to Get-IRTUnifiedAuditLog
-        [ValidateRange(1, 3600)]
-        [int] $ThrottleDelaySeconds = 60,
 
         [switch] $Force
     )
@@ -20734,13 +23325,17 @@ function Get-IRTTeamsExternalDomain {
             'MessageEditedHasLink'
             'ChatCreated'
             'MemberAdded'
+            'MeetingParticipantDetail'
+            'CallParticipantDetail'
         )
         # Operations that record only the remote tenant's GUID. Still identifies
         # the external organisation, but the GUID has to be resolved separately
         # before it means anything to an analyst.
         $TenantIdOperations = @(
+            # names the domain only when the external party is the one reacting
             'ReactedToMessage'
-            'CallParticipantDetail'
+            'UserAccepted'
+            'UserBlocked'
         )
         $Operations = $DomainOperations + $TenantIdOperations
 
@@ -20798,6 +23393,23 @@ function Get-IRTTeamsExternalDomain {
         $WeekChunks.Reverse()
         $WeekCount = $WeekChunks.Count
 
+        # -Week numbers follow the same newest-first order as the console labels,
+        # so they can only be checked once the range has been split into weeks
+        if ($Week) {
+            $OutOfRange = @($Week | Where-Object { $_ -gt $WeekCount })
+            if ($OutOfRange.Count -gt 0) {
+                $ErrorParams = @{
+                    Category    = 'InvalidArgument'
+                    Message     = "-Week $($OutOfRange -join ', ') out of range. The " +
+                    "requested date range has ${WeekCount} weeks."
+                    ErrorAction = 'Stop'
+                }
+                Write-Error @ErrorParams
+            }
+            Write-PSFMessage -Level 8 -Message (
+                "${FunctionName}: -Week limits the run to week(s) $($Week -join ', ')")
+        }
+
         $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
         Write-PSFMessage -Level 8 -Message (
             "${FunctionName}: Range $($LocalStart.ToString('yyyy-MM-dd HH:mm')) to " +
@@ -20810,12 +23422,23 @@ function Get-IRTTeamsExternalDomain {
         # tenant label for file names
         $DomainName = Get-DefaultDomain
 
-        Write-IRT ("Querying ${WeekCount} weeks of Teams external contact " +
-            "records for ${DomainName}.")
+        if ($Week) {
+            $WeekList = ($Week | Sort-Object -Unique) -join ', '
+            Write-IRT ("Querying week(s) ${WeekList} of ${WeekCount} of Teams " +
+                "external contact records for ${DomainName}.")
+        }
+        else {
+            Write-IRT ("Querying ${WeekCount} weeks of Teams external contact " +
+                "records for ${DomainName}.")
+        }
 
         $ChunkIndex = 0
         foreach ($Chunk in $WeekChunks) {
             $ChunkIndex++
+
+            # -Week runs only the named weeks. Every week still counts toward the
+            # index so each label matches the run being retried.
+            if ($Week -and $ChunkIndex -notin $Week) { continue }
 
             $WeekStartString = $Chunk.WeekStart.ToString('yy-MM-dd')
             $FileNameBase = "${FileNamePrefix}_${DomainName}_${WeekStartString}"
@@ -20826,8 +23449,11 @@ function Get-IRTTeamsExternalDomain {
             $WindowEnd = $Chunk.End.ToString($WindowFormat)
             $Label = "Week ${ChunkIndex} of ${WeekCount} (${WindowStart} to ${WindowEnd})"
 
-            # resume support: a week that already has a file was already queried
-            if ((Test-Path -Path $XmlOutputPath -PathType 'Leaf') -and -not $Force) {
+            # resume support: a week that already has a file was already queried.
+            # Weeks named in -Week are re-queried anyway, because a failed query
+            # still writes a file holding DATA MISSING markers.
+            $FileExists = Test-Path -Path $XmlOutputPath -PathType 'Leaf'
+            if ($FileExists -and -not ($Force -or $Week)) {
                 Write-IRT "${Label}: file exists, skipping. Use -Force to re-query."
                 Write-PSFMessage -Level 8 -Message (
                     "${FunctionName}: Skipping existing file ${XmlOutputPath}")
@@ -20842,17 +23468,15 @@ function Get-IRTTeamsExternalDomain {
             # Reuse the shared UAL query function so this pull inherits its
             # paging, token refresh, retry/backoff, and data-gap marking.
             $UalParams = @{
-                AllUsers             = $true
-                Operation            = $Operations
-                Start                = $Chunk.Start.ToString('yyyy-MM-dd HH:mm:ss')
-                End                  = $Chunk.End.ToString('yyyy-MM-dd HH:mm:ss')
-                ChunkDays            = 7
-                ChunkDelaySeconds    = $ChunkDelaySeconds
-                ThrottleDelaySeconds = $ThrottleDelaySeconds
-                ResultLimit          = $ResultLimit
-                Excel                = $false
-                Xml                  = $false
-                PassThru             = $true
+                AllUsers    = $true
+                Operation   = $Operations
+                Start       = $Chunk.Start.ToString('yyyy-MM-dd HH:mm:ss')
+                End         = $Chunk.End.ToString('yyyy-MM-dd HH:mm:ss')
+                ChunkDays   = 7
+                ResultLimit = $ResultLimit
+                Excel       = $false
+                Xml         = $false
+                PassThru    = $true
             }
             $Returned = Get-IRTUnifiedAuditLog @UalParams
 
@@ -20897,17 +23521,16 @@ function Get-IRTTeamsExternalDomain {
 
             # A file is written even when the week is empty, so that a missing
             # file means "not queried" rather than "nothing found".
-            Write-IRT "${Label}: ${RecordCount} records. Saving to ${XmlOutputPath}"
+            $OutputPathString = Split-Path -Path $XmlOutputPath -Parent
+            Write-IRT "${Label}: ${RecordCount} records. Saving to ${OutputPathString}"
             $Records | Export-Clixml -Depth 10 -Path $XmlOutputPath
-
-            Get-Item -Path $XmlOutputPath
         }
 
         $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
         Write-PSFMessage -Level 8 -Message "${FunctionName}: Complete [$Elapsed]"
     }
 }
-#EndRegion '.\Public\UnifiedAuditLog\Get-IRTTeamsExternalDomain.ps1' 320
+#EndRegion '.\Public\UnifiedAuditLog\Get-IRTTeamsExternalDomain.ps1' 371
 #Region '.\Public\UnifiedAuditLog\Get-IRTUnifiedAuditLog.ps1' -1
 
 function Get-IRTUnifiedAuditLog {
@@ -20961,12 +23584,32 @@ function Get-IRTUnifiedAuditLog {
     Base backoff (seconds) used when a Search-UnifiedAuditLog query fails (timeout,
     throttling, or a dropped session). Backoff grows exponentially per retry
     (base, base*2, base*4...) and the token is refreshed between attempts. The full
-    exception is written to the PSFramework debug log for troubleshooting. Default: 60.
+    exception is written to the PSFramework debug log for troubleshooting. Default: 30.
+
+    .PARAMETER HighCompleteness
+    Run the search on Exchange's high-completeness path. Without it the service
+    prioritises speed and may silently return an incomplete result set. Searches are
+    slower with it, which on wide date ranges raises the chance of a timeout or an
+    expired search session, so it is off by default. Pair it with a smaller -ChunkDays.
+    The switch is only sent to Search-UnifiedAuditLog when specified, so older
+    ExchangeOnlineManagement builds that lack the parameter still work by default.
 
     .PARAMETER ResultLimit
-    Maximum total records to retrieve across all queries and date chunks. Stops at the
-    next 5000-record page boundary after the limit is reached. Since queries run from
-    the most recent chunk backward, the most recent events are retained. Default: 50000.
+    Maximum total records to retrieve across all queries and date chunks. Counts
+    deduplicated records, so overlapping pages and overlapping queries do not spend the
+    limit on repeats. Stops at the next 5000-record page boundary after the limit is
+    reached. Since queries run from the most recent chunk backward, the most recent
+    events are retained. When the limit stops a pull early, a DATA MISSING marker row
+    (RecordType IRT_RESULT_LIMIT) is added to the results, so the truncation shows in
+    the exported data and not only in the console. Default: 50000.
+
+    .PARAMETER ExhaustedPageQueries
+    Number of full pages in a row that must add no new records before a query stops
+    paging. An exhausted search keeps returning full 5000-record pages of records it has
+    already served, so a page of nothing new is the end-of-set signal. A page that does
+    add records resets the count. Raise it to test whether the service still returns
+    new records after a page of duplicates; each extra page costs another request.
+    Default: 1.
 
     .PARAMETER Operation
     Filter results to specific UAL operation names.
@@ -21036,14 +23679,44 @@ function Get-IRTUnifiedAuditLog {
     ```
     Returns the records in memory without writing any files.
 
+    .EXAMPLE
+    ```powershell
+    Get-IRTUnifiedAuditLog -UserObject $User -Days 7 -HighCompleteness -ChunkDays 1
+    ```
+    Runs the slower high-completeness search, one day per chunk to keep each query
+    inside the service's timeout. Use when a default search returns suspiciously
+    little and the gap has to be ruled out.
+
+    .EXAMPLE
+    ```powershell
+    Get-IRTUnifiedAuditLog -AllUsers -Days 7 -ExhaustedPageQueries 3
+    ```
+    Keeps paging each query until three full pages in a row add no new records. Compare
+    the 'Total retrieved' count against a default run to see whether stopping at the
+    first page of duplicates misses records.
+
     .OUTPUTS
     None by default. Results are exported to an Excel workbook. With -PassThru,
     emits one [System.Collections.Generic.List[psobject]] per queried object.
 
     .NOTES
-    Version: 1.12.0
+    Version: 1.16.0
+    1.16.0 - A pull stopped early by -ResultLimit now gets a DATA MISSING marker row
+    (RecordType IRT_RESULT_LIMIT), so truncated results are visible in the output.
+    1.15.0 - Added -ExhaustedPageQueries to set how many all-duplicate pages in a row end a
+    query's paging. The default of 1 keeps the 1.13.0 behaviour.
+    1.14.0 - Added -HighCompleteness (off by default). Retry backoff now starts at 30s
+    instead of 60s.
+    1.13.0 - Paging now stops when the result set is exhausted. Search-UnifiedAuditLog
+    keeps returning full 5000-record pages of already-served records instead of a short
+    page, so the old page-size-only loop ran until ResultLimit or a session timeout.
+    Paging now ends when a full page adds no records the query has not already served.
+    Records are also deduplicated as pages arrive rather than at the end, so
+    -ResultLimit counts real records instead of repeats, and the console reports both
+    the deduplicated and raw record counts.
     1.12.0 - Added -PassThru so callers can post-process records in memory
     instead of reading the exported files back off disk.
+    1.11.0 - Added a data-gap marker for queries that fail after all retries.
     1.10.0 - Added -RecordType to filter queries by UAL record type.
     1.9.0 - Exposed -ChunkDays to control date-chunk size, added per-chunk token
     refresh so long multi-chunk runs don't outlive the token's refresh window, an
@@ -21089,9 +23762,16 @@ function Get-IRTUnifiedAuditLog {
 
         # base seconds for retry backoff when a query fails (timeout/throttle/session)
         [ValidateRange(1, 3600)]
-        [int] $ThrottleDelaySeconds = 60,
+        [int] $ThrottleDelaySeconds = 30,
+
+        # run the search on Exchange's slower but complete search path
+        [switch] $HighCompleteness,
 
         [int] $ResultLimit = 50000,
+
+        # full pages in a row that must add nothing new before a query stops paging
+        [ValidateRange(1, 100)]
+        [int] $ExhaustedPageQueries = 1,
 
         [Alias('Operations')]
         [string[]] $Operation,
@@ -21204,12 +23884,14 @@ function Get-IRTUnifiedAuditLog {
             }
         }
 
-        # helper: build a visible "data missing" marker row to insert when a query
-        # fails after all retries. It mimics a UAL record closely enough to flow
+        # helper: build a visible "data missing" marker row to insert when part of a
+        # search was not retrieved: a query that failed after all retries, or a pull
+        # stopped early by ResultLimit. It mimics a UAL record closely enough to flow
         # through dedup, sort, and the sheet builders, so an incomplete dataset is
         # obvious in the spreadsheet itself - not just in the console/debug error.
-        # The full failure detail (window, query, exception) lands in the Raw column
-        # via AuditData.
+        # The full detail (window, query, reason) lands in the Raw column via
+        # AuditData. RecordType tells the two causes apart, because they need
+        # different fixes: retry the query, or raise -ResultLimit.
         function New-IRTUalGapMarker {
             [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
                 'PSUseShouldProcessForStateChangingFunctions', '',
@@ -21217,27 +23899,65 @@ function Get-IRTUnifiedAuditLog {
             param(
                 [hashtable] $DateChunk,
                 [string]    $Label,
-                [System.Management.Automation.ErrorRecord] $ErrorRecord
+                [string]    $Reason,
+                [ValidateSet('IRT_QUERY_FAILURE', 'IRT_RESULT_LIMIT')]
+                [string]    $RecordType = 'IRT_QUERY_FAILURE'
             )
+            $Cause = $RecordType -eq 'IRT_RESULT_LIMIT' ? 'ResultLimit reached' : 'query failed'
             $GapAuditData = [ordered]@{
-                Operation      = '*** DATA MISSING - query failed; results incomplete ***'
+                Operation      = "*** DATA MISSING - ${Cause}; results incomplete ***"
                 Workload       = 'IRT'
                 ResultStatus   = 'Failed'
                 FailedQuery    = $Label
                 WindowStartUtc = $DateChunk.Start.ToString('yyyy-MM-dd HH:mm:ssZ')
                 WindowEndUtc   = $DateChunk.End.ToString('yyyy-MM-dd HH:mm:ssZ')
-                Error          = $ErrorRecord.Exception.Message
+                Error          = $Reason
             } | ConvertTo-Json -Compress
             return [pscustomobject]@{
                 Identity     = "IRT-DATA-GAP-$([guid]::NewGuid())"
                 IRTDataGap   = $true
                 CreationDate = $DateChunk.End
-                RecordType   = 'IRT_QUERY_FAILURE'
+                RecordType   = $RecordType
                 Operations   = 'DataMissing'
                 UserIds      = '*** DATA MISSING - INCOMPLETE RESULTS ***'
                 AuditData    = $GapAuditData
             }
         }
+
+        # helper: append a page's records to the result list, skipping any
+        # Identity already stored. ReturnLargeSet pages overlap heavily, so
+        # deduplicating as pages arrive - rather than once at the very end -
+        # keeps -ResultLimit counting real records instead of repeats, and gives
+        # the paging loop a reliable "did this page add anything" signal.
+        # $SeenId spans every query for this object and decides what gets stored.
+        # $QuerySeenId is reset per query and only measures whether the current
+        # query's paging is still producing records it has not already served,
+        # so heavy overlap between two different queries cannot be mistaken for
+        # one query running out of pages.
+        # Returns the number of records new to the current query.
+        function Add-IRTUalUniqueRecord {
+            param(
+                [System.Collections.Generic.List[psobject]]  $Destination,
+                [System.Collections.Generic.HashSet[string]] $SeenId,
+                [System.Collections.Generic.HashSet[string]] $QuerySeenId,
+                [psobject[]] $Record
+            )
+            $NewToQuery = 0
+            foreach ($Item in $Record) {
+                $Id = [string]$Item.Identity
+                if ($QuerySeenId.Add($Id)) { $NewToQuery++ }
+                if ($SeenId.Add($Id)) { $Destination.Add($Item) }
+            }
+            return $NewToQuery
+        }
+
+        # NOTE: do not add a ResultIndex/ResultCount end-of-set check here. Under
+        # SessionCommand ReturnLargeSet those fields are page-relative, not
+        # cumulative: a full page reports ResultIndex 1..5000 and ResultCount
+        # 5000 regardless of how much of the set is left (measured against a live
+        # tenant). Treating ResultIndex -ge ResultCount as "complete" therefore
+        # ends every paged search after page one and silently drops the rest.
+        # The all-duplicates check in the paging loop is the end-of-set signal.
 
         # query profiles - add new entries here to support additional modes
         $ProfileTable = [ordered]@{
@@ -21387,6 +24107,13 @@ function Get-IRTUnifiedAuditLog {
 
             $AllLogs = [System.Collections.Generic.List[psobject]]::new()
 
+            # Records are deduplicated on the way in, not at the end, so
+            # $AllLogs.Count is always a count of real records and -ResultLimit
+            # cannot be spent on repeats. $RawRecordCount keeps the pre-dedup
+            # total so the console can report how much of the pull was overlap.
+            $UniqueLogIds = [System.Collections.Generic.HashSet[string]]::new()
+            $RawRecordCount = 0
+
             # users
             switch ( $ParameterSet ) {
                 'UserObject' {
@@ -21424,6 +24151,15 @@ function Get-IRTUnifiedAuditLog {
                 ResultSize     = 5000
                 SessionCommand = 'ReturnLargeSet'
                 Formatted      = $true
+            }
+
+            # Only send the switch when it was asked for. Passing
+            # -HighCompleteness:$false would still bind the parameter, which
+            # fails outright on ExchangeOnlineManagement builds that predate it.
+            if ($HighCompleteness) {
+                $BaseParams['HighCompleteness'] = $true
+                Write-PSFMessage -Level 8 -Message (
+                    "${FunctionName}: HighCompleteness enabled; searches will be slower.")
             }
 
             # add operations, if specified
@@ -21639,21 +24375,34 @@ function Get-IRTUnifiedAuditLog {
                             "DATA MISSING marker and continuing.") -Level Error
                         Write-Error -ErrorRecord $_
                         $MarkerParams = @{
-                            DateChunk   = $DateChunk
-                            Label       = "Query $QueryKey"
-                            ErrorRecord = $_
+                            DateChunk = $DateChunk
+                            Label     = "Query $QueryKey"
+                            Reason    = $_.Exception.Message
                         }
                         $AllLogs.Add( (New-IRTUalGapMarker @MarkerParams) )
                         continue
                     }
                     $LogCount = ($Page | Measure-Object).Count
+                    $RawRecordCount += $LogCount
+
+                    # identities served by this query's own paging session, used
+                    # to spot a page that is nothing but repeats
+                    $QuerySeenIds = [System.Collections.Generic.HashSet[string]]::new()
+                    $NewToQuery = 0
+                    # full pages in a row that added nothing new to this query
+                    $DuplicatePageStreak = 0
 
                     if ($LogCount -gt 0) {
 
-                        Write-IRT "Retrieved ${LogCount} logs."
-
-                        # add to list
-                        foreach ($i in $Page) { $AllLogs.Add($i) }
+                        # add to list, dropping records already seen
+                        $AddParams = @{
+                            Destination = $AllLogs
+                            SeenId      = $UniqueLogIds
+                            QuerySeenId = $QuerySeenIds
+                            Record      = $Page
+                        }
+                        $NewToQuery = Add-IRTUalUniqueRecord @AddParams
+                        Write-IRT "Retrieved ${LogCount} logs (${NewToQuery} new)."
 
                         # extract sessionid for paging
                         $SessionId = $Page[0].SessionId
@@ -21665,8 +24414,14 @@ function Get-IRTUnifiedAuditLog {
                         Write-IRT "Retrieved 0 logs." -Level Warn
                     }
 
-                    # retrieve pages until exhausted or ResultLimit reached
-                    while ($LogCount -eq 5000 -and $AllLogs.Count -lt $ResultLimit) {
+                    # Retrieve pages until -ExhaustedPageQueries full pages in a row
+                    # produce nothing this query has not already served, or
+                    # ResultLimit is reached. Page size alone is not an end-of-set
+                    # signal: an exhausted ReturnLargeSet search keeps returning
+                    # full pages of records it has already handed over.
+                    while ($LogCount -eq 5000 -and
+                        $DuplicatePageStreak -lt $ExhaustedPageQueries -and
+                        $AllLogs.Count -lt $ResultLimit) {
 
                         # Large searches can outlive the ~1h access token. Cheap no-op
                         # while the bound token is healthy; silent re-bind when not.
@@ -21694,30 +24449,79 @@ function Get-IRTUnifiedAuditLog {
                                 "pages kept.") -Level Error
                             Write-Error -ErrorRecord $_
                             $MarkerParams = @{
-                                DateChunk   = $DateChunk
-                                Label       = "Query $QueryKey page $PageCount"
-                                ErrorRecord = $_
+                                DateChunk = $DateChunk
+                                Label     = "Query $QueryKey page $PageCount"
+                                Reason    = $_.Exception.Message
                             }
                             $AllLogs.Add( (New-IRTUalGapMarker @MarkerParams) )
                             break
                         }
                         $LogCount = @($Page).Count
+                        $RawRecordCount += $LogCount
 
                         if ( $LogCount -gt 0 ) {
 
-                            Write-IRT "Retrieved ${LogCount} logs."
-
-                            # add to list
-                            foreach ($i in $Page) { $AllLogs.Add($i) }
+                            # add to list, dropping records already seen
+                            $AddParams = @{
+                                Destination = $AllLogs
+                                SeenId      = $UniqueLogIds
+                                QuerySeenId = $QuerySeenIds
+                                Record      = $Page
+                            }
+                            $NewToQuery = Add-IRTUalUniqueRecord @AddParams
+                            Write-IRT "Retrieved ${LogCount} logs (${NewToQuery} new)."
 
                             # extract sessionid for paging
                             $SessionId = $Page[0].SessionId
                         }
                         else {
                             Write-IRT "Retrieved 0 logs." -Level Warn
+                            $NewToQuery = 0
+                        }
+
+                        # A page of nothing new extends the duplicate streak. A page
+                        # that adds records resets it; if that follows duplicate
+                        # pages, a lower -ExhaustedPageQueries would have missed them.
+                        $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+                        if ($NewToQuery -gt 0) {
+                            if ($DuplicatePageStreak -gt 0) {
+                                Write-IRT ("Query $QueryKey page $PageCount added " +
+                                    "${NewToQuery} new records after " +
+                                    "${DuplicatePageStreak} all-duplicate page(s).") -Level Warn
+                                Write-PSFMessage -Level 8 -Message (
+                                    "${FunctionName}: Query $QueryKey page $PageCount " +
+                                    "reset a duplicate streak of " +
+                                    "$DuplicatePageStreak. [$Elapsed]")
+                            }
+                            $DuplicatePageStreak = 0
+                        }
+                        else {
+                            $DuplicatePageStreak++
+                            Write-PSFMessage -Level 8 -Message (
+                                "${FunctionName}: Query $QueryKey page $PageCount " +
+                                "added nothing new (duplicate streak " +
+                                "$DuplicatePageStreak of $ExhaustedPageQueries). [$Elapsed]")
                         }
 
                         $PageCount++
+                    }
+
+                    # note why paging stopped, so an analyst can tell a complete
+                    # pull from one that was cut short
+                    $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+                    if ($LogCount -eq 5000 -and
+                        $DuplicatePageStreak -ge $ExhaustedPageQueries) {
+                        # full pages of nothing new mean the service is re-serving
+                        # records it already returned; the query is done even
+                        # though the page size says otherwise
+                        Write-IRT ("Query $QueryKey returned $DuplicatePageStreak full " +
+                            "page(s) in a row, all already seen, ending at page " +
+                            "$($PageCount - 1). Treating the result set as " +
+                            "exhausted.") -Level Warn
+                        Write-PSFMessage -Level 8 -Message (
+                            "${FunctionName}: Query $QueryKey stopped paging after " +
+                            "$DuplicatePageStreak all-duplicate page(s), ending at " +
+                            "page $($PageCount - 1). [$Elapsed]")
                     }
 
                     if ($AllLogs.Count -ge $ResultLimit) { $LimitReached = $true; break }
@@ -21739,8 +24543,8 @@ function Get-IRTUnifiedAuditLog {
 
             # note when queries stopped early due to ResultLimit
             if ($LimitReached) {
-                Write-IRT ("Reached ResultLimit of ${ResultLimit} records. " +
-                    "Keeping the most recent $($AllLogs.Count) events.") -Level Warn
+                Write-IRT ("Reached ResultLimit of ${ResultLimit} records. Any further " +
+                    "records were not retrieved; inserting a DATA MISSING marker.") -Level Warn
                 $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
                 Write-PSFMessage -Level 8 -Message (
                     "${FunctionName}: ResultLimit $ResultLimit reached at chunk " +
@@ -21753,17 +24557,11 @@ function Get-IRTUnifiedAuditLog {
                 return
             }
 
-            #region UNIQUE, SORT
+            #region SORT
             $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-            Write-PSFMessage -Level 8 -Message "${FunctionName}: Dedupliacation, sorting [$Elapsed]"
-            # remove duplicates
-            $UniqueLogIds = [System.Collections.Generic.HashSet[string]]::new()
-            $Logs = [System.Collections.Generic.List[psobject]]::new()
-            foreach ($Log in $AllLogs) {
-                if ($UniqueLogIds.Add([string]$Log.Identity)) {
-                    $null = $Logs.Add($Log)
-                }
-            }
+            Write-PSFMessage -Level 8 -Message "${FunctionName}: Sorting [$Elapsed]"
+            # records were deduplicated as pages arrived, in Add-IRTUalUniqueRecord
+            $Logs = $AllLogs
             # build comparison script
             $PropertyName = 'CreationDate'
             $Descending = $true
@@ -21782,11 +24580,32 @@ function Get-IRTUnifiedAuditLog {
             # count actual logs before adding metadata
             $TotalLogCount = ($Logs | Measure-Object).Count
             if ($TotalLogCount -gt 0) {
-                Write-IRT "Total retrieved ${TotalLogCount} logs."
+                Write-IRT ("Total retrieved ${TotalLogCount} logs " +
+                    "(${RawRecordCount} records returned before deduplication).")
             }
             else {
                 Write-IRT "Total retrieved 0 logs." -Level Warn
                 return
+            }
+
+            # A ResultLimit stop leaves the rest of the search unretrieved, and the
+            # console warning is easy to miss. Mark it in the data the same way a
+            # failed query is marked. Inserted after the total is reported, so the
+            # count stays a count of real records. The window runs from the range
+            # start because chunks older than the one that hit the limit were never
+            # queried.
+            if ($LimitReached) {
+                $MarkerParams = @{
+                    DateChunk  = @{
+                        Start = $StartDateUtc
+                        End   = $DateChunks[$ChunkIndex - 1].End
+                    }
+                    Label      = "ResultLimit ${ResultLimit}"
+                    Reason     = "ResultLimit of ${ResultLimit} reached; any further " +
+                    'records in this window were not retrieved. Raise -ResultLimit.'
+                    RecordType = 'IRT_RESULT_LIMIT'
+                }
+                $Logs.Insert(0, (New-IRTUalGapMarker @MarkerParams))
             }
 
             # add metadata to results
@@ -21837,7 +24656,7 @@ function Get-IRTUnifiedAuditLog {
         }
     }
 }
-#EndRegion '.\Public\UnifiedAuditLog\Get-IRTUnifiedAuditLog.ps1' 928
+#EndRegion '.\Public\UnifiedAuditLog\Get-IRTUnifiedAuditLog.ps1' 1124
 #Region '.\Public\UnifiedAuditLog\Open-IRTAllOperationsSheet.ps1' -1
 
 function Open-IRTAllOperationsSheet {
@@ -21868,6 +24687,885 @@ function Open-IRTAllOperationsSheet {
     }
 }
 #EndRegion '.\Public\UnifiedAuditLog\Open-IRTAllOperationsSheet.ps1' 28
+#Region '.\Public\UnifiedAuditLog\Receive-IRTGraphUAL.ps1' -1
+
+function Receive-IRTGraphUAL {
+    <#
+    .SYNOPSIS
+    Downloads the records from finished audit search jobs and exports them.
+
+    .DESCRIPTION
+    Retrieves every record from one or more finished Graph audit search jobs, merges them,
+    and hands the result to Show-IRTUnifiedAuditLog so the output is the same workbook
+    Get-IRTUnifiedAuditLog produces.
+
+    Records are deduplicated by id and sorted newest first. The API returns each record
+    once per job and does not sort them, and a group normally contains overlapping jobs,
+    such as a keyword search on a user principal name alongside one on their object id, so
+    both steps matter.
+
+    Jobs that failed have a DATA MISSING marker inserted in their place, so an incomplete
+    export is visible in the workbook rather than looking like a quiet period.
+
+    Finished searches cannot be removed from the tenant. The API has no delete, so they
+    stay listed until Purview expires them after about thirty days. To make that
+    manageable, the exported file is named after the search that produced it, carrying the
+    same creation stamp and group id, so a file on disk can be matched by eye to a search
+    in the listing. Downloading the same group twice overwrites the same file rather than
+    producing a second one.
+
+    .PARAMETER Group
+    One or more group ids to download, as returned by Start-IRTGraphUAL.
+
+    .PARAMETER Id
+    One or more individual job ids, for collecting a single job rather than a group.
+
+    .PARAMETER Excel
+    Export to an Excel workbook. Default: $true.
+
+    .PARAMETER Xml
+    Export the raw records to XML as well. Defaults to IRT_Config.ExportXml.
+
+    .PARAMETER Cached
+    Use pre-cached Graph data where available when building the workbook.
+
+    .PARAMETER PassThru
+    Emit the record collection instead of only exporting it.
+
+    .EXAMPLE
+    ```powershell
+    Receive-IRTGraphUAL -Group '3f9a1c2b'
+    ```
+    Downloads a group and exports the workbook.
+
+    .EXAMPLE
+    ```powershell
+    $Records = Receive-IRTGraphUAL -Group '3f9a1c2b' -Excel $false -PassThru
+    ```
+    Returns the records in memory without writing files.
+
+    .OUTPUTS
+    None by default. With -PassThru, one
+    [System.Collections.Generic.List[psobject]] per group.
+
+    .NOTES
+    Version: 1.1.0
+    1.1.0 - Removed -ResultLimit. It only existed because of Search-UnifiedAuditLog's
+    paging model; a Graph download ends on its own, and every record is kept.
+    #>
+    [CmdletBinding(SupportsShouldProcess, DefaultParameterSetName = 'Group')]
+    [OutputType([System.Collections.Generic.List[psobject]])]
+    param(
+        [Parameter(Position = 0, Mandatory, ParameterSetName = 'Group')]
+        [Alias('GroupId')]
+        [string[]] $Group,
+
+        [Parameter(Mandatory, ParameterSetName = 'Id')]
+        [Alias('JobId')]
+        [string[]] $Id,
+
+        [boolean] $Excel = $true,
+
+        [boolean] $Xml = $Global:IRT_Config.ExportXml,
+
+        [switch] $Cached,
+
+
+        [switch] $PassThru
+    )
+
+    begin {
+        Import-IRTModule -Name 'PSFramework'
+        $FunctionName = $MyInvocation.MyCommand.Name
+        $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+
+        # one listing serves every group: the API ignores OData filters on this
+        # collection, so it is fetched whole and matched locally
+        $Listing = Get-GraphUALJob
+        if (-not $Listing) {
+            Write-IRT 'No audit search jobs found on the tenant.' -Level Warn
+            return
+        }
+    }
+
+    process {
+        if (-not $Listing) { return }
+
+        # resolve the requested groups
+        if ($PSCmdlet.ParameterSetName -eq 'Id') {
+            $Selected = @($Listing | Where-Object { $_.Id -in $Id })
+            $GroupIds = @($Selected.GroupId | Where-Object { $_ } | Sort-Object -Unique)
+            # a job with an unreadable name has no group, so treat each as its own
+            if ($GroupIds.Count -eq 0) { $GroupIds = @($Id) }
+        }
+        else {
+            $GroupIds = $Group
+        }
+
+        foreach ($CurrentGroup in $GroupIds) {
+
+            $Jobs = @($Listing | Where-Object { $_.GroupId -eq $CurrentGroup })
+            if ($Jobs.Count -eq 0 -and $PSCmdlet.ParameterSetName -eq 'Id') {
+                $Jobs = @($Listing | Where-Object { $_.Id -eq $CurrentGroup })
+            }
+            if ($Jobs.Count -eq 0) {
+                Write-IRT "No jobs found for group '$CurrentGroup'." -Level Warn
+                continue
+            }
+
+            $First = $Jobs[0]
+            $Label = "$($First.ObjectName) $($First.ProfileTag) ($($Jobs.Count) job(s))"
+
+            #region GATES
+            $Pending = @($Jobs | Where-Object { $_.Status -in @('notStarted', 'running') })
+            if ($Pending.Count -gt 0) {
+                Write-IRT ("Group '$CurrentGroup' still has $($Pending.Count) job(s) " +
+                    'running. Wait for it with Wait-IRTGraphUAL.') -Level Warn
+                continue
+            }
+
+            if (-not $PSCmdlet.ShouldProcess($Label, 'Download audit search results')) {
+                continue
+            }
+            #endregion GATES
+
+            #region DOWNLOAD
+            Write-IRT "Downloading ${Label}."
+
+            $Unique = [System.Collections.Generic.HashSet[string]]::new()
+            $Records = [System.Collections.Generic.List[psobject]]::new()
+
+            foreach ($Job in $Jobs) {
+
+                if ($Job.Status -ne 'succeeded') {
+                    Write-IRT ("  job $($Job.Index) is '$($Job.Status)'. Inserting a " +
+                        'DATA MISSING marker.') -Level Error
+                    $MarkerParams = @{
+                        Reason = "Job $($Job.DisplayName) finished as '$($Job.Status)'."
+                        Label  = $Job.Label
+                        Date   = $First.EndUtc
+                    }
+                    $Records.Add((New-UalGapMarker @MarkerParams))
+                    continue
+                }
+
+                $Page = Get-GraphUALRecord -JobId $Job.Id
+
+                if ($Page.Error) {
+                    Write-IRT ("  job $($Job.Index) failed partway through download. " +
+                        'Inserting a DATA MISSING marker; partial records kept.') -Level Error
+                    $MarkerParams = @{
+                        Reason = "Download failed for $($Job.DisplayName): $($Page.Error)"
+                        Label  = $Job.Label
+                        Date   = $First.EndUtc
+                    }
+                    $Records.Add((New-UalGapMarker @MarkerParams))
+                }
+
+                $Added = 0
+                foreach ($Raw in $Page.Records) {
+                    # dedupe across jobs in the group: a keyword search on a UPN and one
+                    # on the same user's object id return many of the same events
+                    if (-not $Unique.Add([string]$Raw.id)) { continue }
+                    $Records.Add((ConvertTo-UalRecord -Record $Raw))
+                    $Added++
+                }
+
+                Write-IRT ("  job $($Job.Index) ($($Job.Label)): $($Page.Count) record(s), " +
+                    "$Added new.")
+            }
+            #endregion DOWNLOAD
+
+            if ($Records.Count -eq 0) {
+                Write-IRT "No records returned for ${Label}." -Level Warn
+                continue
+            }
+
+            #region SORT
+            # the API does not order its output, and the sheet builders assume newest first
+            $Comparison = [System.Comparison[psobject]] {
+                param($X, $Y)
+                $Left = $X.CreationDate
+                $Right = $Y.CreationDate
+                if ($null -eq $Left -and $null -eq $Right) { return 0 }
+                if ($null -eq $Left) { return 1 }
+                if ($null -eq $Right) { return -1 }
+                return -1 * $Left.CompareTo($Right)
+            }
+            $Records.Sort($Comparison)
+            #endregion SORT
+
+            Write-IRT "Total $($Records.Count) unique record(s) for ${Label}."
+
+            #region OUTPUT
+            # The file name carries the search's own stamp and group id, not the time of
+            # the download. Finished searches cannot be deleted from the tenant, so the
+            # only way to tell which exported file came from which of the searches still
+            # listed there is for the two names to visibly agree. A search shown as
+            # 'UAL|jdoe|Default|30d|260909-1412|g3f9a1c2b|j1' exports to a file ending
+            # '_jdoe_260909-1412_g3f9a1c2b.xlsx'.
+            $Domain = Get-DefaultDomain
+            $FileBase = "$($First.FilePrefix)_$($First.Days)Days_${Domain}" +
+            "_$($First.ObjectName)_$($First.Stamp)_g$($First.GroupId)"
+
+            $TitleFormat = 'M/d/yy h:mmtt'
+            $TitleStart = '?'
+            $TitleEnd = '?'
+            if ($First.StartUtc) {
+                $TitleStart = $First.StartUtc.ToLocalTime().ToString($TitleFormat)
+            }
+            if ($First.EndUtc) {
+                $TitleEnd = $First.EndUtc.ToLocalTime().ToString($TitleFormat)
+            }
+            $TitleSuffix = " for $($First.ObjectName). Covers $($First.Days) days, " +
+            "${TitleStart} to ${TitleEnd}."
+
+            # Show-IRTUnifiedAuditLog reads this metadata row at index 0
+            $Records.Insert(0, [pscustomobject]@{
+                    Metadata       = $true
+                    FileNamePrefix = $First.FilePrefix
+                    FileName       = $FileBase
+                    SheetTitle     = $First.SheetTitle
+                    Title          = "$($First.SheetTitle)${TitleSuffix}"
+                    TitleSuffix    = $TitleSuffix
+                    ProfileTag     = $First.ProfileTag
+                })
+
+            $OutputPath = $null
+            if ($Xml) {
+                $OutputPath = "${FileBase}.xml"
+                Write-IRT "Saving records to: ${OutputPath}"
+                $Records | Export-Clixml -Depth 10 -Path $OutputPath
+            }
+
+            if ($Excel) {
+                $ShowParams = @{
+                    Log    = $Records
+                    Cached = $Cached
+                }
+                & 'Show-IRTUnifiedAuditLog' @ShowParams
+                $OutputPath = "${FileBase}.xlsx"
+            }
+            #endregion OUTPUT
+
+            $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+            Write-PSFMessage -Level 8 -Message (
+                "${FunctionName}: group $CurrentGroup done, $($Records.Count) row(s) [$Elapsed]")
+
+            if ($PassThru) { $Records }
+        }
+    }
+}
+#EndRegion '.\Public\UnifiedAuditLog\Receive-IRTGraphUAL.ps1' 268
+#Region '.\Public\UnifiedAuditLog\Show-IRTTeamsExternalDomain.ps1' -1
+
+function Show-IRTTeamsExternalDomain {
+    <#
+    .SYNOPSIS
+    Summarises the outside domains in Get-IRTTeamsExternalDomain output as a spreadsheet,
+    with a record count and last-seen date for each.
+
+    .DESCRIPTION
+    Reads every .xml file in -Path, which is expected to hold the weekly files written by
+    Get-IRTTeamsExternalDomain, and writes one worksheet listing each outside
+    organisation that tenant users had Teams contact with:
+
+        Domain           - the organisation's domain, or its tenant ID when no domain
+                           could be found for it
+        Count            - how many audit records name it
+        LastDate         - the most recent of those records, in local time
+        allow_TRUE_FALSE - FALSE on every row. A reviewer sets it to TRUE for each
+                           organisation that should be allowed. The cells are native
+                           Excel booleans.
+
+    Each record is handed to a dedicated parser for its operation (for example
+    Get-MessageSentParty for MessageSent), which returns every domain and tenant ID the
+    record names. Records from operations with no parser are skipped with a warning, so
+    other exports in the same folder do no harm. A Write-Progress bar tracks the files as
+    they are read.
+
+    The investigated tenant's own parties are removed. Its tenant ID is each record's
+    OrganizationId, and its domains are learned from the records themselves: any domain
+    paired with that tenant ID (a user's UPN next to their OrganizationId, or a SIP
+    domain entry) belongs to it.
+
+    Many records name a tenant ID with no domain, such as reactions and accepted or
+    blocked external users. Those tenant IDs are resolved to the tenant's default domain
+    with Get-IRTTenantOwner, which needs a Graph connection. When there is no connection,
+    or a lookup fails, a warning is shown and the tenant ID is listed in place of the
+    domain. A tenant ID that the same record already pairs with a domain is not looked
+    up.
+
+    Lookups run in chunks of -TenantIdChunkSize tenant IDs, tracked by a Write-Progress
+    bar. A chunk that fails leaves only its own tenant IDs unresolved.
+
+    Counting:
+        - A record adds one to each organisation it names, however often it names it.
+        - A record found in more than one file is counted once.
+        - DATA MISSING markers from Get-IRTUnifiedAuditLog are reported, since they mean
+          the counts and dates are incomplete.
+
+    Guest accounts are counted under their home domain, decoded from the #EXT# guest UPN.
+
+    The workbook is written into -Path as TeamsExternalDomainSummary_<date>.xlsx.
+
+    .PARAMETER Path
+    Folder containing the .xml files to read. Subfolders are not searched.
+    Default: current directory.
+
+    .PARAMETER TenantIdChunkSize
+    Number of tenant IDs sent to Get-IRTTenantOwner per call. A failed call leaves only
+    its own chunk unresolved, so lower this if lookups fail in bulk. Default: 100.
+
+    .PARAMETER Open
+    Open the workbook after export. Default: $true.
+
+    .PARAMETER TableStyle
+    Excel table style. Defaults to IRT_Config.ExcelTableStyle.
+
+    .PARAMETER Font
+    Worksheet font. Defaults to IRT_Config.ExcelFont.
+
+    .EXAMPLE
+    ```powershell
+    Show-IRTTeamsExternalDomain
+    ```
+    Summarises the .xml files in the current directory and opens the workbook.
+
+    .EXAMPLE
+    ```powershell
+    Get-IRTTeamsExternalDomain -Days 90 -Path 'C:\Cases\Contoso'
+    Show-IRTTeamsExternalDomain -Path 'C:\Cases\Contoso'
+    ```
+    Pulls 90 days of Teams external contact records, then summarises them.
+
+    .EXAMPLE
+    ```powershell
+    Show-IRTTeamsExternalDomain -Path 'C:\Cases\Contoso' -TenantIdChunkSize 25
+    ```
+    Looks up tenant IDs 25 at a time, for when larger lookups fail.
+
+    .EXAMPLE
+    ```powershell
+    Show-IRTTeamsExternalDomain -Path 'C:\Cases\Contoso' -Open $false
+    ```
+    Writes the workbook without opening it.
+
+    .OUTPUTS
+    None. Writes an Excel workbook into -Path.
+
+    .NOTES
+    Version: 1.1.1
+    1.1.1 - Progress is shown with Write-Progress instead of a console line for each file
+    and each lookup chunk.
+    1.1.0 - Tenant IDs are looked up in chunks of -TenantIdChunkSize, so one failed
+    lookup no longer loses every tenant ID. Progress is shown per file and per chunk.
+    #>
+    [Alias('ShowTeamsExtDomain', 'ShowTeamsExtDomains')]
+    [CmdletBinding()]
+    param (
+        [string] $Path = (Get-Location).Path,
+
+        # tenant IDs per Get-IRTTenantOwner call; lower it if lookups fail in bulk
+        [ValidateRange(1, 1000)]
+        [int] $TenantIdChunkSize = 100,
+
+        [boolean] $Open = $true,
+
+        [string] $TableStyle = $Global:IRT_Config.ExcelTableStyle,
+        [string] $Font = $Global:IRT_Config.ExcelFont
+    )
+
+    begin {
+        Import-IRTModule -Name 'ImportExcel', 'PSFramework'
+        $FunctionName = $MyInvocation.MyCommand.Name
+        $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+
+        # file and sheet names
+        $FileNamePrefix = 'TeamsExternalDomainSummary'
+        $WorksheetName = 'TeamsExternalDomains'
+        $FileNameDate = (Get-Date).ToString('yy-MM-dd_HH-mm')
+        $TitleDateFormat = 'M/d/yy h:mmtt'
+
+        # columns
+        $DomainHeader = 'Domain'
+        $CountHeader = 'Count'
+        $DateHeader = 'LastDate'
+        $AllowHeader = 'allow_TRUE_FALSE'
+        $DateNumberFormat = 'm/d/yyyy h:mm:ss AM/PM'
+
+        # progress bars
+        $ReadActivity = 'Reading Teams audit log files'
+        $LookupActivity = 'Looking up tenant domains'
+
+        # one dedicated parser per operation queried by Get-IRTTeamsExternalDomain
+        $ParserRegistry = @{
+            'MessageSent'              = 'Get-MessageSentParty'
+            'MessageCreatedHasLink'    = 'Get-MessageCreatedHasLinkParty'
+            'MessageUpdated'           = 'Get-MessageUpdatedParty'
+            'MessageEditedHasLink'     = 'Get-MessageEditedHasLinkParty'
+            'ChatCreated'              = 'Get-ChatCreatedParty'
+            'MemberAdded'              = 'Get-MemberAddedParty'
+            'MeetingParticipantDetail' = 'Get-MeetingParticipantDetailParty'
+            'CallParticipantDetail'    = 'Get-CallParticipantDetailParty'
+            'ReactedToMessage'         = 'Get-ReactedToMessageParty'
+            'UserAccepted'             = 'Get-UserAcceptedParty'
+            'UserBlocked'              = 'Get-UserBlockedParty'
+        }
+
+        # validate input directory
+        if (-not (Test-Path -Path $Path -PathType 'Container')) {
+            $ErrorParams = @{
+                Category    = 'ObjectNotFound'
+                Message     = "-Path '${Path}' is not an existing directory."
+                ErrorAction = 'Stop'
+            }
+            Write-Error @ErrorParams
+        }
+        $Path = (Resolve-Path -Path $Path).Path
+        $ExcelOutputPath = Join-Path -Path $Path -ChildPath "${FileNamePrefix}_${FileNameDate}.xlsx"
+    }
+
+    process {
+
+        #region READ FILES
+        $ChildParams = @{
+            Path   = $Path
+            Filter = '*.xml'
+            File   = $true
+        }
+        $Files = @(Get-ChildItem @ChildParams)
+        if ($Files.Count -eq 0) {
+            Write-IRT "No .xml files found in ${Path}." -Level Warn
+            return
+        }
+        $FileCount = $Files.Count
+        Write-IRT "Reading ${FileCount} .xml file(s) from ${Path}."
+
+        $ParsedRecords = [System.Collections.Generic.List[pscustomobject]]::new()
+        $SeenIdentities = [System.Collections.Generic.HashSet[string]]::new()
+        $SkippedOperations = @{}
+        $GapCount = 0
+        $DuplicateCount = 0
+        $UnreadableCount = 0
+
+        $FileIndex = 0
+        foreach ($File in $Files) {
+            $FileIndex++
+            $ProgressParams = @{
+                Id              = 1
+                Activity        = $ReadActivity
+                Status          = "File ${FileIndex} of ${FileCount}: $($File.Name)"
+                PercentComplete = [int](($FileIndex - 1) / $FileCount * 100)
+            }
+            Write-Progress @ProgressParams
+
+            $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+            Write-PSFMessage -Level 8 -Message (
+                "${FunctionName}: Import-Clixml $($File.Name) [$Elapsed]")
+            try {
+                $Records = Import-Clixml -Path $File.FullName
+            }
+            catch {
+                Write-IRT "Could not read $($File.Name): $($_.Exception.Message)" -Level Warn
+                continue
+            }
+
+            foreach ($Record in $Records) {
+                if ($null -eq $Record -or $Record.Metadata) { continue }
+                if ($Record.IRTDataGap) {
+                    $GapCount++
+                    continue
+                }
+                # not a unified audit log record
+                if (-not $Record.AuditData) { continue }
+
+                $Operation = [string]$Record.Operations
+                if (-not $ParserRegistry.ContainsKey($Operation)) {
+                    $SkippedOperations[$Operation] = 1 + [int]$SkippedOperations[$Operation]
+                    continue
+                }
+
+                # the same record can land in more than one file
+                $Identity = [string]$Record.Identity
+                if ($Identity -and -not $SeenIdentities.Add($Identity)) {
+                    $DuplicateCount++
+                    continue
+                }
+
+                $AuditData = $Record.AuditData
+                if ($AuditData -is [string]) {
+                    try {
+                        $AuditData = $AuditData | ConvertFrom-Json -Depth 10
+                    }
+                    catch {
+                        Write-PSFMessage -Level 8 -Message (
+                            "${FunctionName}: Unreadable AuditData on '${Identity}' in " +
+                            "$($File.Name): $($_.Exception.Message)")
+                        $UnreadableCount++
+                        continue
+                    }
+                }
+
+                $Created = $Record.CreationDate
+                if (-not $Created) { $Created = $AuditData.CreationTime }
+                if (-not $Created) {
+                    Write-PSFMessage -Level 8 -Message (
+                        "${FunctionName}: No date on '${Identity}' in $($File.Name)")
+                    $UnreadableCount++
+                    continue
+                }
+
+                $Parser = $ParserRegistry[$Operation]
+                $ParsedRecords.Add([pscustomobject]@{
+                        Date         = [datetime]$Created
+                        HomeTenantId = ([string]$AuditData.OrganizationId).ToLowerInvariant()
+                        Parties      = @(& $Parser -AuditData $AuditData)
+                    })
+            }
+        }
+        $ReadDoneParams = @{
+            Id        = 1
+            Activity  = $ReadActivity
+            Completed = $true
+        }
+        Write-Progress @ReadDoneParams
+
+        $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: Parsed $($ParsedRecords.Count) records, " +
+            "${DuplicateCount} duplicates, ${GapCount} gap markers, " +
+            "${UnreadableCount} unreadable [$Elapsed]")
+
+        if ($GapCount -gt 0) {
+            Write-IRT ("${GapCount} DATA MISSING marker(s) found. Some records were never " +
+                "retrieved, so counts and dates are incomplete.") -Level Warn
+        }
+        if ($UnreadableCount -gt 0) {
+            Write-IRT "Skipped ${UnreadableCount} record(s) that could not be read." -Level Warn
+        }
+        if ($SkippedOperations.Count -gt 0) {
+            $SkippedTotal = ($SkippedOperations.Values | Measure-Object -Sum).Sum
+            $SkippedList = (
+                $SkippedOperations.GetEnumerator() | Sort-Object -Property 'Name' |
+                    ForEach-Object { "$($_.Name) ($($_.Value))" }
+            ) -join ', '
+            Write-IRT ("Skipped ${SkippedTotal} record(s) from operations with no parser: " +
+                "${SkippedList}") -Level Warn
+        }
+        if ($ParsedRecords.Count -eq 0) {
+            Write-IRT "No Teams external contact records found in ${Path}." -Level Warn
+            return
+        }
+
+        #region HOME TENANT
+        # The investigated tenant's domains appear paired with its own tenant ID, on its
+        # users' UPNs and its SIP domain entry. Learning them from every record first
+        # means a home domain that turns up alone elsewhere is still recognised.
+        $HomeDomains = @{}
+        foreach ($Parsed in $ParsedRecords) {
+            $HomeTenantId = $Parsed.HomeTenantId
+            if (-not $HomeDomains.ContainsKey($HomeTenantId)) {
+                $HomeDomains[$HomeTenantId] = [System.Collections.Generic.HashSet[string]]::new()
+            }
+            foreach ($Party in $Parsed.Parties) {
+                if ($Party.Domain -and $Party.TenantId -eq $HomeTenantId) {
+                    [void]$HomeDomains[$HomeTenantId].Add($Party.Domain)
+                }
+            }
+        }
+        foreach ($HomeTenantId in $HomeDomains.Keys) {
+            Write-PSFMessage -Level 8 -Message (
+                "${FunctionName}: Home tenant '${HomeTenantId}' domains: " +
+                "$($HomeDomains[$HomeTenantId] -join ', ')")
+        }
+
+        #region OUTSIDE PARTIES
+        $Contacts = [System.Collections.Generic.List[pscustomobject]]::new()
+        $LookupIds = [System.Collections.Generic.HashSet[string]]::new()
+        foreach ($Parsed in $ParsedRecords) {
+            $HomeTenantId = $Parsed.HomeTenantId
+            $OwnDomains = $HomeDomains[$HomeTenantId]
+            $Domains = [System.Collections.Generic.HashSet[string]]::new()
+            $TenantIds = [System.Collections.Generic.HashSet[string]]::new()
+            $PairedTenantIds = [System.Collections.Generic.HashSet[string]]::new()
+
+            foreach ($Party in $Parsed.Parties) {
+                if ($Party.TenantId -and $Party.TenantId -eq $HomeTenantId) { continue }
+                if ($Party.Domain) {
+                    if ($OwnDomains.Contains($Party.Domain)) { continue }
+                    [void]$Domains.Add($Party.Domain)
+                    if ($Party.TenantId) { [void]$PairedTenantIds.Add($Party.TenantId) }
+                }
+                else {
+                    [void]$TenantIds.Add($Party.TenantId)
+                }
+            }
+
+            # a tenant this record already names by domain needs no lookup
+            $TenantIds.ExceptWith($PairedTenantIds)
+            if ($Domains.Count -eq 0 -and $TenantIds.Count -eq 0) { continue }
+
+            $LookupIds.UnionWith($TenantIds)
+            $Contacts.Add([pscustomobject]@{
+                    Date      = $Parsed.Date
+                    Domains   = $Domains
+                    TenantIds = $TenantIds
+                })
+        }
+
+        $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: $($Contacts.Count) records name an outside party, " +
+            "$($LookupIds.Count) tenant IDs to look up [$Elapsed]")
+
+        #region TENANT LOOKUP
+        $TenantDomains = @{}
+        if ($LookupIds.Count -gt 0) {
+            $LookupCount = $LookupIds.Count
+            $TokenParams = @{
+                Service              = 'Graph'
+                SkipIfNeverConnected = $true
+                PassThru             = $true
+            }
+            $TokenStatus = Update-IRTToken @TokenParams
+            if (-not ($TokenStatus -and $TokenStatus['Graph'])) {
+                Write-IRT ("Not connected to Graph, so ${LookupCount} tenant ID(s) can't be " +
+                    "looked up and are listed in place of their domains. Run Connect-IRT " +
+                    "to resolve them.") -Level Warn
+            }
+            else {
+                $LookupList = [string[]]@($LookupIds)
+                $ChunkCount = [int][math]::Ceiling($LookupCount / $TenantIdChunkSize)
+                Write-IRT ("Looking up domains for ${LookupCount} tenant ID(s) in " +
+                    "${ChunkCount} chunk(s) of up to ${TenantIdChunkSize}.")
+
+                # One Get-IRTTenantOwner call per chunk, so a call that throws leaves only
+                # its own tenant IDs unresolved and progress moves between chunks.
+                $LookedUp = 0
+                for ($ChunkIndex = 0; $ChunkIndex -lt $ChunkCount; $ChunkIndex++) {
+                    $ChunkStart = $ChunkIndex * $TenantIdChunkSize
+                    $ChunkEnd = [math]::Min($ChunkStart + $TenantIdChunkSize, $LookupCount) - 1
+                    $Chunk = [string[]]@($LookupList[$ChunkStart..$ChunkEnd])
+                    $ChunkLabel = "Chunk $($ChunkIndex + 1) of ${ChunkCount}"
+
+                    $ProgressParams = @{
+                        Id              = 1
+                        Activity        = $LookupActivity
+                        Status          = "${ChunkLabel}, ${LookedUp} of ${LookupCount} looked up"
+                        PercentComplete = [int]($LookedUp / $LookupCount * 100)
+                    }
+                    Write-Progress @ProgressParams
+
+                    $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+                    Write-PSFMessage -Level 8 -Message (
+                        "${FunctionName}: Get-IRTTenantOwner ${ChunkLabel}, " +
+                        "$($Chunk.Count) tenant IDs [$Elapsed]")
+                    $OwnerParams = @{
+                        TenantId = $Chunk
+                        Cached   = $true
+                        Quiet    = $true
+                    }
+                    try {
+                        $Owners = @(Get-IRTTenantOwner @OwnerParams)
+                    }
+                    catch {
+                        Write-IRT ("${ChunkLabel}: tenant lookup failed, so its " +
+                            "$($Chunk.Count) tenant ID(s) stay unresolved: " +
+                            "$($_.Exception.Message)") -Level Warn
+                        $Owners = @()
+                    }
+                    foreach ($Owner in $Owners) {
+                        if ($Owner.Exists -and $Owner.DefaultDomain) {
+                            $OwnerDomain = ([string]$Owner.DefaultDomain).ToLowerInvariant()
+                            $TenantDomains[[string]$Owner.TenantId] = $OwnerDomain
+                        }
+                    }
+
+                    $LookedUp += $Chunk.Count
+                }
+                $LookupDoneParams = @{
+                    Id        = 1
+                    Activity  = $LookupActivity
+                    Completed = $true
+                }
+                Write-Progress @LookupDoneParams
+
+                $Unresolved = @($LookupIds | Where-Object { -not $TenantDomains.ContainsKey($_) })
+                if ($Unresolved.Count -gt 0) {
+                    Write-IRT ("Could not find a domain for $($Unresolved.Count) of " +
+                        "${LookupCount} tenant ID(s); they are listed in place of their " +
+                        "domains.") -Level Warn
+                    Write-PSFMessage -Level 8 -Message (
+                        "${FunctionName}: Unresolved tenant IDs: $($Unresolved -join ', ')")
+                }
+            }
+        }
+
+        #region ROWS
+        $Summary = @{}
+        foreach ($Contact in $Contacts) {
+            $Keys = [System.Collections.Generic.HashSet[string]]::new()
+            $Keys.UnionWith($Contact.Domains)
+            foreach ($TenantId in $Contact.TenantIds) {
+                if ($TenantDomains.ContainsKey($TenantId)) {
+                    [void]$Keys.Add($TenantDomains[$TenantId])
+                }
+                else {
+                    [void]$Keys.Add($TenantId)
+                }
+            }
+
+            foreach ($Key in $Keys) {
+                $Entry = $Summary[$Key]
+                if (-not $Entry) {
+                    $Entry = [pscustomobject]@{
+                        Domain   = $Key
+                        Hits     = 0
+                        LastDate = $Contact.Date
+                    }
+                    $Summary[$Key] = $Entry
+                }
+                $Entry.Hits++
+                if ($Contact.Date -gt $Entry.LastDate) { $Entry.LastDate = $Contact.Date }
+            }
+        }
+
+        if ($Summary.Count -eq 0) {
+            Write-IRT ("No outside domains found in $($ParsedRecords.Count) Teams " +
+                "record(s).") -Level Warn
+            return
+        }
+
+        # most contact first. Every organisation starts denied, as a native Excel
+        # boolean, until a reviewer allows it.
+        $SortProperty = @(
+            @{ Expression = 'Hits'; Descending = $true }
+            @{ Expression = 'Domain'; Descending = $false }
+        )
+        $Rows = [System.Collections.Generic.List[pscustomobject]]::new()
+        foreach ($Entry in ($Summary.Values | Sort-Object -Property $SortProperty)) {
+            $Rows.Add([pscustomobject]@{
+                    $DomainHeader = $Entry.Domain
+                    $CountHeader  = $Entry.Hits
+                    $DateHeader   = $Entry.LastDate.ToLocalTime()
+                    $AllowHeader  = $false
+                })
+        }
+        Write-IRT ("Found $($Rows.Count) outside domain(s) in $($Contacts.Count) " +
+            "record(s).")
+
+        #region EXPORT EXCEL
+        $SortedDates = @($ParsedRecords | ForEach-Object { $_.Date } | Sort-Object)
+        $FirstString = $SortedDates[0].ToLocalTime().ToString($TitleDateFormat).ToLower()
+        $LastString = $SortedDates[-1].ToLocalTime().ToString($TitleDateFormat).ToLower()
+        $WorksheetTitle = "Teams external communication from ${FirstString} to ${LastString}"
+
+        $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+        Write-PSFMessage -Level 8 -Message "${FunctionName}: Export-Excel [$Elapsed]"
+        $ExcelParams = @{
+            Path          = $ExcelOutputPath
+            WorkSheetname = $WorksheetName
+            Title         = $WorksheetTitle
+            TableStyle    = $TableStyle
+            FreezeTopRow  = $true
+            Passthru      = $true
+        }
+        try {
+            $Workbook = $Rows | Export-Excel @ExcelParams
+        }
+        catch {
+            Write-IRT "Error exporting to Excel: $($_.Exception.Message)" -Level Error
+            if ( Get-YesNo "The file may be open in Excel. Close it and try again?" ) {
+                try {
+                    $Workbook = $Rows | Export-Excel @ExcelParams
+                }
+                catch {
+                    Write-IRT "Error exporting to Excel: $($_.Exception.Message)" -Level Error
+                    return
+                }
+            }
+            else {
+                return
+            }
+        }
+
+        # post-export formatting only runs when a workbook came back from Export-Excel
+        if ($Workbook) {
+            $Worksheet = $Workbook.Workbook.Worksheets[$WorksheetName]
+
+            # table ranges
+            $SheetStartColumn =
+            $Worksheet.Dimension.Start.Column | Convert-DecimalToExcelColumn
+            $SheetStartRow = $Worksheet.Dimension.Start.Row
+            $TableStartColumn = (
+                $Worksheet.Tables.Address | Select-Object -First 1
+            ).Start.Column | Convert-DecimalToExcelColumn
+            $TableStartRow = (
+                $Worksheet.Tables | Select-Object -First 1
+            ).Address.Start.Row + 1
+            $EndColumn = $Worksheet.Dimension.End.Column | Convert-DecimalToExcelColumn
+            $EndRow = $Worksheet.Dimension.End.Row
+            $TableRange = "${TableStartColumn}${TableStartRow}:${EndColumn}${EndRow}"
+
+            # column widths
+            $ColumnWidths = @{
+                $DomainHeader = 45
+                $CountHeader  = 10
+                $DateHeader   = 26
+                $AllowHeader  = 18
+            }
+            foreach ($ColName in $ColumnWidths.Keys) {
+                $Col = (
+                    $Worksheet.Tables[0].Columns | Where-Object { $_.Name -eq $ColName }
+                ).Id
+                if ($Col) { $Worksheet.Column($Col).Width = $ColumnWidths[$ColName] }
+            }
+
+            # date number format
+            $DateColumn = (
+                $Worksheet.Tables[0].Columns | Where-Object { $_.Name -eq $DateHeader }
+            ).Id | Convert-DecimalToExcelColumn
+            $FmtParams = @{
+                Worksheet    = $Worksheet
+                Range        = "${DateColumn}:${DateColumn}"
+                NumberFormat = $DateNumberFormat
+            }
+            Set-ExcelRange @FmtParams
+
+            # font
+            $SetParams = @{
+                Worksheet = $Worksheet
+                Range     = "${SheetStartColumn}${SheetStartRow}:${EndColumn}${EndRow}"
+                FontName  = $Font
+            }
+            Set-ExcelRange @SetParams
+
+            # left border
+            $BorderParams = @{
+                Worksheet   = $Worksheet
+                Range       = $TableRange
+                BorderLeft  = 'Thin'
+                BorderColor = 'Black'
+            }
+            Set-ExcelRange @BorderParams
+
+            # save and open
+            Write-IRT "Exporting to: ${ExcelOutputPath}"
+            if ($Open) {
+                Write-IRT "Opening Excel."
+                $Workbook | Close-ExcelPackage -Show
+            }
+            else {
+                $Workbook | Close-ExcelPackage
+            }
+        }
+
+        $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+        Write-PSFMessage -Level 8 -Message "${FunctionName}: Complete [$Elapsed]"
+    }
+}
+#EndRegion '.\Public\UnifiedAuditLog\Show-IRTTeamsExternalDomain.ps1' 607
 #Region '.\Public\UnifiedAuditLog\Show-IRTUnifiedAuditLog.ps1' -1
 
 function Show-IRTUnifiedAuditLog {
@@ -22118,6 +25816,718 @@ function Show-IRTUnifiedAuditLog {
     }
 }
 #EndRegion '.\Public\UnifiedAuditLog\Show-IRTUnifiedAuditLog.ps1' 248
+#Region '.\Public\UnifiedAuditLog\Start-IRTGraphUAL.ps1' -1
+
+function Start-IRTGraphUAL {
+    <#
+    .SYNOPSIS
+    Starts a Unified Audit Log search through the Microsoft Graph audit search API.
+
+    .DESCRIPTION
+    Submits one or more server-side audit log query jobs and, by default, waits for them
+    and downloads the results.
+
+    This is the duplicate-free alternative to Get-IRTUnifiedAuditLog. That function runs
+    several overlapping Search-UnifiedAuditLog queries per user and pages each with
+    ReturnLargeSet, which returns the same event more than once, sometimes under a
+    different Identity so deduplication misses it. The Graph API runs one server-side job
+    per filter set and returns each record once with a stable id, and it is not capped at
+    50,000 records.
+
+    The trade is speed. The service schedules these jobs in batches: expect roughly
+    35 minutes before results are ready, whatever the size of the search. A one hour
+    window costs the same as ninety days. Use Get-IRTUnifiedAuditLog when time matters and
+    this when completeness does.
+
+    Jobs run server-side, so Ctrl+C during the wait is safe. The jobs keep running and can
+    be collected later with Wait-IRTGraphUAL or Receive-IRTGraphUAL. They cannot be
+    cancelled or deleted; the API offers neither, and they expire on their own after about
+    thirty days.
+
+    Each search submits a group of jobs, one per identifier. For a user that means three
+    keyword jobs: their address, their object id, and their object id with the dashes
+    stripped, because workloads differ in which form they record. Keyword matching also
+    finds records where the user was the target of someone else's action, not only ones
+    they performed themselves.
+
+    Requires a Microsoft Graph connection with AuditLogsQuery.Read.All.
+
+    .PARAMETER UserObject
+    One or more user objects to search for. Mutually exclusive with -AllUsers and
+    -ServicePrincipal. Falls back to the global session objects if omitted.
+
+    .PARAMETER AllUsers
+    Search the whole tenant. Mutually exclusive with -UserObject and -ServicePrincipal.
+    The service allows only one unfiltered job to be open at a time, so this is refused
+    while another is still running.
+
+    .PARAMETER ServicePrincipal
+    One or more service principal objects to search for. Mutually exclusive with
+    -UserObject and -AllUsers.
+
+    .PARAMETER Days
+    Number of days back to search. Cannot be combined with -Start or -End.
+
+    .PARAMETER Start
+    Start of an absolute date range, as any parseable date string. Used with -End.
+
+    .PARAMETER End
+    End of an absolute date range, as any parseable date string. Used with -Start.
+
+    .PARAMETER Operation
+    Restrict the search to specific UAL operation names.
+
+    .PARAMETER RecordType
+    Restrict the search to one or more UAL record types, for example MicrosoftTeams.
+    Unlike Search-UnifiedAuditLog, the Graph API accepts several in a single job.
+
+    .PARAMETER RiskyOperation
+    Search only the high risk operations listed in the operations sheet.
+
+    .PARAMETER SignInLog
+    Search only UAL sign-in operations.
+
+    .PARAMETER FreeText
+    One or more free text strings. The API takes a single keyword per job, so each string
+    adds a job to the group.
+
+    .PARAMETER IpAddress
+    Restrict the search to one or more client IP addresses.
+
+    .PARAMETER NoWait
+    Submit the jobs and return immediately instead of waiting for them.
+
+    .PARAMETER Audio
+    Play a sound when the search finishes. Default: $true.
+
+    .PARAMETER Excel
+    Export results to an Excel workbook when they are downloaded. Default: $true.
+
+    .PARAMETER Xml
+    Export the raw records alongside the workbook. Defaults to IRT_Config.ExportXml.
+
+    .PARAMETER Cached
+    Use pre-cached Graph data where available when building the workbook.
+
+    .PARAMETER NamePrefix
+    Prefix for the job display names. Defaults to IRT_Config.JobNamePrefix, the
+    same marker used for email compliance searches.
+
+    .EXAMPLE
+    ```powershell
+    Start-IRTGraphUAL -UserObject $User -Days 90
+    ```
+    Searches 90 days for a user, waits, and exports the results.
+
+    .EXAMPLE
+    ```powershell
+    Start-IRTGraphUAL -UserObject $User -Days 30 -NoWait
+    ```
+    Submits the jobs and returns. Collect them later with Wait-IRTGraphUAL.
+
+    .EXAMPLE
+    ```powershell
+    Start-IRTGraphUAL -AllUsers -RecordType 'MicrosoftTeams' -Days 7
+    ```
+    Searches the whole tenant for Teams records over the last week.
+
+    .EXAMPLE
+    ```powershell
+    Start-IRTGraphUAL -ServicePrincipal $Sp -Days 180
+    ```
+    Searches 180 days for a service principal by object id and app id.
+
+    .OUTPUTS
+    [pscustomobject] describing the submitted group: GroupId, Stamp, ObjectName,
+    ProfileTag, Days, StartUtc, EndUtc and a Jobs collection. Also appended to
+    $Global:IRT_GraphUAL.
+
+    .NOTES
+    Version: 1.1.0
+    1.1.0 - Removed -ResultLimit. It was stored on the group but never reached the
+    download.
+    #>
+    [Alias('GraphUAL', 'StartGraphUAL')]
+    [CmdletBinding(SupportsShouldProcess, DefaultParameterSetName = 'UserObject')]
+    [OutputType([System.Collections.Generic.List[psobject]])]
+    param(
+        [Parameter(Position = 0, ParameterSetName = 'UserObject')]
+        [Alias('UserObjects')]
+        [psobject[]] $UserObject,
+
+        [Parameter(ParameterSetName = 'AllUsers')]
+        [switch] $AllUsers,
+
+        [Parameter(Position = 0, ParameterSetName = 'ServicePrincipal')]
+        [Alias('ServicePrincipals')]
+        [psobject[]] $ServicePrincipal,
+
+        [int] $Days,
+        [string] $Start,
+        [string] $End,
+
+        [Alias('Operations')]
+        [string[]] $Operation,
+
+        [Alias('RecordTypes')]
+        [string[]] $RecordType,
+
+        [Alias('RiskyOperations')]
+        [switch] $RiskyOperation,
+
+        [Alias('SignInLogs')]
+        [switch] $SignInLog,
+
+        [string[]] $FreeText,
+
+        [string[]] $IpAddress,
+
+        [switch] $NoWait,
+
+        [boolean] $Audio = $true,
+
+        [boolean] $Excel = $true,
+
+        [boolean] $Xml = $Global:IRT_Config.ExportXml,
+
+        [switch] $Cached,
+
+        [string] $NamePrefix = (Get-IRTJobNamePrefix)
+    )
+
+    begin {
+        Import-IRTModule -Name 'Microsoft.Graph.Authentication', 'PSFramework'
+        $FunctionName = $MyInvocation.MyCommand.Name
+        $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+        $ParameterSet = $PSCmdlet.ParameterSetName
+
+        Update-IRTToken -Service 'Graph'
+
+        # profiles mirror Get-IRTUnifiedAuditLog so both paths produce the same
+        # workbook titles, file names and sheet selection
+        $ProfileTable = [ordered]@{
+            Default         = [pscustomobject]@{
+                FilePrefix   = 'UnifiedAuditLogs'
+                SheetTitle   = 'Unified audit logs'
+                DefaultDays  = 30
+                Operations   = [string[]]@()
+                ShowFunction = 'Show-IRTUnifiedAuditLog'
+                ProfileTag   = 'Default'
+            }
+            RiskyOperations = [pscustomobject]@{
+                FilePrefix   = 'UALRiskyOperations'
+                SheetTitle   = 'UAL risky operations'
+                DefaultDays  = 180
+                Operations   = [string[]]@()
+                ShowFunction = 'Show-IRTUnifiedAuditLog'
+                ProfileTag   = 'RiskyOperations'
+            }
+            SignInLogs      = [pscustomobject]@{
+                FilePrefix   = 'UALSignInLogs'
+                SheetTitle   = 'UAL sign-in logs'
+                DefaultDays  = 180
+                Operations   = [string[]]@('UserLoggedIn', 'UserLoggedOff', 'UserLoginFailed')
+                ShowFunction = 'Show-IRTUnifiedAuditLog'
+                ProfileTag   = 'SignInLogs'
+            }
+        }
+        $ActiveProfile = switch ($true) {
+            $RiskyOperation { $ProfileTable['RiskyOperations']; break }
+            $SignInLog { $ProfileTable['SignInLogs']; break }
+            default { $ProfileTable['Default'] }
+        }
+
+        # warn early on record types this tenant has never logged. Never blocks: the
+        # operations sheet only knows what has been witnessed, so absence is not proof
+        # of an invalid value.
+        if ($RecordType) {
+            $null = Test-GraphUALRecordType -RecordType $RecordType -Cached:$Cached
+        }
+
+        # resolve the targets
+        switch ($ParameterSet) {
+            'UserObject' {
+                if (($UserObject | Measure-Object).Count -gt 0) {
+                    $LoopObjects = $UserObject
+                }
+                else {
+                    $LoopObjects = Get-GlobalUserObject
+                    if (($LoopObjects | Measure-Object).Count -eq 0) {
+                        Write-IRT ('No user objects passed or found in global ' +
+                            'variables.') -Level Error
+                        return
+                    }
+                }
+            }
+            'AllUsers' {
+                $null = $AllUsers
+                $LoopObjects = @([pscustomobject]@{ UserPrincipalName = 'AllUsers' })
+            }
+            'ServicePrincipal' {
+                $LoopObjects = $ServicePrincipal
+            }
+        }
+
+        # date range
+        $DateRangeParams = @{
+            Days        = $Days
+            Start       = $Start
+            End         = $End
+            DefaultDays = $ActiveProfile.DefaultDays
+        }
+        $DateRange = Resolve-DateRange @DateRangeParams
+        $Days = $DateRange.Days
+
+        # operations: explicit values plus whatever the profile contributes
+        $OperationsSet = [System.Collections.Generic.HashSet[string]]::new()
+        foreach ($o in $Operation) { [void]$OperationsSet.Add($o) }
+        if ($RiskyOperation) {
+            $ActiveProfile.Operations = Get-GraphUALRiskyOperation
+        }
+        foreach ($o in $ActiveProfile.Operations) { [void]$OperationsSet.Add($o) }
+
+        $Results = [System.Collections.Generic.List[psobject]]::new()
+    }
+
+    process {
+
+        foreach ($LoopObject in $LoopObjects) {
+
+            #region TARGET
+            switch ($ParameterSet) {
+                'UserObject' {
+                    $UserId = $LoopObject.Id
+                    $UserEmail = $LoopObject.UserPrincipalName
+                    $ObjectName = $UserEmail -split '@' | Select-Object -First 1
+                }
+                'AllUsers' {
+                    $ObjectName = Get-DefaultDomain
+                }
+                'ServicePrincipal' {
+                    $ObjectName = $LoopObject.DisplayName -replace '[^a-zA-Z0-9]', ''
+                }
+            }
+            #endregion TARGET
+
+            #region FILTER SETS
+            # one entry per job. Filters common to the whole group are added afterwards,
+            # so this only describes what makes each job different.
+            $FilterSets = [System.Collections.Generic.List[hashtable]]::new()
+
+            switch ($ParameterSet) {
+                'UserObject' {
+                    # Keyword matching does the real work. It returns a superset of the
+                    # actor filter (measured: 85 records against 82, with none unique to
+                    # the actor filter) because it also catches records where this user
+                    # was the target of someone else's action. The actor filter adds
+                    # nothing, and cannot match a GUID at all, so it is not used.
+                    #
+                    # The identifier is searched in all three forms the audit log stores
+                    # it in, matching the query set Get-IRTUnifiedAuditLog uses: the
+                    # address, the object id, and the object id with dashes stripped.
+                    # Workloads are inconsistent about which GUID format they record.
+                    $Identifiers = [ordered]@{}
+                    if ($UserEmail) { $Identifiers['address'] = [string]$UserEmail }
+                    if ($UserId) {
+                        $Identifiers['object id'] = [string]$UserId
+                        $NoDashes = [string]$UserId -replace '-', ''
+                        if ($NoDashes -ne [string]$UserId) {
+                            $Identifiers['object id (no dashes)'] = $NoDashes
+                        }
+                    }
+                    foreach ($Key in $Identifiers.Keys) {
+                        $FilterSets.Add(@{
+                                Label   = "keyword $Key $($Identifiers[$Key])"
+                                Filters = @{ keywordFilter = $Identifiers[$Key] }
+                            })
+                    }
+                }
+                'ServicePrincipal' {
+                    # a service principal has no address to search, so both of its
+                    # identifiers go through keyword matching, each in dashed and
+                    # dashless form for the same reason as a user's object id
+                    $Identifiers = [ordered]@{}
+                    foreach ($Pair in @(
+                            @{ Name = 'object id'; Value = [string]$LoopObject.Id },
+                            @{ Name = 'app id'; Value = [string]$LoopObject.AppId })) {
+                        if (-not $Pair.Value) { continue }
+                        $Identifiers[$Pair.Name] = $Pair.Value
+                        $NoDashes = $Pair.Value -replace '-', ''
+                        if ($NoDashes -ne $Pair.Value) {
+                            $Identifiers["$($Pair.Name) (no dashes)"] = $NoDashes
+                        }
+                    }
+                    foreach ($Key in $Identifiers.Keys) {
+                        $FilterSets.Add(@{
+                                Label   = "keyword $Key $($Identifiers[$Key])"
+                                Filters = @{ keywordFilter = $Identifiers[$Key] }
+                            })
+                    }
+                }
+                'AllUsers' {
+                    $FilterSets.Add(@{ Label = 'all users'; Filters = @{} })
+                }
+            }
+
+            # each free text string needs its own job: keywordFilter takes one value
+            foreach ($Text in $FreeText) {
+                if (-not $Text) { continue }
+                $FilterSets.Add(@{
+                        Label   = "keyword $Text"
+                        Filters = @{ keywordFilter = $Text }
+                    })
+            }
+
+            if ($FilterSets.Count -eq 0) {
+                Write-IRT "No filters could be built for ${ObjectName}. Skipping." -Level Warn
+                continue
+            }
+            #endregion FILTER SETS
+
+            #region UNFILTERED PRE-CHECK
+            # The service permits only one open unfiltered job at a time and refuses the
+            # second with TooManyRequests, after the SDK has spent about 24 seconds
+            # retrying. Check first so the user gets a clear message instead.
+            $HasUnfiltered = $FilterSets | Where-Object {
+                ($_.Filters.Keys.Count -eq 0) -and -not $OperationsSet.Count -and
+                -not $RecordType -and -not $IpAddress
+            }
+            if ($HasUnfiltered) {
+                $Blocking = Get-GraphUALOpenUnfilteredJob
+                if ($Blocking) {
+                    Write-IRT ('An unfiltered audit search is already running and the ' +
+                        'service allows only one at a time:') -Level Error
+                    Write-IRT "  $($Blocking.displayName) [$($Blocking.status)]" -Level Error
+                    Write-IRT ('Wait for it to finish, or narrow this search with ' +
+                        '-Operation, -RecordType or -IpAddress.') -Level Error
+                    continue
+                }
+            }
+            #endregion UNFILTERED PRE-CHECK
+
+            #region SUBMIT
+            $GroupId = ([guid]::NewGuid().ToString('N')).Substring(0, 8)
+            $Stamp = (Get-Date).ToString('yyMMdd-HHmm')
+            $Target = "${ObjectName} (${Days} days, $($FilterSets.Count) job(s))"
+
+            if (-not $PSCmdlet.ShouldProcess($Target, 'Start audit search')) { continue }
+
+            Write-IRT "Submitting $($FilterSets.Count) audit search job(s) for ${ObjectName}."
+
+            $Jobs = [System.Collections.Generic.List[psobject]]::new()
+            $Index = 0
+            foreach ($Set in $FilterSets) {
+                $Index++
+
+                $NameParams = @{
+                    ObjectName = $ObjectName
+                    ProfileTag = $ActiveProfile.ProfileTag
+                    Days       = $Days
+                    GroupId    = $GroupId
+                    Index      = $Index
+                    Stamp      = $Stamp
+                    Prefix     = $NamePrefix
+                }
+                $DisplayName = New-GraphUALName @NameParams
+
+                $Body = @{
+                    displayName         = $DisplayName
+                    filterStartDateTime = $DateRange.StartString
+                    filterEndDateTime   = $DateRange.EndString
+                }
+                foreach ($Key in $Set.Filters.Keys) { $Body[$Key] = $Set.Filters[$Key] }
+                if ($OperationsSet.Count -gt 0) {
+                    $Body['operationFilters'] = [string[]]$OperationsSet
+                }
+                if ($RecordType) { $Body['recordTypeFilters'] = [string[]]$RecordType }
+                if ($IpAddress) { $Body['ipAddressFilters'] = [string[]]$IpAddress }
+
+                $Response = Invoke-GraphUALRequest -Method 'POST' -Path 'queries' -Body $Body
+
+                if ($Response.Ok) {
+                    Write-IRT "  [$Index] $($Set.Label) -> $($Response.Result.id)"
+                    $Jobs.Add([pscustomobject]@{
+                            Id          = [string]$Response.Result.id
+                            Index       = $Index
+                            Label       = $Set.Label
+                            DisplayName = $DisplayName
+                            Status      = [string]$Response.Result.status
+                            Body        = $Body
+                        })
+                }
+                else {
+                    Write-IRT ("  [$Index] $($Set.Label) failed: " +
+                        "$($Response.Status)") -Level Error
+                    Write-PSFMessage -Level Warning -Message (
+                        "${FunctionName}: create failed for '$DisplayName': $($Response.Error)")
+                }
+            }
+
+            if ($Jobs.Count -eq 0) {
+                Write-IRT "No audit search jobs were created for ${ObjectName}." -Level Error
+                continue
+            }
+            #endregion SUBMIT
+
+            $Group = [pscustomobject]@{
+                GroupId    = $GroupId
+                Stamp      = $Stamp
+                ObjectName = $ObjectName
+                ProfileTag = $ActiveProfile.ProfileTag
+                FilePrefix = $ActiveProfile.FilePrefix
+                SheetTitle = $ActiveProfile.SheetTitle
+                Days       = $Days
+                StartUtc   = $DateRange.StartUtc
+                EndUtc     = $DateRange.EndUtc
+                Jobs       = $Jobs
+                Created    = Get-Date
+            }
+
+            if ($Global:IRT_GraphUAL -isnot [System.Collections.Generic.List[psobject]]) {
+                $Global:IRT_GraphUAL = [System.Collections.Generic.List[psobject]]::new()
+            }
+            $Global:IRT_GraphUAL.Add($Group)
+            $Results.Add($Group)
+
+            $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+            Write-PSFMessage -Level 8 -Message (
+                "${FunctionName}: submitted group $GroupId with $($Jobs.Count) job(s) [$Elapsed]")
+        }
+    }
+
+    end {
+        if ($Results.Count -eq 0) { return }
+
+        if ($NoWait) {
+            Write-IRT ("Submitted. Results take about 35 minutes. Collect them with " +
+                "Wait-IRTGraphUAL.")
+            return $Results
+        }
+
+        Write-IRT ('Waiting for results. This usually takes about 35 minutes. ' +
+            'Ctrl+C is safe, the jobs keep running.')
+
+        $WaitParams = @{
+            Group  = @($Results.GroupId)
+            Audio  = $Audio
+            Excel  = $Excel
+            Xml    = $Xml
+            Cached = $Cached
+        }
+        Wait-IRTGraphUAL @WaitParams
+    }
+}
+#EndRegion '.\Public\UnifiedAuditLog\Start-IRTGraphUAL.ps1' 500
+#Region '.\Public\UnifiedAuditLog\Wait-IRTGraphUAL.ps1' -1
+
+function Wait-IRTGraphUAL {
+    <#
+    .SYNOPSIS
+    Waits for audit search jobs to finish, then downloads them.
+
+    .DESCRIPTION
+    Polls the Graph audit search jobs until every focused group has finished, then hands
+    each one to Receive-IRTGraphUAL and plays a sound.
+
+    The service schedules these jobs in batches, so expect roughly 35 minutes regardless
+    of how large the search is. Polling is deliberately unhurried for the same reason:
+    every 30 seconds for the first five minutes, then every minute.
+
+    Ctrl+C is safe. The jobs run server-side and keep going, and re-running this command
+    picks them back up. Nothing is lost by stopping the wait.
+
+    Each tick reprints the status of every group being watched. Groups that are not
+    focused are still listed, dimmed, so a long wait does not hide other work in progress.
+
+    .PARAMETER Group
+    One or more group ids to wait for. With none given, a single outstanding search is
+    followed automatically and several produce a menu to choose from, including an option
+    to follow all of them.
+
+    .PARAMETER All
+    Also list audit searches this module did not create, such as ones made in the Purview
+    portal. They appear in the status table for context but cannot be waited on or
+    downloaded, since there is no way to know how to rebuild their output.
+
+    .PARAMETER PollSeconds
+    Override the poll interval, in seconds. By default the interval starts at 30 seconds
+    and rises to 60 after the first five minutes.
+
+    .PARAMETER TimeoutMinutes
+    Give up waiting after this many minutes. Zero, the default, waits indefinitely.
+    Whatever has finished is still downloaded.
+
+    .PARAMETER NoReceive
+    Report completion without downloading anything.
+
+    .PARAMETER Audio
+    Play a sound when the wait ends. Default: $true.
+
+    .PARAMETER Excel
+    Export results to an Excel workbook. Default: $true.
+
+    .PARAMETER Xml
+    Export raw records to XML. Defaults to IRT_Config.ExportXml.
+
+    .PARAMETER Cached
+    Use pre-cached Graph data where available when building the workbook.
+
+    .EXAMPLE
+    ```powershell
+    Wait-IRTGraphUAL
+    ```
+    Waits for every outstanding search, then downloads them.
+
+    .EXAMPLE
+    ```powershell
+    Wait-IRTGraphUAL -Group '3f9a1c2b'
+    ```
+    Waits for one group.
+
+    .EXAMPLE
+    ```powershell
+    Wait-IRTGraphUAL -All
+    ```
+    Also lists searches created outside this module, for context.
+
+    .EXAMPLE
+    ```powershell
+    Wait-IRTGraphUAL -TimeoutMinutes 60 -Audio $false
+    ```
+    Waits up to an hour without a completion sound.
+
+    .OUTPUTS
+    None. Results are exported by Receive-IRTGraphUAL.
+
+    .NOTES
+    Version: 1.1.0
+    1.1.0 - Removed -ResultLimit, along with the download cap it passed on.
+    #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+        'PSAvoidUsingWriteHost', '',
+        Justification = 'Interactive status table, consistent with Get-IRTEmailSearch.')]
+    [CmdletBinding()]
+    param(
+        [Alias('GroupId')]
+        [string[]] $Group,
+
+        [switch] $All,
+
+        [ValidateRange(5, 3600)]
+        [int] $PollSeconds,
+
+        [ValidateRange(0, 10080)]
+        [int] $TimeoutMinutes = 0,
+
+        [switch] $NoReceive,
+
+        [boolean] $Audio = $true,
+
+        [boolean] $Excel = $true,
+
+        [boolean] $Xml = $Global:IRT_Config.ExportXml,
+
+        [switch] $Cached
+    )
+
+    Import-IRTModule -Name 'PSFramework'
+    $FunctionName = $MyInvocation.MyCommand.Name
+    $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+    $Terminal = @('succeeded', 'failed', 'cancelled')
+
+    $Jobs = Get-GraphUALJob -All:$All
+    if (($Jobs | Measure-Object).Count -eq 0) {
+        Write-IRT 'No outstanding audit searches.' -Level Warn
+        return
+    }
+
+    # explicit -Group wins; otherwise pick automatically when there is only one, and
+    # offer a menu when there is a real choice
+    $Focus = Select-GraphUALFocus -Jobs $Jobs -Group $Group
+    if (($Focus | Measure-Object).Count -eq 0) {
+        Write-IRT 'Nothing selected.' -Level Warn
+        return
+    }
+
+    $Focused = @($Jobs | Where-Object { $_.GroupId -in $Focus })
+    if ($Focused.Count -eq 0) {
+        Write-IRT "No audit searches found for group(s): $($Focus -join ', ')" -Level Warn
+        return
+    }
+
+    Write-IRT ("Watching $(@($Focus).Count) group(s), $($Focused.Count) job(s). " +
+        'Ctrl+C is safe; the jobs keep running.')
+
+    $Deadline = $TimeoutMinutes -gt 0 ? (Get-Date).AddMinutes($TimeoutMinutes) : $null
+    $TimedOut = $false
+    $Completed = $false
+
+    try {
+        while ($true) {
+
+            $Jobs = Get-GraphUALJob -All:$All
+            $Focused = @($Jobs | Where-Object { $_.GroupId -in $Focus })
+
+            # the group should not disappear mid-wait, but a listing failure or an
+            # expired job would do it; treat that as done rather than looping forever
+            if ($Focused.Count -eq 0) { $Completed = $true; break }
+
+            Show-GraphUALStatus -Jobs $Jobs -Focus $Focus -Elapsed $Stopwatch.Elapsed
+
+            $Pending = @($Focused | Where-Object { $_.Status -notin $Terminal })
+            if ($Pending.Count -eq 0) { $Completed = $true; break }
+
+            if ($Deadline -and (Get-Date) -gt $Deadline) {
+                $TimedOut = $true
+                Write-IRT ("Timed out after ${TimeoutMinutes} minute(s) with " +
+                    "$($Pending.Count) job(s) still running. They keep going; re-run " +
+                    'Wait-IRTGraphUAL to pick them up.') -Level Warn
+                break
+            }
+
+            # the service batches these jobs and nothing finishes quickly, so polling
+            # hard buys nothing; ease off after the first few minutes
+            $Interval = $PollSeconds
+            if (-not $Interval) {
+                $Interval = $Stopwatch.Elapsed.TotalMinutes -lt 5 ? 30 : 60
+            }
+            Start-Sleep -Seconds $Interval
+        }
+    }
+    finally {
+        if (-not $Completed -and -not $TimedOut) {
+            Write-IRT ('Stopped waiting. The jobs keep running server-side; ' +
+                'collect them later with Wait-IRTGraphUAL.') -Level Warn
+        }
+    }
+
+    if (-not $Completed) { return }
+
+    $Elapsed = $Stopwatch.Elapsed.ToString('hh\:mm\:ss')
+    Write-IRT "All watched audit searches finished after ${Elapsed}."
+    Write-PSFMessage -Level 8 -Message "${FunctionName}: focus complete after $Elapsed."
+
+    if ($Audio) {
+        try { [System.Media.SystemSounds]::Asterisk.Play() }
+        catch { Write-PSFMessage -Level 9 -Message "${FunctionName}: no audio device." }
+    }
+
+    if ($NoReceive) {
+        Write-IRT 'Skipping download (-NoReceive). Use Receive-IRTGraphUAL when ready.'
+        return
+    }
+
+    foreach ($CurrentGroup in $Focus) {
+        $ReceiveParams = @{
+            Group  = $CurrentGroup
+            Excel  = $Excel
+            Xml    = $Xml
+            Cached = $Cached
+        }
+        Receive-IRTGraphUAL @ReceiveParams
+    }
+}
+#EndRegion '.\Public\UnifiedAuditLog\Wait-IRTGraphUAL.ps1' 208
 #Region '.\Public\User\Disable-IRTUser.ps1' -1
 
 function Disable-IRTUser {
@@ -24387,6 +28797,18 @@ function Set-IRTConfig {
             'Replace with a custom file to change color-coding without editing code.'
             Options     = $null  # free text / file path
         }
+        LogFolderPath = @{
+            Summary     = 'Debug log folder'
+            Description = 'Folder where IRT writes its PSFramework diagnostic log ' +
+            '(every Write-PSFMessage call, all levels). ' +
+            'Enter a FOLDER path, not a file - for example C:\IRLogs. ' +
+            'Leave blank to disable file logging. ' +
+            'When set, a new plain-text file named IRT-<date>.log is written to the ' +
+            'folder each day (e.g. IRT-2026-06-30.log), and files older than 30 days ' +
+            'are deleted automatically (no size limit or zipping). ' +
+            'The change takes effect immediately.'
+            Options     = $null  # free text / folder path
+        }
         PlaybookOpenNewTab = @{
             Summary     = 'New tab when starting Playbook'
             Description = 'When enabled, Start-IRTPlaybook opens a new terminal tab ' +
@@ -24394,12 +28816,13 @@ function Set-IRTConfig {
             'Use -NoNewTab on Start-IRTPlaybook to override for a single run.'
             Options     = @('true', 'false')
         }
-        EmailSearchNamePrefix = @{
-            Summary     = 'Email search name prefix'
-            Description = 'Prefix prepended to every email search name created by ' +
-            'New-IRTEmailSearch (e.g. "IRT: "). Makes IRT-created searches easy to ' +
-            'identify and filter in the compliance portal. ' +
-            'Use -NamePrefix on New-IRTEmailSearch to override for a single search.'
+        JobNamePrefix = @{
+            Summary     = 'Job name prefix'
+            Description = 'Prefix prepended to the name of every long-lived job this ' +
+            'module creates on a tenant (e.g. "IRT: "): email searches from ' +
+            'New-IRTEmailSearch and audit log queries from Start-IRTGraphUAL. Makes ' +
+            'IRT-created entries easy to identify and filter. ' +
+            'Use -NamePrefix on either command to override for a single job.'
             Options     = $null  # free text
         }
     }
@@ -24467,7 +28890,7 @@ function Set-IRTConfig {
         }
         else {
             # Free text input; for path settings blank clears back to null (restores default)
-            if ($SelectedKey -in 'AllOperationsSheetPath', 'TenantsSheetPath') {
+            if ($SelectedKey -in 'AllOperationsSheetPath', 'TenantsSheetPath', 'LogFolderPath') {
                 $NewValue = Read-Host "Enter new value (blank to clear and use module default)"
             }
             else {
@@ -24480,7 +28903,7 @@ function Set-IRTConfig {
         }
 
         # Convert blank/null path settings back to null
-        if ($SelectedKey -in 'AllOperationsSheetPath', 'TenantsSheetPath') {
+        if ($SelectedKey -in 'AllOperationsSheetPath', 'TenantsSheetPath', 'LogFolderPath') {
             if ([string]::IsNullOrWhiteSpace($NewValue)) { $NewValue = $null }
         }
 
@@ -24499,11 +28922,16 @@ function Set-IRTConfig {
         if ($PSCmdlet.ShouldProcess($ConfigPath, "Set $SelectedKey = $NewValue")) {
             $Config | ConvertTo-Json -Depth 10 | Set-Content -Path $ConfigPath -Encoding utf8
             Import-IRTConfig -Force
+            # Apply a logging-folder change to the running session right away so the
+            # user does not have to reimport the module to start/stop file logging.
+            if ($SelectedKey -eq 'LogFolderPath') {
+                Initialize-IRTFileLogging
+            }
             Write-IRT "$SelectedKey updated to: $NewValue"
         }
     }
 }
-#EndRegion '.\Public\Utility\Set-IRTConfig.ps1' 302
+#EndRegion '.\Public\Utility\Set-IRTConfig.ps1' 320
 #Region '.\Public\Utility\Start-IRTPlaybook.ps1' -1
 
 function Start-IRTPlaybook {
@@ -25069,6 +29497,15 @@ if (-not $Global:IRT_Config.IPConditionalFormattingTemplatePath) {
     $Global:IRT_Config.IPConditionalFormattingTemplatePath = Join-Path @IpcftJoin
 }
 
+# Apply PSFramework file logging from the LogFolderPath config value (blank = off).
+# Initialize-IRTFileLogging routes every Write-PSFMessage call to a per-day TXT file
+# in that folder and prunes files older than 30 days. Skipped in runspace workers:
+# they share the parent process, so the main session's provider already captures
+# their messages.
+if (-not $Global:IRT_IsRunspaceWorker) {
+    Initialize-IRTFileLogging
+}
+
 # Check ip_info availability once at module load and cache in config.
 $Global:IRT_Config.IpInfoAvailable = (Test-PythonPackage -Name 'ip_info').Present
 
@@ -25089,4 +29526,4 @@ if ($Global:IRT_LoadStopwatch) {
     Write-PSFMessage -Level 8 -Message "Module loaded in $($Elapsed.ToString('N2'))s."
     Remove-Variable -Name 'IRT_LoadStopwatch' -Scope Global
 }
-#EndRegion '.\Suffix.ps1' 73
+#EndRegion '.\Suffix.ps1' 82
