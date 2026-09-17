@@ -59,7 +59,7 @@ function Get-IRTNonInteractiveSignIn {
         [boolean] $Beta = $true,
         [boolean] $Xml = $Global:IRT_Config.ExportXml,
         [boolean] $Script = $false,
-        [boolean] $Open = $true
+        [boolean] $Open = [bool]$Global:IRT_Config.OpenSpreadsheets
     )
 
     begin {
