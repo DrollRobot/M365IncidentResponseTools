@@ -17,5 +17,5 @@
     "MsalCachePath": null,
     "IPConditionalFormattingTemplatePath": null,
     "PlaybookOpenNewTab": true,
-    "EmailSearchNamePrefix": "IRT: "
+    "JobNamePrefix": "IRT: "
 }
