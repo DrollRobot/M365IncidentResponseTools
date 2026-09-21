@@ -17,7 +17,8 @@ function Show-IRTMessageTrace {
 
         [string] $TableStyle = $Global:IRT_Config.ExcelTableStyle,
         [string] $Font = $Global:IRT_Config.ExcelFont,
-        [boolean] $IpInfo = [bool]$Global:IRT_Config.IpInfoAvailable
+        # opt-in: ip_info lookups on FromIP/ToIP are slow for large message traces
+        [switch] $IpInfo
     )
 
     begin {

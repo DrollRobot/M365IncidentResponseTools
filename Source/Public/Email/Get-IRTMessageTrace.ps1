@@ -53,6 +53,10 @@ function Get-IRTMessageTrace {
     .PARAMETER Font
     Excel font name. Defaults to IRT_Config.ExcelFont.
 
+    .PARAMETER IpInfo
+    Enrich FromIP/ToIP with ip_info lookup data in the Excel output. Off by default
+    because lookups are slow for large message traces. Ignored if ip_info is not installed.
+
     .EXAMPLE
     ```powershell
     Get-IRTMessageTrace
@@ -105,7 +109,8 @@ function Get-IRTMessageTrace {
         [switch] $Quiet,
         [boolean] $Xml = $Global:IRT_Config.ExportXml,
         [string] $TableStyle = $Global:IRT_Config.ExcelTableStyle,
-        [string] $Font = $Global:IRT_Config.ExcelFont
+        [string] $Font = $Global:IRT_Config.ExcelFont,
+        [switch] $IpInfo
     )
 
     begin {
@@ -484,6 +489,7 @@ function Get-IRTMessageTrace {
                     Messages   = $AllMessages
                     TableStyle = $TableStyle
                     Font       = $Font
+                    IpInfo     = $IpInfo
                 }
                 Show-IRTMessageTrace @Params
             }
