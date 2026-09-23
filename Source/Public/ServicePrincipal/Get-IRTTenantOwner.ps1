@@ -1,11 +1,16 @@
 function Get-IRTTenantOwner {
     <#
     .SYNOPSIS
-    Resolves a tenant GUID to its organization name, default domain, and cloud environment.
+    Resolves a tenant GUID or domain to its organization name, default domain, and cloud
+    environment.
 
     .DESCRIPTION
-    Looks up a Microsoft 365 / Entra ID tenant by GUID and returns its display name,
-    default domain, and environment details.
+    Looks up a Microsoft 365 / Entra ID tenant by GUID or verified domain and returns its
+    display name, default domain, and environment details.
+
+    A domain is first resolved to its tenant GUID through OIDC discovery. The returned
+    TenantId is always the GUID. A domain that OIDC cannot resolve is reported as not
+    found.
 
     The display name and default domain come from the Graph cross-tenant information
     API, which is the only endpoint that maps a tenant GUID to its org identity. This
@@ -27,7 +32,9 @@ function Get-IRTTenantOwner {
     reimporting the module.
 
     .PARAMETER TenantId
-    One or more Entra ID tenant GUIDs to look up.
+    One or more tenants to look up, each given as an Entra ID tenant GUID or a verified
+    domain name (a custom domain such as 'contoso.com' or the '.onmicrosoft.com'
+    default). Accepts the alias 'Domain'.
 
     .PARAMETER SkipGraph
     Skip the authenticated Graph lookup and use only OIDC endpoints.
@@ -48,6 +55,11 @@ function Get-IRTTenantOwner {
 
     .EXAMPLE
     ```powershell
+    Get-IRTTenantOwner -Domain 'contoso.com'
+    ```
+
+    .EXAMPLE
+    ```powershell
     $guids | Get-IRTTenantOwner
     ```
 
@@ -59,14 +71,19 @@ function Get-IRTTenantOwner {
     .NOTES
     The Graph lookup requires the CrossTenantInformation.ReadBasic.All scope.
 
-    Version: 1.2.1
+    Version: 1.3.0
+    1.3.0 - -TenantId accepts domains as well as GUIDs.
     1.2.1 - -Cached no longer throws on a cache hit. The entry was assigned to $cached,
     which is the [switch] $Cached parameter under PowerShell's case-insensitive names.
     #>
+    [Alias(
+        'GetIRTTenantOwner', 'Get-IRTTenantOwners', 'GetIRTTenantOwners',
+        'Get-TenantOwner', 'GetTenantOwner', 'Get-TenantOwners', 'GetTenantOwners'
+    )]
     [CmdletBinding()]
     param (
         [Parameter( Mandatory, Position = 0, ValueFromPipeline, ValueFromPipelineByPropertyName )]
-        [Alias('TenantIds')]
+        [Alias('TenantIds', 'Domain')]
         [string[]] $TenantId,
 
         [switch] $SkipGraph,
@@ -123,19 +140,50 @@ function Get-IRTTenantOwner {
 
         foreach ($Tid in $TenantId) {
 
-            # --- Validate GUID ---
+            $Oidc = $null
+            $CacheHit = $null
+
+            # --- Resolve GUID ---
+            # Anything that is not a GUID is treated as a domain. With -Cached, a domain
+            # matching a cached default domain skips the network. Otherwise OIDC discovery
+            # resolves it, and its issuer carries the tenant GUID the cache and Graph need.
             $guidParsed = [guid]::Empty
-            if (-not [guid]::TryParse($Tid, [ref] $guidParsed)) {
-                Write-Error "TenantId '$Tid' is not a valid GUID."
-                continue
+            if ([guid]::TryParse($Tid, [ref] $guidParsed)) {
+                $Tid = $guidParsed.ToString()
             }
-            $Tid = $guidParsed.ToString()
+            else {
+                $Domain = $Tid
+                if ($Cached) {
+                    $CacheHit = $Global:IRT_TenantInfoTable.Values |
+                        Where-Object { $_.DefaultDomain -eq $Domain } |
+                        Select-Object -First 1
+                }
+                if ($CacheHit) {
+                    $Tid = $CacheHit.TenantId
+                }
+                else {
+                    $Oidc = Get-TenantOidc -TenantId $Domain
+                    if (-not ($Oidc)?.TenantId) {
+                        Write-PSFMessage -Level 8 -Message (
+                            "Domain '$Domain' did not resolve to a tenant via OIDC.")
+                        if (-not $Quiet) {
+                            Write-IRT "Tenant '$Domain' was not found." -Level Warn
+                        }
+                        [pscustomobject]@{ TenantId = $Domain; Exists = $false }
+                        continue
+                    }
+                    $Tid = $Oidc.TenantId
+                }
+                Write-PSFMessage -Level 8 -Message "Resolved domain '$Domain' to tenant '$Tid'."
+            }
 
             # --- Cache lookup ---
-            if ($Cached -and $Global:IRT_TenantInfoTable.ContainsKey($Tid)) {
+            if (-not $CacheHit -and $Cached -and $Global:IRT_TenantInfoTable.ContainsKey($Tid)) {
                 # Not $cached: variable names are case-insensitive, so that would assign
                 # the entry to the [switch] $Cached parameter and throw on every hit.
                 $CacheHit = $Global:IRT_TenantInfoTable[$Tid]
+            }
+            if ($CacheHit) {
                 Write-PSFMessage -Level 8 -Message (
                     "Cache hit for '$Tid' (cached $($CacheHit.CachedAt), " +
                     "DisplayName='$($CacheHit.DisplayName)')")
@@ -158,7 +206,8 @@ function Get-IRTTenantOwner {
             # --- OIDC Discovery ---
             # Done first so we know the target cloud before attempting Graph.
             # Provides cloud, region, Graph host, and confirms the tenant exists.
-            $Oidc = Get-TenantOidc -TenantId $Tid
+            # Already done when the input was a domain.
+            if (-not $Oidc) { $Oidc = Get-TenantOidc -TenantId $Tid }
             $Cloud = ($Oidc)?.Cloud
 
             Write-PSFMessage -Level 8 -Message (

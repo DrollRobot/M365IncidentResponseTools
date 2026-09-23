@@ -98,6 +98,7 @@ function Get-TenantOidc {
     .NOTES
     Version: 1.2.0
     #>
+    [Alias('GetTenantOidc','Get-Oidc','GetOidc')]
     [CmdletBinding(DefaultParameterSetName = 'Probe')]
     [OutputType([pscustomobject], ParameterSetName = 'Probe')]
     [OutputType([System.Collections.Specialized.OrderedDictionary],

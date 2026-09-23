@@ -22,6 +22,13 @@
 -- cache miss -------------------------------------------------------------
 
     With -Cached, a tenant not yet in the cache still gets a live lookup.
+
+-- domain input -----------------------------------------------------------
+
+    A domain is resolved to its tenant GUID through OIDC discovery, and that GUID is
+    what the output and cache use. The discovery result is reused, so a domain costs
+    one OIDC call, not two. With -Cached, a domain matching a cached default domain is
+    returned with no lookup. A domain OIDC cannot resolve is reported as not found.
 #>
 
 InModuleScope M365IncidentResponseTools {
@@ -108,6 +115,60 @@ InModuleScope M365IncidentResponseTools {
                 }
                 $Result = Get-IRTTenantOwner @Params
                 Should -Invoke Get-TenantOidc -Times 1 -Exactly
+                $Result.Exists | Should -BeFalse
+            }
+        }
+
+        # -------------------------------------------------------------------
+        Context 'domain input' {
+
+            It 'resolves a domain to its tenant GUID' {
+                Mock Get-TenantOidc {
+                    [pscustomobject]@{
+                        TenantId       = $script:UncachedTid
+                        Cloud          = 'Commercial'
+                        msgraph_host   = 'graph.microsoft.com'
+                        token_endpoint = 'https://login.microsoftonline.com/x/oauth2/v2.0/token'
+                    }
+                }
+                $Result = Get-IRTTenantOwner -TenantId 'contoso.com' -Quiet -SkipGraph
+                $Result.TenantId | Should -Be $script:UncachedTid
+                $Result.Exists | Should -BeTrue
+                $Result.Cloud | Should -Be 'Commercial'
+                Should -Invoke Get-TenantOidc -Times 1 -Exactly -ParameterFilter {
+                    $TenantId -eq 'contoso.com'
+                }
+            }
+
+            It 'returns a cached tenant by default domain with no lookup' {
+                $Params = @{
+                    Domain    = 'fabrikam.com'
+                    Cached    = $true
+                    Quiet     = $true
+                    SkipGraph = $true
+                }
+                $Result = Get-IRTTenantOwner @Params
+                $Result.TenantId | Should -Be $script:CachedTid
+                $Result.Source | Should -Be 'Cache'
+                Should -Invoke Get-TenantOidc -Times 0 -Exactly
+            }
+
+            It 'returns the cached entry when a domain resolves to a cached GUID' {
+                Mock Get-TenantOidc { [pscustomobject]@{ TenantId = $script:CachedTid } }
+                $Params = @{
+                    TenantId  = 'fabrikam.onmicrosoft.com'
+                    Cached    = $true
+                    Quiet     = $true
+                    SkipGraph = $true
+                }
+                $Result = Get-IRTTenantOwner @Params
+                $Result.DisplayName | Should -Be 'Fabrikam'
+                $Result.Source | Should -Be 'Cache'
+            }
+
+            It 'reports a domain OIDC cannot resolve as not found' {
+                $Result = Get-IRTTenantOwner -TenantId 'nope.invalid' -Quiet -SkipGraph
+                $Result.TenantId | Should -Be 'nope.invalid'
                 $Result.Exists | Should -BeFalse
             }
         }
