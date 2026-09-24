@@ -28,7 +28,7 @@ function Show-IRTEntraUserSignInLog {
     Enrich IP addresses with geolocation data. Default: $true.
 
     .PARAMETER Open
-    Open the Excel file immediately after export. Default: $true.
+    Open the Excel file immediately after export. Defaults to IRT_Config.OpenSpreadsheets.
 
     .EXAMPLE
     ```powershell

@@ -33,7 +33,8 @@ function Get-IRTAdminRole {
     Font name for the Excel workbook. Defaults to the value in IRT_Config.ExcelFont.
 
     .PARAMETER Open
-    When exporting to Excel, open the file immediately after writing. Default: $true.
+    When exporting to Excel, open the file immediately after writing. Defaults to the value
+    in IRT_Config.OpenSpreadsheets.
 
     .EXAMPLE
     ```powershell

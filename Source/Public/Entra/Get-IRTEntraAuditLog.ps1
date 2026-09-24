@@ -29,7 +29,7 @@ function Get-IRTEntraAuditLog {
     Use the Microsoft Graph beta endpoint instead of v1.0.
 
     .PARAMETER Open
-    Open the Excel file immediately after export. Default: $true.
+    Open the Excel file immediately after export. Defaults to IRT_Config.OpenSpreadsheets.
 
     .PARAMETER Xml
     Export raw XML alongside the Excel file. Defaults to IRT_Config.ExportXml.

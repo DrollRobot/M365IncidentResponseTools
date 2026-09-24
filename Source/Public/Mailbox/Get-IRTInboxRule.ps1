@@ -22,7 +22,7 @@ function Get-IRTInboxRule {
     Excel font name. Defaults to IRT_Config.ExcelFont.
 
     .PARAMETER Open
-    Open the Excel file immediately after export. Default: $true.
+    Open the Excel file immediately after export. Defaults to IRT_Config.OpenSpreadsheets.
 
     .PARAMETER Xml
     Export raw XML alongside the Excel file. Defaults to IRT_Config.ExportXml.

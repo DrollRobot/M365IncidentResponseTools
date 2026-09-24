@@ -15,7 +15,7 @@ function Get-IRTAllEntraDevice {
     registration and last sign-in timestamps.
 
     .PARAMETER Open
-    Open the Excel file immediately after export. Default: $true.
+    Open the Excel file immediately after export. Defaults to IRT_Config.OpenSpreadsheets.
 
     .PARAMETER Xml
     Export the raw device objects to a .xml file alongside the workbook.
