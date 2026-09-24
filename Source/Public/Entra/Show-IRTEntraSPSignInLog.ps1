@@ -23,7 +23,7 @@ function Show-IRTEntraSPSignInLog {
     Excel font name. Defaults to IRT_Config.ExcelFont.
 
     .PARAMETER IpInfo
-    Enrich IP addresses with geolocation data. Default: $true.
+    Enrich IP addresses with geolocation data. Defaults to IRT_Config.IpInfoAvailable.
 
     .PARAMETER Open
     Open the Excel file immediately after export. Defaults to IRT_Config.OpenSpreadsheets.

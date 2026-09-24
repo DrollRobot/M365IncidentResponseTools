@@ -55,7 +55,7 @@ function Get-IRTEntraSPSignInLog {
     Export results to an Excel workbook. Default: $true.
 
     .PARAMETER IpInfo
-    Enrich results with IP geolocation data. Default: $true.
+    Enrich results with IP geolocation data. Defaults to IRT_Config.IpInfoAvailable.
 
     .PARAMETER Open
     Open the Excel file immediately after export. Defaults to IRT_Config.OpenSpreadsheets.
