@@ -16,7 +16,7 @@ function Get-IRTGraphDefaultScope {
     [string[]] - the default Graph scope names.
 
     .NOTES
-    Version: 1.0.0
+    Version: 1.1.0
     #>
     [OutputType([string[]])]
     [CmdletBinding()]
@@ -30,43 +30,31 @@ function Get-IRTGraphDefaultScope {
     Write-PSFMessage -Level 9 -Message 'Get-IRTGraphDefaultScope: returning default scope set.'
 
     return [string[]]@(
-        'Application.ReadWrite.All'
         'AuditLog.Read.All'
         'AuditLogsQuery.Read.All'
-        'BitLockerKey.Read.All'
         'CrossTenantInformation.ReadBasic.All'
         'DelegatedPermissionGrant.ReadWrite.All'
-        'Device.ReadWrite.All'
-        'DeviceLocalCredential.Read.All'
-        'DeviceManagementApps.ReadWrite.All'
-        'DeviceManagementConfiguration.ReadWrite.All'
+        'Device.Read.All'
+        'DeviceManagementApps.Read.All'
+        'DeviceManagementConfiguration.Read.All'
+        # ReadWrite: Remove-IRTDevice deletes the Intune managed device record.
         'DeviceManagementManagedDevices.ReadWrite.All'
-        'DeviceManagementServiceConfig.ReadWrite.All'
+        'DeviceManagementServiceConfig.Read.All'
+        # Delegated device update/delete accept no other scope (Set-IRTDeviceEnabled,
+        # Remove-IRTDevice).
         'Directory.AccessAsUser.All'
-        'Directory.ReadWrite.All'
+        'Directory.Read.All'
         'Domain.Read.All'
-        'Group.ReadWrite.All'
-        'GroupMember.ReadWrite.All'
-        'IdentityRiskEvent.ReadWrite.All'
-        'IdentityRiskyServicePrincipal.ReadWrite.All'
-        'IdentityRiskyUser.ReadWrite.All'
         'Mail.ReadBasic.Shared'
         'Organization.Read.All'
         'Policy.Read.All'
         'Policy.Read.ConditionalAccess'
-        'Policy.ReadWrite.Authorization'
-        'RoleManagement.ReadWrite.Directory'
         'SecurityEvents.ReadWrite.All'
         'SecurityIncident.ReadWrite.All'
-        'User-Mail.ReadWrite.All'
+        # Least-privileged scope for passwordProfile; User.ReadWrite.All does not cover it.
         'User-PasswordProfile.ReadWrite.All'
-        'User-Phone.ReadWrite.All'
-        'User.EnableDisableAccount.All'
         'User.ManageIdentities.All'
         'User.ReadWrite.All'
-        'User.RevokeSessions.All'
-        'UserAuthenticationMethod.ReadWrite'
         'UserAuthenticationMethod.ReadWrite.All'
-        'UserAuthMethod-Passkey.ReadWrite.All'
     )
 }
