@@ -55,6 +55,11 @@
     tenant ID. A resolved tenant ID is counted with records that name the same domain
     directly. A record found in two files counts once. Rows are sorted by count,
     highest first.
+
+-- opening --------------------------------------------------------------
+
+    Whether the workbook opens follows the OpenSpreadsheets config setting unless -Open
+    is passed. Close-ExcelPackage is mocked, so no workbook is ever opened.
 #>
 
 BeforeAll {
@@ -504,5 +509,65 @@ Describe 'Show-IRTTeamsExternalDomain workbook' -Tag 'integration' {
     It 'sorts rows by count, highest first' {
         $script:Rows[0].Domain | Should -Be 'fabrikam.com'
         $script:Rows.Count | Should -Be 3
+    }
+}
+
+Describe 'Show-IRTTeamsExternalDomain opening' -Tag 'integration' {
+
+    BeforeAll {
+        $script:SavedOpenSpreadsheets = $Global:IRT_Config.OpenSpreadsheets
+    }
+
+    BeforeEach {
+        $Mod = 'M365IncidentResponseTools'
+        $TestPath = Join-Path -Path $TestDrive -ChildPath ([guid]::NewGuid().ToString())
+        $null = New-Item -Path $TestPath -ItemType 'Directory'
+
+        Mock Write-IRT { } -ModuleName $Mod
+        Mock Write-PSFMessage { } -ModuleName $Mod
+        Mock Write-Progress { } -ModuleName $Mod
+        Mock Import-IRTModule { } -ModuleName $Mod
+        Mock Update-IRTToken { @{ Graph = $true } } -ModuleName $Mod
+        Mock Get-IRTTenantOwner {
+            foreach ($Id in $TenantId) {
+                [pscustomobject]@{ TenantId = $Id; Exists = $false }
+            }
+        } -ModuleName $Mod
+        # release the package without saving or opening it
+        Mock Close-ExcelPackage { $ExcelPackage.Dispose() } -ModuleName $Mod
+
+        $Block = New-SteRecord -Operation 'UserBlocked' -AuditData @{
+            Members = @(@{ OrganizationId = '33333333-3333-3333-3333-333333333333' })
+        }
+        $WeekFile = Join-Path -Path $TestPath -ChildPath 'week.xml'
+        Save-SteFile -FilePath $WeekFile -Record @($Block)
+    }
+
+    AfterAll {
+        $Global:IRT_Config.OpenSpreadsheets = $script:SavedOpenSpreadsheets
+    }
+
+    It 'does not open the workbook when OpenSpreadsheets is off' {
+        $Global:IRT_Config.OpenSpreadsheets = $false
+        Show-IRTTeamsExternalDomain -Path $TestPath
+        $F = { -not $Show }
+        $InvokeArgs = @{ ModuleName = $Mod; ParameterFilter = $F }
+        Should -Invoke Close-ExcelPackage -Times 1 -Exactly @InvokeArgs
+    }
+
+    It 'opens the workbook when OpenSpreadsheets is on' {
+        $Global:IRT_Config.OpenSpreadsheets = $true
+        Show-IRTTeamsExternalDomain -Path $TestPath
+        $F = { $Show }
+        $InvokeArgs = @{ ModuleName = $Mod; ParameterFilter = $F }
+        Should -Invoke Close-ExcelPackage -Times 1 -Exactly @InvokeArgs
+    }
+
+    It 'lets -Open override OpenSpreadsheets' {
+        $Global:IRT_Config.OpenSpreadsheets = $false
+        Show-IRTTeamsExternalDomain -Path $TestPath -Open $true
+        $F = { $Show }
+        $InvokeArgs = @{ ModuleName = $Mod; ParameterFilter = $F }
+        Should -Invoke Close-ExcelPackage -Times 1 -Exactly @InvokeArgs
     }
 }

@@ -57,6 +57,9 @@ function Get-IRTMessageTrace {
     Enrich FromIP/ToIP with ip_info lookup data in the Excel output. Off by default
     because lookups are slow for large message traces. Ignored if ip_info is not installed.
 
+    .PARAMETER Open
+    Open the Excel workbook after exporting. Defaults to IRT_Config.OpenSpreadsheets.
+
     .EXAMPLE
     ```powershell
     Get-IRTMessageTrace
@@ -110,7 +113,8 @@ function Get-IRTMessageTrace {
         [boolean] $Xml = $Global:IRT_Config.ExportXml,
         [string] $TableStyle = $Global:IRT_Config.ExcelTableStyle,
         [string] $Font = $Global:IRT_Config.ExcelFont,
-        [switch] $IpInfo
+        [switch] $IpInfo,
+        [boolean] $Open = [bool]$Global:IRT_Config.OpenSpreadsheets
     )
 
     begin {
@@ -490,6 +494,7 @@ function Get-IRTMessageTrace {
                     TableStyle = $TableStyle
                     Font       = $Font
                     IpInfo     = $IpInfo
+                    Open       = $Open
                 }
                 Show-IRTMessageTrace @Params
             }

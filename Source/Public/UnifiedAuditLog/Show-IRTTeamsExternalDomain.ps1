@@ -57,7 +57,7 @@ function Show-IRTTeamsExternalDomain {
     its own chunk unresolved, so lower this if lookups fail in bulk. Default: 100.
 
     .PARAMETER Open
-    Open the workbook after export. Default: $true.
+    Open the workbook after export. Defaults to IRT_Config.OpenSpreadsheets.
 
     .PARAMETER TableStyle
     Excel table style. Defaults to IRT_Config.ExcelTableStyle.
@@ -69,7 +69,8 @@ function Show-IRTTeamsExternalDomain {
     ```powershell
     Show-IRTTeamsExternalDomain
     ```
-    Summarises the .xml files in the current directory and opens the workbook.
+    Summarises the .xml files in the current directory. The workbook opens if the
+    OpenSpreadsheets setting is on.
 
     .EXAMPLE
     ```powershell
@@ -94,7 +95,8 @@ function Show-IRTTeamsExternalDomain {
     None. Writes an Excel workbook into -Path.
 
     .NOTES
-    Version: 1.1.1
+    Version: 1.2.0
+    1.2.0 - -Open defaults to the OpenSpreadsheets config setting instead of $true.
     1.1.1 - Progress is shown with Write-Progress instead of a console line for each file
     and each lookup chunk.
     1.1.0 - Tenant IDs are looked up in chunks of -TenantIdChunkSize, so one failed
@@ -109,7 +111,7 @@ function Show-IRTTeamsExternalDomain {
         [ValidateRange(1, 1000)]
         [int] $TenantIdChunkSize = 100,
 
-        [boolean] $Open = $true,
+        [boolean] $Open = [bool]$Global:IRT_Config.OpenSpreadsheets,
 
         [string] $TableStyle = $Global:IRT_Config.ExcelTableStyle,
         [string] $Font = $Global:IRT_Config.ExcelFont
