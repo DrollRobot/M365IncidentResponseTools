@@ -4,7 +4,7 @@ external help file: M365IncidentResponseTools-Help.xml
 HelpUri: ''
 Locale: en-US
 Module Name: M365IncidentResponseTools
-ms.date: 09/07/2026
+ms.date: 09/16/2026
 PlatyPS schema version: 2024-05-01
 title: Connect-IRT
 ---
@@ -34,7 +34,7 @@ Connect-IRT -Refresh [-Silent] [-Cloud <string>] [-AdditionalScope <string[]>] [
 
 ## ALIASES
 
-ConnectIRT
+ConnectIRT, IRTConnect
 
 ## DESCRIPTION
 

@@ -4,84 +4,86 @@ external help file: M365IncidentResponseTools-Help.xml
 HelpUri: ''
 Locale: en-US
 Module Name: M365IncidentResponseTools
-ms.date: 09/07/2026
+ms.date: 09/16/2026
 PlatyPS schema version: 2024-05-01
-title: Get-IRTServicePrincipalSignInLog
+title: Wait-IRTGraphUAL
 ---
 
-# Get-IRTServicePrincipalSignInLog
+# Wait-IRTGraphUAL
 
 ## SYNOPSIS
 
-Downloads service principal sign-in logs.
+Waits for audit search jobs to finish, then downloads them.
 
 ## SYNTAX
 
-### ServicePrincipalObject (Default)
-
 ```
-Get-IRTServicePrincipalSignInLog [[-ServicePrincipalObject] <psobject[]>] [-Days <int>]
- [-Start <string>] [-End <string>] [-Beta <bool>] [-Excel <bool>] [-IpInfo <bool>] [-Open <bool>]
- [-Xml <bool>] [<CommonParameters>]
-```
-
-### AllServicePrincipals
-
-```
-Get-IRTServicePrincipalSignInLog [-AllServicePrincipals] [-Days <int>] [-Start <string>]
- [-End <string>] [-Beta <bool>] [-Excel <bool>] [-IpInfo <bool>] [-Open <bool>] [-Xml <bool>]
+Wait-IRTGraphUAL [[-Group] <string[]>] [[-PollSeconds] <int>] [[-TimeoutMinutes] <int>]
+ [[-Audio] <bool>] [[-Excel] <bool>] [[-Xml] <bool>] [-All] [-NoReceive] [-Cached]
  [<CommonParameters>]
 ```
 
 ## ALIASES
 
-GetSPSILog, GetSPSILogs, SPSILog, SPSILogs
+None.
 
 ## DESCRIPTION
 
-Retrieves Entra ID service principal sign-in logs via Microsoft Graph for one or more
-service principals or all service principals in the tenant.
-Enriches each log entry
-with IP geolocation data and human-readable Entra error descriptions, then exports
-results to an Excel workbook.
+Polls the Graph audit search jobs until every focused group has finished, then hands
+each one to Receive-IRTGraphUAL and plays a sound.
 
-Date range defaults to the last 30 days when no -Days, -Start, or -End is specified.
+The service schedules these jobs in batches, so expect roughly 35 minutes regardless
+of how large the search is.
+Polling is deliberately unhurried for the same reason:
+every 30 seconds for the first five minutes, then every minute.
 
-Falls back to $Global:IRT_ServicePrincipalObjects if no -ServicePrincipalObject is
-passed.
-Use Find-IRTServicePrincipal first to populate that global variable.
+Ctrl+C is safe.
+The jobs run server-side and keep going, and re-running this command
+picks them back up.
+Nothing is lost by stopping the wait.
+
+Each tick reprints the status of every group being watched.
+Groups that are not
+focused are still listed, dimmed, so a long wait does not hide other work in progress.
 
 ## EXAMPLES
 
 ### EXAMPLE 1
 
 ```powershell
-Find-IRTServicePrincipal MyApp
-Get-IRTServicePrincipalSignInLog
+Wait-IRTGraphUAL
 ```
-Two-step workflow: find the SP then download its sign-in logs.
+Waits for every outstanding search, then downloads them.
 
 ### EXAMPLE 2
 
 ```powershell
-Get-IRTServicePrincipalSignInLog -ServicePrincipalObject $SP -Days 90
+Wait-IRTGraphUAL -Group '3f9a1c2b'
 ```
-Downloads 90 days of sign-in logs for a specific service principal.
+Waits for one group.
 
 ### EXAMPLE 3
 
 ```powershell
-Get-IRTServicePrincipalSignInLog -AllServicePrincipals -Days 7
+Wait-IRTGraphUAL -All
 ```
-Downloads 7 days of sign-in logs for all service principals in the tenant.
+Also lists searches created outside this module, for context.
+
+### EXAMPLE 4
+
+```powershell
+Wait-IRTGraphUAL -TimeoutMinutes 60 -Audio $false
+```
+Waits up to an hour without a completion sound.
 
 ## PARAMETERS
 
-### -AllServicePrincipals
+### -All
 
-Retrieve sign-in logs for all service principals in the tenant.
-Mutually exclusive
-with -ServicePrincipalObject.
+Also list audit searches this module did not create, such as ones made in the Purview
+portal.
+They appear in the status table for context but cannot be waited on or
+downloaded, since there is no way to know how to rebuild their output.
 
 ```yaml
 Type: System.Management.Automation.SwitchParameter
@@ -89,7 +91,7 @@ DefaultValue: False
 SupportsWildcards: false
 Aliases: []
 ParameterSets:
-- Name: AllServicePrincipals
+- Name: (All)
   Position: Named
   IsRequired: false
   ValueFromPipeline: false
@@ -100,9 +102,9 @@ AcceptedValues: []
 HelpMessage: ''
 ```
 
-### -Beta
+### -Audio
 
-Use the Microsoft Graph beta endpoint.
+Play a sound when the wait ends.
 Default: $true.
 
 ```yaml
@@ -112,7 +114,7 @@ SupportsWildcards: false
 Aliases: []
 ParameterSets:
 - Name: (All)
-  Position: Named
+  Position: 3
   IsRequired: false
   ValueFromPipeline: false
   ValueFromPipelineByPropertyName: false
@@ -122,36 +124,13 @@ AcceptedValues: []
 HelpMessage: ''
 ```
 
-### -Days
+### -Cached
 
-Number of days back to search.
-Cannot be used with -Start / -End.
-
-```yaml
-Type: System.Int32
-DefaultValue: 0
-SupportsWildcards: false
-Aliases: []
-ParameterSets:
-- Name: (All)
-  Position: Named
-  IsRequired: false
-  ValueFromPipeline: false
-  ValueFromPipelineByPropertyName: false
-  ValueFromRemainingArguments: false
-DontShow: false
-AcceptedValues: []
-HelpMessage: ''
-```
-
-### -End
-
-End of date range (parseable date string).
-Used with -Start for an absolute range.
+Use pre-cached Graph data where available when building the workbook.
 
 ```yaml
-Type: System.String
-DefaultValue: ''
+Type: System.Management.Automation.SwitchParameter
+DefaultValue: False
 SupportsWildcards: false
 Aliases: []
 ParameterSets:
@@ -178,7 +157,7 @@ SupportsWildcards: false
 Aliases: []
 ParameterSets:
 - Name: (All)
-  Position: Named
+  Position: 4
   IsRequired: false
   ValueFromPipeline: false
   ValueFromPipelineByPropertyName: false
@@ -188,65 +167,21 @@ AcceptedValues: []
 HelpMessage: ''
 ```
 
-### -IpInfo
+### -Group
 
-Enrich results with IP geolocation data.
-Default: $true.
-
-```yaml
-Type: System.Boolean
-DefaultValue: '[bool]$Global:IRT_Config.IpInfoAvailable'
-SupportsWildcards: false
-Aliases: []
-ParameterSets:
-- Name: (All)
-  Position: Named
-  IsRequired: false
-  ValueFromPipeline: false
-  ValueFromPipelineByPropertyName: false
-  ValueFromRemainingArguments: false
-DontShow: false
-AcceptedValues: []
-HelpMessage: ''
-```
-
-### -Open
-
-Open the Excel file immediately after export.
-Default: $true.
+One or more group ids to wait for.
+With none given, a single outstanding search is
+followed automatically and several produce a menu to choose from, including an option
+to follow all of them.
 
 ```yaml
-Type: System.Boolean
-DefaultValue: True
-SupportsWildcards: false
-Aliases: []
-ParameterSets:
-- Name: (All)
-  Position: Named
-  IsRequired: false
-  ValueFromPipeline: false
-  ValueFromPipelineByPropertyName: false
-  ValueFromRemainingArguments: false
-DontShow: false
-AcceptedValues: []
-HelpMessage: ''
-```
-
-### -ServicePrincipalObject
-
-One or more service principal objects whose sign-in logs to retrieve.
-Mutually
-exclusive with -AllServicePrincipals.
-Falls back to global session objects if omitted.
-
-```yaml
-Type: System.Management.Automation.PSObject[]
+Type: System.String[]
 DefaultValue: ''
 SupportsWildcards: false
 Aliases:
-- ServicePrincipalObjects
+- GroupId
 ParameterSets:
-- Name: ServicePrincipalObject
+- Name: (All)
   Position: 0
   IsRequired: false
   ValueFromPipeline: false
@@ -257,19 +192,64 @@ AcceptedValues: []
 HelpMessage: ''
 ```
 
-### -Start
+### -NoReceive
 
-Start of date range (parseable date string).
-Used with -End for an absolute range.
+Report completion without downloading anything.
 
 ```yaml
-Type: System.String
-DefaultValue: ''
+Type: System.Management.Automation.SwitchParameter
+DefaultValue: False
 SupportsWildcards: false
 Aliases: []
 ParameterSets:
 - Name: (All)
   Position: Named
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+### -PollSeconds
+
+Override the poll interval, in seconds.
+By default the interval starts at 30 seconds
+and rises to 60 after the first five minutes.
+
+```yaml
+Type: System.Int32
+DefaultValue: 0
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: 1
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+### -TimeoutMinutes
+
+Give up waiting after this many minutes.
+Zero, the default, waits indefinitely.
+Whatever has finished is still downloaded.
+
+```yaml
+Type: System.Int32
+DefaultValue: 0
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: 2
   IsRequired: false
   ValueFromPipeline: false
   ValueFromPipelineByPropertyName: false
@@ -281,7 +261,7 @@ HelpMessage: ''
 
 ### -Xml
 
-Export raw XML alongside the Excel file.
+Export raw records to XML.
 Defaults to IRT_Config.ExportXml.
 
 ```yaml
@@ -291,7 +271,7 @@ SupportsWildcards: false
 Aliases: []
 ParameterSets:
 - Name: (All)
-  Position: Named
+  Position: 5
   IsRequired: false
   ValueFromPipeline: false
   ValueFromPipelineByPropertyName: false
@@ -312,11 +292,12 @@ This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable
 
 ## OUTPUTS
 
-### None. Results are exported to an Excel workbook.
+### None. Results are exported by Receive-IRTGraphUAL.
 
 ## NOTES
 
-Version: 1.0.0
+Version: 1.1.0
+1.1.0 - Removed -ResultLimit, along with the download cap it passed on.
 
 
 ## RELATED LINKS

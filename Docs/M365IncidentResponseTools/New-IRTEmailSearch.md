@@ -4,7 +4,7 @@ external help file: M365IncidentResponseTools-Help.xml
 HelpUri: ''
 Locale: en-US
 Module Name: M365IncidentResponseTools
-ms.date: 09/07/2026
+ms.date: 09/16/2026
 PlatyPS schema version: 2024-05-01
 title: New-IRTEmailSearch
 ---
@@ -248,14 +248,14 @@ HelpMessage: ''
 ### -NamePrefix
 
 String prepended to the search name (whether auto-generated or supplied via -Name).
-Defaults to IRT_Config.EmailSearchNamePrefix ('IRT: ').
+Defaults to IRT_Config.JobNamePrefix ('IRT: ').
 The prefix is not re-applied
 if the resolved name already starts with it.
 Pass '' to omit the prefix.
 
 ```yaml
 Type: System.String
-DefaultValue: $Global:IRT_Config.EmailSearchNamePrefix
+DefaultValue: (Get-IRTJobNamePrefix)
 SupportsWildcards: false
 Aliases: []
 ParameterSets:
@@ -420,7 +420,7 @@ $Global:IRT_EmailSearch.
 ## NOTES
 
 Version: 1.2.0
-1.2.0 - Prepend a configurable name prefix (IRT_Config.EmailSearchNamePrefix, default 'IRT: ').
+1.2.0 - Prepend a configurable name prefix (IRT_Config.JobNamePrefix, default 'IRT: ').
 1.1.0 - Create and start when connected to IPPS; when offline, save criteria and warn.
 
 

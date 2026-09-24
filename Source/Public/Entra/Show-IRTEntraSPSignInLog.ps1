@@ -1,12 +1,45 @@
-function Show-IRTEntraSignInLog {
+function Show-IRTEntraSPSignInLog {
     <#
-	.SYNOPSIS
-	Processes Sign in log .XML file into Excel spreadsheet.
+    .SYNOPSIS
+    Processes service principal sign-in log objects into an Excel spreadsheet.
 
-	.NOTES
-	Version: 1.1.3
-    1.1.3 - Added timers/progress for testing.
-	#>
+    .DESCRIPTION
+    Takes service principal sign-in log objects produced by Get-IRTEntraSPSignInLog
+    (or imported from a raw XML export) and renders them into a formatted Excel workbook.
+    Enriches IP addresses with geolocation data when -IpInfo is enabled.
+
+    .PARAMETER Log
+    A list of service principal sign-in log objects with a metadata entry at index 0.
+    Produced by Get-IRTEntraSPSignInLog. Mutually exclusive with -XmlPath.
+
+    .PARAMETER XmlPath
+    Path to a raw XML file exported by Get-IRTEntraSPSignInLog. Mutually
+    exclusive with -Log.
+
+    .PARAMETER TableStyle
+    Excel table style. Defaults to IRT_Config.ExcelTableStyle.
+
+    .PARAMETER Font
+    Excel font name. Defaults to IRT_Config.ExcelFont.
+
+    .PARAMETER IpInfo
+    Enrich IP addresses with geolocation data. Default: $true.
+
+    .PARAMETER Open
+    Open the Excel file immediately after export. Default: $true.
+
+    .EXAMPLE
+    ```powershell
+    Show-IRTEntraSPSignInLog -XmlPath '.\SPSignInLogs_30Days_contoso.com_MyApp_26-09-16_14-30.xml'
+    ```
+    Rebuilds the service principal sign-in log workbook from a raw XML export.
+
+    .OUTPUTS
+    None. Results are written to an Excel workbook.
+
+    .NOTES
+    Version: 1.0.0
+    #>
     [CmdletBinding(DefaultParameterSetName = 'Objects')]
     param (
         [Parameter(Position = 0, ParameterSetName = 'Objects')]
@@ -16,8 +49,8 @@ function Show-IRTEntraSignInLog {
         [Parameter(Mandatory, ParameterSetName = 'Xml')]
         [string] $XmlPath,
 
-        [string] $TableStyle = $Global:IRT_Config.ExcelTableStyle,
-        [string] $Font = $Global:IRT_Config.ExcelFont,
+        [string]  $TableStyle = $Global:IRT_Config.ExcelTableStyle,
+        [string]  $Font = $Global:IRT_Config.ExcelFont,
 
         [boolean] $IpInfo = [bool]$Global:IRT_Config.IpInfoAvailable,
         [boolean] $Open = [bool]$Global:IRT_Config.OpenSpreadsheets
@@ -63,8 +96,6 @@ function Show-IRTEntraSignInLog {
 
         #region Metadata
         if ($Log[0].Metadata) {
-
-            # remove metadata from beginning of list
             $Metadata = $Log[0]
             $Log.RemoveAt(0)
         }
@@ -73,7 +104,7 @@ function Show-IRTEntraSignInLog {
         }
 
         # build file name
-        $ExcelOutputPath = $Metadata.FileName + ".xlsx"
+        $ExcelOutputPath = $Metadata.FileName + '.xlsx'
 
         # get worksheet title from metadata
         $WorksheetTitle = $Metadata.Title
@@ -101,41 +132,24 @@ function Show-IRTEntraSignInLog {
                 $DateTime = $LogEntry.$RawDateProperty.ToLocalTime()
             }
 
-            # IpAddress
-            $IpText = $LogEntry.IpAddress
-
-            # application display name / resource id
-            if ( $LogEntry.AppDisplayName ) {
-                $AppDisplayName = $LogEntry.AppDisplayName
-            }
-            else {
-                $AppDisplayName = $LogEntry.ResourceId
-            }
-
-            # compress trust
-            $Trust = Convert-TrustType -TrustType $LogEntry.DeviceDetail.TrustType
-
-            # add to list
+            $ErrorDesc = ConvertTo-HumanErrorDescription -ErrorCode $LogEntry.Status.ErrorCode
             [void]$Rows.Add([PSCustomObject]@{
-                    Raw = $Raw
-                    $DateColumnHeader = $DateTime
-                    UserPrincipalName = $LogEntry.UserPrincipalName
-                    Error = ConvertTo-HumanErrorDescription -ErrorCode $LogEntry.Status.ErrorCode
-                    IpAddress = $IpText
-                    City = $LogEntry.Location.City
-                    State = $LogEntry.Location.State
-                    Co = $LogEntry.Location.CountryOrRegion
-                    Application = $AppDisplayName
-                    Browser = $LogEntry.DeviceDetail.Browser
-                    OS = $LogEntry.DeviceDetail.OperatingSystem
-                    Trust = $Trust
-                    UserAgent = $LogEntry.UserAgent
-                    Session = $LogEntry.CorrelationId
-                    Token = $LogEntry.UniqueTokenIdentifier
+                    Raw                  = $Raw
+                    $DateColumnHeader    = $DateTime
+                    ServicePrincipalName = $LogEntry.ServicePrincipalName
+                    AppDisplayName       = $LogEntry.AppDisplayName
+                    ResourceDisplayName  = $LogEntry.ResourceDisplayName
+                    Error                = $ErrorDesc
+                    IpAddress            = $LogEntry.IpAddress
+                    City                 = $LogEntry.Location.City
+                    State                = $LogEntry.Location.State
+                    Co                   = $LogEntry.Location.CountryOrRegion
+                    Session              = $LogEntry.CorrelationId
+                    Token                = $LogEntry.UniqueTokenIdentifier
                 })
 
             if ($VerbosePreference -ne 'SilentlyContinue' -and ($i % 100 -eq 0)) {
-                $Percent = [int]( ($i / $RowCount ) * 100 )
+                $Percent = [int]( ($i / $RowCount) * 100 )
                 $ProgressParams = @{
                     Id              = 1
                     Activity        = 'Row loop'
@@ -151,6 +165,7 @@ function Show-IRTEntraSignInLog {
         }
 
         #region EXPORT SPREADSHEET
+
         Write-PSFMessage -Level 8 -Message (
             "${FunctionName}: Export-Excel [$($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))]")
         $ExcelParams = @{
@@ -158,7 +173,6 @@ function Show-IRTEntraSignInLog {
             WorkSheetname = $Metadata.FileNamePrefix
             Title         = $WorksheetTitle
             TableStyle    = $TableStyle
-            # AutoSize      = $true # apparently very slow?
             FreezeTopRow  = $true
             Passthru      = $true
         }
@@ -178,86 +192,42 @@ function Show-IRTEntraSignInLog {
         }
         $Worksheet = $Workbook.Workbook.Worksheets[$ExcelParams.WorksheetName]
 
-        # get table ranges
-        $SheetStartColumn = $WorkSheet.Dimension.Start.Column | Convert-DecimalToExcelColumn
-        $SheetStartRow = $WorkSheet.Dimension.Start.Row
-        $TableStartColumn = ( $workSheet.Tables.Address | Select-Object -First 1 ).Start.Column |
-            Convert-DecimalToExcelColumn
-        $TableStartRow = ( $workSheet.Tables.Address | Select-Object -First 1 ).Start.Row
-        $EndColumn = $WorkSheet.Dimension.End.Column | Convert-DecimalToExcelColumn
-        $EndRow = $WorkSheet.Dimension.End.Row
-
-        $IpAddressColumn = ($Worksheet.Tables[0].Columns |
-                Where-Object { $_.Name -eq 'IpAddress' }).Id |
-                Convert-DecimalToExcelColumn
-        $ApplicationColumn = ($Worksheet.Tables[0].Columns |
-                Where-Object { $_.Name -eq 'Application' }).Id |
-                Convert-DecimalToExcelColumn
-        $UserAgentColumn = ($Worksheet.Tables[0].Columns |
-                Where-Object { $_.Name -eq 'UserAgent' }).Id |
-                Convert-DecimalToExcelColumn
-
-        #region CELL COLORING
-
-        # ip address enrichment and conditional formatting
         if ($IpInfo) {
             $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
             Write-PSFMessage -Level 8 -Message "${FunctionName}: Add-IpInfoToSheet [$Elapsed]"
             Add-IpInfoToSheet -Worksheet $Worksheet -ColumnName 'IpAddress'
         }
 
-        # applications
-        $Strings = @(
-            'Azure Active Directory PowerShell'
-            'Microsoft Azure CLI'
-            'Microsoft Exchange REST API Based Powershell'
-            'Microsoft Graph Command Line Tools'
-        )
-        foreach ( $String in $Strings ) {
-            $CFParams = @{
-                Worksheet       = $WorkSheet
-                Address         = "${ApplicationColumn}:${ApplicationColumn}"
-                RuleType        = 'Equal'
-                ConditionValue  = $String
-                BackgroundColor = 'LightPink'
-            }
-            Add-ConditionalFormatting @CFParams
-        }
+        # get table ranges
+        $SheetStartColumn = $WorkSheet.Dimension.Start.Column | Convert-DecimalToExcelColumn
+        $SheetStartRow = $WorkSheet.Dimension.Start.Row
+        $TableStartColumn = ($workSheet.Tables.Address | Select-Object -First 1).Start.Column |
+            Convert-DecimalToExcelColumn
+        $TableStartRow = ($workSheet.Tables.Address | Select-Object -First 1).Start.Row
+        $EndColumn = $WorkSheet.Dimension.End.Column | Convert-DecimalToExcelColumn
+        $EndRow = $WorkSheet.Dimension.End.Row
 
-        # user agents
-        $Strings = @(
-            'axios'
-            'BAV2ROPC'
-        )
-        foreach ( $String in $Strings ) {
-            $CFParams = @{
-                Worksheet       = $WorkSheet
-                Address         = "${UserAgentColumn}:${UserAgentColumn}"
-                RuleType        = 'ContainsText'
-                ConditionValue  = $String
-                BackgroundColor = 'LightPink'
-            }
-            Add-ConditionalFormatting @CFParams
-        }
+        $IpAddressColumn = ($Worksheet.Tables[0].Columns |
+                Where-Object { $_.Name -eq 'IpAddress' }).Id |
+                Convert-DecimalToExcelColumn
+
+        #region CELL COLORING
 
         #region COLUMN WIDTH
 
         $ColumnWidths = @{
-            'Raw'               = 8
-            $DateColumnHeader   = 26
-            'UserPrincipalName' = 30
-            'Error'             = 25
-            'IpAddress'         = 20
-            'City'              = 10
-            'State'             = 10
-            'Co'                = 6
-            'Application'       = 25
-            'Browser'           = 20
-            'OS'                = 12
-            'Trust'             = 12
-            'UserAgent'         = 150
-            'Session'           = 10
-            'Token'             = 10
+            'Raw'                 = 8
+            $DateColumnHeader     = 26
+            'ServicePrincipalName'= 30
+            'AppDisplayName'      = 25
+            'ResourceDisplayName' = 30
+            'Error'               = 25
+            'IpAddress'           = 20
+            'City'                = 10
+            'State'               = 10
+            'Co'                  = 6
+            'Session'             = 10
+            'Token'               = 10
         }
         foreach ($ColName in $ColumnWidths.Keys) {
             $Col = ($Worksheet.Tables[0].Columns | Where-Object { $_.Name -eq $ColName }).Id
@@ -268,17 +238,17 @@ function Show-IRTEntraSignInLog {
 
         # set date format
         $FmtParams = @{
-            Worksheet = $Worksheet
-            Range = "B:B"
-            NumberFormat  = 'm/d/yyyy h:mm:ss AM/PM'
+            Worksheet    = $Worksheet
+            Range        = 'B:B'
+            NumberFormat = 'm/d/yyyy h:mm:ss AM/PM'
         }
         Set-ExcelRange @FmtParams
 
         # set text wrapping on ip address column
         $WrapParams = @{
             Worksheet = $Worksheet
-            Range = "${IpAddressColumn}:${IpAddressColumn}"
-            WrapText = $true
+            Range     = "${IpAddressColumn}:${IpAddressColumn}"
+            WrapText  = $true
         }
         Set-ExcelRange @WrapParams
 
@@ -294,21 +264,15 @@ function Show-IRTEntraSignInLog {
 
         # add left side border
         $BorderParams = @{
-            Worksheet = $Worksheet
-            Range = "${TableStartColumn}${TableStartRow}:${EndColumn}${EndRow}"
-            BorderLeft = 'Thin'
+            Worksheet   = $Worksheet
+            Range       = "${TableStartColumn}${TableStartRow}:${EndColumn}${EndRow}"
+            BorderLeft  = 'Thin'
             BorderColor = 'Black'
         }
         Set-ExcelRange @BorderParams
 
         # set row height
-        # $HeightParams = @{
-        #     Worksheet = $Worksheet
-        #     Row = ($TableStartRow..$EndRow)
-        #     Height = 15
-        # }
-        # Set-ExcelRow @HeightParams
-        for ( $i = $TableStartRow; $i -le $EndRow; $i++ ) {
+        for ($i = $TableStartRow; $i -le $EndRow; $i++) {
             $Row = $Worksheet.Row($i)
             $Row.Height = 15
             $Row.CustomHeight = $true

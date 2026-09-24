@@ -4,89 +4,89 @@ external help file: M365IncidentResponseTools-Help.xml
 HelpUri: ''
 Locale: en-US
 Module Name: M365IncidentResponseTools
-ms.date: 09/07/2026
+ms.date: 09/16/2026
 PlatyPS schema version: 2024-05-01
-title: Get-IRTEntraSignInLog
+title: Get-IRTEntraSPSignInLog
 ---
 
-# Get-IRTEntraSignInLog
+# Get-IRTEntraSPSignInLog
 
 ## SYNOPSIS
 
-Downloads user sign in logs.
+Downloads service principal sign-in logs.
 
 ## SYNTAX
 
-### UserObject (Default)
+### ServicePrincipalObject (Default)
 
 ```
-Get-IRTEntraSignInLog [[-UserObject] <psobject[]>] [-Days <int>] [-Start <string>] [-End <string>]
- [-ChunkDays <int>] [-ChunkDelaySeconds <int>] [-ThrottleDelaySeconds <int>] [-NonInteractive]
- [-DeviceCode] [-Beta <bool>] [-Excel <bool>] [-IpInfo <bool>] [-Open <bool>] [-Xml <bool>]
- [<CommonParameters>]
-```
-
-### AllUsers
-
-```
-Get-IRTEntraSignInLog [-AllUsers] [-Days <int>] [-Start <string>] [-End <string>] [-ChunkDays <int>]
- [-ChunkDelaySeconds <int>] [-ThrottleDelaySeconds <int>] [-NonInteractive] [-DeviceCode]
+Get-IRTEntraSPSignInLog [[-ServicePrincipalObject] <psobject[]>] [-Days <int>] [-Start <string>]
+ [-End <string>] [-ChunkDays <int>] [-ChunkDelaySeconds <int>] [-ThrottleDelaySeconds <int>]
  [-Beta <bool>] [-Excel <bool>] [-IpInfo <bool>] [-Open <bool>] [-Xml <bool>] [<CommonParameters>]
 ```
 
-### IpAddress
+### AllServicePrincipals
 
 ```
-Get-IRTEntraSignInLog [-IpAddress <string[]>] [-Days <int>] [-Start <string>] [-End <string>]
- [-ChunkDays <int>] [-ChunkDelaySeconds <int>] [-ThrottleDelaySeconds <int>] [-NonInteractive]
- [-DeviceCode] [-Beta <bool>] [-Excel <bool>] [-IpInfo <bool>] [-Open <bool>] [-Xml <bool>]
- [<CommonParameters>]
+Get-IRTEntraSPSignInLog [-AllServicePrincipals] [-Days <int>] [-Start <string>] [-End <string>]
+ [-ChunkDays <int>] [-ChunkDelaySeconds <int>] [-ThrottleDelaySeconds <int>] [-Beta <bool>]
+ [-Excel <bool>] [-IpInfo <bool>] [-Open <bool>] [-Xml <bool>] [<CommonParameters>]
 ```
 
 ## ALIASES
 
-GetSILog, GetSILogs, SILog, SILogs
+GetSPSILog, GetSPSILogs, SPSILog, SPSILogs
 
 ## DESCRIPTION
 
-Retrieves Entra ID interactive sign-in logs via Microsoft Graph for one or more users,
-a set of IP addresses, or all users in the tenant.
-Enriches each log entry with
-IP geolocation data and human-readable Entra error descriptions, then exports results
-to an Excel workbook.
+Retrieves Entra ID service principal sign-in logs via Microsoft Graph for one or more
+service principals or all service principals in the tenant.
+Enriches each log entry
+with IP geolocation data and human-readable Entra error descriptions, then exports
+results to an Excel workbook.
+
+A thin wrapper that resolves the target service principals, builds the SP-specific
+filter and naming, and hands off to the shared Invoke-IRTSignInLogQuery engine
+(chunking, throttle/retry, export).
+For user sign-ins, see Get-IRTEntraUserSignInLog.
 
 Date range defaults to the last 30 days when no -Days, -Start, or -End is specified.
+
+Falls back to $Global:IRT_ServicePrincipalObjects if no -ServicePrincipalObject is
+passed.
+Use Find-IRTServicePrincipal first to populate that global variable.
 
 ## EXAMPLES
 
 ### EXAMPLE 1
 
 ```powershell
-Get-IRTEntraSignInLog
+Find-IRTServicePrincipal MyApp
+Get-IRTEntraSPSignInLog
 ```
-Downloads the last 30 days of sign-in logs for the user in the global session.
+Two-step workflow: find the SP then download its sign-in logs.
 
 ### EXAMPLE 2
 
 ```powershell
-Get-IRTEntraSignInLog -UserObject $User -Days 7
+Get-IRTEntraSPSignInLog -ServicePrincipalObject $SP -Days 90
 ```
-Downloads 7 days of sign-in logs for a specific user.
+Downloads 90 days of sign-in logs for a specific service principal.
 
 ### EXAMPLE 3
 
 ```powershell
-Get-IRTEntraSignInLog -IpAddress '203.0.113.5' -Days 14
+Get-IRTEntraSPSignInLog -AllServicePrincipals -Days 7
 ```
-Finds all sign-ins from a specific IP over the last 14 days.
+Downloads 7 days of sign-in logs for all service principals in the tenant.
 
 ## PARAMETERS
 
-### -AllUsers
+### -AllServicePrincipals
 
-Retrieve sign-in logs for all users in the tenant.
-Mutually exclusive with -UserObject
-and -IpAddress.
+Retrieve sign-in logs for all service principals in the tenant.
+Mutually exclusive
+with -ServicePrincipalObject.
 
 ```yaml
 Type: System.Management.Automation.SwitchParameter
@@ -94,7 +94,7 @@ DefaultValue: False
 SupportsWildcards: false
 Aliases: []
 ParameterSets:
-- Name: AllUsers
+- Name: AllServicePrincipals
   Position: Named
   IsRequired: false
   ValueFromPipeline: false
@@ -131,15 +131,9 @@ HelpMessage: ''
 
 Splits the requested date range into sub-queries of this many days each, querying
 newest to oldest and merging the results.
-Default: 30 (a default 30-day pull is a
-single chunk).
-Graph applies its 300-second HttpClient timeout per request, so very
-large pulls (e.g.
--AllUsers over a wide range) can time out while the server computes
-a single page.
-Pass a smaller value (e.g.
--ChunkDays 1) to break the request into
-windows small enough to return in time.
+Default: 30.
+Pass a smaller value to break
+large pulls into windows small enough to return before Graph's per-request timeout.
 
 ```yaml
 Type: System.Int32
@@ -160,11 +154,9 @@ HelpMessage: ''
 
 ### -ChunkDelaySeconds
 
-Seconds to pause between chunk queries.
-A small pause reduces the chance of
-tripping Graph throttling limits on large multi-chunk pulls.
+Seconds to pause between chunk queries to reduce throttling on multi-chunk pulls.
 Default: 2.
-Set to 0 to disable.
+Only applies when the range spans more than one chunk.
 
 ```yaml
 Type: System.Int32
@@ -191,27 +183,6 @@ Cannot be used with -Start / -End.
 ```yaml
 Type: System.Int32
 DefaultValue: 0
-SupportsWildcards: false
-Aliases: []
-ParameterSets:
-- Name: (All)
-  Position: Named
-  IsRequired: false
-  ValueFromPipeline: false
-  ValueFromPipelineByPropertyName: false
-  ValueFromRemainingArguments: false
-DontShow: false
-AcceptedValues: []
-HelpMessage: ''
-```
-
-### -DeviceCode
-
-{{ Fill DeviceCode Description }}
-
-```yaml
-Type: System.Management.Automation.SwitchParameter
-DefaultValue: False
 SupportsWildcards: false
 Aliases: []
 ParameterSets:
@@ -270,29 +241,6 @@ AcceptedValues: []
 HelpMessage: ''
 ```
 
-### -IpAddress
-
-One or more IP addresses to filter sign-in logs by source IP.
-Mutually exclusive with
--UserObject and -AllUsers.
-
-```yaml
-Type: System.String[]
-DefaultValue: ''
-SupportsWildcards: false
-Aliases: []
-ParameterSets:
-- Name: IpAddress
-  Position: Named
-  IsRequired: false
-  ValueFromPipeline: false
-  ValueFromPipelineByPropertyName: false
-  ValueFromRemainingArguments: false
-DontShow: false
-AcceptedValues: []
-HelpMessage: ''
-```
-
 ### -IpInfo
 
 Enrich results with IP geolocation data.
@@ -303,28 +251,6 @@ Type: System.Boolean
 DefaultValue: '[bool]$Global:IRT_Config.IpInfoAvailable'
 SupportsWildcards: false
 Aliases: []
-ParameterSets:
-- Name: (All)
-  Position: Named
-  IsRequired: false
-  ValueFromPipeline: false
-  ValueFromPipelineByPropertyName: false
-  ValueFromRemainingArguments: false
-DontShow: false
-AcceptedValues: []
-HelpMessage: ''
-```
-
-### -NonInteractive
-
-Retrieve non-interactive sign-in logs instead of interactive logs.
-
-```yaml
-Type: System.Management.Automation.SwitchParameter
-DefaultValue: False
-SupportsWildcards: false
-Aliases:
-- NI
 ParameterSets:
 - Name: (All)
   Position: Named
@@ -350,6 +276,31 @@ Aliases: []
 ParameterSets:
 - Name: (All)
   Position: Named
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+### -ServicePrincipalObject
+
+One or more service principal objects whose sign-in logs to retrieve.
+Mutually
+exclusive with -AllServicePrincipals.
+Falls back to global session objects if omitted.
+
+```yaml
+Type: System.Management.Automation.PSObject[]
+DefaultValue: ''
+SupportsWildcards: false
+Aliases:
+- ServicePrincipalObjects
+ParameterSets:
+- Name: ServicePrincipalObject
+  Position: 0
   IsRequired: false
   ValueFromPipeline: false
   ValueFromPipelineByPropertyName: false
@@ -385,8 +336,7 @@ HelpMessage: ''
 
 Base backoff (seconds) used when Graph throttles a request but does not return a
 Retry-After value.
-Backoff grows exponentially per retry (base, base*2, base*4...).
-When Graph does return Retry-After, that value is honored and printed instead.
+Backoff grows exponentially per retry.
 Default: 60.
 
 ```yaml
@@ -397,31 +347,6 @@ Aliases: []
 ParameterSets:
 - Name: (All)
   Position: Named
-  IsRequired: false
-  ValueFromPipeline: false
-  ValueFromPipelineByPropertyName: false
-  ValueFromRemainingArguments: false
-DontShow: false
-AcceptedValues: []
-HelpMessage: ''
-```
-
-### -UserObject
-
-One or more user objects whose sign-in logs to retrieve.
-Mutually exclusive with
--AllUsers and -IpAddress.
-Falls back to global session objects if omitted.
-
-```yaml
-Type: System.Management.Automation.PSObject[]
-DefaultValue: ''
-SupportsWildcards: false
-Aliases:
-- UserObjects
-ParameterSets:
-- Name: UserObject
-  Position: 0
   IsRequired: false
   ValueFromPipeline: false
   ValueFromPipelineByPropertyName: false
@@ -468,16 +393,14 @@ This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable
 
 ## NOTES
 
-Version: 1.2.2
-1.2.2 - Fixed chunk-boundary off-by-one that produced a degenerate zero-width
-        trailing chunk when the date range was an exact multiple of ChunkDays.
-1.2.1 - Throttle handling: honor and print Retry-After, exponential backoff
-        when absent, and an inter-chunk delay to avoid tripping limits.
-1.2.0 - Added -ChunkDays to split large queries into smaller date windows,
-        with per-chunk token refresh and retry on timeout/throttle, to work
-        around the Graph 300s per-request HttpClient timeout.
-1.1.2 - Added graceful exit when no logs are found.
-1.1.1 - Added test timers.
+Version: 2.0.0
+2.0.0 - Renamed from Get-IRTServicePrincipalSignInLog.
+Now a thin wrapper over the
+        shared Invoke-IRTSignInLogQuery engine (parallel to Get-IRTEntraUserSignInLog),
+        gaining chunking and throttle/timeout retry.
+Resolution falls back to globals
+        via the new Get-GlobalServicePrincipalObject helper.
+1.0.0 - Initial version.
 
 
 ## RELATED LINKS

@@ -36,7 +36,7 @@ Unless `-NoFolder` is specified, the playbook creates a folder at the current pa
 ..\
   <domain>_<username>_<ticket>_<datetime>_Investigation\
     InboxRules*.xlsx
-    SignInLogs*.xlsx
+    EntraSignInLog*.xlsx
     ...
 ```
 
@@ -56,12 +56,13 @@ The following steps run in parallel.
 | [Get-IRTMessageTrace](M365IncidentResponseTools/Get-IRTMessageTrace.md) (user, 90 days) | Retrieves and exports Exchange Online message trace records for the user over 90 days. |
 | [Get-IRTInboxRule](M365IncidentResponseTools/Get-IRTInboxRule.md) | Fetches and exports all inbox rules for the user. |
 | [Get-IRTEntraAuditLog](M365IncidentResponseTools/Get-IRTEntraAuditLog.md) | Queries and exports Entra ID directory audit log activity for the user. |
-| [Get-IRTEntraSignInLog](M365IncidentResponseTools/Get-IRTEntraSignInLog.md) | Retrieves and exports interactive Entra ID sign-in logs enriched with geolocation and error descriptions. |
+| [Get-IRTEntraUserSignInLog](M365IncidentResponseTools/Get-IRTEntraUserSignInLog.md) | Retrieves and exports interactive Entra ID user sign-in logs enriched with geolocation and error descriptions. |
 | [Get-IRTUnifiedAuditLog](M365IncidentResponseTools/Get-IRTUnifiedAuditLog.md) (all records) | Queries and exports all Unified Audit Log records for the user. (1 day) |
 | [Get-IRTUnifiedAuditLog](M365IncidentResponseTools/Get-IRTUnifiedAuditLog.md) (risky operations) | Queries UAL for a curated set of high-risk operations. (180 days) |
 | [Get-IRTUnifiedAuditLog](M365IncidentResponseTools/Get-IRTUnifiedAuditLog.md) (UAL sign-in logs) | Retrieves sign-in events from the Unified Audit Log. (180 days) |
-| [Get-IRTNonInteractiveSignIn](M365IncidentResponseTools/Get-IRTNonInteractiveSignIn.md) | Retrieves non-interactive sign-in logs including token refreshes and service-to-service calls. (30 days) |
+| [Get-IRTEntraUserSignInLog](M365IncidentResponseTools/Get-IRTEntraUserSignInLog.md) (-NonInteractive) | Retrieves interactive and non-interactive sign-in logs, including token refreshes and service-to-service calls. (3 days) |
 | [Get-IRTMessageTrace](M365IncidentResponseTools/Get-IRTMessageTrace.md) (all users) | Retrieves message trace records for all tenant users. (10 days) |
+| [Get-IRTEntraUserSignInLog](M365IncidentResponseTools/Get-IRTEntraUserSignInLog.md) (all users, device code) | Retrieves device code authentication events for all tenant users. (30 days) |
 
 ## Running Commands Individually
 
@@ -72,16 +73,16 @@ selected user from `$Global:IRT_UserObjects` unless `-UserObject` is passed.
 
 ```powershell
 # last 30 days of interactive sign-in logs for the selected user
-Get-IRTEntraSignInLog
+Get-IRTEntraUserSignInLog
 
 # 7 days for a specific user
-Get-IRTEntraSignInLog -UserObject $User -Days 7
+Get-IRTEntraUserSignInLog -UserObject $User -Days 7
 
 # all sign-ins from a specific IP over the last 14 days
-Get-IRTEntraSignInLog -IpAddress '203.0.113.5' -Days 14
+Get-IRTEntraUserSignInLog -IpAddress '203.0.113.5' -Days 14
 
-# non-interactive sign-ins for a specific time range.
-Get-IRTEntraSignInLog -NonInteractive -Start '2026-04-01' -End '2026-04-3'
+# interactive and non-interactive sign-ins for a specific time range.
+Get-IRTEntraUserSignInLog -NonInteractive -Start '2026-04-01' -End '2026-04-3'
 ```
 
 Results are exported to an Excel workbook.
