@@ -50,6 +50,15 @@ if (-not $Global:IRT_Config.IPConditionalFormattingTemplatePath) {
     $Global:IRT_Config.IPConditionalFormattingTemplatePath = Join-Path @IpcftJoin
 }
 
+# Apply PSFramework file logging from the LogFolderPath config value (blank = off).
+# Initialize-IRTFileLogging routes every Write-PSFMessage call to a per-day TXT file
+# in that folder and prunes files older than 30 days. Skipped in runspace workers:
+# they share the parent process, so the main session's provider already captures
+# their messages.
+if (-not $Global:IRT_IsRunspaceWorker) {
+    Initialize-IRTFileLogging
+}
+
 # Check ip_info availability once at module load and cache in config.
 $Global:IRT_Config.IpInfoAvailable = (Test-PythonPackage -Name 'ip_info').Present
 
