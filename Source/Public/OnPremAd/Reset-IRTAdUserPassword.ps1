@@ -23,9 +23,12 @@ function Reset-IRTAdUserPassword {
     If no -UserObjects is supplied, the function falls back to the global session objects
     stored via Get-AdGlobalUserObject. An error is thrown if neither source yields a user.
 
-    After the reset, updated account properties are retrieved and displayed as a table.
-    If running on a domain controller, intra-AD replication is triggered via repadmin.
-    If the ADSync service is local, an Azure AD delta sync is started.
+    All changes and the readback go to one writable domain controller: this computer if it
+    is one, otherwise a discovered DC. So this runs from any device with the
+    ActiveDirectory module, not only a DC. After the reset,
+    updated account properties are retrieved and displayed as a table, and AD replication
+    is pushed from that DC via repadmin (skipped with a warning if repadmin isn't
+    installed). If the ADSync service is local, an Azure AD delta sync is started.
 
     Supports -WhatIf and -Confirm via SupportsShouldProcess.
 
@@ -90,7 +93,9 @@ function Reset-IRTAdUserPassword {
     None. Updated user properties are displayed as a formatted table in the console.
 
     .NOTES
-    Version: 1.1.0
+    Version: 1.2.0
+    1.2.0 - Targets one writable DC (this computer if it is one, otherwise a discovered
+            DC), so it no longer needs to run on a DC. Replication is pushed from that DC.
     1.1.0 - Added ForceChangePasswordNextSignIn parameter set. Removed default parameter
             set; operator must now explicitly choose a password mode. Added -Length
             parameter. Renamed to Reset-IRTAdUserPassword.
@@ -152,6 +157,10 @@ function Reset-IRTAdUserPassword {
             return
         }
 
+        # make every change on one writable DC, so the readback sees it and replication
+        # pushes it from where it was made
+        $DomainController = Get-TargetDomainController
+
         Write-IRT ''
 
         foreach ($ScriptUserObject in $ScriptUserObjects) {
@@ -171,7 +180,7 @@ function Reset-IRTAdUserPassword {
                         $SetParams = @{
                             Identity              = $ScriptUserObject
                             ChangePasswordAtLogon = $true
-                            Server                = $env:ComputerName
+                            Server                = $DomainController
                         }
                         Set-ADUser @SetParams
                     }
@@ -196,7 +205,7 @@ function Reset-IRTAdUserPassword {
                     Identity    = $ScriptUserObject
                     Reset       = $true
                     NewPassword = $Password
-                    Server      = $env:ComputerName
+                    Server      = $DomainController
                 }
                 if ($PSCmdlet.ShouldProcess($Username, 'Reset password')) {
                     Set-AdAccountPassword @ResetParams
@@ -208,7 +217,7 @@ function Reset-IRTAdUserPassword {
             $Params = @{
                 Identity   = $ScriptUserObject
                 Properties = $UserProperties
-                Server     = $env:ComputerName
+                Server     = $DomainController
             }
             $NewObject = Get-AdUser @Params
             $OutputObjects.Add($NewObject)
@@ -217,14 +226,7 @@ function Reset-IRTAdUserPassword {
         # show results
         $OutputObjects | Format-Table $UserProperties
 
-        # push ad replication
-        if (Test-RunningOnDomainController) {
-            Write-IRT "Pushing AD replication."
-            $null = & repadmin /syncall $env:ComputerName /APed *>&1
-        }
-        else {
-            Write-IRT "Not running on a domain controller; skipping replication push." -Level Warn
-        }
+        Push-AdReplication -Server $DomainController
 
         # push azure sync, if on this server
         $SyncService = Get-Service -Name "adsync" -ErrorAction SilentlyContinue

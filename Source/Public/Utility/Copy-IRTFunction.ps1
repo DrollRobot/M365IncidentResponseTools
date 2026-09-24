@@ -74,7 +74,9 @@ function Copy-IRTFunction {
             'Find-IRTDomainController'
             'Get-IRTAdAdminUser'
             'Get-AdGlobalUserObject'
+            'Get-TargetDomainController'
             'Import-IRTModule'
+            'Push-AdReplication'
             'Push-IRTAdSync'
             'Reset-IRTAdUserPassword'
             'Set-AdUserEnabled'
@@ -82,7 +84,6 @@ function Copy-IRTFunction {
             'Show-IRTAdOus'
             'Show-IRTAdUser'
             'Test-AdAvailable'
-            'Test-RunningOnDomainController'
         )
 
         $Queue = [System.Collections.Generic.List[string]]::new()
