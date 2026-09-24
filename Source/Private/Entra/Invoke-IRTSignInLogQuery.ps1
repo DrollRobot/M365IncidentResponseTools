@@ -104,7 +104,7 @@ function Invoke-IRTSignInLogQuery {
     [CmdletBinding()]
     param (
         [System.Collections.Generic.List[string]] $BaseFilter =
-            [System.Collections.Generic.List[string]]::new(),
+        [System.Collections.Generic.List[string]]::new(),
 
         [Parameter(Mandatory)] [datetime] $StartDateUtc,
         [Parameter(Mandatory)] [datetime] $EndDateUtc,

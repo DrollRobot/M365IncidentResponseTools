@@ -96,7 +96,7 @@ function Resolve-ScriptPath {
 
                 if ( $FileName -notmatch "${FileExtension}$" ) {
                     $Message = "File extension does not match: " +
-                        "${FileExtension},${FileName}. Exiting."
+                    "${FileExtension},${FileName}. Exiting."
                     throw $Message
                 }
             }
