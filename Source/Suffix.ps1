@@ -40,16 +40,6 @@ if (-not $Global:IRT_Config.MsalCachePath) {
     $Global:IRT_Config.MsalCachePath = Join-Path @JpParams
 }
 
-# Set the default IP address CF template path when the config does not override it.
-if (-not $Global:IRT_Config.IPConditionalFormattingTemplatePath) {
-    $IpcftJoin = @{
-        Path                = $PSScriptRoot
-        ChildPath           = 'Data'
-        AdditionalChildPath = 'IpAddressConditionalFormattingTemplate.xlsx'
-    }
-    $Global:IRT_Config.IPConditionalFormattingTemplatePath = Join-Path @IpcftJoin
-}
-
 # Apply PSFramework file logging from the LogFolderPath config value (blank = off).
 # Initialize-IRTFileLogging routes every Write-PSFMessage call to a per-day TXT file
 # in that folder and prunes files older than 30 days. Skipped in runspace workers:

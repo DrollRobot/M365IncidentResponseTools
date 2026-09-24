@@ -193,10 +193,9 @@ function Set-IRTConfig {
         }
         IPConditionalFormattingTemplatePath = @{
             Summary     = 'IP address CF template path'
-            Description = 'Absolute path to an Excel file whose first sheet A columncontains the ' +
-            'conditional-formatting rules to apply to IP address columns. ' +
-            'Leave blank (null) to use the default template bundled with the module ' +
-            '(Data/IpAddressConditionalFormattingTemplate.xlsx). ' +
+            Description = 'Absolute path to an Excel file whose first sheet column A ' +
+            'contains the conditional-formatting rules to apply to IP address columns. ' +
+            'Leave blank (null) to use the default rules built into the module. ' +
             'Replace with a custom file to change color-coding without editing code.'
             Options     = $null  # free text / file path
         }

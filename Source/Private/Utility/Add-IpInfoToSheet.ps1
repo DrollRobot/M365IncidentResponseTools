@@ -12,6 +12,11 @@ function Add-IpInfoToSheet {
     Does nothing if $Global:IRT_Config.IpInfoAvailable is $false or the worksheet has
     no table.
 
+    Each enriched column also gets the IP address color-coding rules. They are copied
+    from the workbook named in $Global:IRT_Config.IPConditionalFormattingTemplatePath,
+    or from the default rules built by New-IpConditionalFormattingTemplate when that
+    setting is blank.
+
     .PARAMETER Worksheet
     An OfficeOpenXml worksheet object (e.g., from $Workbook.Workbook.Worksheets['Name']).
 
@@ -25,8 +30,11 @@ function Add-IpInfoToSheet {
     .EXAMPLE
     Add-IpInfoToSheet -Worksheet $Worksheet -ColumnName 'FromIP', 'ToIP'
 
+    .OUTPUTS
+    None. The worksheet is modified in place.
+
     .NOTES
-    Version: 1.1.0
+    Version: 1.2.0
     #>
     [CmdletBinding()]
     param (
@@ -37,6 +45,8 @@ function Add-IpInfoToSheet {
         [Parameter(Mandatory)]
         [string[]] $ColumnName
     )
+
+    Import-IRTModule -Name 'PSFramework'
 
     if (-not $Global:IRT_Config.IpInfoAvailable) { return }
     if ($null -eq $Worksheet) { return }
@@ -161,16 +171,36 @@ function Add-IpInfoToSheet {
     $DestPackage = if ($PkgField) { $PkgField.GetValue($Worksheet.Workbook) } else { $null }
 
     if ($null -ne $DestPackage) {
-        foreach ($Name in $ColMap.Keys) {
-            $ColLetter = $ColMap[$Name] | Convert-DecimalToExcelColumn
-            $CopyParams = @{
-                Source           = $Global:IRT_Config.IPConditionalFormattingTemplatePath
-                SourceRange      = 'A1:A1048576'
-                Destination      = $DestPackage
-                DestinationSheet = $Worksheet.Name
-                DestinationRange = "${ColLetter}:${ColLetter}"
+        # A configured template path wins; otherwise build the default rules in memory.
+        $FunctionName = $MyInvocation.MyCommand.Name
+        $TemplatePath = $Global:IRT_Config.IPConditionalFormattingTemplatePath
+        if ($TemplatePath) {
+            Write-PSFMessage -Level 8 -Message (
+                "${FunctionName}: using CF template '${TemplatePath}'")
+            $Template = $TemplatePath
+        }
+        else {
+            Write-PSFMessage -Level 8 -Message "${FunctionName}: using default CF rules"
+            $Template = New-IpConditionalFormattingTemplate
+        }
+
+        try {
+            foreach ($Name in $ColMap.Keys) {
+                $ColLetter = $ColMap[$Name] | Convert-DecimalToExcelColumn
+                $CopyParams = @{
+                    Source           = $Template
+                    SourceRange      = 'A1:A1048576'
+                    Destination      = $DestPackage
+                    DestinationSheet = $Worksheet.Name
+                    DestinationRange = "${ColLetter}:${ColLetter}"
+                }
+                Copy-ConditionalFormatting @CopyParams
             }
-            Copy-ConditionalFormatting @CopyParams
+        }
+        finally {
+            if ($Template -is [OfficeOpenXml.ExcelPackage]) {
+                $Template.Dispose()
+            }
         }
     }
 }

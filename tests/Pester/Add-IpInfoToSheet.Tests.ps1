@@ -530,5 +530,149 @@ InModuleScope M365IncidentResponseTools {
                 } finally { $wb.Pkg.Dispose() }
             }
         }
+
+        # -----------------------------------------------------------------------
+        Context 'conditional formatting template source' {
+
+            BeforeEach {
+                $Global:IRT_IpInfo['10.8.0.1'] = 'cf-data-1'
+                $Global:IRT_IpInfo['10.8.0.2'] = 'cf-data-2'
+
+                # Hand out a real package so the dispose path can be observed.
+                $script:BuiltTemplates = [System.Collections.Generic.List[object]]::new()
+                Mock New-IpConditionalFormattingTemplate {
+                    $Pkg = [OfficeOpenXml.ExcelPackage]::new()
+                    $script:BuiltTemplates.Add($Pkg)
+                    $Pkg
+                }
+            }
+
+            AfterEach {
+                foreach ($Pkg in $script:BuiltTemplates) { $Pkg.Dispose() }
+            }
+
+            It 'copies from the configured template path when one is set' {
+                Mock Copy-ConditionalFormatting {}
+                $rows = @(@{ IpAddress = '10.8.0.1' })
+                $wb = New-TestWorksheet -ColumnNames 'IpAddress' -Rows $rows
+                try {
+                    Add-IpInfoToSheet -Worksheet $wb.Ws -ColumnName 'IpAddress'
+                    $InvokeParams = @{
+                        CommandName     = 'Copy-ConditionalFormatting'
+                        Times           = 1
+                        Exactly         = $true
+                        ParameterFilter = { $Source -eq 'C:\fake\template.xlsx' }
+                    }
+                    Should -Invoke @InvokeParams
+                    Should -Not -Invoke New-IpConditionalFormattingTemplate
+                } finally { $wb.Pkg.Dispose() }
+            }
+
+            It 'copies from the built-in rules when no template path is set' {
+                $Global:IRT_Config.IPConditionalFormattingTemplatePath = $null
+                Mock Copy-ConditionalFormatting {}
+                $rows = @(@{ IpAddress = '10.8.0.1' })
+                $wb = New-TestWorksheet -ColumnNames 'IpAddress' -Rows $rows
+                try {
+                    Add-IpInfoToSheet -Worksheet $wb.Ws -ColumnName 'IpAddress'
+                    $InvokeParams = @{
+                        CommandName     = 'Copy-ConditionalFormatting'
+                        Times           = 1
+                        Exactly         = $true
+                        ParameterFilter = { $Source -is [OfficeOpenXml.ExcelPackage] }
+                    }
+                    Should -Invoke @InvokeParams
+                } finally { $wb.Pkg.Dispose() }
+            }
+
+            It 'builds the built-in rules once for a two-column request' {
+                $Global:IRT_Config.IPConditionalFormattingTemplatePath = ''
+                Mock Copy-ConditionalFormatting {}
+                $rows = @(@{ SrcIp = '10.8.0.1'; DstIp = '10.8.0.2' })
+                $wb = New-TestWorksheet -ColumnNames 'SrcIp', 'DstIp' -Rows $rows
+                try {
+                    Add-IpInfoToSheet -Worksheet $wb.Ws -ColumnName 'SrcIp', 'DstIp'
+                    Should -Invoke New-IpConditionalFormattingTemplate -Times 1 -Exactly
+                    Should -Invoke Copy-ConditionalFormatting -Times 2 -Exactly
+                } finally { $wb.Pkg.Dispose() }
+            }
+
+            It 'disposes the built-in template after copying' {
+                $Global:IRT_Config.IPConditionalFormattingTemplatePath = ''
+                Mock Copy-ConditionalFormatting {}
+                $rows = @(@{ IpAddress = '10.8.0.1' })
+                $wb = New-TestWorksheet -ColumnNames 'IpAddress' -Rows $rows
+                try {
+                    Add-IpInfoToSheet -Worksheet $wb.Ws -ColumnName 'IpAddress'
+                    # EPPlus returns a null Workbook once the package is disposed.
+                    $script:BuiltTemplates[0].Workbook | Should -BeNullOrEmpty
+                } finally { $wb.Pkg.Dispose() }
+            }
+
+            It 'disposes the built-in template when copying fails' {
+                $Global:IRT_Config.IPConditionalFormattingTemplatePath = ''
+                Mock Copy-ConditionalFormatting { throw 'copy failed' }
+                $rows = @(@{ IpAddress = '10.8.0.1' })
+                $wb = New-TestWorksheet -ColumnNames 'IpAddress' -Rows $rows
+                try {
+                    { Add-IpInfoToSheet -Worksheet $wb.Ws -ColumnName 'IpAddress' } |
+                        Should -Throw '*copy failed*'
+                    $script:BuiltTemplates[0].Workbook | Should -BeNullOrEmpty
+                } finally { $wb.Pkg.Dispose() }
+            }
+        }
+    }
+
+    Describe 'Add-IpInfoToSheet' -Tag 'integration' {
+
+        BeforeAll {
+            Mock Write-IRT {}
+            # The IP is pre-cached below, so ip_info is never needed.
+            Mock Invoke-IRTNativeCommand {
+                [pscustomobject]@{ StdOut = @('{}'); StdErr = ''; ExitCode = 0 }
+            }
+        }
+
+        Context 'no template path configured' {
+
+            BeforeAll {
+                $script:OrigConfig = $Global:IRT_Config
+                $script:OrigIpInfo = $Global:IRT_IpInfo
+                $Global:IRT_Config = @{
+                    IpInfoAvailable                     = $true
+                    IPConditionalFormattingTemplatePath = $null
+                }
+                $Global:IRT_IpInfo = @{ '10.8.0.1' = 'cached-data' }
+
+                # IpAddress sits in column B, so the rules must land on B:B.
+                $script:Pkg = [OfficeOpenXml.ExcelPackage]::new()
+                $Ws = $script:Pkg.Workbook.Worksheets.Add('Sheet1')
+                $Ws.SetValue(1, 1, 'User')
+                $Ws.SetValue(1, 2, 'IpAddress')
+                $Ws.SetValue(2, 1, 'jdoe')
+                $Ws.SetValue(2, 2, '10.8.0.1')
+                [void]$Ws.Tables.Add($Ws.Cells['A1:B2'], 'TestTable')
+
+                Add-IpInfoToSheet -Worksheet $Ws -ColumnName 'IpAddress'
+                $script:Rules = @($Ws.ConditionalFormatting)
+            }
+
+            AfterAll {
+                $script:Pkg.Dispose()
+                $Global:IRT_Config = $script:OrigConfig
+                $Global:IRT_IpInfo = $script:OrigIpInfo
+            }
+
+            It 'applies the nine built-in rules to the IP address column' {
+                $script:Rules.Count | Should -Be 9
+            }
+
+            It 'places every rule on column B' {
+                foreach ($Rule in $script:Rules) {
+                    $Rule.Address.Start.Column | Should -Be 2
+                    $Rule.Address.End.Column | Should -Be 2
+                }
+            }
+        }
     }
 }
