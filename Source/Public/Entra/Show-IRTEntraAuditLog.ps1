@@ -1,13 +1,51 @@
 function Show-IRTEntraAuditLog {
     <#
-	.SYNOPSIS
-    Shows Entra audit logs in terminal, or saves as an excel spreadsheet.
+    .SYNOPSIS
+    Processes Entra audit log objects into an Excel spreadsheet.
 
-	.NOTES
-	Version: 1.2.1
+    .DESCRIPTION
+    Takes Entra audit log objects produced by Get-IRTEntraAuditLog (or imported from a
+    raw XML export) and renders them into a formatted Excel workbook. User, group, role
+    and service principal IDs in the logs are resolved to display names.
+
+    .PARAMETER Log
+    A list of Entra audit log objects with a metadata entry at index 0. Produced by
+    Get-IRTEntraAuditLog. Mutually exclusive with -XmlPath.
+
+    .PARAMETER XmlPath
+    Path to a raw XML file exported by Get-IRTEntraAuditLog. Mutually exclusive with -Log.
+
+    .PARAMETER TableStyle
+    Excel table style. Defaults to IRT_Config.ExcelTableStyle.
+
+    .PARAMETER Font
+    Excel font name. Defaults to IRT_Config.ExcelFont.
+
+    .PARAMETER IpInfo
+    Enrich the InitiatedByIp column with ip_info lookup data. Defaults to
+    IRT_Config.IpInfoAvailable.
+
+    .PARAMETER Open
+    Open the Excel file immediately after export. Defaults to IRT_Config.OpenSpreadsheets.
+
+    .PARAMETER Cached
+    Use pre-cached Graph data where available.
+
+    .EXAMPLE
+    ```powershell
+    Show-IRTEntraAuditLog -XmlPath '.\EntraAuditLogs_30Days_contoso.com_bob_26-09-16_14-30.xml'
+    ```
+    Rebuilds the Entra audit log workbook from a raw XML export.
+
+    .OUTPUTS
+    None. Results are written to an Excel workbook.
+
+    .NOTES
+    Version: 1.2.1
     1.2.1 - Updates to use new get-graphobject functions.
-    1.2.0 - Many small updates to standardize across IR functions. Updated to readable date format.
-	#>
+    1.2.0 - Many small updates to standardize across IR functions. Updated to readable
+            date format.
+    #>
     [CmdletBinding(DefaultParameterSetName = 'Objects')]
     param (
         [Parameter(Position = 0, ParameterSetName = 'Objects')]

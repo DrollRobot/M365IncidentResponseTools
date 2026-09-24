@@ -1,14 +1,68 @@
 function Show-IRTUnifiedAuditLog {
     <#
-	.SYNOPSIS
-	Parse and show unified audit logs.
+    .SYNOPSIS
+    Processes unified audit log records into an Excel spreadsheet.
 
-	.NOTES
-	Version: 1.0.2
+    .DESCRIPTION
+    Takes unified audit log records produced by Get-IRTUnifiedAuditLog or the Graph UAL
+    commands (or imported from a raw XML export) and renders them into a formatted Excel
+    workbook. The workbook always has an all-operations sheet, plus a sign-in sheet when
+    the logs contain sign-in operations. Logs from a -SignInLog query get only the
+    sign-in sheet. Data-gap marker rows appear on every sheet.
+
+    .PARAMETER Log
+    A list of unified audit log records with a metadata entry at index 0. Produced by
+    Get-IRTUnifiedAuditLog. Mutually exclusive with -XmlPath.
+
+    .PARAMETER XmlPath
+    Path to a raw XML file exported by Get-IRTUnifiedAuditLog. Mutually exclusive with
+    -Log.
+
+    .PARAMETER TableStyle
+    Excel table style. Defaults to IRT_Config.ExcelTableStyle.
+
+    .PARAMETER Font
+    Excel font name. Defaults to IRT_Config.ExcelFont.
+
+    .PARAMETER IpInfo
+    Enrich IP addresses with ip_info lookup data. Defaults to IRT_Config.IpInfoAvailable.
+
+    .PARAMETER Open
+    Open the Excel file immediately after export. Defaults to IRT_Config.OpenSpreadsheets.
+
+    .PARAMETER WaitOnMessageTrace
+    Wait for pending message trace jobs to finish, so email subjects can be added to the
+    all-operations sheet. Intended for use when running playbook. (running functions in
+    parallel) Default: $false.
+
+    .PARAMETER MaxWaitMinutes
+    How long -WaitOnMessageTrace waits before continuing without email subjects.
+    Default: 15.
+
+    .PARAMETER Cached
+    Use pre-cached Graph data where available.
+
+    .EXAMPLE
+    ```powershell
+    Show-IRTUnifiedAuditLog -XmlPath '.\UnifiedAuditLogs_7Days_contoso.com_bob_26-09-16_14-30.xml'
+    ```
+    Rebuilds the unified audit log workbook from a raw XML export.
+
+    .EXAMPLE
+    ```powershell
+    Show-IRTUnifiedAuditLog -XmlPath $XmlPath -IpInfo $false -Open $false
+    ```
+    Rebuilds the workbook without IP lookups, and saves it without opening it.
+
+    .OUTPUTS
+    None. Results are written to an Excel workbook.
+
+    .NOTES
+    Version: 1.0.2
     1.0.2 - Data-gap marker rows (IRTDataGap) always pass operation filtering so
             missing-data markers appear on every sheet.
     1.0.1 - Added option pass raw log objects, not just import from file.
-	#>
+    #>
     [CmdletBinding(DefaultParameterSetName = 'Objects')]
     param (
         [Parameter(Position = 0, ParameterSetName = 'Objects')]

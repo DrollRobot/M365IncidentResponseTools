@@ -1,11 +1,51 @@
 function Show-IRTMessageTrace {
     <#
-	.SYNOPSIS
-	Processes message trace data and creates spreadsheet.
+    .SYNOPSIS
+    Processes message trace data into an Excel spreadsheet.
 
-	.NOTES
-	Version: 1.0.0
-	#>
+    .DESCRIPTION
+    Takes message trace records produced by Get-IRTMessageTrace (or imported from a raw
+    XML export) and renders them into a formatted Excel workbook.
+
+    .PARAMETER Message
+    A list of message trace records with a metadata entry at index 0. Produced by
+    Get-IRTMessageTrace. Accepts pipeline input. Mutually exclusive with -XmlPath.
+
+    .PARAMETER XmlPath
+    Path to a raw XML file exported by Get-IRTMessageTrace. Mutually exclusive with
+    -Message.
+
+    .PARAMETER TableStyle
+    Excel table style. Defaults to IRT_Config.ExcelTableStyle.
+
+    .PARAMETER Font
+    Excel font name. Defaults to IRT_Config.ExcelFont.
+
+    .PARAMETER IpInfo
+    Enrich FromIP/ToIP with ip_info lookup data in the Excel output. Off by default
+    because lookups are slow for large message traces. Ignored if ip_info is not installed.
+
+    .PARAMETER Open
+    Open the Excel workbook after exporting. Defaults to IRT_Config.OpenSpreadsheets.
+
+    .EXAMPLE
+    ```powershell
+    Show-IRTMessageTrace -XmlPath '.\MessageTrace_10Days_bob_26-09-16_14-30.xml'
+    ```
+    Rebuilds the message trace workbook from a raw XML export.
+
+    .EXAMPLE
+    ```powershell
+    Show-IRTMessageTrace -XmlPath '.\MessageTrace_10Days_bob_26-09-16_14-30.xml' -IpInfo
+    ```
+    Rebuilds the workbook with ip_info lookups on the FromIP and ToIP columns.
+
+    .OUTPUTS
+    None. Results are written to an Excel workbook.
+
+    .NOTES
+    Version: 1.0.0
+    #>
     [CmdletBinding( DefaultParameterSetName = 'Objects' )]
     param (
         [Parameter(Position = 0, ValueFromPipeline, ParameterSetName = 'Objects')]

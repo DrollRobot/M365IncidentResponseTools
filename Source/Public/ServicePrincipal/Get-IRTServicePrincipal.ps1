@@ -1,12 +1,53 @@
 function Get-IRTServicePrincipal {
     <#
-	.SYNOPSIS
-	Displays all service principals in the tenant, or filters by a search term.
+    .SYNOPSIS
+    Displays all service principals in the tenant, or filters by a search term.
 
-	.NOTES
-	Version: 1.3.0
-	1.3.0 - Added -Excel export option.
-	#>
+    .DESCRIPTION
+    Lists the tenant's service principals with created date, type, sign-in audience, reply
+    URLs and owning tenant. Owning tenant IDs are resolved to names with
+    Get-IRTTenantOwner. Returns objects by default. Use -Excel to export a workbook
+    instead.
+
+    .PARAMETER Search
+    Regular expression matched against service principal display names. When omitted, all
+    service principals are returned.
+
+    .PARAMETER Cached
+    Use pre-cached Graph data where available.
+
+    .PARAMETER Excel
+    Export results to an Excel workbook instead of returning objects.
+
+    .PARAMETER TableStyle
+    Excel table style. Used with -Excel. Defaults to IRT_Config.ExcelTableStyle.
+
+    .PARAMETER Font
+    Excel font name. Used with -Excel. Defaults to IRT_Config.ExcelFont.
+
+    .PARAMETER Open
+    Open the Excel file immediately after export. Used with -Excel. Defaults to
+    IRT_Config.OpenSpreadsheets.
+
+    .EXAMPLE
+    ```powershell
+    Get-IRTServicePrincipal -Search 'Graph'
+    ```
+    Lists service principals whose display name matches 'Graph'.
+
+    .EXAMPLE
+    ```powershell
+    Get-IRTServicePrincipal -Excel
+    ```
+    Exports all service principals in the tenant to an Excel workbook.
+
+    .OUTPUTS
+    IRT.TenantServicePrincipal objects. None when -Excel is used.
+
+    .NOTES
+    Version: 1.3.0
+    1.3.0 - Added -Excel export option.
+    #>
     [Alias('GetTenantServicePrincipal', 'GetTenantServicePrincipals',
         'GetTenantSP', 'GetTenantSPs',
         'GetTenantApp', 'GetTenantApps',
