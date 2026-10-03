@@ -51,7 +51,7 @@ Describe 'Start-IRTPlaybook end-to-end (live)' -Tag 'live', 'e2e' {
             $TestUserId = $env:IRT_TEST_USER_ID
         }
         if (-not $TestUserId) {
-            throw ('Set $env:IRT_TEST_USER_ID or add it to tests/.env.ps1 ' +
+            throw ('Set $env:IRT_TEST_USER_ID or add it to Tests/.env.ps1 ' +
                 'before running the playbook test.')
         }
 

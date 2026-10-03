@@ -160,7 +160,7 @@
     Runs PSScriptAnalyzer against just the Source\Public folder.
 
 .EXAMPLE
-    .\Tests.ps1 NotLive -Path .\tests\pester\Get-Script.Tests.ps1
+    .\Tests.ps1 NotLive -Path .\Tests\Pester\Get-Script.Tests.ps1
     Runs one NotLive Pester test file.
 
 .EXAMPLE
@@ -346,8 +346,8 @@ else {
     throw $ErrMsg
 }
 
-$TestsFolder = Join-Path -Path $PSScriptRoot -ChildPath 'tests'
-$PesterTestsFolder = Join-Path -Path $PSScriptRoot -ChildPath 'tests\pester'
+$TestsFolder = Join-Path -Path $PSScriptRoot -ChildPath 'Tests'
+$PesterTestsFolder = Join-Path -Path $PSScriptRoot -ChildPath 'Tests\Pester'
 $LocalTestsFolder = Join-Path -Path $PSScriptRoot -ChildPath '.local\tests'
 
 # Where Pester looks: the whole pester folder by default, or the -Path target

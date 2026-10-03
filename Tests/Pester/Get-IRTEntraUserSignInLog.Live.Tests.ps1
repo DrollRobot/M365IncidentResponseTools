@@ -23,7 +23,7 @@
     Prerequisites:
       - Connect-IRT must have completed (Graph session active). Tests.ps1 runs
         Connect-IRT.Tests.ps1 first and only proceeds here on success.
-      - IRT_TEST_USER_ID must be set to a valid user GUID (see tests/.env.ps1).
+      - IRT_TEST_USER_ID must be set to a valid user GUID (see Tests/.env.ps1).
         That account is the one used to authenticate, so it always has recent
         interactive and non-interactive sign-in activity.
 
@@ -168,7 +168,7 @@ InModuleScope M365IncidentResponseTools {
                     'session. Ensure Connect-IRT ran successfully first.')
             }
             if (-not $env:IRT_TEST_USER_ID) {
-                throw 'IRT_TEST_USER_ID not set. Run tests/.env.ps1 first.'
+                throw 'IRT_TEST_USER_ID not set. Run Tests/.env.ps1 first.'
             }
 
             $script:TestUser = Get-MgUser -UserId $env:IRT_TEST_USER_ID

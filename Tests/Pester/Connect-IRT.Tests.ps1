@@ -773,7 +773,7 @@ Describe 'Connect-IRT session state (live)' -Tag 'live', 'integration' {
             $TenantId = $env:IRT_TEST_TENANT_ID
         }
         if (-not $TenantId) {
-            throw ('Set $env:IRT_TEST_TENANT_ID or create tests/.env.ps1 ' +
+            throw ('Set $env:IRT_TEST_TENANT_ID or create Tests/.env.ps1 ' +
                 'before running online tests.')
         }
 
