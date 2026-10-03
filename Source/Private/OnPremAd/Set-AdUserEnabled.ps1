@@ -123,7 +123,7 @@ function Set-AdUserEnabled {
         Push-AdReplication -Server $DomainController
 
         # push azure sync, if on this server
-        $SyncService = Get-Service -Name "adsync" -ErrorAction SilentlyContinue
+        $SyncService = Get-LocalAdSyncService
         if ( $SyncService ) {
             Write-IRT "`nPushing Azure sync."
             Start-ADSyncSyncCycle -PolicyType Delta

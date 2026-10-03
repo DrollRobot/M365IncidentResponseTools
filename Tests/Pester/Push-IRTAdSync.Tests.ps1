@@ -55,6 +55,7 @@
     'reports a fast check without waiting for a slower one queued ahead of it'
         Checks are handled as they finish, not in query order, so a slow or dead
         server first in line can't hold up the rest (or the push).
+        Windows only: it opens real WinRM sessions.
 #>
 
 BeforeAll {
@@ -74,6 +75,15 @@ BeforeAll {
         param($PolicyType)
         $null = $PolicyType
     }
+    # Get-Service exists only on Windows; elsewhere stub it so it can be mocked.
+    $script:StubbedGetService = -not (Get-Command -Name 'Get-Service' -ErrorAction Ignore)
+    if ($script:StubbedGetService) {
+        function global:Get-Service {
+            [CmdletBinding()]
+            param($Name)
+            $null = $Name
+        }
+    }
 
     $script:OriginalStorage = Get-Variable -Name 'Storage' -Scope Global -ErrorAction Ignore
     $Global:Storage = [pscredential]::new('irt-pester', [securestring]::new())
@@ -82,6 +92,9 @@ BeforeAll {
 AfterAll {
     @('Get-ADComputer', 'Get-ADDomainController', 'Start-ADSyncSyncCycle') |
         ForEach-Object { Remove-Item -Path "Function:\$_" -ErrorAction SilentlyContinue }
+    if ($script:StubbedGetService) {
+        Remove-Item -Path 'Function:\Get-Service' -ErrorAction SilentlyContinue
+    }
     if ($script:OriginalStorage) {
         $Global:Storage = $script:OriginalStorage.Value
     }
@@ -136,7 +149,10 @@ Describe 'Push-IRTAdSync' {
 
             $IA = @{ ModuleName = $script:Mod; ParameterFilter = { $PolicyType -eq 'Delta' } }
             Should -Invoke Start-ADSyncSyncCycle -Times 1 -Exactly @IA
-            Should -Invoke Import-IRTModule -ModuleName $script:Mod -Times 0 -Exactly
+            # PSFramework may load; the ActiveDirectory module must not
+            $F = { $Name -contains 'ActiveDirectory' }
+            $IA = @{ ModuleName = $script:Mod; ParameterFilter = $F }
+            Should -Invoke Import-IRTModule -Times 0 -Exactly @IA
         }
 
         It 'stops with an error when AD is unavailable and no -SyncServer is given' {
@@ -206,7 +222,10 @@ Describe 'Push-IRTAdSync' {
         It 'does not need the ActiveDirectory module when -SyncServer is given' {
             Push-IRTAdSync -SyncServer 'irt-pester-nohost-sync'
 
-            Should -Invoke Import-IRTModule -ModuleName $script:Mod -Times 0 -Exactly
+            # PSFramework may load; the ActiveDirectory module must not
+            $F = { $Name -contains 'ActiveDirectory' }
+            $IA = @{ ModuleName = $script:Mod; ParameterFilter = $F }
+            Should -Invoke Import-IRTModule -Times 0 -Exactly @IA
             $script:Messages |
                 Where-Object { $_ -like 'Opening session on irt-pester-nohost-sync failed: ?*' } |
                 Should -HaveCount 1
@@ -244,6 +263,12 @@ Describe 'Push-IRTAdSync' {
         }
 
         It 'reports a fast check without waiting for a slower one queued ahead of it' {
+            # Opens real WinRM sessions. Off Windows PowerShell has no WinRM client, so
+            # every check fails at once and the finishing order means nothing.
+            if (-not $IsWindows) {
+                Set-ItResult -Skipped -Because 'WinRM remoting is available only on Windows'
+                return
+            }
             # unique name so a cached negative DNS lookup can't make it fail fast;
             # localhost rejects the dummy credential almost immediately
             $SlowName = "irt-pester-$([guid]::NewGuid().ToString('N').Substring(0, 8))"

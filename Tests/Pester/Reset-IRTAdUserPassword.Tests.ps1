@@ -51,11 +51,23 @@ BeforeAll {
         param($PolicyType)
         $null = $PolicyType
     }
+    # Get-Service exists only on Windows; elsewhere stub it so it can be mocked.
+    $script:StubbedGetService = -not (Get-Command -Name 'Get-Service' -ErrorAction Ignore)
+    if ($script:StubbedGetService) {
+        function global:Get-Service {
+            [CmdletBinding()]
+            param($Name)
+            $null = $Name
+        }
+    }
 }
 
 AfterAll {
     @('Set-ADAccountPassword', 'Set-ADUser', 'Get-ADUser', 'Start-ADSyncSyncCycle') |
         ForEach-Object { Remove-Item -Path "Function:\$_" -ErrorAction SilentlyContinue }
+    if ($script:StubbedGetService) {
+        Remove-Item -Path 'Function:\Get-Service' -ErrorAction SilentlyContinue
+    }
 }
 
 Describe 'Reset-IRTAdUserPassword' -Tag 'unit' {

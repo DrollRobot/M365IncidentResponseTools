@@ -109,7 +109,7 @@ function Push-IRTAdSync {
         }
 
         # if sync service is running on this server, push sync locally
-        $SyncService = Get-Service -Name 'adsync' -ErrorAction SilentlyContinue
+        $SyncService = Get-LocalAdSyncService
         if ($SyncService) {
             Write-IRT "Pushing sync."
             Start-ADSyncSyncCycle -PolicyType Delta

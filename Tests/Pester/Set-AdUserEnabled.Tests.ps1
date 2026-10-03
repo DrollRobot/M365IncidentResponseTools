@@ -45,11 +45,23 @@ BeforeAll {
         param($PolicyType)
         $null = $PolicyType
     }
+    # Get-Service exists only on Windows; elsewhere stub it so it can be mocked.
+    $script:StubbedGetService = -not (Get-Command -Name 'Get-Service' -ErrorAction Ignore)
+    if ($script:StubbedGetService) {
+        function global:Get-Service {
+            [CmdletBinding()]
+            param($Name)
+            $null = $Name
+        }
+    }
 }
 
 AfterAll {
     @('Enable-ADAccount', 'Disable-ADAccount', 'Get-ADUser', 'Start-ADSyncSyncCycle') |
         ForEach-Object { Remove-Item -Path "Function:\$_" -ErrorAction SilentlyContinue }
+    if ($script:StubbedGetService) {
+        Remove-Item -Path 'Function:\Get-Service' -ErrorAction SilentlyContinue
+    }
 }
 
 InModuleScope M365IncidentResponseTools {
