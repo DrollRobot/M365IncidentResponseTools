@@ -1,10 +1,35 @@
 function Open-Browser {
     <#
     .SYNOPSIS
-    Simplifies opening browser windows
+    Opens a URL in a chosen browser, optionally in a private window.
+
+    .DESCRIPTION
+    Opens the URL in the named browser on Windows, Linux, or macOS. 'default' uses the
+    browser that opens web links on this device when it is one of the supported ones,
+    so -Private still applies. When the default cannot be identified, or the named
+    browser is not installed, the URL goes to the system's own handler instead
+    (warning that -Private could not be honored).
+
+    .PARAMETER Browser
+    The browser: msedge, chrome, firefox, brave, or default.
+
+    .PARAMETER Url
+    The URL to open.
+
+    .PARAMETER Private
+    Open a private (InPrivate or incognito) window.
+
+    .EXAMPLE
+    ```powershell
+    Open-Browser -Browser 'default' -Url 'https://portal.azure.com' -Private
+    ```
+    Opens the portal in a private window of the default browser.
+
+    .OUTPUTS
+    None.
 
     .NOTES
-    Version 1.03
+    Version 1.04
     #>
 
     [CmdletBinding()]
@@ -17,49 +42,26 @@ function Open-Browser {
     )
 
     if ($Browser -eq 'default') {
+        $Detected = Get-DefaultBrowserName
+        if ($Detected) { $Browser = $Detected }
+    }
+    Write-Information -Tags 'Trace' -MessageData "Opening '$Url' in $Browser (private: $Private)."
 
-        # pull default browser from registry
-        $RegPath = 'Registry::HKEY_CURRENT_USER\Software\Microsoft\Windows\Shell\' +
-        'Associations\UrlAssociations\https\UserChoice'
-        $ProgId = Get-ItemProperty -Path $RegPath | Select-Object -ExpandProperty ProgId
-
-        switch -Regex ($ProgId) {
-            '^Firefox' {
-                $Browser = 'firefox'
-            }
-            '^MSEdge' {
-                $Browser = 'msedge'
-            }
-            '^Chrome' {
-                $Browser = 'chrome'
-            }
-            '^Brave' {
-                $Browser = 'brave'
-            }
+    if ($Browser -ne 'default') {
+        $Launch = Resolve-BrowserLaunch -Browser $Browser -Url $Url -Private:$Private
+        if ($Launch) {
+            Start-Process -FilePath $Launch.FilePath -ArgumentList $Launch.ArgumentList
+            return
         }
+        $Msg = "$Browser was not found on this device; opening the page with the " +
+        'default handler.'
+        Write-Warning $Msg
     }
 
-    switch ( $Browser ) {
-        'msedge' {
-            if ( $Private ) {
-                Start-Process $Browser -ArgumentList @('--inprivate', $Url)
-            } else {
-                Start-Process $Browser $Url
-            }
-        }
-        'firefox' {
-            if ( $Private ) {
-                Start-Process $Browser -ArgumentList @('-private-window', $Url)
-            } else {
-                Start-Process $Browser $Url
-            }
-        }
-        { $_ -in 'chrome', 'brave' } {
-            if ( $Private ) {
-                Start-Process $Browser -ArgumentList @('--incognito', $Url)
-            } else {
-                Start-Process $Browser $Url
-            }
-        }
+    if ($Private) {
+        $Msg = 'The default handler opens the page in a normal window, not a ' +
+        'private one.'
+        Write-Warning $Msg
     }
+    Start-Process -FilePath $Url
 }
