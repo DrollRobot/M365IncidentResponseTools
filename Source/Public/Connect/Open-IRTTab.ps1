@@ -1,23 +1,24 @@
 function Open-IRTTab {
     <#
     .SYNOPSIS
-    Opens a new Windows Terminal tab and loads the module.
+    Opens a new terminal tab (Windows Terminal or tmux) and loads the module.
 
     .DESCRIPTION
-    Opens a new tab in the current Windows Terminal window and imports
-    M365IncidentResponseTools. If an active IRT session exists, also calls
-    Connect-IRT to connect to the same tenant.
+    Opens a new tab in the current Windows Terminal window, or a new window in the
+    current tmux session on Linux and macOS, and imports M365IncidentResponseTools.
+    If an active IRT session exists, also calls Connect-IRT to connect to the same
+    tenant. The new tab opens in the background, without taking focus.
 
-    Must be run from within Windows Terminal; detected via the WT_SESSION
-    environment variable set by Windows Terminal in every hosted session.
+    Must be run from within Windows Terminal (detected via the WT_SESSION
+    environment variable) or tmux (detected via TMUX).
 
     .PARAMETER Title
     Title for the new terminal tab. Defaults to '[IRT]'.
 
     .PARAMETER Quiet
-    When set, silently returns without error if the current console is not
-    Windows Terminal. Useful when calling from a profile or script that may
-    run in multiple console hosts.
+    When set, silently returns without error if the current console is neither
+    Windows Terminal nor tmux. Useful when calling from a profile or script that
+    may run in multiple console hosts.
 
     .EXAMPLE
     ```powershell
@@ -29,7 +30,7 @@ function Open-IRTTab {
     ```powershell
     Open-IRTTab -Quiet
     ```
-    Opens a new tab if in Windows Terminal; silently does nothing otherwise.
+    Opens a new tab if in Windows Terminal or tmux; silently does nothing otherwise.
 
     .EXAMPLE
     ```powershell
@@ -41,7 +42,8 @@ function Open-IRTTab {
     None
 
     .NOTES
-    Version: 1.1.0
+    Version: 1.2.0
+    1.2.0 - Opens a tmux window when run inside tmux, on Linux and macOS.
     1.1.0 - Requires Windows Terminal host. Opens without connecting when no
             active session exists.
     #>
@@ -55,9 +57,14 @@ function Open-IRTTab {
     )
 
     process {
-        if (-not $env:WT_SESSION) {
+        Import-IRTModule -Name 'PSFramework'
+
+        $InTmux = $env:TMUX -and (Get-Command -Name 'tmux' -ErrorAction Ignore)
+        if (-not $env:WT_SESSION -and -not $InTmux) {
             if (-not $Quiet) {
-                Write-Error 'This command must be run from within Windows Terminal.'
+                $Msg = 'This command must be run from within Windows Terminal, ' +
+                'or tmux on Linux and macOS.'
+                Write-Error $Msg
             }
             return
         }
@@ -86,15 +93,23 @@ function Open-IRTTab {
             [Text.Encoding]::Unicode.GetBytes($InnerScript)
         )
 
-        $WtArgs = @(
-            '--window', '0',
-            'new-tab',
-            '--startingDirectory', $PWD.Path,
-            '--no-focus',
-            '--title', $Title,
-            '--',
-            'pwsh', '-NoExit', '-EncodedCommand', $Encoded
-        )
-        & wt $WtArgs
+        $PwshArgs = @('pwsh', '-NoExit', '-EncodedCommand', $Encoded)
+        if ($env:WT_SESSION) {
+            $WtArgs = @(
+                '--window', '0',
+                'new-tab',
+                '--startingDirectory', $PWD.Path,
+                '--no-focus',
+                '--title', $Title,
+                '--'
+            ) + $PwshArgs
+            Write-PSFMessage -Level 8 -Message 'Opening a Windows Terminal tab.'
+            & wt $WtArgs
+        } else {
+            # -d keeps focus here, like Windows Terminal's --no-focus
+            $TmuxArgs = @('new-window', '-d', '-n', $Title, '-c', $PWD.Path) + $PwshArgs
+            Write-PSFMessage -Level 8 -Message 'Opening a tmux window.'
+            & tmux $TmuxArgs
+        }
     }
 }
