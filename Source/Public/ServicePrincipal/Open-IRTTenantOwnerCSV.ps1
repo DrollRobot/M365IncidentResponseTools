@@ -4,9 +4,9 @@ function Open-IRTTenantOwnerCSV {
     Opens the local tenant info cache CSV in the default application.
 
     .DESCRIPTION
-    Opens $env:APPDATA\<ModuleName>\TenantOwnerInfo.csv in the system default
-    application (typically Excel or Notepad), where <ModuleName> is resolved at
-    runtime. If the file does not exist yet, a warning is displayed.
+    Opens TenantOwnerInfo.csv from the module's per-user folder (%APPDATA%\<ModuleName>
+    on Windows, ~/.config/<ModuleName> on Linux and macOS) in the system default
+    application. If the file does not exist yet, a warning is displayed.
 
     .EXAMPLE
     ```powershell
@@ -21,13 +21,7 @@ function Open-IRTTenantOwnerCSV {
 
     Import-IRTModule -Name 'PSFramework'
 
-    $moduleName = $MyInvocation.MyCommand.ModuleName
-    $JpParams = @{
-        Path                = $env:APPDATA
-        ChildPath           = $moduleName
-        AdditionalChildPath = 'TenantOwnerInfo.csv'
-    }
-    $cachePath = Join-Path @JpParams
+    $cachePath = Get-IRTAppDataPath -ChildPath 'TenantOwnerInfo.csv'
 
     if (-not (Test-Path $cachePath)) {
         $Msg = "Tenant info cache not found at '$cachePath'. " +

@@ -4,7 +4,8 @@ function Import-IRTConfig {
     Loads the current IRT configuration.
 
     .DESCRIPTION
-    Reads the user configuration from $env:APPDATA\<ModuleName>\config.json.
+    Reads the user configuration from config.json in the module's per-user folder:
+    %APPDATA%\<ModuleName> on Windows, ~/.config/<ModuleName> on Linux and macOS.
     If the file does not exist, copies the template from the module root and loads it.
     The parsed config is cached in $Global:IRT_Config.
 
@@ -17,10 +18,9 @@ function Import-IRTConfig {
         [switch] $Force
     )
 
-    $ModuleName = $MyInvocation.MyCommand.Module.Name
     $ModuleRoot = $MyInvocation.MyCommand.Module.ModuleBase
-    $ConfigDir = Join-Path -Path $env:APPDATA -ChildPath $ModuleName
-    $ConfigPath = Join-Path -Path $ConfigDir -ChildPath 'Config.json'
+    $ConfigDir = Get-IRTAppDataPath
+    $ConfigPath = Get-IRTAppDataPath -ChildPath 'config.json'
     $TemplatePath = Join-Path -Path $ModuleRoot -ChildPath 'Data\ConfigTemplate.json'
 
     if (-not (Test-Path $ConfigPath)) {
@@ -54,8 +54,6 @@ function Import-IRTConfig {
 
     # Resolve null path values to their defaults (in-memory only; defaults are not written back)
     if (-not $Global:IRT_Config.TenantsSheetPath) {
-        $TenantDir = Join-Path -Path $env:APPDATA -ChildPath 'M365IncidentResponseTools'
-        $TenantPath = Join-Path -Path $TenantDir -ChildPath 'tenants.xlsx'
-        $Global:IRT_Config.TenantsSheetPath = $TenantPath
+        $Global:IRT_Config.TenantsSheetPath = Get-IRTAppDataPath -ChildPath 'tenants.xlsx'
     }
 }

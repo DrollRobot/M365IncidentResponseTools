@@ -19,7 +19,7 @@ function New-TenantSheet {
     Full path of the workbook to create.
 
     .EXAMPLE
-    New-TenantSheet -Path "$env:APPDATA\M365IncidentResponseTools\tenants.xlsx"
+    New-TenantSheet -Path (Get-IRTAppDataPath -ChildPath 'tenants.xlsx')
 
     Creates a starter tenants worksheet in the module's configuration directory.
 

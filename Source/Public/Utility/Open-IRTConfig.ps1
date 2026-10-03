@@ -7,13 +7,7 @@ function Open-IRTConfig {
     [CmdletBinding()]
     param()
 
-    $ModuleName = $MyInvocation.MyCommand.Module.Name
-    $JoinParams = @{
-        Path                = $env:APPDATA
-        ChildPath           = $ModuleName
-        AdditionalChildPath = 'config.json'
-    }
-    $ConfigPath = Join-Path @JoinParams
+    $ConfigPath = Get-IRTAppDataPath -ChildPath 'config.json'
 
     if (-not (Test-Path $ConfigPath)) {
         Import-IRTConfig

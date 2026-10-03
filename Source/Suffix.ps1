@@ -32,12 +32,7 @@ Import-IRTConfig
 
 # Set the default MSAL cache path if the config does not override it.
 if (-not $Global:IRT_Config.MsalCachePath) {
-    $JpParams = @{
-        Path                = $env:LOCALAPPDATA
-        ChildPath           = 'M365IncidentResponseTools'
-        AdditionalChildPath = 'IRT-Cache.bin'
-    }
-    $Global:IRT_Config.MsalCachePath = Join-Path @JpParams
+    $Global:IRT_Config.MsalCachePath = Get-IRTAppDataPath -Local -ChildPath 'IRT-Cache.bin'
 }
 
 # Apply PSFramework file logging from the LogFolderPath config value (blank = off).

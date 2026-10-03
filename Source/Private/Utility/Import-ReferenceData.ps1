@@ -16,7 +16,7 @@ function Import-ReferenceData {
       $Global:IRT_UalUserTypeTable  - Hashtable[int -> 'UserType member name']
         from UALUserType.csv
       $Global:IRT_TenantInfoTable   - Hashtable[TenantId -> row]
-        from APPDATA\<ModuleName>\TenantOwnerInfo.csv
+        from TenantOwnerInfo.csv in the module's per-user folder (Get-IRTAppDataPath)
 
     The AllOperations path can be overridden by setting AllOperationsSheetPath in config.json.
 
@@ -78,13 +78,7 @@ function Import-ReferenceData {
     $Global:IRT_UalUserTypeTable = $UserTypeTable
 
     # Tenant owner info cache (keyed by TenantId GUID string)
-    $ModuleName = $MyInvocation.MyCommand.ModuleName
-    $TcJoin = @{
-        Path                = $env:APPDATA
-        ChildPath           = $ModuleName
-        AdditionalChildPath = 'TenantOwnerInfo.csv'
-    }
-    $TenantCachePath = Join-Path @TcJoin
+    $TenantCachePath = Get-IRTAppDataPath -ChildPath 'TenantOwnerInfo.csv'
     $TenantTable = [hashtable]::Synchronized(@{})
     if (Test-Path -LiteralPath $TenantCachePath) {
         foreach ($Row in (Import-Csv -Path $TenantCachePath)) {

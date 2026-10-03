@@ -9,7 +9,9 @@ function Open-IRTTenantSheet {
     showing the expected format, then opened in the default handler for .xlsx files.
 
     .PARAMETER TenantFile
-    Path to the tenants worksheet. Defaults to $env:APPDATA\M365IncidentResponseTools\tenants.xlsx.
+    Path to the tenants worksheet. Defaults to tenants.xlsx in the module's per-user
+    folder: %APPDATA%\M365IncidentResponseTools on Windows,
+    ~/.config/M365IncidentResponseTools on Linux and macOS.
 
     .EXAMPLE
     ```powershell

@@ -25,14 +25,16 @@ if ($env:TERM_PROGRAM -ne 'vscode') {
 
     function prompt {
         # Best-effort: read PromptColor from the user config if it exists;
-        # fall back to hard-coded default.
-        $irt_jpParams = @{
-            Path                = $env:APPDATA
-            ChildPath           = 'M365IncidentResponseTools'
-            AdditionalChildPath = 'config.json'
-        }
-        $irt_configPath = Join-Path @irt_jpParams
+        # fall back to hard-coded default. The path mirrors Get-IRTAppDataPath,
+        # which this caller-scope prompt cannot call; it is built inside the try
+        # so a platform without the folder falls back instead of erroring.
         $irt_color = try {
+            $irt_jpParams = @{
+                Path                = [Environment]::GetFolderPath('ApplicationData')
+                ChildPath           = 'M365IncidentResponseTools'
+                AdditionalChildPath = 'config.json'
+            }
+            $irt_configPath = Join-Path @irt_jpParams
             if (Test-Path $irt_configPath) {
                 $c = (Get-Content $irt_configPath -Raw | ConvertFrom-Json).PromptColor
                 if ($c) { $c } else { 'DarkYellow' }

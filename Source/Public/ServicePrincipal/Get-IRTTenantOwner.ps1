@@ -22,8 +22,9 @@ function Get-IRTTenantOwner {
     Graph session exists), OIDC can still confirm the tenant exists and identify its
     cloud, but the display name and domain will be unavailable.
 
-    Results are cached in $Global:IRT_TenantInfoTable, pre-loaded at module import from:
-        $env:APPDATA\<ModuleName>\TenantOwnerInfo.csv
+    Results are cached in $Global:IRT_TenantInfoTable, pre-loaded at module import from
+    TenantOwnerInfo.csv in the module's per-user folder: %APPDATA%\<ModuleName> on
+    Windows, ~/.config/<ModuleName> on Linux and macOS.
 
     By default this function always queries live endpoints and updates the cache. Pass
     -Cached to return the in-memory entry when available, skipping live lookups. New
@@ -100,13 +101,7 @@ function Get-IRTTenantOwner {
         Import-IRTModule -Name 'Microsoft.Graph.Authentication', 'PSFramework'
 
         $NewCacheEntries = [System.Collections.Generic.List[psobject]]::new()
-        $ModuleName = $MyInvocation.MyCommand.ModuleName
-        $JpParams = @{
-            Path                = $env:APPDATA
-            ChildPath           = $ModuleName
-            AdditionalChildPath = 'TenantOwnerInfo.csv'
-        }
-        $CachePath = Join-Path @JpParams
+        $CachePath = Get-IRTAppDataPath -ChildPath 'TenantOwnerInfo.csv'
         $CacheDir = Split-Path $CachePath -Parent
         if (-not (Test-Path $CacheDir)) {
             $null = New-Item -ItemType Directory -Path $CacheDir -Force

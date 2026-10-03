@@ -18,10 +18,9 @@ function Set-IRTConfig {
         [switch] $Reset
     )
 
-    $ModuleName = $MyInvocation.MyCommand.Module.Name
     $ModuleRoot = $MyInvocation.MyCommand.Module.ModuleBase
-    $ConfigDir = Join-Path -Path $env:APPDATA -ChildPath $ModuleName
-    $ConfigPath = Join-Path -Path $ConfigDir -ChildPath 'config.json'
+    $ConfigDir = Get-IRTAppDataPath
+    $ConfigPath = Get-IRTAppDataPath -ChildPath 'config.json'
     $TplJoin = @{
         Path                = $ModuleRoot
         ChildPath           = 'Data'
@@ -107,8 +106,9 @@ function Set-IRTConfig {
         TenantsSheetPath = @{
             Summary     = 'Tenants worksheet path'
             Description = 'Path to the tenants.xlsx file used by Connect-IRTTenant. ' +
-            'Leave blank (null) to use the default location: ' +
-            '$env:APPDATA\M365IncidentResponseTools\tenants.xlsx. ' +
+            'Leave blank (null) to use tenants.xlsx in the module folder: ' +
+            '%APPDATA%\M365IncidentResponseTools on Windows, ' +
+            '~/.config/M365IncidentResponseTools on Linux and macOS. ' +
             'Set to an absolute path to use a custom file.'
             Options     = $null  # free text / file path
         }

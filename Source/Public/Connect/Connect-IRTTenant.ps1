@@ -12,7 +12,9 @@ function Connect-IRTTenant {
     select which tenant to connect to. This allows the same alias patterns to be shared
     across multiple tenants belonging to the same client.
 
-    The tenants worksheet should be stored at $env:APPDATA\M365IncidentResponseTools\tenants.xlsx.
+    The tenants worksheet is tenants.xlsx in the module's per-user folder:
+    %APPDATA%\M365IncidentResponseTools on Windows, ~/.config/M365IncidentResponseTools on
+    Linux and macOS.
     Run Open-IRTTenantSheet to generate a starter worksheet with the expected columns.
 
     .PARAMETER Alias
@@ -20,7 +22,9 @@ function Connect-IRTTenant {
     Aliases column in the tenants worksheet.
 
     .PARAMETER TenantFile
-    Path to the tenants worksheet. Defaults to $env:APPDATA\M365IncidentResponseTools\tenants.xlsx.
+    Path to the tenants worksheet. Defaults to tenants.xlsx in the module's per-user
+    folder: %APPDATA%\M365IncidentResponseTools on Windows,
+    ~/.config/M365IncidentResponseTools on Linux and macOS.
 
     .PARAMETER Graph
     Connect to Microsoft Graph only.

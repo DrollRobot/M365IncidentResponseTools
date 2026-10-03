@@ -6,7 +6,8 @@ function Get-LicenseFullName {
     .DESCRIPTION
     Accepts Microsoft Graph subscribed SKU objects from the pipeline and enriches each
     with a LicenseFullName property resolved from Microsoft's published product name CSV.
-    The CSV is downloaded automatically to $env:AppData on first use (or when stale).
+    The CSV is downloaded automatically to the per-user application data folder on
+    first use (or when stale).
 
     When called with a bare -SkuId GUID instead of pipeline input, returns the friendly
     name as a string directly.
@@ -44,13 +45,13 @@ function Get-LicenseFullName {
         function Get-LicenseCSVFile {
             <#
             .SYNOPSIS
-            Downloads the Microsoft license name CSV to $env:AppData if missing or
-            older than 6 days.
+            Downloads the Microsoft license name CSV to the per-user application data
+            folder if missing or older than 6 days.
 
             .DESCRIPTION
             Internal helper used by Get-LicenseFullNames. Downloads the Microsoft product names and
             service plan identifiers CSV from the Microsoft Download Center. Skips the download if
-            the file already exists in $env:AppData and was last modified less than 6 days ago.
+            the file already exists and was last modified less than 6 days ago.
             #>
             param (
                 [string]$Url,
@@ -62,6 +63,10 @@ function Get-LicenseFullName {
                 -not ( Test-Path $CsvPath ) -or
                 ((Get-Date) - (Get-Item $CsvPath).LastWriteTime) -gt (New-TimeSpan -Days 6)
             ) {
+                $CsvDir = Split-Path -Path $CsvPath -Parent
+                if (-not (Test-Path -Path $CsvDir)) {
+                    $null = New-Item -ItemType Directory -Path $CsvDir -Force
+                }
                 # Download the file
                 Invoke-WebRequest -Uri $Url -OutFile $CsvPath
             }
@@ -107,7 +112,14 @@ function Get-LicenseFullName {
         'Product%20names%20and%20service%20plan%20identifiers%20for%20licensing.csv'
 
         # Set the destination path
-        $CsvPath = "${env:AppData}\${ModuleName}\ProductNamesAndServicePlanIdentifiers.csv"
+        # [Environment]::GetFolderPath resolves on every platform; $env:AppData exists
+        # only on Windows, where both name the same folder.
+        $CsvParams = @{
+            Path                = [Environment]::GetFolderPath('ApplicationData')
+            ChildPath           = $ModuleName
+            AdditionalChildPath = 'ProductNamesAndServicePlanIdentifiers.csv'
+        }
+        $CsvPath = Join-Path @CsvParams
 
         # download updated list of license names, if needed
         Get-LicenseCSVFile -url $Url -csvpath $CsvPath
