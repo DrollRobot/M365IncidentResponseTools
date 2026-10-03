@@ -15,7 +15,12 @@
     TEMPLATE SETUP NOTES banner, and the module-name / GitHub-owner substitutions
     Setup-NewProject.ps1 applied), so only genuine drift is reported. Files the
     child owns -- its Source\ code, module manifest, changelog, license, generated
-    docs, and the PreTests.ps1 / PostTests.ps1 hooks -- are not tracked.
+    docs, and the PreTests.ps1 / PostTests.ps1 hooks -- are not tracked. The
+    exceptions are the Lib\ helpers the template ships under Source\Private\Lib\
+    -- Resolve-EnvParameter.ps1, the module half of the Script Generators'
+    EnvResolver contract, and the Write-Log logging library under Write-log\ --
+    which are non-domain by the AGENTS.md split. They are versioned and
+    refreshed by version, like the generators and tests they ship with.
 
     -BlindCopy entries also get an earlier pre-flight that offers to refresh an
     outdated child copy from the template by version number, before the diff
@@ -26,7 +31,7 @@
 
 .PARAMETER TemplatePath
     Path to the template checkout. Defaults to a sibling folder with the
-    template's name, next to the child repo.
+    template's name (in any letter case), next to the child repo.
 
 .PARAMETER Diff
     Open each differing non-versioned file as a side-by-side diff (see -DiffTool),
@@ -74,6 +79,9 @@
 .NOTES
     Run from inside the child repo. This script is itself a versioned file, so a
     child keeps its own copy in sync via the pre-flight.
+
+    TODO: Tests.ps1 should error if config not present.
+    TODO: Add schema version to testconfig.psd1
 #>
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '')]
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
@@ -108,7 +116,7 @@ param(
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '2.7.1'
+$ScriptVersion = '2.13.2'
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -207,11 +215,9 @@ $script:HashBanner =
 '(?ms)^# =+\s*\r?\n# TEMPLATE SETUP NOTES[^\n]*\r?\n(?:#[^\n]*\r?\n)*# =+\s*\r?\n'
 
 # Extracts a script's own $ScriptVersion. Anchored to line start so the
-# SuppressMessageAttribute line above the declaration cannot match. The '$' is
-# optional so a .psd1 data file (setup.psd1) can declare the same version as a
-# bare 'ScriptVersion = ...' hashtable key -- read by the same Get-ScriptVersion,
-# not a separate method. Escaped quotes are doubled for the single-quoted string.
-$script:VersionPattern = '(?m)^\s*\$?ScriptVersion\s*=\s*[''"]([^''"]+)[''"]'
+# SuppressMessageAttribute line above the declaration cannot match. Escaped
+# quotes are doubled for the single-quoted string.
+$script:VersionPattern = '(?m)^\s*\$ScriptVersion\s*=\s*[''"]([^''"]+)[''"]'
 
 <#
 .SYNOPSIS
@@ -239,10 +245,11 @@ $script:VersionPattern = '(?m)^\s*\$?ScriptVersion\s*=\s*[''"]([^''"]+)[''"]'
     Compare presence only: when the child copy exists its contents are not
     checked, because the child owns them.
 
-.PARAMETER VersionOnly
-    Compare by declared version alone. Equal versions match with contents ignored;
-    a mismatch (or a version missing on either side) is flagged for review and
-    shown under -Diff. The file is never copied.
+.PARAMETER SchemaOnly
+    Compare by declared SchemaVersion alone, for a config file whose values the
+    child owns and whose shape the template owns. Equal schema versions match
+    with contents ignored; a mismatch (or a schema version missing on either
+    side) is flagged for review and shown under -Diff. The file is never copied.
 
 .PARAMETER BlindCopy
     Also include the entry in the pre-flight version sync (Invoke-VersionedPreflight),
@@ -280,7 +287,7 @@ function New-Entry {
         [bool]$Required = $true,
         [bool]$Strict = $true,
         [bool]$ExistenceOnly = $false,
-        [bool]$VersionOnly = $false,
+        [bool]$SchemaOnly = $false,
         [bool]$BlindCopy = $false,
         [string]$Gate = $null,
         [string]$LocalOverrideFlag = $null,
@@ -292,7 +299,7 @@ function New-Entry {
         Required          = $Required
         Strict            = $Strict
         ExistenceOnly     = $ExistenceOnly
-        VersionOnly       = $VersionOnly
+        SchemaOnly        = $SchemaOnly
         BlindCopy         = $BlindCopy
         Gate              = $Gate
         LocalOverrideFlag = $LocalOverrideFlag
@@ -327,9 +334,9 @@ $script:Manifest = @(
     (New-Entry 'CONTRIBUTING.md' -Gate 'ContributingMd')
     (New-Entry 'SECURITY.md' -Gate 'SecurityMd')
     (New-Entry 'README.md' -ExistenceOnly $true)
-    # Holds the child's own config choices, not the template's; a version mismatch
-    # means the config's shape changed and needs reconciling.
-    (New-Entry 'Scripts/setup.psd1' -VersionOnly $true)
+    # Holds the child's own config choices, not the template's; a SchemaVersion
+    # mismatch means the config's shape changed and needs reconciling by hand.
+    (New-Entry 'Scripts/setup.psd1' -SchemaOnly $true)
     # ModuleBuilder build config.
     (New-Entry 'Source/Build.psd1')
     $DepsGate = @{ Gate = 'InstallDependenciesScript' }
@@ -338,6 +345,46 @@ $script:Manifest = @(
     # Holds the child's own dependency list, not the template's -- existence only.
     (New-Entry 'Source/ScriptsToProcess/RequiredModules.psd1' -ExistenceOnly $true @DepsGate)
     (New-Entry 'Tests/Pester/Confirm-Dependency.Tests.ps1' -BlindCopy $true @DepsGate)
+    # Script Generators. The template owns these outright -- a child repo runs
+    # them, it does not customize them -- so each carries a $ScriptVersion and is
+    # refreshed by version in the pre-flight.
+    $StandaloneGate = @{ Gate = 'StandaloneScriptGenerator'; BlindCopy = $true }
+    (New-Entry 'Build/Generators/ConvertTo-StandaloneScript.ps1' @StandaloneGate)
+    (New-Entry 'Build/Generators/ConvertTo-ScriptVariant.ps1' @StandaloneGate)
+    (New-Entry 'Tests/Pester/ConvertTo-StandaloneScript.Tests.ps1' @StandaloneGate)
+    (New-Entry 'Tests/Pester/ConvertTo-ScriptVariant.Tests.ps1' @StandaloneGate)
+    # The Source\ files the template tracks are Lib\ helpers only. This one is
+    # the module half of the generators' EnvResolver contract, not project code,
+    # so it follows the same rule as the generators -- template-owned, versioned,
+    # refreshed by version.
+    (New-Entry 'Source/Private/Lib/Resolve-EnvParameter.ps1' @StandaloneGate)
+    (New-Entry 'Tests/Pester/Resolve-EnvParameter.Tests.ps1' @StandaloneGate)
+    $IntuneGate = @{ Gate = 'IntunePackageGenerator'; BlindCopy = $true }
+    (New-Entry 'Build/Generators/ConvertTo-IntuneWinPackage.ps1' @IntuneGate)
+    (New-Entry 'Build/Generators/Intune/Detect.ps1' @IntuneGate)
+    (New-Entry 'Build/Generators/Intune/Install.ps1' @IntuneGate)
+    (New-Entry 'Build/Generators/Intune/Uninstall.ps1' @IntuneGate)
+    (New-Entry 'Build/Generators/Intune/Write-PackageLog.ps1' @IntuneGate)
+    (New-Entry 'Tests/Pester/ConvertTo-IntuneWinPackage.Tests.ps1' @IntuneGate)
+    # The Write-Log logging library, the other Lib\ helper set: template-owned,
+    # versioned, refreshed by version. Its Set-LogConfig wiring lives in
+    # Source\Suffix.ps1, which the child owns, so that file is not tracked.
+    $WriteLogGate = @{ Gate = 'WriteLog'; BlindCopy = $true }
+    (New-Entry 'Source/Private/Lib/Write-log/Enter-LogScope.ps1' @WriteLogGate)
+    (New-Entry 'Source/Private/Lib/Write-log/Exit-LogScope.ps1' @WriteLogGate)
+    (New-Entry 'Source/Private/Lib/Write-log/Get-LogConfig.ps1' @WriteLogGate)
+    (New-Entry 'Source/Private/Lib/Write-log/Get-LogMessage.ps1' @WriteLogGate)
+    (New-Entry 'Source/Private/Lib/Write-log/Register-LogEventSource.ps1' @WriteLogGate)
+    (New-Entry 'Source/Private/Lib/Write-log/Set-LogConfig.ps1' @WriteLogGate)
+    (New-Entry 'Source/Private/Lib/Write-log/Write-Log.ps1' @WriteLogGate)
+    (New-Entry 'Source/Private/Lib/Write-log/Write-LogEvent.ps1' @WriteLogGate)
+    (New-Entry 'Source/Private/Lib/Write-log/Write-LogEventBuffer.ps1' @WriteLogGate)
+    (New-Entry 'Tests/Pester/Get-LogConfig.Tests.ps1' @WriteLogGate)
+    (New-Entry 'Tests/Pester/LogScope.Tests.ps1' @WriteLogGate)
+    (New-Entry 'Tests/Pester/Get-LogMessage.Tests.ps1' @WriteLogGate)
+    (New-Entry 'Tests/Pester/Set-LogConfig.Tests.ps1' @WriteLogGate)
+    (New-Entry 'Tests/Pester/Write-Log.Tests.ps1' @WriteLogGate)
+    (New-Entry 'Tests/Pester/Write-LogEventBuffer.Tests.ps1' @WriteLogGate)
     # Docs site config.
     (New-Entry 'mkdocs.yml' -Required $false -Strict $false -Gate 'Docs')
     # Worktree, release, and docs helper scripts.
@@ -357,6 +404,9 @@ $script:Manifest = @(
     (New-Entry 'Scripts/TemplateSetup/_Common.ps1' -Required $false)
     (New-Entry 'Scripts/TemplateSetup/Set-GitHubUser.ps1' -Required $false)
     (New-Entry 'Scripts/TemplateSetup/Remove-ModuleBuilderNote.ps1' -Required $false)
+    (New-Entry 'Scripts/TemplateSetup/Set-ModuleManifest.ps1' -Required $false)
+    (New-Entry 'Scripts/TemplateSetup/Remove-WriteLog.ps1' -Required $false)
+    (New-Entry 'Scripts/TemplateSetup/Remove-TemplateSetup.ps1' -Required $false)
     # Code-style and hygiene checkers that are standalone scripts.
     (New-Entry 'Tests/Test-ExplicitModuleImport.ps1' -BlindCopy $true -Gate 'ExplicitModuleImport')
     (New-Entry 'Tests/Test-ModuleSyntax.ps1' -BlindCopy $true)
@@ -422,8 +472,7 @@ function Remove-TemplateBanner {
     return ($Text -replace $script:MarkdownBanner, '' -replace $script:HashBanner, '')
 }
 
-# Extract a declared version, or $null when none. Reads a script's $ScriptVersion
-# and a .psd1 data file's bare 'ScriptVersion' key alike (see VersionPattern).
+# Extract a script's declared $ScriptVersion, or $null when none.
 function Get-ScriptVersion {
     param([Parameter(Mandatory)][AllowEmptyString()][string]$Text)
     $match = [regex]::Match($Text, $script:VersionPattern)
@@ -431,11 +480,34 @@ function Get-ScriptVersion {
     return $null
 }
 
-# Parse a GitHub owner from a remote URL (SSH or HTTPS forms). Non-GitHub
-# remotes yield $null.
+# Read a .psd1 config file's declared SchemaVersion. Parsed with
+# Import-PowerShellDataFile -- the same restricted-language reader
+# Get-ChildFeatureFlag uses, so quoting, spacing, comments and key order are the
+# parser's problem, not a pattern's. Returns $null when the file is unreadable or
+# not valid data, when it declares no SchemaVersion (an older child copy), or when
+# the value is not an integer: a schema version counts revisions of the config's
+# shape, so a semver-looking string is a malformed one, not a version to compare.
+function Get-SchemaVersion {
+    param([Parameter(Mandatory)][string]$Path)
+    if (-not (Test-Path -LiteralPath $Path)) { return $null }
+    try {
+        $data = Import-PowerShellDataFile -Path $Path
+    }
+    catch {
+        return $null
+    }
+    $value = $data['SchemaVersion']
+    if ($value -is [int]) { return $value }
+    return $null
+}
+
+# Parse a GitHub owner from a remote URL (SSH or HTTPS forms). The host must be
+# github.com or an SSH config alias whose name starts with 'github', such as
+# git@github_work:owner/repo.git; it is anchored after '@' or '//' so a 'github'
+# path segment on another host cannot match. Other remotes yield $null.
 function Get-OwnerFromUrl {
     param([Parameter(Mandatory)][string]$Url)
-    if ($Url -match 'github\.com[:/]([A-Za-z0-9-]+)/') {
+    if ($Url -match '(?:^|@|//)(?:[^@/:]+\.)?github[^@/:]*[:/]([A-Za-z0-9-]+)/') {
         return $Matches[1]
     }
     return $null
@@ -720,21 +792,24 @@ function Compare-Entry {
         $result.Note = ' (exists; contents not compared)'
         return $result
     }
-    # Equal versions match with contents ignored; a mismatch (including a missing
-    # version on either side) is flagged for review and opened under -Diff.
-    if ($Entry.VersionOnly) {
-        $templateRawText = Get-RawText $templatePath
-        $childRawText = Get-RawText $childPath
-        $templateVersion = Get-ScriptVersion $templateRawText
-        $childVersion = Get-ScriptVersion $childRawText
-        if ($templateVersion -and $childVersion -and $templateVersion -eq $childVersion) {
-            $result.Note = " (version $childVersion; contents not compared)"
+    # Equal schema versions mean the shapes agree, so the child's own values are
+    # not drift and the contents are never compared. A mismatch (including a
+    # missing schema version on either side) is flagged for review and opened
+    # under -Diff to be reconciled by hand -- the file is never copied over.
+    if ($Entry.SchemaOnly) {
+        $templateSchema = Get-SchemaVersion $templatePath
+        $childSchema = Get-SchemaVersion $childPath
+        $bothDeclared = $null -ne $templateSchema -and $null -ne $childSchema
+        if ($bothDeclared -and $templateSchema -eq $childSchema) {
+            $result.Note = " (schema $childSchema; contents not compared)"
             return $result
         }
-        $templateShown = if ($templateVersion) { $templateVersion } else { 'unversioned' }
-        $childShown = if ($childVersion) { $childVersion } else { 'unversioned' }
+        $templateRawText = Get-RawText $templatePath
+        $childRawText = Get-RawText $childPath
+        $templateShown = if ($null -ne $templateSchema) { $templateSchema } else { 'none' }
+        $childShown = if ($null -ne $childSchema) { $childSchema } else { 'none' }
         $result.Status = 'review'
-        $result.Note = " (version template $templateShown, child $childShown; reconcile)"
+        $result.Note = " (schema template $templateShown, child $childShown; reconcile)"
         $result.HasText = $true
         $result.TemplateNorm = ConvertTo-NormalizedTemplate $templateRawText
         $result.ChildNorm = ConvertTo-NormalizedChild $childRawText
@@ -865,6 +940,24 @@ function Get-ChildOrigin {
     return ($url | Select-Object -First 1).Trim()
 }
 
+# The template checkout beside the child repo, or $null when there is none. The
+# folder name is matched case-insensitively: the setup token and a clone of the
+# GitHub repo differ only by case, which matters on a case-sensitive filesystem.
+# An exact-case match wins when both spellings exist.
+function Find-TemplateCheckout {
+    param([Parameter(Mandatory)][string]$ParentDir)
+    $FunctionName = $MyInvocation.MyCommand.Name
+    $candidates = @(
+        Get-ChildItem -LiteralPath $ParentDir -Directory -ErrorAction SilentlyContinue |
+            Where-Object Name -eq $script:TemplateName
+    )
+    Write-Trace "${FunctionName}: $($candidates.Count) candidate(s) in $ParentDir"
+    if ($candidates.Count -eq 0) { return $null }
+    $exact = @($candidates | Where-Object Name -ceq $script:TemplateName)
+    if ($exact.Count -gt 0) { return $exact[0].FullName }
+    return $candidates[0].FullName
+}
+
 
 # --- feature gating ----------------------------------------------------------
 
@@ -877,6 +970,9 @@ $script:FeatureDefaults = @{
     ContributingMd            = $true
     ExplicitModuleImport      = $true
     InstallDependenciesScript = $true
+    StandaloneScriptGenerator = $true
+    IntunePackageGenerator    = $true
+    WriteLog                  = $true
     NonASCIICharacters        = $true
     FormatOperator            = $true
     WriteVerboseDebug         = $true
@@ -964,12 +1060,12 @@ $childRoot = (Resolve-Path -LiteralPath (Split-Path -Path $PSScriptRoot -Parent)
 
 if (-not $TemplatePath) {
     $parentDir = Split-Path -Path $childRoot -Parent
-    $sibling = Join-Path -Path $parentDir -ChildPath $script:TemplateName
-    if (-not (Test-Path -LiteralPath $sibling)) {
+    $TemplatePath = Find-TemplateCheckout -ParentDir $parentDir
+    if (-not $TemplatePath) {
+        $sibling = Join-Path -Path $parentDir -ChildPath $script:TemplateName
         Stop-Script ("No template checkout found at '$sibling'. " +
             'Pass -TemplatePath with the template''s location.')
     }
-    $TemplatePath = $sibling
 }
 $templateRoot = (Resolve-Path -LiteralPath $TemplatePath).Path
 

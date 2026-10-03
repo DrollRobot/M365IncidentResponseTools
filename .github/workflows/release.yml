@@ -1,0 +1,150 @@
+# .github/workflows/release.yml
+
+name: Release
+run-name: Release on ${{ github.ref_name }} ${{ github.event_name }} by @${{ github.actor }}
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  check:
+    runs-on: windows-latest
+    outputs:
+      enabled: ${{ steps.check.outputs.enabled }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Check release feature is enabled
+        id: check
+        shell: pwsh
+        run: |
+          $config = Import-PowerShellDataFile -Path 'Scripts\setup.psd1'
+          $enabled = [bool]$config.Release.Enabled
+          "enabled=$($enabled.ToString().ToLower())" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          if (-not $enabled) {
+              $message = 'Release.Enabled is false in Scripts\setup.psd1 -- ' +
+                  'skipping build and publish. Set it to $true to turn this on.'
+              Write-Host "::warning::$message"
+          }
+
+  release:
+    needs: check
+    if: needs.check.outputs.enabled == 'true'
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Install PowerShell modules
+        shell: pwsh
+        run: |
+          $moduleBuilderParams = @{
+              Name               = 'ModuleBuilder'
+              Force              = $true
+              Scope              = 'CurrentUser'
+              SkipPublisherCheck = $true
+          }
+          Install-Module @moduleBuilderParams
+
+          $powerShellGetParams = @{
+              Name               = 'PowerShellGet'
+              RequiredVersion    = '2.2.5'
+              Force              = $true
+              Scope              = 'CurrentUser'
+              SkipPublisherCheck = $true
+          }
+          Install-Module @powerShellGetParams
+
+      - name: Derive version from tag
+        id: ver
+        shell: pwsh
+        run: |
+          $v = '${{ github.ref_name }}'.TrimStart('v')
+          "version=$v" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+      # The release title and notes come from this version's CHANGELOG.md
+      # section, headed '## [<version>] - <date> - <title>'.
+      - name: Read release notes from changelog
+        id: notes
+        shell: pwsh
+        run: |
+          $v = '${{ steps.ver.outputs.version }}'
+          $changelog = Get-Content -Path 'CHANGELOG.md' -Raw
+          # A section runs to the next heading, the link definitions, or the end of the file.
+          $pattern = '(?ms)^## \[' + [regex]::Escape($v) + '\] - \d{4}-\d{2}-\d{2} - ' +
+              '(?<title>[^\r\n]+)\r?\n(?<body>.*?)(?=^## |^\[[^\]]+\]: |\z)'
+          $section = [regex]::Match($changelog, $pattern)
+          if (-not $section.Success) {
+              throw "CHANGELOG.md has no '## [$v] - <date> - <title>' section."
+          }
+          # Wrapped entry lines are joined so each entry is a single line.
+          $joinPattern = '\r?\n +(?![-*+] |\d+\. )(?=\S)'
+          $notes = $section.Groups['body'].Value -replace $joinPattern, ' '
+          $notesPath = Join-Path -Path $env:RUNNER_TEMP -ChildPath 'release-notes.md'
+          Set-Content -Path $notesPath -Value $notes.Trim()
+          $title = "v$v - $($section.Groups['title'].Value.Trim())"
+          "title=$title" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          "path=$notesPath" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+      # Packaging below assumes an Output\ build, i.e. Source\Build.psd1 keeps
+      # BuildToRoot = $false. A repo that builds to the root has its artifacts
+      # committed already and needs a different packaging step.
+      - name: Build
+        shell: pwsh
+        run: .\Build.ps1 -Version ${{ steps.ver.outputs.version }}
+
+      # <intune-package-sources>
+      # FIXME uncomment if building Intune packages (with ConvertTo-IntuneWinPackage)
+      # - name: Remove Intune packaging sources
+      #   shell: pwsh
+      #   run: |
+      #     $sources = Get-ChildItem -Path 'Output' -Directory -Recurse -Filter 'Source' |
+      #         Where-Object {
+      #             Test-Path -Path (Join-Path -Path $_.Parent.FullName -ChildPath 'Detect.ps1')
+      #         }
+      #     foreach ($source in $sources) {
+      #         Remove-Item -Path $source.FullName -Recurse -Force
+      #     }
+      # </intune-package-sources>
+
+      - name: Package
+        shell: pwsh
+        run: |
+          $v = '${{ steps.ver.outputs.version }}'
+          $folders = Get-ChildItem -Path 'Output' -Directory
+          foreach ($folder in $folders) {
+              $zipName = "$($folder.Name)-$v.zip"
+              $archiveParams = @{
+                  Path            = Join-Path -Path $folder.FullName -ChildPath '*'
+                  DestinationPath = Join-Path -Path 'Output' -ChildPath $zipName
+              }
+              Compress-Archive @archiveParams
+          }
+
+      # The title goes through env so quotes in it cannot break the script.
+      - name: Create GitHub release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TITLE: ${{ steps.notes.outputs.title }}
+          RELEASE_NOTES_PATH: ${{ steps.notes.outputs.path }}
+        run: |
+          $assets = Get-ChildItem -Path 'Output' -File | Select-Object -ExpandProperty FullName
+          $releaseArgs = @(
+              'release'
+              'create'
+              '${{ github.ref_name }}'
+          )
+          $releaseArgs += $assets
+          $releaseArgs += '--title'
+          $releaseArgs += $env:RELEASE_TITLE
+          $releaseArgs += '--notes-file'
+          $releaseArgs += $env:RELEASE_NOTES_PATH
+          gh @releaseArgs

@@ -19,7 +19,7 @@ built artifacts in module root.
 | `destructive` | Dependency | Mutates state outside the test itself. Skipped by default. |
 | `local` | Destructive scope | Paired with `destructive`: mutates the host running Pester. Gated on `DISPOSABLE_ENVIRONMENT=1`. |
 | `remote` | Destructive scope | Paired with `destructive`: mutates an external target. Gated on `Tests\Confirm-RemoteDisposable.ps1` confirming it (not throwing). |
-| `slow` | Performance | Long-running. |
+| `slow` | Performance | Long-running. Skipped by the pre-push hook. |
 
 ## Writing tests
 - All new code should have unit and integration tests, and further tests
@@ -44,9 +44,6 @@ built artifacts in module root.
 
 # verify the precommit tests pass
 pre-commit run --all-files
-
-# run lint tests
-.\Tests.ps1 Lint
 
 # if lint tests fail during pre-commit, run individually to see results
 .\Tests.ps1 LineLength
@@ -75,3 +72,35 @@ pre-commit run --all-files
 
 **Quick pass/fail**
 Add `-Quiet` to any formatting check for single line output.
+
+## Destructive tests
+`.\Tests.ps1 Destructive` runs every test tagged `destructive`. Each such test
+must also carry exactly one of `local` or `remote` (see the tag table above);
+Tests.ps1 discovers the destructive tests first and refuses the entire category,
+fail-closed, if any of them is missing that scope tag or carries both. The
+`local` and `remote` subsets are then gated and run independently -- if only
+one subset exists (or is cleared), that subset still runs even though the other
+is refused or absent.
+
+### Remote destructive tests
+If the package contains `destructive`,`remote` tests, `.\Tests.ps1 Destructive`
+runs `Tests\Confirm-RemoteDisposable.ps1` before them. That script decides
+whether the remote target this project is currently pointed at has been marked
+disposable; the tests run only when it returns without throwing. Its counterpart,
+`Scripts\Set-RemoteDisposable.ps1`, is the rare, human-run action that writes
+that marker -- never run it automatically, and never on behalf of a user who
+has not explicitly confirmed the target. Both scripts ship as fail-closed
+stubs (they refuse until a project implements the FIXME in each); a project
+must wire the marker mechanism (a resource tag, a database row, a file on a
+reachable host, ...) to whatever kind of remote target its destructive tests
+touch.
+**Agents must NEVER run `Scripts\Set-RemoteDisposable.ps1` themselves.**
+
+### Running destructive tests
+If the package contains destructive tests and the relevant gate(s) above are
+satisfied -- `DISPOSABLE_ENVIRONMENT` for the `local` subset, a confirmed
+target for the `remote` subset -- and the user has approved running destructive
+tests in this session, run:
+```
+.\Tests.ps1 Destructive
+```

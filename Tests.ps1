@@ -94,6 +94,11 @@
     `Tests.ps1 Lint -Path a.ps1, b.ps1`. That is what lets pre-commit append its
     staged file names to the hook's command line with no wrapper script.
 
+.PARAMETER ExcludeTag
+    Pester tags to leave out of the NotLive, Live, and Destructive runs, added to
+    each category's own exclusions -- e.g. 'slow', which the pre-push hook
+    excludes.
+
 .PARAMETER ConfigPath
     Read per-category settings from this file instead of Tests\TestConfig.psd1
     -- e.g. a stricter profile for CI, or a fixture's own settings when testing
@@ -164,6 +169,10 @@
     Runs one NotLive Pester test file.
 
 .EXAMPLE
+    .\Tests.ps1 NotLive -ExcludeTag slow
+    Runs the NotLive Pester tests except those tagged 'slow', as the pre-push hook does.
+
+.EXAMPLE
     .\Tests.ps1 PSSAAutoFormat
     Applies PSScriptAnalyzer's auto-fixes and formatting in place.
 
@@ -207,6 +216,9 @@ param(
     [string[]] $Path,
 
     [Parameter()]
+    [string[]] $ExcludeTag = @(),
+
+    [Parameter()]
     [string] $ConfigPath,
 
     [Parameter()]
@@ -221,7 +233,7 @@ param(
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '1.3.0'
+$ScriptVersion = '1.4.4'
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -324,7 +336,7 @@ $ManifestPath = if ($Built) {
         }
     }
 } else {
-    Join-Path -Path $PSScriptRoot -ChildPath "source\$ModuleName.psd1"
+    Join-Path -Path $PSScriptRoot -ChildPath "Source\$ModuleName.psd1"
 }
 if ($ManifestPath -and (Test-Path $ManifestPath)) {
     $ModuleStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
@@ -364,7 +376,7 @@ $PesterTarget = if ($PSBoundParameters.ContainsKey('Path')) {
 # Output\. The checks match these names ROOT-ANCHORED, so excluding the built copies
 # at the root never also hides the authoritative source under Source\ (which shares
 # those folder names).
-$BuildPsd1Path = Join-Path -Path $PSScriptRoot -ChildPath 'source\Build.psd1'
+$BuildPsd1Path = Join-Path -Path $PSScriptRoot -ChildPath 'Source\Build.psd1'
 $BuildConfig = Import-PowerShellDataFile -Path $BuildPsd1Path
 $CopyPaths = if ($BuildConfig.ContainsKey('CopyPaths')) { $BuildConfig.CopyPaths } else { @() }
 $CopiedFolderNames = @($CopyPaths | ForEach-Object { Split-Path -Path $_ -Leaf })
@@ -444,6 +456,7 @@ $TestContext = @{
     TargetPath        = $TargetPath
     PesterTarget      = $PesterTarget
     Test              = $Test
+    ExcludeTag        = $ExcludeTag
     InteractiveAuth   = [bool] $InteractiveAuth
     Built             = [bool] $Built
     Quiet             = [bool] $Quiet
@@ -479,7 +492,7 @@ try {
         Write-Host "`n=== Invoke-Pester (NotLive) ===" -ForegroundColor Cyan
         $NotLiveSplat = @{
             Path             = $PesterTarget
-            ExcludeTagFilter = 'live', 'destructive', 'lint'
+            ExcludeTagFilter = @('live', 'destructive', 'lint') + $ExcludeTag
             PassThru         = $true
         }
         $NotLiveResult = Invoke-Pester @NotLiveSplat
@@ -655,7 +668,7 @@ try {
         $LiveSplat = @{
             Path             = $PesterTarget
             TagFilter        = 'live'
-            ExcludeTagFilter = 'destructive'
+            ExcludeTagFilter = @('destructive') + $ExcludeTag
             PassThru         = $true
         }
         $LiveResult = Invoke-Pester @LiveSplat
@@ -740,7 +753,7 @@ try {
                     $DestructiveLocalSplat = @{
                         Path             = $PesterTarget
                         TagFilter        = 'destructive'
-                        ExcludeTagFilter = 'remote'
+                        ExcludeTagFilter = @('remote') + $ExcludeTag
                         PassThru         = $true
                     }
                     $DestructiveLocalResult = Invoke-Pester @DestructiveLocalSplat
@@ -774,7 +787,7 @@ try {
                     $DestructiveRemoteSplat = @{
                         Path             = $PesterTarget
                         TagFilter        = 'destructive'
-                        ExcludeTagFilter = 'local'
+                        ExcludeTagFilter = @('local') + $ExcludeTag
                         PassThru         = $true
                     }
                     $DestructiveRemoteResult = Invoke-Pester @DestructiveRemoteSplat

@@ -1,3 +1,5 @@
+# mkdocs.yml
+
 site_name: M365 Incident Response Tools
 site_description: PowerShell module for Microsoft 365 incident response investigations.
 site_url: https://DrollRobot.github.io/M365IncidentResponseTools/

@@ -14,6 +14,9 @@ Instructions for setting up dev environment
 Code style, naming, output, and testing conventions live in
 [AGENTS.md](AGENTS.md).
 
+## Dev environment setup
+
+
 ### Docs
 ```powershell
 # install mkdocs

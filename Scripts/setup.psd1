@@ -10,20 +10,25 @@
 # Scripts\Compare-Template.ps1 keeps reading it afterward, so it stays in
 # Scripts\ rather than inside the one-time Scripts\TemplateSetup\ folder.
 
+# TODO: Separate new setup items from compare items.
 @{
     # Version of THIS config file's shape (the sections and keys below), owned by
-    # the template. Declared as a bare hashtable key so Scripts\Compare-Template.ps1
-    # reads it with the same version parser it uses for $ScriptVersion in scripts.
-    # It compares this against the template's copy: when the two disagree it flags
-    # setup.psd1 for a manual diff so you can fold in new options -- it never copies
-    # over your own choices. Bump only when the template changes the config's shape.
-    ScriptVersion = '2.10.0'
+    # the template and independent of any script's version. A plain counter, not
+    # semver: bump it by one whenever the template adds, removes, or renames a
+    # setting here. Scripts\Compare-Template.ps1 compares this against the
+    # template's copy -- equal schema versions mean the shapes agree and the
+    # contents are not compared at all (your own choices are never drift). When
+    # they differ it flags setup.psd1 for a manual diff so you can fold in the new
+    # options by hand; it never copies over your values.
+    SchemaVersion = 3
 
     Project = @{
-        # New module name (PascalCase recommended), e.g. 'MyModule'. Used for
+        # New module name. Used for
         # file renames and as the replacement for 'PowershellRepoTemplate'
         # throughout the repo. Shipped as the template's own name -- a no-op
         # until you change it.
+        # TODO: Remove template name from comments. Won't make sense in
+        # downstream package.
         Name = 'M365IncidentResponseTools'
 
         # Your GitHub username or org, e.g. 'octocat'. Fills in the FIXME
@@ -88,10 +93,37 @@
         # -- nothing else uses those helpers, so all three go together.
         ExplicitModuleImport = $true
 
-        # The pre-import dependency check: Source\ScriptsToProcess\Confirm-Dependency.ps1
-        # and Install-Dependency.ps1, plus the ScriptsToProcess entry in the module
-        # manifest that wires the check in. false removes all three together.
+        # The standalone-script Script Generators: Build\Generators\
+        # ConvertTo-StandaloneScript.ps1 (emits a single .ps1 with the whole
+        # built module inlined) and ConvertTo-ScriptVariant.ps1 (re-bakes that
+        # script once per variant), plus Source\Private\Lib\Resolve-EnvParameter.ps1,
+        # the module half of their EnvResolver contract, and the three Pester
+        # files covering them. false removes all six together. A project that
+        # ships only a module does not need them.
+        StandaloneScriptGenerator = $false
+
+        # The Intune Win32 packaging generator:
+        # Build\Generators\ConvertTo-IntuneWinPackage.ps1, the Install /
+        # Uninstall / Detect / Write-PackageLog sources it renders under
+        # Build\Generators\Intune\, and its Pester file. Independent of
+        # StandaloneScriptGenerator above -- it packages any payload .ps1 --
+        # though the two are usually taken together.
+        IntunePackageGenerator = $false
+
+        # The pre-import dependency check: Source\ScriptsToProcess\Confirm-Dependency.ps1,
+        # Install-Dependency.ps1 and the RequiredModules.psd1 they both read, plus that
+        # check's Pester test and the ScriptsToProcess entry in the module manifest that
+        # wires the check in. false removes all of them together.
         InstallDependenciesScript = $true
+
+        # The internal logging library under Source\Private\Lib\Write-log\
+        # (Set-LogConfig, Write-Log, Get-LogMessage, Get-LogConfig, Write-LogEvent,
+        # Write-LogEventBuffer, Register-LogEventSource: memory, host, file and
+        # Windows event log targets), the Set-LogConfig block in Source\Suffix.ps1
+        # that creates its context at module load, and the five Pester files
+        # covering it. false removes all of them together. A project that logs
+        # some other way does not need them.
+        WriteLog = $false
 
         # Opinionated lint checks some teams don't want enforced. Removing one
         # deletes its Tests\Pester\<Name>.Lint.Tests.ps1 file; the shared

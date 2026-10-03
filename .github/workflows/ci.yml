@@ -5,9 +5,8 @@ run-name: CI on ${{ github.ref_name }} ${{ github.event_name }} by @${{ github.a
 
 on:
   push:
-    branches: [develop]
+    branches: ['**']
   pull_request:
-    branches: [develop]
 
 permissions:
   contents: read

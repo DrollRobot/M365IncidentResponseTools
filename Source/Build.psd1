@@ -1,3 +1,5 @@
+# Source\Build.psd1
+
 @{
     Path = 'M365IncidentResponseTools.psd1'
 
