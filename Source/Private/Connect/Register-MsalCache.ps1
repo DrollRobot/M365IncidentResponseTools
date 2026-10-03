@@ -4,12 +4,17 @@ function Register-MsalCache {
     Attaches the IRT persistent token cache to an MSAL PublicClientApplication.
 
     .DESCRIPTION
-    Internal helper. Loads the bundled Microsoft.Identity.Client.Extensions.Msal
-    assembly, then registers a DPAPI-encrypted on-disk cache against the
-    supplied app's UserTokenCache. After registration, MSAL automatically
-    persists refresh tokens between PowerShell sessions, so subsequent
-    AcquireTokenSilent calls succeed without an interactive prompt for the life
-    of the refresh token (up to ~90 days).
+    Internal helper. Registers the persistent cache from Get-MsalCacheHelper against
+    the supplied app's UserTokenCache. After registration, MSAL automatically persists
+    refresh tokens between PowerShell sessions, so subsequent AcquireTokenSilent calls
+    succeed without an interactive prompt for the life of the refresh token (up to
+    ~90 days).
+
+    The cache lives in the platform's protected store: a DPAPI-encrypted file on
+    Windows, the Keychain on macOS, and the Secret Service keyring on Linux. Off
+    Windows the store is checked first, and the function throws when it is not
+    usable (on Linux it needs libsecret and a running keyring such as GNOME
+    Keyring). There is deliberately no unencrypted fallback.
 
     .PARAMETER App
     The Microsoft.Identity.Client.IPublicClientApplication instance to attach
@@ -26,10 +31,12 @@ function Register-MsalCache {
     .EXAMPLE
     Register-MsalCache -App $App -CachePath 'C:\Temp\test-msal.bin'
 
+    .OUTPUTS
+    None.
+
     .NOTES
-    Version: 2.0.0
-    Windows-only. On non-Windows platforms the function throws so the caller
-    can surface the failure loudly.
+    Version: 3.0.0
+    3.0.0 - Supports macOS and Linux through the OS keyring.
     #>
     [CmdletBinding()]
     param(
@@ -43,37 +50,19 @@ function Register-MsalCache {
 
     Write-PSFMessage -Level 8 -Message "Register-MsalCache: CachePath=$CachePath"
 
-    if (-not $IsWindows -and $PSVersionTable.PSVersion.Major -ge 6) {
-        throw 'Persistent MSAL cache is currently Windows-only.'
+    $Helper = Get-MsalCacheHelper -CachePath $CachePath
+
+    if (-not $IsWindows) {
+        try {
+            $Helper.VerifyPersistence()
+        }
+        catch {
+            throw ('The OS keyring that would hold the token cache is not usable. ' +
+                'On Linux the cache needs libsecret and a running keyring such as ' +
+                "GNOME Keyring. $($_.Exception.Message)")
+        }
     }
 
-    $null = Import-MsalExtensionAssembly
-
-    $CacheDir = Split-Path $CachePath -Parent
-    $CacheFile = Split-Path $CachePath -Leaf
-
-    if (-not (Test-Path $CacheDir)) {
-        Write-PSFMessage -Level 8 -Message "Register-MsalCache: Creating cache directory: $CacheDir"
-        $null = New-Item -ItemType Directory -Path $CacheDir -Force
-    }
-
-    # macOS/Linux fields are required by the builder even on Windows.
-    $PropsBuilder =
-    [Microsoft.Identity.Client.Extensions.Msal.StorageCreationPropertiesBuilder]::new(
-        $CacheFile, $CacheDir)
-    $PropsBuilder = $PropsBuilder.WithMacKeyChain(
-        'Microsoft.M365IncidentResponseTools', 'MSALCache')
-    $PropsBuilder = $PropsBuilder.WithLinuxKeyring(
-        'com.microsoft.m365incidentresponsetools.tokencache',
-        'default',
-        'IRT MSAL token cache',
-        [System.Collections.Generic.KeyValuePair[string, string]]::new('Version', '1'),
-        [System.Collections.Generic.KeyValuePair[string, string]]::new('ProductGroup', 'IRT'))
-    $StorageProps = $PropsBuilder.Build()
-
-    $Helper =
-    [Microsoft.Identity.Client.Extensions.Msal.MsalCacheHelper]::CreateAsync(
-        $StorageProps).GetAwaiter().GetResult()
     Write-PSFMessage -Level 8 -Message "Register-MsalCache: Registering cache at: $CachePath"
     $Helper.RegisterCache($App.UserTokenCache)
 }

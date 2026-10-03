@@ -169,15 +169,17 @@ function Set-IRTConfig {
             'expires or is revoked). On first use, the required ' +
             'Microsoft.Identity.Client.Extensions.Msal DLL is downloaded from ' +
             'nuget.org. Run Clear-IRTTokenCache to wipe the cache.'
-            SecurityWarning = 'SECURITY WARNING: The cache file is DPAPI-encrypted and ' +
-            'bound to your Windows user account, but any process running as that ' +
-            'user can decrypt it. Do not enable this on shared or multi-user ' +
+            SecurityWarning = 'SECURITY WARNING: The cache is encrypted and bound to ' +
+            'your user account (a DPAPI-encrypted file on Windows, the Keychain on ' +
+            'macOS, the Secret Service keyring on Linux), but any process running as ' +
+            'that user can read it. Do not enable this on shared or multi-user ' +
             'machines. Always run Clear-IRTTokenCache when you finish an investigation.'
             Options         = @('true', 'false')
         }
         MsalCachePath = @{
             Summary     = 'MSAL token cache file path'
-            Description = 'Absolute path for the DPAPI-encrypted MSAL token cache file. ' +
+            Description = 'Absolute path for the MSAL token cache file (on macOS and ' +
+            'Linux, a lock file; the tokens are kept in the OS keyring). ' +
             'Leave blank (null) to use the default path set in ' +
             'M365IncidentResponseTools.psm1. ' +
             'Override to an isolated path for testing or multi-instance scenarios. ' +
