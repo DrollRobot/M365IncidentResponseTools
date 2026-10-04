@@ -8,6 +8,116 @@ Non-domain: Scripts/, Tests/, **/Lib/, Build/, Output/, `Docs/<ModuleName>/`, an
 built artifacts in module root.
 
 
+## Check the bundled MSAL DLL for vulnerabilities
+The module ships one third-party binary,
+`Source/Data/Microsoft.Identity.Client.Extensions.Msal.dll`, which runs the persistent
+token cache. Core MSAL (`Microsoft.Identity.Client.dll`) is not bundled; it comes from
+`Microsoft.Graph.Authentication`. Change either only when an advisory affects the
+version in use, not just because a newer release exists.
+
+1. **Find the versions in use.**
+   - Extensions.Msal: `$MsalExtVersion` in `Build/PreBuild.ps1`.
+   - Core MSAL: the copy inside the minimum `Microsoft.Graph.Authentication` listed in
+     `Source/ScriptsToProcess/RequiredModules.psd1`:
+     ```powershell
+     $GraphVersion = '2.30.0'  # from RequiredModules.psd1
+     $TempName = [guid]::NewGuid().ToString()
+     $Temp = Join-Path -Path ([System.IO.Path]::GetTempPath()) -ChildPath $TempName
+     $null = New-Item -ItemType Directory -Path $Temp
+     $SaveParams = @{
+         Name            = 'Microsoft.Graph.Authentication'
+         Version         = $GraphVersion
+         Path            = $Temp
+         TrustRepository = $true
+     }
+     Save-PSResource @SaveParams
+     $MsalDll = Get-ChildItem -Path $Temp -Recurse -Filter 'Microsoft.Identity.Client.dll' |
+         Select-Object -First 1
+     [System.Reflection.AssemblyName]::GetAssemblyName($MsalDll.FullName).Version
+     Remove-Item -Path $Temp -Recurse -Force
+     ```
+
+2. **List the advisories** from the GitHub Advisory Database, which NuGet's
+   vulnerability warnings also come from:
+   ```powershell
+   $Packages = 'Microsoft.Identity.Client.Extensions.Msal', 'Microsoft.Identity.Client'
+   foreach ($Package in $Packages) {
+       $Advisories = gh api -X GET /advisories -f ecosystem=nuget -f "affects=$Package" |
+           ConvertFrom-Json
+       foreach ($Advisory in $Advisories) {
+           $Advisory.vulnerabilities | Where-Object { $_.package.name -eq $Package } |
+               ForEach-Object {
+                   [pscustomobject]@{
+                       Package    = $Package
+                       Id         = $Advisory.ghsa_id
+                       Severity   = $Advisory.severity
+                       Vulnerable = $_.vulnerable_version_range
+                       Patched    = $_.first_patched_version
+                   }
+               }
+       }
+   }
+   ```
+   If no `Vulnerable` range contains a version from step 1, nothing changes; go on to
+   Commit. Otherwise stop and tell the user which advisory applies before changing
+   anything.
+
+3. **Core MSAL is affected:** raise every `Microsoft.Graph.*` minimum in
+   `RequiredModules.psd1` (they all share one version) to the first Graph release whose
+   bundled MSAL is at or past the patched version. Step 1's snippet shows the MSAL in
+   any Graph version.
+
+4. **Extensions.Msal is affected:** move to a patched release.
+   1. Pick the first patched release whose `Microsoft.Identity.Client` dependency is
+      no newer than core MSAL from step 1. If none qualifies, do step 3 first.
+      ```powershell
+      $Id = 'microsoft.identity.client.extensions.msal'
+      $Version = '<candidate version>'
+      $Uri = "https://api.nuget.org/v3-flatcontainer/$Id/$Version/$Id.nuspec"
+      $Nuspec = Invoke-RestMethod -Uri $Uri
+      $Nuspec.package.metadata.dependencies.group |
+          Where-Object targetFramework -eq '.NETStandard2.0' |
+          ForEach-Object { $_.dependency } |
+          Where-Object id -eq 'Microsoft.Identity.Client'
+      ```
+   2. Download that release and hash the DLL the build uses (continues from the
+      snippet above):
+      ```powershell
+      $TempName = [guid]::NewGuid().ToString()
+      $Temp = Join-Path -Path ([System.IO.Path]::GetTempPath()) -ChildPath $TempName
+      $null = New-Item -ItemType Directory -Path $Temp
+      $Nupkg = Join-Path -Path $Temp -ChildPath "$Id.$Version.nupkg"
+      $Uri = "https://api.nuget.org/v3-flatcontainer/$Id/$Version/$Id.$Version.nupkg"
+      Invoke-WebRequest -Uri $Uri -OutFile $Nupkg
+      $Package = Join-Path -Path $Temp -ChildPath 'package'
+      Expand-Archive -Path $Nupkg -DestinationPath $Package
+      $DllName = 'Microsoft.Identity.Client.Extensions.Msal.dll'
+      $DllParams = @{
+          Path                = $Package
+          ChildPath           = 'lib'
+          AdditionalChildPath = @('netstandard2.0', $DllName)
+      }
+      $Dll = Join-Path @DllParams
+      (Get-FileHash -Path $Dll -Algorithm SHA256).Hash
+      ```
+      On Windows, also check that `Get-AuthenticodeSignature -FilePath $Dll` reports
+      `Valid` with a Microsoft Corporation signer. Then delete `$Temp`.
+   3. In `Build/PreBuild.ps1`, set `$MsalExtVersion` and `$MsalExtSha256`.
+   4. Set `$MsalFloor` in `Source/Private/Connect/Import-MsalExtensionAssembly.ps1` to
+      the `Microsoft.Identity.Client` dependency from step 4.1, and update the floor
+      versions in `Tests/Pester/Import-MsalAssembly.Tests.ps1` and
+      `Tests/Pester/Import-MsalExtensionAssembly.Tests.ps1` to match.
+   5. Delete `Source/Data/Microsoft.Identity.Client.Extensions.Msal.dll` and run
+      `.\Build.ps1`. `Build/PreBuild.ps1` downloads the pinned release, checks its hash,
+      and puts the DLL back in `Source/Data/`.
+   6. Ask the user to confirm on Windows that the cache still works: with
+      `EnableTokenCache` on, connect, then connect again from a new PowerShell session
+      without a sign-in prompt.
+
+5. Commit the change as one `fix(deps)` commit, and add a **Security** entry naming the
+   advisory to the changelog.
+
+
 ## Commit
 - Review before writing commit messages: [AGENTS.COMMITTING.md](AGENTS.COMMITTING.md).
 - Commit any untracked files.
