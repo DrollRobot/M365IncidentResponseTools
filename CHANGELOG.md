@@ -3,6 +3,72 @@
 All notable changes to this project will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [3.0.0] - 2026-10-03 - Linux and macOS support, Graph audit log search
+
+### Added
+
+- Linux and macOS support. Settings and caches live in the platform's per-user folder
+  (such as `~/.config/M365IncidentResponseTools`), links open in the chosen browser,
+  `Open-IRTTab` opens a tmux window, and the persistent token cache is kept in the
+  macOS Keychain or the Linux Secret Service keyring.
+- `Start-IRTGraphUAL`, `Wait-IRTGraphUAL`, and `Receive-IRTGraphUAL`: search the
+  unified audit log through Graph audit log query jobs, which return each record once
+  and are not capped at 50,000 records. A search takes about 35 minutes.
+- `Get-IRTTeamsExternalDomain`: pull the Teams audit records that name outside
+  organizations, one file per week, resuming an interrupted pull.
+- `Show-IRTTeamsExternalDomain`: summarize those files as one worksheet of external
+  domains for review.
+- `Get-IRTUnifiedAuditLog`: `-PassThru` returns the records to the pipeline,
+  `-HighCompleteness` asks the service for a complete result set, and
+  `-ExhaustedPageQueries` sets how many pages of repeated records end a query.
+- `OpenSpreadsheets` setting to stop exported workbooks from opening automatically, and
+  `Open-IRTSpreadsheet` to open every workbook in a folder.
+- `LogFolderPath` setting writes the module's debug output to a daily log file.
+- `Get-IRTTenantOwner` accepts a domain as well as a tenant ID.
+- Aliases `IRTConnect`, `TenantIRT`, `TestIRTConnection`, and `IRTConnection`.
+
+### Changed
+
+- **Breaking:** `Get-IRTEntraSignInLog` is now `Get-IRTEntraUserSignInLog`, and
+  `Get-IRTServicePrincipalSignInLog` is now `Get-IRTEntraSPSignInLog`. Their `Show-`
+  commands are renamed to match. Short aliases such as `GetSILog` still work.
+- **Breaking:** the `irt` alias now runs `Connect-IRTTenant` instead of `Import-IRT`.
+- Entra sign-in logs: `-NonInteractive` returns interactive and non-interactive
+  sign-ins, `-DeviceCode` also matches sign-ins that reuse a device code token, and
+  service principal pulls gain date chunking and throttle retries. New columns:
+  OriginalTransferMethod and SignInEventTypes.
+- Sign-in requests 22 Graph permissions instead of 38, read-only wherever the module
+  never writes.
+- Message trace IP lookups are now opt-in with `-IpInfo` on `Get-IRTMessageTrace` and
+  `Show-IRTMessageTrace`.
+- The `EmailSearchNamePrefix` setting is renamed `JobNamePrefix`. Saved configs keep
+  working.
+- `Get-IRTUnifiedAuditLog`: a pull cut short by `-ResultLimit` is marked DATA MISSING
+  in the export, and the default retry wait is 30 seconds instead of 60.
+- `Push-IRTAdSync` runs on a sync server without RSAT, reports each server's session
+  error, and no longer waits on a slow server. `Reset-IRTAdUserPassword`,
+  `Disable-IRTAdUser`, and `Enable-IRTAdUser` work from any domain device, not only a
+  domain controller.
+- Getting Started covers Linux and macOS, and four commands gained full help.
+
+### Removed
+
+- **Breaking:** `Get-IRTNonInteractiveSignIn`. Use
+  `Get-IRTEntraUserSignInLog -NonInteractive`.
+
+### Fixed
+
+- `Get-IRTTenantOwner -Cached` threw on every cache hit.
+- `Get-IRTUnifiedAuditLog` kept paging repeated records after a large search ran out,
+  until it reached `-ResultLimit` or the session timed out.
+- `-DeviceCode` on the Entra sign-in log commands was ignored.
+- Rebuilding a workbook with `-XmlPath` failed in the `Show-` log commands.
+- IP enrichment failed after `Set-IRTConfig` in the same session.
+- `Push-IRTAdSync` merged every server name into one host name in a domain with one
+  domain controller.
+- On Windows, links did not open when the default browser was not Edge, Chrome,
+  Firefox, or Brave.
+
 ## [v2.11.0] - 2026-09-08
 
 ### Added
