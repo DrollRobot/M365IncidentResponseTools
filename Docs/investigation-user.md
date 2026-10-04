@@ -140,6 +140,35 @@ Get-IRTUnifiedAuditLog -AllUsers -Operation 'FileDeleted' -Start '2026-04-01' -E
 Get-IRTUnifiedAuditLog -RecordType 'ExchangeItem', 'AzureActiveDirectoryStsLogon'
 ```
 
+### Graph Audit Log Search
+
+`Start-IRTGraphUAL` searches the same audit log through the Microsoft Graph audit search
+API. Each record comes back once, with no 50,000-record cap, but every search takes about
+35 minutes however small it is, so it complements `Get-IRTUnifiedAuditLog` rather than
+replacing it.
+
+```powershell
+# search 90 days for a user, wait, and export the results
+Start-IRTGraphUAL -UserObject $User -Days 90
+
+# submit the search and return; collect it later
+Start-IRTGraphUAL -UserObject $User -Days 30 -NoWait
+Wait-IRTGraphUAL
+```
+
+### Teams External Contact
+
+`Get-IRTTeamsExternalDomain` pulls the tenant's Teams audit records that name outside
+organizations, one file per week, and resumes an interrupted pull.
+`Show-IRTTeamsExternalDomain` then summarizes those files as one worksheet of external
+domains, with a column to mark each one as allowed.
+
+```powershell
+# pull 90 days into a case folder, then summarize it
+Get-IRTTeamsExternalDomain -Days 90 -Path 'C:\Cases\Contoso'
+Show-IRTTeamsExternalDomain -Path 'C:\Cases\Contoso'
+```
+
 ## Other Investigation Commands
 
 | Command | Description |

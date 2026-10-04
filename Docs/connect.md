@@ -29,6 +29,7 @@ Then, to connect:
 ```powershell
 Connect-IRTTenant -Tenant contoso
 IRTTenant contoso
+irt contoso
 ```
 
 ### Verify connection status

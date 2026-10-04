@@ -90,10 +90,15 @@ With `-RandomCharacters`, the new password is printed to the console via
 
 ## Pushing an AD Sync
 
-`Push-IRTAdSync` triggers an AD-to-Entra delta sync as quickly as possible. If running on a
-domain controller, it forces intra-AD replication first (`repadmin /syncall /AdeP`). If the
-ADSync service is local, the sync runs immediately; otherwise candidate servers are discovered
-in parallel and the sync is invoked remotely on the first server running the service.
+`Push-IRTAdSync` triggers an AD-to-Entra delta sync as quickly as possible. When AD is
+reachable, it first pushes AD replication from a writable domain controller
+(`repadmin /syncall <DC> /APed`), so it does not have to run on a DC. If the ADSync service
+is local, the sync runs immediately; otherwise candidate servers are checked in parallel and
+the sync is invoked remotely on the first server found running the service. A slow or
+unreachable server does not hold up the others, and each failed check is reported.
+
+The ActiveDirectory module is needed only to discover the sync servers. On the sync server
+itself, or with `-SyncServer`, the command runs without RSAT.
 
 Domain admin credentials are cached for the session; use `-ResetCredentials` to re-prompt.
 

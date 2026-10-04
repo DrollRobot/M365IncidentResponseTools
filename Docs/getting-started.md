@@ -45,7 +45,12 @@ Settings live in `config.json`, created on first import in the module's per-user
 folder: `%APPDATA%\M365IncidentResponseTools` on Windows and
 `~/.config/M365IncidentResponseTools` on Linux and macOS. The tenants worksheet and
 tenant caches are kept there too. Change settings with `Set-IRTConfig`, or edit the
-file with `Open-IRTConfig`.
+file with `Open-IRTConfig`. Among them:
+
+- `OpenSpreadsheets`: turn off to stop exported workbooks from opening automatically.
+  `Open-IRTSpreadsheet` then opens every workbook in a folder.
+- `LogFolderPath`: set to a folder to write the module's debug output to a daily log
+  file there.
 
 **Connecting to an M365 tenant:**
 [Connect to M365](connect.md)
