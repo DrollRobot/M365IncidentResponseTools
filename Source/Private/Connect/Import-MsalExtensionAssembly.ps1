@@ -19,7 +19,8 @@ function Import-MsalExtensionAssembly {
     [string] - the path to the loaded Extensions DLL.
 
     .NOTES
-    Version: 2.1.0
+    Version: 2.1.1
+    2.1.1 - Requires the MSAL version the bundled DLL was built against.
     #>
     [OutputType([string])]
     [CmdletBinding()]
@@ -27,8 +28,9 @@ function Import-MsalExtensionAssembly {
 
     Import-IRTModule -Name 'PSFramework'
 
-    # Bundled version. Bump when Graph SDK's bundled MSAL outpaces this.
-    $MsalFloor = [version]'4.61.3'  # Extensions.Msal 4.66.x minimum MSAL
+    # The Microsoft.Identity.Client version the bundled Extensions.Msal depends on
+    # (its nuspec). Change it with Build\PreBuild.ps1's pin; see AGENTS.RELEASING.md.
+    $MsalFloor = [version]'4.66.2'
 
     # Already loaded?
     $Loaded = Get-LoadedAssembly -Name 'Microsoft.Identity.Client.Extensions.Msal'

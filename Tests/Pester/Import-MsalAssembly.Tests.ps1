@@ -40,8 +40,8 @@ InModuleScope M365IncidentResponseTools {
 
     BeforeAll {
         $script:MsalName = 'Microsoft.Identity.Client'
-        # Extensions.Msal 4.66.x requires at least this MSAL version.
-        $script:MsalFloor = [version]'4.61.3'
+        # The bundled Extensions.Msal 4.66.2 depends on at least this MSAL version.
+        $script:MsalFloor = [version]'4.66.2'
 
         # Stands in for a loaded assembly without touching the AppDomain.
         function New-StubAssembly {

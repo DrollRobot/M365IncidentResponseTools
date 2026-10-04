@@ -27,7 +27,7 @@
 -- MSAL floor --------------------------------------------------------------
 
     The bundled Extensions build binds against Microsoft.Identity.Client
-    4.61.3 or newer, and needs core MSAL loaded first. Both conditions must
+    4.66.2 or newer, and needs core MSAL loaded first. Both conditions must
     throw with guidance rather than fail later inside MSAL.
 
 -- return value ------------------------------------------------------------
@@ -109,7 +109,7 @@ InModuleScope M365IncidentResponseTools {
 
             It 'throws when core MSAL is below the floor' {
                 Mock Get-LoadedAssembly {
-                    New-StubAssembly -Name $script:MsalName -Version '4.60.0.0'
+                    New-StubAssembly -Name $script:MsalName -Version '4.66.1.0'
                 } -ParameterFilter { $Name -eq $script:MsalName }
 
                 { Import-MsalExtensionAssembly } |
@@ -118,7 +118,7 @@ InModuleScope M365IncidentResponseTools {
 
             It 'proceeds when core MSAL meets the floor' {
                 Mock Get-LoadedAssembly {
-                    New-StubAssembly -Name $script:MsalName -Version '4.61.3.0'
+                    New-StubAssembly -Name $script:MsalName -Version '4.66.2.0'
                 } -ParameterFilter { $Name -eq $script:MsalName }
                 Mock Test-Path { $true }
 
