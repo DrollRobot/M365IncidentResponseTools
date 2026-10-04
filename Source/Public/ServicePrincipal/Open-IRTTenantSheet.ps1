@@ -29,7 +29,8 @@ function Open-IRTTenantSheet {
     None. The worksheet is opened in the default application for .xlsx files.
 
     .NOTES
-    Version: 1.1.0
+    Version: 1.1.1
+    1.1.1 - Imports PSFramework explicitly.
     #>
     [Alias(
         'Open-IRTTenantWorksheet', 'OpenIRTTenantWorksheet',
@@ -41,6 +42,7 @@ function Open-IRTTenantSheet {
     )
 
     begin {
+        Import-IRTModule -Name 'PSFramework'
         $FunctionName = $MyInvocation.MyCommand.Name
 
         if (-not $TenantFile) {

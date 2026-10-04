@@ -34,6 +34,7 @@ function New-TenantSheet {
     )
 
     begin {
+        Import-IRTModule -Name 'ImportExcel', 'PSFramework'
         $FunctionName = $MyInvocation.MyCommand.Name
 
         # Sample rows. Adding, removing or renaming a property here changes the
