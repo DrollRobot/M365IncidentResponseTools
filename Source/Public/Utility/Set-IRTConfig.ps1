@@ -163,12 +163,12 @@ function Set-IRTConfig {
         }
         EnableTokenCache = @{
             Summary         = 'Persistent MSAL token cache'
-            Description     = 'When enabled, refresh tokens are written to an ' +
-            'encrypted file on disk, so Connect-IRT skips the browser prompt ' +
+            Description     = 'When enabled, refresh tokens are kept in an ' +
+            'encrypted cache, so Connect-IRT skips the browser prompt ' +
             'across PowerShell sessions (up to ~90 days, until the refresh token ' +
-            'expires or is revoked). On first use, the required ' +
-            'Microsoft.Identity.Client.Extensions.Msal DLL is downloaded from ' +
-            'nuget.org. Run Clear-IRTTokenCache to wipe the cache.'
+            'expires or is revoked). The cache uses the ' +
+            'Microsoft.Identity.Client.Extensions.Msal DLL that ships with the ' +
+            'module. Run Clear-IRTTokenCache to wipe the cache.'
             SecurityWarning = 'SECURITY WARNING: The cache is encrypted and bound to ' +
             'your user account (a DPAPI-encrypted file on Windows, the Keychain on ' +
             'macOS, the Secret Service keyring on Linux), but any process running as ' +
