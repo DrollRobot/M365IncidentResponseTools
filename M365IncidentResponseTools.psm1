@@ -1,8 +1,8 @@
-﻿#Region '.\Prefix.ps1' -1
+﻿#Region './Prefix.ps1' -1
 
 # ModuleBuilder Notes: Code in this file will be prepended to the built .psm1 file.
-#EndRegion '.\Prefix.ps1' 2
-#Region '.\Private\Connect\Connect-IRTExchange.ps1' -1
+#EndRegion './Prefix.ps1' 2
+#Region './Private/Connect/Connect-IRTExchange.ps1' -1
 
 function Connect-IRTExchange {
     <#
@@ -265,8 +265,8 @@ function Connect-IRTExchange {
         return $Result
     }
 }
-#EndRegion '.\Private\Connect\Connect-IRTExchange.ps1' 262
-#Region '.\Private\Connect\Connect-IRTGraph.ps1' -1
+#EndRegion './Private/Connect/Connect-IRTExchange.ps1' 262
+#Region './Private/Connect/Connect-IRTGraph.ps1' -1
 
 function Connect-IRTGraph {
     <#
@@ -603,8 +603,8 @@ function Connect-IRTGraph {
         return $Result
     }
 }
-#EndRegion '.\Private\Connect\Connect-IRTGraph.ps1' 336
-#Region '.\Private\Connect\Connect-IRTIPPS.ps1' -1
+#EndRegion './Private/Connect/Connect-IRTGraph.ps1' 336
+#Region './Private/Connect/Connect-IRTIPPS.ps1' -1
 
 function Connect-IRTIPPS {
     <#
@@ -824,8 +824,8 @@ function Connect-IRTIPPS {
         return $Result
     }
 }
-#EndRegion '.\Private\Connect\Connect-IRTIPPS.ps1' 219
-#Region '.\Private\Connect\Get-IRTGraphDefaultScope.ps1' -1
+#EndRegion './Private/Connect/Connect-IRTIPPS.ps1' 219
+#Region './Private/Connect/Get-IRTGraphDefaultScope.ps1' -1
 
 function Get-IRTGraphDefaultScope {
     <#
@@ -845,7 +845,7 @@ function Get-IRTGraphDefaultScope {
     [string[]] - the default Graph scope names.
 
     .NOTES
-    Version: 1.0.0
+    Version: 1.1.0
     #>
     [OutputType([string[]])]
     [CmdletBinding()]
@@ -859,48 +859,36 @@ function Get-IRTGraphDefaultScope {
     Write-PSFMessage -Level 9 -Message 'Get-IRTGraphDefaultScope: returning default scope set.'
 
     return [string[]]@(
-        'Application.ReadWrite.All'
         'AuditLog.Read.All'
         'AuditLogsQuery.Read.All'
-        'BitLockerKey.Read.All'
         'CrossTenantInformation.ReadBasic.All'
         'DelegatedPermissionGrant.ReadWrite.All'
-        'Device.ReadWrite.All'
-        'DeviceLocalCredential.Read.All'
-        'DeviceManagementApps.ReadWrite.All'
-        'DeviceManagementConfiguration.ReadWrite.All'
+        'Device.Read.All'
+        'DeviceManagementApps.Read.All'
+        'DeviceManagementConfiguration.Read.All'
+        # ReadWrite: Remove-IRTDevice deletes the Intune managed device record.
         'DeviceManagementManagedDevices.ReadWrite.All'
-        'DeviceManagementServiceConfig.ReadWrite.All'
+        'DeviceManagementServiceConfig.Read.All'
+        # Delegated device update/delete accept no other scope (Set-IRTDeviceEnabled,
+        # Remove-IRTDevice).
         'Directory.AccessAsUser.All'
-        'Directory.ReadWrite.All'
+        'Directory.Read.All'
         'Domain.Read.All'
-        'Group.ReadWrite.All'
-        'GroupMember.ReadWrite.All'
-        'IdentityRiskEvent.ReadWrite.All'
-        'IdentityRiskyServicePrincipal.ReadWrite.All'
-        'IdentityRiskyUser.ReadWrite.All'
         'Mail.ReadBasic.Shared'
         'Organization.Read.All'
         'Policy.Read.All'
         'Policy.Read.ConditionalAccess'
-        'Policy.ReadWrite.Authorization'
-        'RoleManagement.ReadWrite.Directory'
         'SecurityEvents.ReadWrite.All'
         'SecurityIncident.ReadWrite.All'
-        'User-Mail.ReadWrite.All'
+        # Least-privileged scope for passwordProfile; User.ReadWrite.All does not cover it.
         'User-PasswordProfile.ReadWrite.All'
-        'User-Phone.ReadWrite.All'
-        'User.EnableDisableAccount.All'
         'User.ManageIdentities.All'
         'User.ReadWrite.All'
-        'User.RevokeSessions.All'
-        'UserAuthenticationMethod.ReadWrite'
         'UserAuthenticationMethod.ReadWrite.All'
-        'UserAuthMethod-Passkey.ReadWrite.All'
     )
 }
-#EndRegion '.\Private\Connect\Get-IRTGraphDefaultScope.ps1' 73
-#Region '.\Private\Connect\Get-IRTPublicClient.ps1' -1
+#EndRegion './Private/Connect/Get-IRTGraphDefaultScope.ps1' 61
+#Region './Private/Connect/Get-IRTPublicClient.ps1' -1
 
 function Get-IRTPublicClient {
     <#
@@ -994,8 +982,8 @@ function Get-IRTPublicClient {
     $Global:IRT_Session.Apps[$ClientId] = $NewApp
     return $NewApp
 }
-#EndRegion '.\Private\Connect\Get-IRTPublicClient.ps1' 93
-#Region '.\Private\Connect\Get-LoadedAssembly.ps1' -1
+#EndRegion './Private/Connect/Get-IRTPublicClient.ps1' 93
+#Region './Private/Connect/Get-LoadedAssembly.ps1' -1
 
 function Get-LoadedAssembly {
     <#
@@ -1037,8 +1025,77 @@ function Get-LoadedAssembly {
         Where-Object { $_.GetName().Name -eq $Name } |
         Select-Object -First 1
 }
-#EndRegion '.\Private\Connect\Get-LoadedAssembly.ps1' 41
-#Region '.\Private\Connect\Get-TokenExpiry.ps1' -1
+#EndRegion './Private/Connect/Get-LoadedAssembly.ps1' 41
+#Region './Private/Connect/Get-MsalCacheHelper.ps1' -1
+
+function Get-MsalCacheHelper {
+    <#
+    .SYNOPSIS
+    Returns the MSAL cache helper for the IRT persistent token cache.
+
+    .DESCRIPTION
+    Internal helper. Loads the bundled Microsoft.Identity.Client.Extensions.Msal
+    assembly and creates an MsalCacheHelper for the cache at -CachePath, creating its
+    folder if needed. The helper keeps the cache in the platform's protected store:
+    a DPAPI-encrypted file on Windows, the Keychain on macOS, and the Secret Service
+    keyring (for example GNOME Keyring) on Linux, where the file is only a lock.
+
+    Register-MsalCache attaches the helper to an MSAL app; Clear-IRTTokenCache uses it
+    to empty the store.
+
+    .PARAMETER CachePath
+    Full path to the MSAL cache file. Defaults to $Global:IRT_Config.MsalCachePath.
+
+    .EXAMPLE
+    ```powershell
+    $Helper = Get-MsalCacheHelper
+    $Helper.RegisterCache($App.UserTokenCache)
+    ```
+    Attaches the persistent cache to an MSAL app.
+
+    .OUTPUTS
+    [Microsoft.Identity.Client.Extensions.Msal.MsalCacheHelper]
+
+    .NOTES
+    Version: 1.0.0
+    #>
+    [CmdletBinding()]
+    param(
+        [string] $CachePath = $Global:IRT_Config.MsalCachePath
+    )
+
+    Import-IRTModule -Name 'PSFramework'
+    Write-PSFMessage -Level 8 -Message "Get-MsalCacheHelper: CachePath=$CachePath"
+
+    $null = Import-MsalExtensionAssembly
+
+    $CacheDir = Split-Path $CachePath -Parent
+    $CacheFile = Split-Path $CachePath -Leaf
+
+    if (-not (Test-Path $CacheDir)) {
+        Write-PSFMessage -Level 8 -Message "Get-MsalCacheHelper: Creating $CacheDir"
+        $null = New-Item -ItemType Directory -Path $CacheDir -Force
+    }
+
+    # macOS/Linux fields are required by the builder even on Windows.
+    $PropsBuilder =
+    [Microsoft.Identity.Client.Extensions.Msal.StorageCreationPropertiesBuilder]::new(
+        $CacheFile, $CacheDir)
+    $PropsBuilder = $PropsBuilder.WithMacKeyChain(
+        'Microsoft.M365IncidentResponseTools', 'MSALCache')
+    $PropsBuilder = $PropsBuilder.WithLinuxKeyring(
+        'com.microsoft.m365incidentresponsetools.tokencache',
+        'default',
+        'IRT MSAL token cache',
+        [System.Collections.Generic.KeyValuePair[string, string]]::new('Version', '1'),
+        [System.Collections.Generic.KeyValuePair[string, string]]::new('ProductGroup', 'IRT'))
+    $StorageProps = $PropsBuilder.Build()
+
+    [Microsoft.Identity.Client.Extensions.Msal.MsalCacheHelper]::CreateAsync(
+        $StorageProps).GetAwaiter().GetResult()
+}
+#EndRegion './Private/Connect/Get-MsalCacheHelper.ps1' 67
+#Region './Private/Connect/Get-TokenExpiry.ps1' -1
 
 function Get-TokenExpiry {
     <#
@@ -1084,8 +1141,8 @@ function Get-TokenExpiry {
         return $null
     }
 }
-#EndRegion '.\Private\Connect\Get-TokenExpiry.ps1' 45
-#Region '.\Private\Connect\Get-TokenPayload.ps1' -1
+#EndRegion './Private/Connect/Get-TokenExpiry.ps1' 45
+#Region './Private/Connect/Get-TokenPayload.ps1' -1
 
 function Get-TokenPayload {
     <#
@@ -1126,8 +1183,8 @@ function Get-TokenPayload {
         return $null
     }
 }
-#EndRegion '.\Private\Connect\Get-TokenPayload.ps1' 40
-#Region '.\Private\Connect\Import-MsalAssembly.ps1' -1
+#EndRegion './Private/Connect/Get-TokenPayload.ps1' 40
+#Region './Private/Connect/Import-MsalAssembly.ps1' -1
 
 function Import-MsalAssembly {
     <#
@@ -1190,8 +1247,8 @@ function Import-MsalAssembly {
     }
     return Get-LoadedAssembly -Name 'Microsoft.Identity.Client'
 }
-#EndRegion '.\Private\Connect\Import-MsalAssembly.ps1' 62
-#Region '.\Private\Connect\Import-MsalExtensionAssembly.ps1' -1
+#EndRegion './Private/Connect/Import-MsalAssembly.ps1' 62
+#Region './Private/Connect/Import-MsalExtensionAssembly.ps1' -1
 
 function Import-MsalExtensionAssembly {
     <#
@@ -1214,7 +1271,8 @@ function Import-MsalExtensionAssembly {
     [string] - the path to the loaded Extensions DLL.
 
     .NOTES
-    Version: 2.1.0
+    Version: 2.1.1
+    2.1.1 - Requires the MSAL version the bundled DLL was built against.
     #>
     [OutputType([string])]
     [CmdletBinding()]
@@ -1222,8 +1280,9 @@ function Import-MsalExtensionAssembly {
 
     Import-IRTModule -Name 'PSFramework'
 
-    # Bundled version. Bump when Graph SDK's bundled MSAL outpaces this.
-    $MsalFloor = [version]'4.61.3'  # Extensions.Msal 4.66.x minimum MSAL
+    # The Microsoft.Identity.Client version the bundled Extensions.Msal depends on
+    # (its nuspec). Change it with Build\PreBuild.ps1's pin; see AGENTS.RELEASING.md.
+    $MsalFloor = [version]'4.66.2'
 
     # Already loaded?
     $Loaded = Get-LoadedAssembly -Name 'Microsoft.Identity.Client.Extensions.Msal'
@@ -1270,8 +1329,8 @@ function Import-MsalExtensionAssembly {
     }
     return $DllPath
 }
-#EndRegion '.\Private\Connect\Import-MsalExtensionAssembly.ps1' 78
-#Region '.\Private\Connect\Invoke-AdminConsent.ps1' -1
+#EndRegion './Private/Connect/Import-MsalExtensionAssembly.ps1' 80
+#Region './Private/Connect/Invoke-AdminConsent.ps1' -1
 
 function Invoke-AdminConsent {
     [CmdletBinding()]
@@ -1398,8 +1457,8 @@ function Invoke-AdminConsent {
         }
     }
 }
-#EndRegion '.\Private\Connect\Invoke-AdminConsent.ps1' 126
-#Region '.\Private\Connect\Register-MsalCache.ps1' -1
+#EndRegion './Private/Connect/Invoke-AdminConsent.ps1' 126
+#Region './Private/Connect/Register-MsalCache.ps1' -1
 
 function Register-MsalCache {
     <#
@@ -1407,12 +1466,17 @@ function Register-MsalCache {
     Attaches the IRT persistent token cache to an MSAL PublicClientApplication.
 
     .DESCRIPTION
-    Internal helper. Loads the bundled Microsoft.Identity.Client.Extensions.Msal
-    assembly, then registers a DPAPI-encrypted on-disk cache against the
-    supplied app's UserTokenCache. After registration, MSAL automatically
-    persists refresh tokens between PowerShell sessions, so subsequent
-    AcquireTokenSilent calls succeed without an interactive prompt for the life
-    of the refresh token (up to ~90 days).
+    Internal helper. Registers the persistent cache from Get-MsalCacheHelper against
+    the supplied app's UserTokenCache. After registration, MSAL automatically persists
+    refresh tokens between PowerShell sessions, so subsequent AcquireTokenSilent calls
+    succeed without an interactive prompt for the life of the refresh token (up to
+    ~90 days).
+
+    The cache lives in the platform's protected store: a DPAPI-encrypted file on
+    Windows, the Keychain on macOS, and the Secret Service keyring on Linux. Off
+    Windows the store is checked first, and the function throws when it is not
+    usable (on Linux it needs libsecret and a running keyring such as GNOME
+    Keyring). There is deliberately no unencrypted fallback.
 
     .PARAMETER App
     The Microsoft.Identity.Client.IPublicClientApplication instance to attach
@@ -1429,10 +1493,12 @@ function Register-MsalCache {
     .EXAMPLE
     Register-MsalCache -App $App -CachePath 'C:\Temp\test-msal.bin'
 
+    .OUTPUTS
+    None.
+
     .NOTES
-    Version: 2.0.0
-    Windows-only. On non-Windows platforms the function throws so the caller
-    can surface the failure loudly.
+    Version: 3.0.0
+    3.0.0 - Supports macOS and Linux through the OS keyring.
     #>
     [CmdletBinding()]
     param(
@@ -1446,42 +1512,24 @@ function Register-MsalCache {
 
     Write-PSFMessage -Level 8 -Message "Register-MsalCache: CachePath=$CachePath"
 
-    if (-not $IsWindows -and $PSVersionTable.PSVersion.Major -ge 6) {
-        throw 'Persistent MSAL cache is currently Windows-only.'
+    $Helper = Get-MsalCacheHelper -CachePath $CachePath
+
+    if (-not $IsWindows) {
+        try {
+            $Helper.VerifyPersistence()
+        }
+        catch {
+            throw ('The OS keyring that would hold the token cache is not usable. ' +
+                'On Linux the cache needs libsecret and a running keyring such as ' +
+                "GNOME Keyring. $($_.Exception.Message)")
+        }
     }
 
-    $null = Import-MsalExtensionAssembly
-
-    $CacheDir = Split-Path $CachePath -Parent
-    $CacheFile = Split-Path $CachePath -Leaf
-
-    if (-not (Test-Path $CacheDir)) {
-        Write-PSFMessage -Level 8 -Message "Register-MsalCache: Creating cache directory: $CacheDir"
-        $null = New-Item -ItemType Directory -Path $CacheDir -Force
-    }
-
-    # macOS/Linux fields are required by the builder even on Windows.
-    $PropsBuilder =
-    [Microsoft.Identity.Client.Extensions.Msal.StorageCreationPropertiesBuilder]::new(
-        $CacheFile, $CacheDir)
-    $PropsBuilder = $PropsBuilder.WithMacKeyChain(
-        'Microsoft.M365IncidentResponseTools', 'MSALCache')
-    $PropsBuilder = $PropsBuilder.WithLinuxKeyring(
-        'com.microsoft.m365incidentresponsetools.tokencache',
-        'default',
-        'IRT MSAL token cache',
-        [System.Collections.Generic.KeyValuePair[string, string]]::new('Version', '1'),
-        [System.Collections.Generic.KeyValuePair[string, string]]::new('ProductGroup', 'IRT'))
-    $StorageProps = $PropsBuilder.Build()
-
-    $Helper =
-    [Microsoft.Identity.Client.Extensions.Msal.MsalCacheHelper]::CreateAsync(
-        $StorageProps).GetAwaiter().GetResult()
     Write-PSFMessage -Level 8 -Message "Register-MsalCache: Registering cache at: $CachePath"
     $Helper.RegisterCache($App.UserTokenCache)
 }
-#EndRegion '.\Private\Connect\Register-MsalCache.ps1' 80
-#Region '.\Private\Connect\Select-IRTMsalAccount.ps1' -1
+#EndRegion './Private/Connect/Register-MsalCache.ps1' 69
+#Region './Private/Connect/Select-IRTMsalAccount.ps1' -1
 
 function Select-IRTMsalAccount {
     <#
@@ -1587,8 +1635,8 @@ function Select-IRTMsalAccount {
 
     return $Ordered
 }
-#EndRegion '.\Private\Connect\Select-IRTMsalAccount.ps1' 105
-#Region '.\Private\Connect\Test-GraphAdminConsent.ps1' -1
+#EndRegion './Private/Connect/Select-IRTMsalAccount.ps1' 105
+#Region './Private/Connect/Test-GraphAdminConsent.ps1' -1
 
 function Test-GraphAdminConsent {
     <#
@@ -1661,8 +1709,8 @@ function Test-GraphAdminConsent {
         "Requested=$($RequestedScope.Count), Missing=$($MissingScopes.Count)")
     [string[]] $MissingScopes
 }
-#EndRegion '.\Private\Connect\Test-GraphAdminConsent.ps1' 72
-#Region '.\Private\Connect\Test-TokenExpired.ps1' -1
+#EndRegion './Private/Connect/Test-GraphAdminConsent.ps1' 72
+#Region './Private/Connect/Test-TokenExpired.ps1' -1
 
 function Test-TokenExpired {
     <#
@@ -1702,8 +1750,8 @@ function Test-TokenExpired {
         "MinutesLeft=$minutesLeft, Expired=$expired")
     return $expired
 }
-#EndRegion '.\Private\Connect\Test-TokenExpired.ps1' 39
-#Region '.\Private\Device\Build-EntraDeviceRow.ps1' -1
+#EndRegion './Private/Connect/Test-TokenExpired.ps1' 39
+#Region './Private/Device/Build-EntraDeviceRow.ps1' -1
 
 function Build-EntraDeviceRow {
     <#
@@ -1788,8 +1836,8 @@ function Build-EntraDeviceRow {
 
     return $Rows
 }
-#EndRegion '.\Private\Device\Build-EntraDeviceRow.ps1' 84
-#Region '.\Private\Device\Set-IRTDeviceEnabled.ps1' -1
+#EndRegion './Private/Device/Build-EntraDeviceRow.ps1' 84
+#Region './Private/Device/Set-IRTDeviceEnabled.ps1' -1
 
 function Set-IRTDeviceEnabled {
     <#
@@ -1881,8 +1929,8 @@ function Set-IRTDeviceEnabled {
         }
     }
 }
-#EndRegion '.\Private\Device\Set-IRTDeviceEnabled.ps1' 91
-#Region '.\Private\Device\Show-GraphDeviceTree.ps1' -1
+#EndRegion './Private/Device/Set-IRTDeviceEnabled.ps1' 91
+#Region './Private/Device/Show-GraphDeviceTree.ps1' -1
 
 function Show-GraphDeviceTree {
     <#
@@ -1924,8 +1972,8 @@ function Show-GraphDeviceTree {
         }
     }
 }
-#EndRegion '.\Private\Device\Show-GraphDeviceTree.ps1' 41
-#Region '.\Private\Email\Build-EmailSearchName.ps1' -1
+#EndRegion './Private/Device/Show-GraphDeviceTree.ps1' 41
+#Region './Private/Email/Build-EmailSearchName.ps1' -1
 
 function Build-EmailSearchName {
     <#
@@ -2011,8 +2059,8 @@ function Build-EmailSearchName {
 
     return $Name
 }
-#EndRegion '.\Private\Email\Build-EmailSearchName.ps1' 85
-#Region '.\Private\Email\Build-EmailSearchQuery.ps1' -1
+#EndRegion './Private/Email/Build-EmailSearchName.ps1' 85
+#Region './Private/Email/Build-EmailSearchQuery.ps1' -1
 
 function Build-EmailSearchQuery {
     <#
@@ -2119,8 +2167,8 @@ function Build-EmailSearchQuery {
 
     return ($Clauses -join ' AND ')
 }
-#EndRegion '.\Private\Email\Build-EmailSearchQuery.ps1' 106
-#Region '.\Private\Email\Get-EmailSearchResult.ps1' -1
+#EndRegion './Private/Email/Build-EmailSearchQuery.ps1' 106
+#Region './Private/Email/Get-EmailSearchResult.ps1' -1
 
 function Get-EmailSearchResult {
     <#
@@ -2215,8 +2263,8 @@ function Get-EmailSearchResult {
 
     return $Rows
 }
-#EndRegion '.\Private\Email\Get-EmailSearchResult.ps1' 94
-#Region '.\Private\Email\Read-EmailSearchCriteria.ps1' -1
+#EndRegion './Private/Email/Get-EmailSearchResult.ps1' 94
+#Region './Private/Email/Read-EmailSearchCriteria.ps1' -1
 
 function Read-EmailSearchCriteria {
     <#
@@ -2457,8 +2505,8 @@ function Read-EmailSearchCriteria {
         }
     }
 }
-#EndRegion '.\Private\Email\Read-EmailSearchCriteria.ps1' 240
-#Region '.\Private\Entra\Convert-TrustType.ps1' -1
+#EndRegion './Private/Email/Read-EmailSearchCriteria.ps1' 240
+#Region './Private/Entra/Convert-TrustType.ps1' -1
 
 function Convert-TrustType {
     <#
@@ -2505,8 +2553,352 @@ function Convert-TrustType {
         }
     }
 }
-#EndRegion '.\Private\Entra\Convert-TrustType.ps1' 46
-#Region '.\Private\Graph\Request-DirectoryRole.ps1' -1
+#EndRegion './Private/Entra/Convert-TrustType.ps1' 46
+#Region './Private/Entra/Invoke-IRTSignInLogQuery.ps1' -1
+
+function Invoke-IRTSignInLogQuery {
+    <#
+    .SYNOPSIS
+    Runs a chunked, throttle-aware Entra sign-in log query and exports the result.
+
+    .DESCRIPTION
+    Shared engine behind the public sign-in log wrappers (Get-IRTEntraUserSignInLog and
+    Get-IRTEntraSPSignInLog). Given a pre-built OData base filter (everything except the
+    createdDateTime bounds), a resolved date range, a naming/title bundle, and the name of
+    a Show- function to render with, it:
+
+      - splits the range into ChunkDays-sized windows, newest to oldest
+      - refreshes the Graph token per chunk and retries on throttle / timeout
+      - accumulates results, sorts newest-first, and prepends the metadata row
+      - optionally writes a raw XML export
+      - hands the result to the supplied Show- command to build the Excel workbook
+
+    This function is private and carries no knowledge of users vs service principals - the
+    wrappers own object resolution, filter construction, and naming.
+
+    .PARAMETER BaseFilter
+    OData filter clauses common to every chunk (subject + event-type / device-code),
+    WITHOUT the createdDateTime bounds, which are added per chunk. May be empty.
+
+    .PARAMETER StartDateUtc
+    Range start (UTC), already resolved by the caller.
+
+    .PARAMETER EndDateUtc
+    Range end (UTC), already resolved by the caller.
+
+    .PARAMETER Days
+    Length of the range in days, for progress and chunk messages.
+
+    .PARAMETER Target
+    Subject label used in progress messages and the no-logs notice.
+
+    .PARAMETER LogTypeLabel
+    Noun phrase slotted into "Retrieving N days of <label> logs for <target>." e.g.
+    'sign-in', 'interactive and non-interactive sign-in', 'service principal sign-in'.
+
+    .PARAMETER FileNamePrefix
+    Metadata prefix; reused as the worksheet tab name by the Show- function.
+
+    .PARAMETER FileNameBase
+    Base file name (no extension) for the XML export and the Excel workbook.
+
+    .PARAMETER Title
+    Worksheet title string.
+
+    .PARAMETER ShowCommand
+    Name of the Show- function to dispatch the assembled logs to.
+
+    .PARAMETER ChunkDays
+    Split the range into sub-queries of this many days each.
+
+    .PARAMETER ChunkDelaySeconds
+    Seconds to pause between chunk queries. Only applies across multiple chunks.
+
+    .PARAMETER ThrottleDelaySeconds
+    Base backoff (seconds) when Graph throttles without a Retry-After value.
+
+    .PARAMETER Beta
+    Use the Microsoft Graph beta endpoint.
+
+    .PARAMETER Excel
+    Hand the result to the Show- command for an Excel workbook.
+
+    .PARAMETER IpInfo
+    Passed through to the Show- command to enrich IP addresses.
+
+    .PARAMETER Open
+    Passed through to the Show- command to open the workbook after export.
+
+    .PARAMETER Xml
+    Also write a raw XML export alongside the workbook.
+
+    .EXAMPLE
+    ```powershell
+    $Filter = [System.Collections.Generic.List[string]]::new()
+    $Filter.Add( "UserId eq '$($User.Id)'" )
+    $QueryParams = @{
+        BaseFilter     = $Filter
+        StartDateUtc   = (Get-Date).ToUniversalTime().AddDays(-7)
+        EndDateUtc     = (Get-Date).ToUniversalTime()
+        Days           = 7
+        Target         = $User.UserPrincipalName
+        FileNamePrefix = 'EntraSignInLog'
+        FileNameBase   = 'EntraSignInLog_jsmith_26-09-16_14-30'
+        Title          = 'Entra sign in logs. jsmith. 7 days.'
+        ShowCommand    = 'Show-IRTEntraUserSignInLog'
+    }
+    Invoke-IRTSignInLogQuery @QueryParams
+    ```
+    Pulls 7 days of sign-in logs for one user and exports them with
+    Show-IRTEntraUserSignInLog. Normally called by Get-IRTEntraUserSignInLog or
+    Get-IRTEntraSPSignInLog rather than directly.
+
+    .OUTPUTS
+    None. Results are exported via the Show- command and optional XML.
+
+    .NOTES
+    Version: 1.0.0
+    #>
+    [CmdletBinding()]
+    param (
+        [System.Collections.Generic.List[string]] $BaseFilter =
+        [System.Collections.Generic.List[string]]::new(),
+
+        [Parameter(Mandatory)] [datetime] $StartDateUtc,
+        [Parameter(Mandatory)] [datetime] $EndDateUtc,
+        [Parameter(Mandatory)] [int] $Days,
+
+        [Parameter(Mandatory)] [string] $Target,
+        [string] $LogTypeLabel = 'sign-in',
+        [Parameter(Mandatory)] [string] $FileNamePrefix,
+        [Parameter(Mandatory)] [string] $FileNameBase,
+        [Parameter(Mandatory)] [string] $Title,
+        [Parameter(Mandatory)] [string] $ShowCommand,
+
+        [int] $ChunkDays = 30,
+        [int] $ChunkDelaySeconds = 2,
+        [int] $ThrottleDelaySeconds = 60,
+        [boolean] $Beta = $true,
+        [boolean] $Excel = $true,
+        [boolean] $IpInfo = $false,
+        [boolean] $Open = $true,
+        [boolean] $Xml = $false
+    )
+
+    # the wrappers import these too, but import here as well so the engine is
+    # self-sufficient (and so each external cmdlet it calls is explicitly referenced)
+    $ImportParams = @{
+        Name = @(
+            'Microsoft.Graph.Beta.Reports'
+            'Microsoft.Graph.Reports'
+            'PSFramework'
+        )
+    }
+    Import-IRTModule @ImportParams
+
+    $FunctionName = $MyInvocation.MyCommand.Name
+    $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+    $XmlOutputPath = "${FileNameBase}.xml"
+
+    #region DATE CHUNKS
+
+    # build non-overlapping date chunks, newest to oldest, clamped to the range
+    $DateChunks = [System.Collections.Generic.List[hashtable]]::new()
+    $ChunkEnd = $EndDateUtc
+    while ($ChunkEnd -gt $StartDateUtc) {
+        $ProposedStart = $ChunkEnd.AddDays(-$ChunkDays)
+        # Snap to the range start once the proposed start lands within a second of it,
+        # so a range that is an exact multiple of ChunkDays doesn't leave a degenerate
+        # sub-second trailing chunk.
+        $ReachedStart = ($ProposedStart - $StartDateUtc).TotalSeconds -le 1
+        $ChunkStart = $ReachedStart ? $StartDateUtc : $ProposedStart
+        $DateChunks.Add(@{ Start = $ChunkStart; End = $ChunkEnd })
+        $ChunkEnd = $ChunkStart # newest-first; halves meet at the boundary
+    }
+    $ChunkCount = $DateChunks.Count
+    $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+    if ($ChunkCount -gt 1) {
+        $ChunkMsg = "Date range is $Days days, split into $ChunkCount ${ChunkDays}-day chunks."
+        Write-IRT $ChunkMsg
+        Write-PSFMessage -Level 8 -Message "${FunctionName}: $ChunkMsg [$Elapsed]"
+    }
+    else {
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: Date range is $Days days (single chunk). [$Elapsed]")
+    }
+
+    #region QUERY LOGS
+
+    Write-IRT "Retrieving ${Days} days of ${LogTypeLabel} logs for ${Target}."
+
+    # accumulate logs across all date chunks
+    $Logs = [System.Collections.Generic.List[PSObject]]::new()
+    $MaxRetry = 3
+    $ChunkIndex = 0
+    foreach ($Chunk in $DateChunks) {
+        $ChunkIndex++
+
+        # refresh token each chunk; a long multi-chunk run can outlive the
+        # token's 5-minute refresh window and start failing with 401s
+        Update-IRTToken -Service 'Graph'
+
+        # build this chunk's filter: base filters + explicit date bounds
+        $ChunkFilterStrings = [System.Collections.Generic.List[string]]::new()
+        foreach ( $f in $BaseFilter ) { $ChunkFilterStrings.Add( $f ) }
+        $ChunkStartString = $Chunk.Start.ToString('yyyy-MM-ddTHH:mm:ssZ')
+        $ChunkEndString = $Chunk.End.ToString('yyyy-MM-ddTHH:mm:ssZ')
+        $ChunkFilterStrings.Add( "createdDateTime ge $ChunkStartString" )
+        $ChunkFilterStrings.Add( "createdDateTime le $ChunkEndString" )
+        $FilterString = $ChunkFilterStrings -join " and "
+
+        # chunk progress message
+        if ( $ChunkCount -gt 1 ) {
+            $ChunkStartLocal = $Chunk.Start.ToLocalTime().ToString('M/d/yy h:mmtt')
+            $ChunkEndLocal = $Chunk.End.ToLocalTime().ToString('M/d/yy h:mmtt')
+            Write-IRT ("Chunk ${ChunkIndex} of ${ChunkCount}:" +
+                " ${ChunkStartLocal} to ${ChunkEndLocal}.")
+        }
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: Filter string: '${FilterString}'")
+        $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: Get-MgAuditLogSignIn [$Elapsed]")
+
+        $GetParams = @{
+            Filter = $FilterString
+            All = $true
+        }
+
+        # query logs, retrying on Graph timeout / throttling
+        $RetryCount = 0
+        while ($true) {
+            try {
+                if ($Beta) { # default is beta, which returns more information
+                    $ChunkLogs = Get-MgBetaAuditLogSignIn @GetParams
+                }
+                else {
+                    $ChunkLogs = Get-MgAuditLogSignIn @GetParams
+                }
+                break
+            }
+            catch {
+                $Message = $_.Exception.Message
+                $IsTimeout = $Message -match
+                'HttpClient\.Timeout|request was canceled|task was canceled'
+                $IsThrottle = $Message -match 'TooManyRequests|429'
+
+                if ($IsThrottle -and $RetryCount -lt $MaxRetry) {
+                    $RetryCount++
+
+                    # determine server-requested Retry-After, if any: prefer the
+                    # response header object, then fall back to the message text
+                    $RetryAfter = $null
+                    try {
+                        $Delta = $_.Exception.Response.Headers.RetryAfter.Delta
+                        if ($null -ne $Delta) { $RetryAfter = [int]$Delta.TotalSeconds }
+                    }
+                    catch { $RetryAfter = $null }
+                    if (-not $RetryAfter -and
+                        $Message -match 'try again (?:in|after)[^0-9]*([0-9]+)\s*second') {
+                        $RetryAfter = [int]$Matches[1]
+                    }
+
+                    if ($RetryAfter) {
+                        # honor and surface the server's requested delay
+                        $Wait = $RetryAfter
+                        Write-IRT ("Throttled by Graph. Honoring Retry-After of" +
+                            " ${Wait}s (retry ${RetryCount}/${MaxRetry})...") -Level Warn
+                    }
+                    else {
+                        # no Retry-After: exponential backoff from the base
+                        $Factor = [Math]::Pow(2, $RetryCount - 1)
+                        $Wait = [int]($ThrottleDelaySeconds * $Factor)
+                        Write-IRT ("Throttled by Graph (no Retry-After). Backing off" +
+                            " ${Wait}s (retry ${RetryCount}/${MaxRetry})...") -Level Warn
+                    }
+                    Start-Sleep -Seconds $Wait
+                    continue
+                }
+                elseif ($IsTimeout -and $RetryCount -lt $MaxRetry) {
+                    $RetryCount++
+                    Write-IRT ("Request timed out. Retrying" +
+                        " (${RetryCount}/${MaxRetry})...") -Level Warn
+                    Start-Sleep -Seconds 5
+                    continue
+                }
+                elseif ($IsTimeout) {
+                    Write-IRT ("Chunk still timing out after ${MaxRetry} retries." +
+                        " Skipping - re-run with a smaller -ChunkDays.") -Level Error
+                    $ChunkLogs = $null
+                    break
+                }
+                else {
+                    throw
+                }
+            }
+        }
+
+        # accumulate this chunk's results
+        foreach ( $l in $ChunkLogs ) { $Logs.Add( $l ) }
+
+        # brief pause between chunks to avoid tripping throttle limits
+        if ( $ChunkDelaySeconds -gt 0 -and $ChunkIndex -lt $ChunkCount ) {
+            Start-Sleep -Seconds $ChunkDelaySeconds
+        }
+    }
+
+    if (($Logs | Measure-Object).Count -eq 0 ) {
+        Write-IRT "No logs found for ${Target} for past ${Days} days. Exiting." -Level Error
+        return
+    }
+
+    # sort newest first (chunks are concatenated newest-first; safety net)
+    $Logs = [System.Collections.Generic.List[PSObject]](
+        $Logs | Sort-Object -Property CreatedDateTime -Descending)
+
+    # add metadata to results
+    $Logs.Insert(0,
+        [pscustomobject]@{
+            Metadata = $true
+            FileNamePrefix = $FileNamePrefix
+            FileName = $FileNameBase
+            Title = $Title
+        }
+    )
+
+    #region OUTPUT
+
+    # show count, export
+    $LogCount = ($Logs | Measure-Object).Count
+    if ($LogCount -gt 0) {
+        Write-IRT "Retrieved ${LogCount} logs."
+
+        # export to xml
+        if ($Xml) {
+            $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+            Write-PSFMessage -Level 8 -Message "${FunctionName}: Export-Clixml [$Elapsed]"
+            Write-IRT "Saving logs to: ${XmlOutputPath}"
+            $Logs | Export-Clixml -Depth 10 -Path $XmlOutputPath
+        }
+
+        # export excel spreadsheet via the supplied Show- command
+        if ($Excel) {
+            $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+            Write-PSFMessage -Level 8 -Message "${FunctionName}: ${ShowCommand} [$Elapsed]"
+            $ShowParams = @{
+                Logs   = $Logs
+                IpInfo = $IpInfo
+                Open   = $Open
+            }
+            & $ShowCommand @ShowParams
+        }
+    }
+    else {
+        Write-IRT "Retrieved 0 logs." -Level Error
+    }
+}
+#EndRegion './Private/Entra/Invoke-IRTSignInLogQuery.ps1' 342
+#Region './Private/Graph/Request-DirectoryRole.ps1' -1
 
 function Request-DirectoryRole {
     <#
@@ -2617,8 +3009,8 @@ function Request-DirectoryRole {
         }
     }
 }
-#EndRegion '.\Private\Graph\Request-DirectoryRole.ps1' 110
-#Region '.\Private\Graph\Request-DirectoryRoleTemplate.ps1' -1
+#EndRegion './Private/Graph/Request-DirectoryRole.ps1' 110
+#Region './Private/Graph/Request-DirectoryRoleTemplate.ps1' -1
 
 function Request-DirectoryRoleTemplate {
     <#
@@ -2726,8 +3118,8 @@ function Request-DirectoryRoleTemplate {
         }
     }
 }
-#EndRegion '.\Private\Graph\Request-DirectoryRoleTemplate.ps1' 107
-#Region '.\Private\Graph\Request-GraphDevice.ps1' -1
+#EndRegion './Private/Graph/Request-DirectoryRoleTemplate.ps1' 107
+#Region './Private/Graph/Request-GraphDevice.ps1' -1
 
 function Request-GraphDevice {
     <#
@@ -2909,8 +3301,8 @@ function Request-GraphDevice {
         }
     }
 }
-#EndRegion '.\Private\Graph\Request-GraphDevice.ps1' 181
-#Region '.\Private\Graph\Request-GraphGroup.ps1' -1
+#EndRegion './Private/Graph/Request-GraphDevice.ps1' 181
+#Region './Private/Graph/Request-GraphGroup.ps1' -1
 
 function Request-GraphGroup {
     <#
@@ -3027,8 +3419,8 @@ function Request-GraphGroup {
         }
     }
 }
-#EndRegion '.\Private\Graph\Request-GraphGroup.ps1' 116
-#Region '.\Private\Graph\Request-GraphOauth2Grant.ps1' -1
+#EndRegion './Private/Graph/Request-GraphGroup.ps1' 116
+#Region './Private/Graph/Request-GraphOauth2Grant.ps1' -1
 
 function Request-GraphOauth2Grant {
     <#
@@ -3137,8 +3529,8 @@ function Request-GraphOauth2Grant {
         }
     }
 }
-#EndRegion '.\Private\Graph\Request-GraphOauth2Grant.ps1' 108
-#Region '.\Private\Graph\Request-GraphServicePrincipal.ps1' -1
+#EndRegion './Private/Graph/Request-GraphOauth2Grant.ps1' 108
+#Region './Private/Graph/Request-GraphServicePrincipal.ps1' -1
 
 function Request-GraphServicePrincipal {
     <#
@@ -3271,8 +3663,8 @@ function Request-GraphServicePrincipal {
         }
     }
 }
-#EndRegion '.\Private\Graph\Request-GraphServicePrincipal.ps1' 132
-#Region '.\Private\Graph\Request-GraphUser.ps1' -1
+#EndRegion './Private/Graph/Request-GraphServicePrincipal.ps1' 132
+#Region './Private/Graph/Request-GraphUser.ps1' -1
 
 function Request-GraphUser {
     <#
@@ -3377,8 +3769,8 @@ function Request-GraphUser {
         }
     }
 }
-#EndRegion '.\Private\Graph\Request-GraphUser.ps1' 104
-#Region '.\Private\Graph\Request-IntuneDevice.ps1' -1
+#EndRegion './Private/Graph/Request-GraphUser.ps1' 104
+#Region './Private/Graph/Request-IntuneDevice.ps1' -1
 
 function Request-IntuneDevice {
     <#
@@ -3413,8 +3805,8 @@ function Request-IntuneDevice {
         }
     }
 }
-#EndRegion '.\Private\Graph\Request-IntuneDevice.ps1' 34
-#Region '.\Private\Graph\Resolve-DateRange.ps1' -1
+#EndRegion './Private/Graph/Request-IntuneDevice.ps1' 34
+#Region './Private/Graph/Resolve-DateRange.ps1' -1
 
 function Resolve-DateRange {
     <#
@@ -3558,8 +3950,8 @@ function Resolve-DateRange {
         EndString   = $EndUtc.ToString('yyyy-MM-ddTHH:mm:ssZ')
     }
 }
-#EndRegion '.\Private\Graph\Resolve-DateRange.ps1' 143
-#Region '.\Private\Lib\Build-Menu.ps1' -1
+#EndRegion './Private/Graph/Resolve-DateRange.ps1' 143
+#Region './Private/Lib/Build-Menu.ps1' -1
 
 function Build-Menu {
     <#
@@ -3769,8 +4161,8 @@ function Build-Menu {
 
     return $Return
 }
-#EndRegion '.\Private\Lib\Build-Menu.ps1' 209
-#Region '.\Private\Lib\ConvertTo-TimeSpan.ps1' -1
+#EndRegion './Private/Lib/Build-Menu.ps1' 209
+#Region './Private/Lib/ConvertTo-TimeSpan.ps1' -1
 
 function ConvertTo-TimeSpan {
     <#
@@ -3842,8 +4234,8 @@ function ConvertTo-TimeSpan {
 
     return $Span
 }
-#EndRegion '.\Private\Lib\ConvertTo-TimeSpan.ps1' 71
-#Region '.\Private\Lib\Format-Powershell.ps1' -1
+#EndRegion './Private/Lib/ConvertTo-TimeSpan.ps1' 71
+#Region './Private/Lib/Format-Powershell.ps1' -1
 
 function Format-Powershell {
     <#
@@ -4244,8 +4636,8 @@ function Format-Powershell {
     } # end end
 
 }
-#EndRegion '.\Private\Lib\Format-Powershell.ps1' 400
-#Region '.\Private\Lib\Format-Tree.ps1' -1
+#EndRegion './Private/Lib/Format-Powershell.ps1' 400
+#Region './Private/Lib/Format-Tree.ps1' -1
 
 function Format-Tree {
     <#
@@ -4637,8 +5029,68 @@ displays a simple tree view of any object (ps 5.1+)
         }
     }
 }
-#EndRegion '.\Private\Lib\Format-Tree.ps1' 391
-#Region '.\Private\Lib\Get-LicenseFullName.ps1' -1
+#EndRegion './Private/Lib/Format-Tree.ps1' 391
+#Region './Private/Lib/Get-DefaultBrowserName.ps1' -1
+
+function Get-DefaultBrowserName {
+    <#
+    .SYNOPSIS
+    Returns which supported browser opens web links on this device, if it can tell.
+
+    .DESCRIPTION
+    Reads the default browser from the platform: the https UserChoice in the Windows
+    registry, or xdg-settings on Linux. Returns one of the names Open-Browser accepts
+    (msedge, chrome, firefox, brave), or nothing when the default is another browser
+    or cannot be read. macOS keeps the default in a binary plist, so nothing is read
+    there.
+
+    .PARAMETER Platform
+    The platform to read the default for. Defaults to the current one; set for tests.
+
+    .EXAMPLE
+    ```powershell
+    Get-DefaultBrowserName
+    ```
+    Returns 'firefox' when Firefox is the default browser.
+
+    .OUTPUTS
+    [string] the browser name, or nothing.
+
+    .NOTES
+    Version: 1.0.0
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param(
+        [ValidateSet('Windows', 'Linux', 'MacOS')]
+        [string] $Platform = $(
+            if ($IsWindows) { 'Windows' } elseif ($IsMacOS) { 'MacOS' } else { 'Linux' }
+        )
+    )
+
+    $Id = $null
+    if ($Platform -eq 'Windows') {
+        $RegPath = 'Registry::HKEY_CURRENT_USER\Software\Microsoft\Windows\Shell\' +
+        'Associations\UrlAssociations\https\UserChoice'
+        $Choice = Get-ItemProperty -Path $RegPath -ErrorAction SilentlyContinue
+        if ($Choice) { $Id = $Choice.ProgId }
+    }
+    elseif ($Platform -eq 'Linux' -and (Get-Command -Name 'xdg-settings' -ErrorAction Ignore)) {
+        $Id = & xdg-settings get default-web-browser 2>$null
+    }
+    Write-Information -Tags 'Trace' -MessageData "Default browser id on ${Platform}: '$Id'"
+
+    # Windows ProgIds (FirefoxURL-..., MSEdgeHTM, ChromeHTML, BraveHTML) and Linux
+    # desktop file names (firefox.desktop, microsoft-edge.desktop, ...).
+    switch -Regex ($Id) {
+        '^firefox' { return 'firefox' }
+        '^(msedge|microsoft-edge)' { return 'msedge' }
+        '^(chrome|google-chrome|chromium)' { return 'chrome' }
+        '^brave' { return 'brave' }
+    }
+}
+#EndRegion './Private/Lib/Get-DefaultBrowserName.ps1' 58
+#Region './Private/Lib/Get-LicenseFullName.ps1' -1
 
 function Get-LicenseFullName {
     <#
@@ -4648,7 +5100,8 @@ function Get-LicenseFullName {
     .DESCRIPTION
     Accepts Microsoft Graph subscribed SKU objects from the pipeline and enriches each
     with a LicenseFullName property resolved from Microsoft's published product name CSV.
-    The CSV is downloaded automatically to $env:AppData on first use (or when stale).
+    The CSV is downloaded automatically to the per-user application data folder on
+    first use (or when stale).
 
     When called with a bare -SkuId GUID instead of pipeline input, returns the friendly
     name as a string directly.
@@ -4686,13 +5139,13 @@ function Get-LicenseFullName {
         function Get-LicenseCSVFile {
             <#
             .SYNOPSIS
-            Downloads the Microsoft license name CSV to $env:AppData if missing or
-            older than 6 days.
+            Downloads the Microsoft license name CSV to the per-user application data
+            folder if missing or older than 6 days.
 
             .DESCRIPTION
             Internal helper used by Get-LicenseFullNames. Downloads the Microsoft product names and
             service plan identifiers CSV from the Microsoft Download Center. Skips the download if
-            the file already exists in $env:AppData and was last modified less than 6 days ago.
+            the file already exists and was last modified less than 6 days ago.
             #>
             param (
                 [string]$Url,
@@ -4704,6 +5157,10 @@ function Get-LicenseFullName {
                 -not ( Test-Path $CsvPath ) -or
                 ((Get-Date) - (Get-Item $CsvPath).LastWriteTime) -gt (New-TimeSpan -Days 6)
             ) {
+                $CsvDir = Split-Path -Path $CsvPath -Parent
+                if (-not (Test-Path -Path $CsvDir)) {
+                    $null = New-Item -ItemType Directory -Path $CsvDir -Force
+                }
                 # Download the file
                 Invoke-WebRequest -Uri $Url -OutFile $CsvPath
             }
@@ -4749,7 +5206,14 @@ function Get-LicenseFullName {
         'Product%20names%20and%20service%20plan%20identifiers%20for%20licensing.csv'
 
         # Set the destination path
-        $CsvPath = "${env:AppData}\${ModuleName}\ProductNamesAndServicePlanIdentifiers.csv"
+        # [Environment]::GetFolderPath resolves on every platform; $env:AppData exists
+        # only on Windows, where both name the same folder.
+        $CsvParams = @{
+            Path                = [Environment]::GetFolderPath('ApplicationData')
+            ChildPath           = $ModuleName
+            AdditionalChildPath = 'ProductNamesAndServicePlanIdentifiers.csv'
+        }
+        $CsvPath = Join-Path @CsvParams
 
         # download updated list of license names, if needed
         Get-LicenseCSVFile -url $Url -csvpath $CsvPath
@@ -4789,8 +5253,8 @@ function Get-LicenseFullName {
         }
     }
 }
-#EndRegion '.\Private\Lib\Get-LicenseFullName.ps1' 150
-#Region '.\Private\Lib\Get-YesNo.ps1' -1
+#EndRegion './Private/Lib/Get-LicenseFullName.ps1' 162
+#Region './Private/Lib/Get-YesNo.ps1' -1
 
 function Get-YesNo {
     <#
@@ -4850,16 +5314,41 @@ function Get-YesNo {
         return $false
     }
 }
-#EndRegion '.\Private\Lib\Get-YesNo.ps1' 59
-#Region '.\Private\Lib\Open-Browser.ps1' -1
+#EndRegion './Private/Lib/Get-YesNo.ps1' 59
+#Region './Private/Lib/Open-Browser.ps1' -1
 
 function Open-Browser {
     <#
     .SYNOPSIS
-    Simplifies opening browser windows
+    Opens a URL in a chosen browser, optionally in a private window.
+
+    .DESCRIPTION
+    Opens the URL in the named browser on Windows, Linux, or macOS. 'default' uses the
+    browser that opens web links on this device when it is one of the supported ones,
+    so -Private still applies. When the default cannot be identified, or the named
+    browser is not installed, the URL goes to the system's own handler instead
+    (warning that -Private could not be honored).
+
+    .PARAMETER Browser
+    The browser: msedge, chrome, firefox, brave, or default.
+
+    .PARAMETER Url
+    The URL to open.
+
+    .PARAMETER Private
+    Open a private (InPrivate or incognito) window.
+
+    .EXAMPLE
+    ```powershell
+    Open-Browser -Browser 'default' -Url 'https://portal.azure.com' -Private
+    ```
+    Opens the portal in a private window of the default browser.
+
+    .OUTPUTS
+    None.
 
     .NOTES
-    Version 1.03
+    Version 1.04
     #>
 
     [CmdletBinding()]
@@ -4872,54 +5361,243 @@ function Open-Browser {
     )
 
     if ($Browser -eq 'default') {
+        $Detected = Get-DefaultBrowserName
+        if ($Detected) { $Browser = $Detected }
+    }
+    Write-Information -Tags 'Trace' -MessageData "Opening '$Url' in $Browser (private: $Private)."
 
-        # pull default browser from registry
-        $RegPath = 'Registry::HKEY_CURRENT_USER\Software\Microsoft\Windows\Shell\' +
-        'Associations\UrlAssociations\https\UserChoice'
-        $ProgId = Get-ItemProperty -Path $RegPath | Select-Object -ExpandProperty ProgId
-
-        switch -Regex ($ProgId) {
-            '^Firefox' {
-                $Browser = 'firefox'
-            }
-            '^MSEdge' {
-                $Browser = 'msedge'
-            }
-            '^Chrome' {
-                $Browser = 'chrome'
-            }
-            '^Brave' {
-                $Browser = 'brave'
-            }
+    if ($Browser -ne 'default') {
+        $Launch = Resolve-BrowserLaunch -Browser $Browser -Url $Url -Private:$Private
+        if ($Launch) {
+            Start-Process -FilePath $Launch.FilePath -ArgumentList $Launch.ArgumentList
+            return
         }
+        $Msg = "$Browser was not found on this device; opening the page with the " +
+        'default handler.'
+        Write-Warning $Msg
     }
 
-    switch ( $Browser ) {
-        'msedge' {
-            if ( $Private ) {
-                Start-Process $Browser -ArgumentList @('--inprivate', $Url)
-            } else {
-                Start-Process $Browser $Url
-            }
+    if ($Private) {
+        $Msg = 'The default handler opens the page in a normal window, not a ' +
+        'private one.'
+        Write-Warning $Msg
+    }
+    Start-Process -FilePath $Url
+}
+#EndRegion './Private/Lib/Open-Browser.ps1' 68
+#Region './Private/Lib/Resolve-BrowserLaunch.ps1' -1
+
+function Resolve-BrowserLaunch {
+    <#
+    .SYNOPSIS
+    Works out the command that opens a URL in a given browser on this platform.
+
+    .DESCRIPTION
+    Returns the FilePath and ArgumentList for Start-Process. Windows resolves the short
+    browser names itself through App Paths. Linux names each browser differently
+    (google-chrome, microsoft-edge, brave-browser), so the first one installed is used.
+    macOS launches the application bundle through 'open'. With -Private, each browser's
+    own private-window flag goes before the URL.
+
+    .PARAMETER Browser
+    The browser: msedge, chrome, firefox, or brave.
+
+    .PARAMETER Url
+    The URL to open.
+
+    .PARAMETER Private
+    Open a private (InPrivate or incognito) window.
+
+    .PARAMETER Platform
+    The platform to build the command for. Defaults to the current one; set for tests.
+
+    .EXAMPLE
+    ```powershell
+    $Launch = Resolve-BrowserLaunch -Browser 'chrome' -Url 'https://example.com' -Private
+    Start-Process -FilePath $Launch.FilePath -ArgumentList $Launch.ArgumentList
+    ```
+    Opens the page in an incognito Chrome window.
+
+    .OUTPUTS
+    [hashtable] with FilePath and ArgumentList, or nothing when the browser is not
+    installed (Linux only; elsewhere the platform reports a missing browser itself).
+
+    .NOTES
+    Version: 1.0.0
+    #>
+    [CmdletBinding()]
+    [OutputType([hashtable])]
+    param(
+        [Parameter(Mandatory)]
+        [ValidateSet('msedge', 'chrome', 'firefox', 'brave')]
+        [string] $Browser,
+
+        [Parameter(Mandatory)]
+        [string] $Url,
+
+        [switch] $Private,
+
+        [ValidateSet('Windows', 'Linux', 'MacOS')]
+        [string] $Platform = $(
+            if ($IsWindows) { 'Windows' } elseif ($IsMacOS) { 'MacOS' } else { 'Linux' }
+        )
+    )
+
+    $PrivateFlag = @{
+        msedge  = '--inprivate'
+        chrome  = '--incognito'
+        brave   = '--incognito'
+        firefox = '-private-window'
+    }
+    $BrowserArgs = @()
+    if ($Private) { $BrowserArgs += $PrivateFlag[$Browser] }
+    $BrowserArgs += $Url
+
+    switch ($Platform) {
+        'Windows' {
+            return @{ FilePath = $Browser; ArgumentList = $BrowserArgs }
         }
-        'firefox' {
-            if ( $Private ) {
-                Start-Process $Browser -ArgumentList @('-private-window', $Url)
-            } else {
-                Start-Process $Browser $Url
+        'MacOS' {
+            $AppName = @{
+                msedge  = 'Microsoft Edge'
+                chrome  = 'Google Chrome'
+                firefox = 'Firefox'
+                brave   = 'Brave Browser'
             }
+            $OpenArgs = @('-na', $AppName[$Browser], '--args') + $BrowserArgs
+            return @{ FilePath = 'open'; ArgumentList = $OpenArgs }
         }
-        { $_ -in 'chrome', 'brave' } {
-            if ( $Private ) {
-                Start-Process $Browser -ArgumentList @('--incognito', $Url)
-            } else {
-                Start-Process $Browser $Url
+        'Linux' {
+            $Candidates = @{
+                msedge  = @('microsoft-edge', 'microsoft-edge-stable')
+                chrome  = @(
+                    'google-chrome', 'google-chrome-stable', 'chromium', 'chromium-browser'
+                )
+                firefox = @('firefox')
+                brave   = @('brave-browser', 'brave')
             }
+            foreach ($Name in $Candidates[$Browser]) {
+                if (Get-Command -Name $Name -CommandType Application -ErrorAction Ignore) {
+                    Write-Information -Tags 'Trace' -MessageData "Found $Browser as '$Name'."
+                    return @{ FilePath = $Name; ArgumentList = $BrowserArgs }
+                }
+            }
+            Write-Information -Tags 'Trace' -MessageData "$Browser is not installed."
         }
     }
 }
-#EndRegion '.\Private\Lib\Open-Browser.ps1' 66
-#Region '.\Private\Lib\Set-TerminalTitle.ps1' -1
+#EndRegion './Private/Lib/Resolve-BrowserLaunch.ps1' 100
+#Region './Private/Lib/Resolve-ScriptPath.ps1' -1
+
+function Resolve-ScriptPath {
+    <#
+    .SYNOPSIS
+    Resolves provided path and exits if it's not of the correct type.
+
+    .PARAMETER Folder
+    Script will exit if path is not a folder.
+
+    .PARAMETER File
+    Script will exit if path is not a file.
+
+    .PARAMETER FileExtension
+    Script will exit if path does not have this file path.
+
+    .EXAMPLE
+    The following would all complete without exiting:
+    Resolve-ScriptPath -Path 'C:\Temp\' -Folder
+    Resolve-ScriptPath -Path 'C:\Temp\File.exe' -File
+    Resolve-ScriptPath -Path 'C:\Temp\File.exe' -File -FileExtension 'exe'
+
+    .NOTES
+    Version: 1.1.0
+    1.1.0 - Removed -WriteToLog. Failures are reported only by the thrown error, which
+            callers already surface, instead of also being written to the console.
+    1.0.2 - Resolved logic error with file extension detection.
+    #>
+    [CmdletBinding( DefaultParameterSetName = 'File' )]
+    param(
+        [Parameter( Mandatory, Position = 0 )]
+        [string] $Path,
+
+        [Parameter( ParameterSetName = 'Folder' )]
+        [switch] $Folder,
+
+        [Parameter( ParameterSetName = 'File' )]
+        [switch] $File,
+
+        [string] $FileExtension
+    )
+
+    process {
+
+        # resolve path
+        try {
+            $ResolveParams = @{
+                Path = $Path
+                ErrorAction = 'Stop'
+            }
+            $ResolvedPath = ( Resolve-Path @ResolveParams ).Path
+        }
+        catch {
+            $Message = "Unable to resolve path: ${Path}. Exiting."
+            throw $Message
+        }
+
+        # exit if path doesn't exist
+        if ( -not $ResolvedPath ) {
+            $Message = "Path does not exist: ${Path}. Exiting."
+            throw $Message
+        }
+
+        # test if path is of correct type
+        if ( $Folder ) {
+            # verify path is folder
+            $TestPathParameters = @{
+                Path     = $ResolvedPath
+                PathType = 'Container'
+            }
+            $Folder = Test-Path @TestPathParameters
+            if ( -not $Folder ) {
+                $Message = "Path is not a folder: ${Path}. Exiting."
+                throw $Message
+            }
+        }
+        elseif ( $File ) {
+
+            # verify path is file
+            $TestPathParameters = @{
+                Path     = $ResolvedPath
+                PathType = 'Leaf'
+            }
+            $File = Test-Path @TestPathParameters
+            if ( -not $File ) {
+                $Message = "Path is not a file: ${Path}. Exiting."
+                throw $Message
+            }
+
+            if ( $FileExtension ) {
+
+                # extract file extension
+                $ExtensionParams = @{
+                    Path = $ResolvedPath
+                    Leaf = $true
+                }
+                $FileName = Split-Path @ExtensionParams
+
+                if ( $FileName -notmatch "${FileExtension}$" ) {
+                    $Message = "File extension does not match: " +
+                    "${FileExtension},${FileName}. Exiting."
+                    throw $Message
+                }
+            }
+        }
+
+        return $ResolvedPath
+    }
+}
+#EndRegion './Private/Lib/Resolve-ScriptPath.ps1' 108
+#Region './Private/Lib/Set-TerminalTitle.ps1' -1
 
 function Set-TerminalTitle {
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
@@ -4964,8 +5642,8 @@ function Set-TerminalTitle {
         $Host.UI.RawUI.WindowTitle = $Title
     }
 }
-#EndRegion '.\Private\Lib\Set-TerminalTitle.ps1' 44
-#Region '.\Private\Lib\Test-PythonPackage.ps1' -1
+#EndRegion './Private/Lib/Set-TerminalTitle.ps1' 44
+#Region './Private/Lib/Test-PythonPackage.ps1' -1
 
 function Test-PythonPackage {
     <#
@@ -5201,8 +5879,8 @@ except Exception:
             })
     }
 }
-#EndRegion '.\Private\Lib\Test-PythonPackage.ps1' 235
-#Region '.\Private\MessageTrace\Build-TraceContinuation.ps1' -1
+#EndRegion './Private/Lib/Test-PythonPackage.ps1' 235
+#Region './Private/MessageTrace/Build-TraceContinuation.ps1' -1
 
 function Build-TraceContinuation {
     # helper: parse continuation Hints from the cmdlet's Warning text
@@ -5229,8 +5907,8 @@ function Build-TraceContinuation {
     if ($next.Count -eq 0) { return $null }
     return $next
 }
-#EndRegion '.\Private\MessageTrace\Build-TraceContinuation.ps1' 26
-#Region '.\Private\MessageTrace\Get-WorkingList.ps1' -1
+#EndRegion './Private/MessageTrace/Build-TraceContinuation.ps1' 26
+#Region './Private/MessageTrace/Get-WorkingList.ps1' -1
 
 function Get-WorkingList {
     # helper: ensure each list is sorted; if not, sort it into a new list
@@ -5269,8 +5947,8 @@ function Get-WorkingList {
     }
     return , $Working
 }
-#EndRegion '.\Private\MessageTrace\Get-WorkingList.ps1' 38
-#Region '.\Private\MessageTrace\Merge-ListOnDate.ps1' -1
+#EndRegion './Private/MessageTrace/Get-WorkingList.ps1' 38
+#Region './Private/MessageTrace/Merge-ListOnDate.ps1' -1
 
 function Merge-ListOnDate {
     # merges lists
@@ -5462,8 +6140,8 @@ function Merge-ListOnDate {
 
     return $MergedList
 }
-#EndRegion '.\Private\MessageTrace\Merge-ListOnDate.ps1' 191
-#Region '.\Private\MessageTrace\Request-MessageTrace.ps1' -1
+#EndRegion './Private/MessageTrace/Merge-ListOnDate.ps1' 191
+#Region './Private/MessageTrace/Request-MessageTrace.ps1' -1
 
 function Request-MessageTrace {
     [CmdletBinding()]
@@ -5677,8 +6355,8 @@ function Request-MessageTrace {
         Write-Output $AllMessages
     }
 }
-#EndRegion '.\Private\MessageTrace\Request-MessageTrace.ps1' 213
-#Region '.\Private\MessageTrace\Request-MessageTraceV1.ps1' -1
+#EndRegion './Private/MessageTrace/Request-MessageTrace.ps1' 213
+#Region './Private/MessageTrace/Request-MessageTraceV1.ps1' -1
 
 function Request-MessageTraceV1 {
     param(
@@ -5748,8 +6426,8 @@ function Request-MessageTraceV1 {
         return $AllMessages
     }
 }
-#EndRegion '.\Private\MessageTrace\Request-MessageTraceV1.ps1' 69
-#Region '.\Private\MessageTrace\Test-IsSorted.ps1' -1
+#EndRegion './Private/MessageTrace/Request-MessageTraceV1.ps1' 69
+#Region './Private/MessageTrace/Test-IsSorted.ps1' -1
 
 function Test-IsSorted {
     # helper: check if a list is sorted on property in the requested direction
@@ -5771,8 +6449,8 @@ function Test-IsSorted {
     }
     return $true
 }
-#EndRegion '.\Private\MessageTrace\Test-IsSorted.ps1' 21
-#Region '.\Private\MessageTrace\Test-MergeListOnDate.ps1' -1
+#EndRegion './Private/MessageTrace/Test-IsSorted.ps1' 21
+#Region './Private/MessageTrace/Test-MergeListOnDate.ps1' -1
 
 function Test-MergeListOnDate {
     [CmdletBinding()]
@@ -5907,8 +6585,8 @@ function Test-MergeListOnDate {
     # return the summary object; no extraneous screen output
     Write-Output $Result
 }
-#EndRegion '.\Private\MessageTrace\Test-MergeListOnDate.ps1' 134
-#Region '.\Private\OnPremAd\Get-AdGlobalUserObject.ps1' -1
+#EndRegion './Private/MessageTrace/Test-MergeListOnDate.ps1' 134
+#Region './Private/OnPremAd/Get-AdGlobalUserObject.ps1' -1
 
 function Get-AdGlobalUserObject {
     <#
@@ -5944,8 +6622,151 @@ function Get-AdGlobalUserObject {
         return $ScriptUserObjects
     }
 }
-#EndRegion '.\Private\OnPremAd\Get-AdGlobalUserObject.ps1' 35
-#Region '.\Private\OnPremAd\Set-AdUserEnabled.ps1' -1
+#EndRegion './Private/OnPremAd/Get-AdGlobalUserObject.ps1' 35
+#Region './Private/OnPremAd/Get-LocalAdSyncService.ps1' -1
+
+function Get-LocalAdSyncService {
+    <#
+    .SYNOPSIS
+    Returns the ADSync service when it runs on this device, or nothing.
+
+    .DESCRIPTION
+    Internal helper. The ADSync service (Microsoft Entra Connect Sync) runs only on
+    Windows, and Get-Service exists only there. Off Windows there is no such service to
+    find, so this returns nothing instead of failing on the missing command.
+
+    .EXAMPLE
+    ```powershell
+    if (Get-LocalAdSyncService) { Start-ADSyncSyncCycle -PolicyType Delta }
+    ```
+    Pushes a delta sync when this device runs the sync service.
+
+    .OUTPUTS
+    The ADSync service object, or nothing when it is not on this device.
+
+    .NOTES
+    Version: 1.0.0
+    #>
+    [CmdletBinding()]
+    param()
+
+    Import-IRTModule -Name 'PSFramework'
+
+    if (-not (Get-Command -Name 'Get-Service' -ErrorAction Ignore)) {
+        Write-PSFMessage -Level 8 -Message 'Get-Service is unavailable; no local ADSync service.'
+        return
+    }
+    Get-Service -Name 'adsync' -ErrorAction SilentlyContinue
+}
+#EndRegion './Private/OnPremAd/Get-LocalAdSyncService.ps1' 34
+#Region './Private/OnPremAd/Get-TargetDomainController.ps1' -1
+
+function Get-TargetDomainController {
+    <#
+    .SYNOPSIS
+    Returns the host name of the writable domain controller to make AD changes on.
+
+    .DESCRIPTION
+    Internal helper. Prefers this computer when it is a writable domain controller, so
+    changes land on the DC the operator is working on. Otherwise returns a writable DC
+    found by DC locator discovery.
+
+    Discovery alone isn't enough: run on a DC, it can still return a peer DC (for example
+    from its cache). Read-only DCs are skipped because they can't take changes.
+
+    Requires the ActiveDirectory module. If this computer isn't a writable DC and
+    discovery fails, the discovery error is thrown to the caller.
+
+    .EXAMPLE
+    ```powershell
+    $DomainController = Get-TargetDomainController
+    Set-ADUser -Identity $User -ChangePasswordAtLogon $true -Server $DomainController
+    ```
+    Makes the change on this computer if it is a writable DC, otherwise on a discovered
+    writable DC.
+
+    .OUTPUTS
+    System.String. The DNS host name of the chosen domain controller.
+
+    .NOTES
+    Version: 1.0.0
+    #>
+    [OutputType([string])]
+    [CmdletBinding()]
+    param ()
+
+    # prefer this computer when it is a writable DC. not found means it isn't a DC
+    try {
+        $LocalDc = Get-ADDomainController -Identity $env:COMPUTERNAME -ErrorAction Stop
+    }
+    catch {
+        $LocalDc = $null
+    }
+    if ($LocalDc -and -not $LocalDc.IsReadOnly -and $LocalDc.HostName) {
+        return [string]$LocalDc.HostName
+    }
+
+    $DiscoverParams = @{
+        Discover    = $true
+        Writable    = $true
+        ErrorAction = 'Stop'
+    }
+    return [string](
+        Get-ADDomainController @DiscoverParams |
+            Select-Object -ExpandProperty HostName -First 1
+    )
+}
+#EndRegion './Private/OnPremAd/Get-TargetDomainController.ps1' 56
+#Region './Private/OnPremAd/Push-AdReplication.ps1' -1
+
+function Push-AdReplication {
+    <#
+    .SYNOPSIS
+    Pushes AD replication from one domain controller to all of its partners.
+
+    .DESCRIPTION
+    Internal helper. Runs 'repadmin /syncall <Server> /APed' (all partitions, push, across
+    sites, DNs in output) so changes made on Server reach every other DC. Works from any
+    device with repadmin, which is installed with the AD DS RSAT tools and on every DC; it
+    does not need to run on the DC itself. Warns and returns if repadmin isn't installed,
+    or if it exits with a non-zero code.
+
+    .PARAMETER Server
+    The domain controller to push replication from. Pass the DC where the change was made.
+
+    .EXAMPLE
+    ```powershell
+    Push-AdReplication -Server 'dc01.contoso.com'
+    ```
+    Pushes changes made on dc01 out to every other domain controller.
+
+    .OUTPUTS
+    None. Status is written to the console.
+
+    .NOTES
+    Version: 1.0.0
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string] $Server
+    )
+
+    if (-not (Get-Command -Name 'repadmin' -ErrorAction SilentlyContinue)) {
+        Write-IRT 'repadmin not found on this device. Skipping AD replication push.' -Level Warn
+        return
+    }
+
+    Write-IRT "Pushing AD replication from ${Server}."
+    $null = & repadmin /syncall $Server /APed *>&1
+    if ($LASTEXITCODE -ne 0) {
+        $Msg = "AD replication push from ${Server} failed " +
+        "(repadmin exit code $LASTEXITCODE)."
+        Write-IRT $Msg -Level Warn
+    }
+}
+#EndRegion './Private/OnPremAd/Push-AdReplication.ps1' 47
+#Region './Private/OnPremAd/Set-AdUserEnabled.ps1' -1
 
 function Set-AdUserEnabled {
     <#
@@ -5954,11 +6775,14 @@ function Set-AdUserEnabled {
     Called by Disable-IRTAdUser and Enable-IRTAdUser.
 
     .DESCRIPTION
-    Core implementation for enabling or disabling AD user accounts. For each user, calls
-    Enable-AdAccount or Disable-AdAccount using $env:ComputerName as the target DC, then
-    re-fetches the account to confirm the Enabled state changed. Triggers AD replication
-    via repadmin if running on a DC, and Start-ADSyncSyncCycle if the ADSync service is
-    local. Not typically called directly - use Disable-AdUser or Enable-AdUser instead.
+    Core implementation for enabling or disabling AD user accounts. Picks one writable
+    domain controller (this computer if it is one, otherwise a discovered DC), then for
+    each user calls Enable-AdAccount or Disable-AdAccount on that DC and re-fetches the
+    account from it to confirm the Enabled state changed. Runs
+    from any device with the ActiveDirectory module, not only a DC. Pushes AD replication
+    from that DC via repadmin (skipped with a warning if repadmin isn't installed), and
+    runs Start-ADSyncSyncCycle if the ADSync service is local. Not typically called
+    directly - use Disable-AdUser or Enable-AdUser instead.
 
     .PARAMETER UserObject
     One or more AD user objects to modify. Falls back to global session objects if omitted.
@@ -5974,7 +6798,9 @@ function Set-AdUserEnabled {
     None. Status is written to the console.
 
     .NOTES
-    Version: 1.0.0
+    Version: 1.1.0
+    1.1.0 - Targets one writable DC (this computer if it is one, otherwise a discovered
+            DC), so it no longer needs to run on a DC. Replication is pushed from that DC.
     #>
     [CmdletBinding(SupportsShouldProcess = $true)]
     param(
@@ -6027,6 +6853,10 @@ function Set-AdUserEnabled {
             return
         }
 
+        # make every change on one writable DC, so the readback sees it and replication
+        # pushes it from where it was made
+        $DomainController = Get-TargetDomainController
+
         Write-IRT ''
 
         foreach ( $ScriptUserObject in $ScriptUserObjects ) {
@@ -6035,7 +6865,7 @@ function Set-AdUserEnabled {
             Write-IRT "`n$($Action.TrimEnd('e'))ing $($ScriptUserObject.SamAccountName)."
             $Params = @{
                 Identity = $ScriptUserObject
-                Server   = $env:ComputerName
+                Server   = $DomainController
             }
             if ($PSCmdlet.ShouldProcess($ScriptUserObject.SamAccountName, "$Action account")) {
                 if ( $Enabled ) {
@@ -6051,7 +6881,7 @@ function Set-AdUserEnabled {
             $Params = @{
                 Identity   = $ScriptUserObject
                 Properties = $UserProperties
-                Server     = $env:ComputerName
+                Server     = $DomainController
             }
             $NewObject = Get-AdUser @Params
             $OutputObjects.Add( $NewObject )
@@ -6060,17 +6890,10 @@ function Set-AdUserEnabled {
         # show results
         $OutputObjects | Format-Table $UserProperties
 
-        # push ad replication
-        if ( Test-RunningOnDomainController ) {
-            Write-IRT "Pushing AD replication."
-            $null = & repadmin /syncall $env:ComputerName /APed *>&1
-        }
-        else {
-            Write-IRT "Not running on a domain controller; skipping replication push." -Level Warn
-        }
+        Push-AdReplication -Server $DomainController
 
         # push azure sync, if on this server
-        $SyncService = Get-Service -Name "adsync" -ErrorAction SilentlyContinue
+        $SyncService = Get-LocalAdSyncService
         if ( $SyncService ) {
             Write-IRT "`nPushing Azure sync."
             Start-ADSyncSyncCycle -PolicyType Delta
@@ -6082,8 +6905,8 @@ function Set-AdUserEnabled {
         }
     }
 }
-#EndRegion '.\Private\OnPremAd\Set-AdUserEnabled.ps1' 136
-#Region '.\Private\OnPremAd\Test-AdAvailable.ps1' -1
+#EndRegion './Private/OnPremAd/Set-AdUserEnabled.ps1' 138
+#Region './Private/OnPremAd/Test-AdAvailable.ps1' -1
 
 function Test-AdAvailable {
     <#
@@ -6113,38 +6936,8 @@ function Test-AdAvailable {
         return $false
     }
 }
-#EndRegion '.\Private\OnPremAd\Test-AdAvailable.ps1' 29
-#Region '.\Private\OnPremAd\Test-RunningOnDomainController.ps1' -1
-
-function Test-RunningOnDomainController {
-    <#
-    .SYNOPSIS
-    Returns true if the current machine is a domain controller.
-
-    .DESCRIPTION
-    Internal helper. Compares $env:ComputerName against the list of domain controllers
-    returned by Get-ADDomainController -Filter *. Returns $false on any error. Used to
-    gate repadmin calls that must run on a DC.
-
-    .NOTES
-    Version: 1.0.0
-    #>
-    [OutputType([bool])]
-    [CmdletBinding()]
-    param ()
-
-    Import-IRTModule -Name 'ActiveDirectory'
-
-    try {
-        $DomainControllerNames = (Get-ADDomainController -Filter *).Name
-        return $env:ComputerName -in $DomainControllerNames
-    }
-    catch {
-        return $false
-    }
-}
-#EndRegion '.\Private\OnPremAd\Test-RunningOnDomainController.ps1' 28
-#Region '.\Private\Role\Get-UnknownObject.ps1' -1
+#EndRegion './Private/OnPremAd/Test-AdAvailable.ps1' 29
+#Region './Private/Role/Get-UnknownObject.ps1' -1
 
 function Get-UnknownObject {
     <#
@@ -6207,8 +7000,8 @@ function Get-UnknownObject {
         }
     }
 }
-#EndRegion '.\Private\Role\Get-UnknownObject.ps1' 62
-#Region '.\Private\Role\New-RoleMemberObject.ps1' -1
+#EndRegion './Private/Role/Get-UnknownObject.ps1' 62
+#Region './Private/Role/New-RoleMemberObject.ps1' -1
 
 function New-RoleMemberObject {
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
@@ -6260,8 +7053,8 @@ function New-RoleMemberObject {
         }
     }
 }
-#EndRegion '.\Private\Role\New-RoleMemberObject.ps1' 51
-#Region '.\Private\ServicePrincipal\New-TenantSheet.ps1' -1
+#EndRegion './Private/Role/New-RoleMemberObject.ps1' 51
+#Region './Private/ServicePrincipal/New-TenantSheet.ps1' -1
 
 function New-TenantSheet {
     <#
@@ -6284,7 +7077,7 @@ function New-TenantSheet {
     Full path of the workbook to create.
 
     .EXAMPLE
-    New-TenantSheet -Path "$env:APPDATA\M365IncidentResponseTools\tenants.xlsx"
+    New-TenantSheet -Path (Get-IRTAppDataPath -ChildPath 'tenants.xlsx')
 
     Creates a starter tenants worksheet in the module's configuration directory.
 
@@ -6299,6 +7092,7 @@ function New-TenantSheet {
     )
 
     begin {
+        Import-IRTModule -Name 'ImportExcel', 'PSFramework'
         $FunctionName = $MyInvocation.MyCommand.Name
 
         # Sample rows. Adding, removing or renaming a property here changes the
@@ -6362,8 +7156,8 @@ function New-TenantSheet {
         Get-Item -LiteralPath $Path
     }
 }
-#EndRegion '.\Private\ServicePrincipal\New-TenantSheet.ps1' 100
-#Region '.\Private\ServicePrincipal\Show-GraphServicePrincipalTree.ps1' -1
+#EndRegion './Private/ServicePrincipal/New-TenantSheet.ps1' 101
+#Region './Private/ServicePrincipal/Show-GraphServicePrincipalTree.ps1' -1
 
 function Show-GraphServicePrincipalTree {
     <#
@@ -6417,8 +7211,8 @@ function Show-GraphServicePrincipalTree {
         }
     }
 }
-#EndRegion '.\Private\ServicePrincipal\Show-GraphServicePrincipalTree.ps1' 53
-#Region '.\Private\UnifiedAuditLog\Build-AllOperationSheet.ps1' -1
+#EndRegion './Private/ServicePrincipal/Show-GraphServicePrincipalTree.ps1' 53
+#Region './Private/UnifiedAuditLog/Build-AllOperationSheet.ps1' -1
 
 function Build-AllOperationSheet {
     <#
@@ -6818,8 +7612,8 @@ function Build-AllOperationSheet {
         return $Workbook
     }
 }
-#EndRegion '.\Private\UnifiedAuditLog\Build-AllOperationSheet.ps1' 399
-#Region '.\Private\UnifiedAuditLog\Build-UserLoginOperationsSheet.ps1' -1
+#EndRegion './Private/UnifiedAuditLog/Build-AllOperationSheet.ps1' 399
+#Region './Private/UnifiedAuditLog/Build-UserLoginOperationsSheet.ps1' -1
 
 function Build-UserLoginOperationsSheet {
     <#
@@ -7080,8 +7874,8 @@ function Build-UserLoginOperationsSheet {
         return $Workbook
     }
 }
-#EndRegion '.\Private\UnifiedAuditLog\Build-UserLoginOperationsSheet.ps1' 260
-#Region '.\Private\UnifiedAuditLog\ConvertTo-TeamsParty.ps1' -1
+#EndRegion './Private/UnifiedAuditLog/Build-UserLoginOperationsSheet.ps1' 260
+#Region './Private/UnifiedAuditLog/ConvertTo-TeamsParty.ps1' -1
 
 function ConvertTo-TeamsParty {
     <#
@@ -7204,8 +7998,8 @@ function ConvertTo-TeamsParty {
         TenantId = $PartyTenantId
     }
 }
-#EndRegion '.\Private\UnifiedAuditLog\ConvertTo-TeamsParty.ps1' 122
-#Region '.\Private\UnifiedAuditLog\ConvertTo-UalRecord.ps1' -1
+#EndRegion './Private/UnifiedAuditLog/ConvertTo-TeamsParty.ps1' 122
+#Region './Private/UnifiedAuditLog/ConvertTo-UalRecord.ps1' -1
 
 function ConvertTo-UalRecord {
     <#
@@ -7303,8 +8097,8 @@ function ConvertTo-UalRecord {
         }
     }
 }
-#EndRegion '.\Private\UnifiedAuditLog\ConvertTo-UalRecord.ps1' 97
-#Region '.\Private\UnifiedAuditLog\Get-AddRemoveRoleSummary.ps1' -1
+#EndRegion './Private/UnifiedAuditLog/ConvertTo-UalRecord.ps1' 97
+#Region './Private/UnifiedAuditLog/Get-AddRemoveRoleSummary.ps1' -1
 
 function Get-AddRemoveRoleSummary {
     <#
@@ -7370,8 +8164,8 @@ function Get-AddRemoveRoleSummary {
         return $EventObject
     }
 }
-#EndRegion '.\Private\UnifiedAuditLog\Get-AddRemoveRoleSummary.ps1' 65
-#Region '.\Private\UnifiedAuditLog\Get-AttachmentAccessSummary.ps1' -1
+#EndRegion './Private/UnifiedAuditLog/Get-AddRemoveRoleSummary.ps1' 65
+#Region './Private/UnifiedAuditLog/Get-AttachmentAccessSummary.ps1' -1
 
 function Get-AttachmentAccessSummary {
     <#
@@ -7408,8 +8202,8 @@ function Get-AttachmentAccessSummary {
         return $EventObject
     }
 }
-#EndRegion '.\Private\UnifiedAuditLog\Get-AttachmentAccessSummary.ps1' 36
-#Region '.\Private\UnifiedAuditLog\Get-CallParticipantDetailParty.ps1' -1
+#EndRegion './Private/UnifiedAuditLog/Get-AttachmentAccessSummary.ps1' 36
+#Region './Private/UnifiedAuditLog/Get-CallParticipantDetailParty.ps1' -1
 
 function Get-CallParticipantDetailParty {
     <#
@@ -7465,8 +8259,8 @@ function Get-CallParticipantDetailParty {
     ConvertTo-TeamsParty -TenantId $AuditData.ResourceTenantId
     ConvertTo-TeamsParty -Upn $AuditData.UserId
 }
-#EndRegion '.\Private\UnifiedAuditLog\Get-CallParticipantDetailParty.ps1' 55
-#Region '.\Private\UnifiedAuditLog\Get-ChatCreatedParty.ps1' -1
+#EndRegion './Private/UnifiedAuditLog/Get-CallParticipantDetailParty.ps1' 55
+#Region './Private/UnifiedAuditLog/Get-ChatCreatedParty.ps1' -1
 
 function Get-ChatCreatedParty {
     <#
@@ -7519,8 +8313,8 @@ function Get-ChatCreatedParty {
     ConvertTo-TeamsParty -Upn $AuditData.UserId -TenantId $AuditData.UserTenantId
     ConvertTo-TeamsParty -TenantId $AuditData.ResourceTenantId
 }
-#EndRegion '.\Private\UnifiedAuditLog\Get-ChatCreatedParty.ps1' 52
-#Region '.\Private\UnifiedAuditLog\Get-ExchangeItemCreateSendSummary.ps1' -1
+#EndRegion './Private/UnifiedAuditLog/Get-ChatCreatedParty.ps1' 52
+#Region './Private/UnifiedAuditLog/Get-ExchangeItemCreateSendSummary.ps1' -1
 
 function Get-ExchangeItemCreateSendSummary {
     <#
@@ -7560,8 +8354,8 @@ function Get-ExchangeItemCreateSendSummary {
         return $EventObject
     }
 }
-#EndRegion '.\Private\UnifiedAuditLog\Get-ExchangeItemCreateSendSummary.ps1' 39
-#Region '.\Private\UnifiedAuditLog\Get-ExchangeItemDeleteSummary.ps1' -1
+#EndRegion './Private/UnifiedAuditLog/Get-ExchangeItemCreateSendSummary.ps1' 39
+#Region './Private/UnifiedAuditLog/Get-ExchangeItemDeleteSummary.ps1' -1
 
 function Get-ExchangeItemDeleteSummary {
     <#
@@ -7652,8 +8446,8 @@ function Get-ExchangeItemDeleteSummary {
         return $EventObject
     }
 }
-#EndRegion '.\Private\UnifiedAuditLog\Get-ExchangeItemDeleteSummary.ps1' 90
-#Region '.\Private\UnifiedAuditLog\Get-ExchangeItemUpdateSummary.ps1' -1
+#EndRegion './Private/UnifiedAuditLog/Get-ExchangeItemDeleteSummary.ps1' 90
+#Region './Private/UnifiedAuditLog/Get-ExchangeItemUpdateSummary.ps1' -1
 
 function Get-ExchangeItemUpdateSummary {
     <#
@@ -7697,8 +8491,8 @@ function Get-ExchangeItemUpdateSummary {
         return $EventObject
     }
 }
-#EndRegion '.\Private\UnifiedAuditLog\Get-ExchangeItemUpdateSummary.ps1' 43
-#Region '.\Private\UnifiedAuditLog\Get-GraphUALErrorStatus.ps1' -1
+#EndRegion './Private/UnifiedAuditLog/Get-ExchangeItemUpdateSummary.ps1' 43
+#Region './Private/UnifiedAuditLog/Get-GraphUALErrorStatus.ps1' -1
 
 function Get-GraphUALErrorStatus {
     <#
@@ -7744,8 +8538,8 @@ function Get-GraphUALErrorStatus {
     if ($Message -match 'does not indicate success:\s*([A-Za-z]+)') { return $Matches[1] }
     return 'Unknown'
 }
-#EndRegion '.\Private\UnifiedAuditLog\Get-GraphUALErrorStatus.ps1' 45
-#Region '.\Private\UnifiedAuditLog\Get-GraphUALJob.ps1' -1
+#EndRegion './Private/UnifiedAuditLog/Get-GraphUALErrorStatus.ps1' 45
+#Region './Private/UnifiedAuditLog/Get-GraphUALJob.ps1' -1
 
 function Get-GraphUALJob {
     <#
@@ -7877,8 +8671,8 @@ function Get-GraphUALJob {
     Write-PSFMessage -Level 8 -Message "${FunctionName}: returning $($Jobs.Count) job(s)."
     return $Jobs.ToArray()
 }
-#EndRegion '.\Private\UnifiedAuditLog\Get-GraphUALJob.ps1' 131
-#Region '.\Private\UnifiedAuditLog\Get-GraphUALJobLabel.ps1' -1
+#EndRegion './Private/UnifiedAuditLog/Get-GraphUALJob.ps1' 131
+#Region './Private/UnifiedAuditLog/Get-GraphUALJobLabel.ps1' -1
 
 function Get-GraphUALJobLabel {
     <#
@@ -7943,8 +8737,8 @@ function Get-GraphUALJobLabel {
     if ($Label.Length -gt $MaxLength) { $Label = $Label.Substring(0, $MaxLength - 3) + '...' }
     return $Label
 }
-#EndRegion '.\Private\UnifiedAuditLog\Get-GraphUALJobLabel.ps1' 64
-#Region '.\Private\UnifiedAuditLog\Get-GraphUALKnownRecordType.ps1' -1
+#EndRegion './Private/UnifiedAuditLog/Get-GraphUALJobLabel.ps1' 64
+#Region './Private/UnifiedAuditLog/Get-GraphUALKnownRecordType.ps1' -1
 
 function Get-GraphUALKnownRecordType {
     <#
@@ -8043,8 +8837,8 @@ function Get-GraphUALKnownRecordType {
     $Global:IRT_GraphUALRecordTypes = $Types
     return , $Types
 }
-#EndRegion '.\Private\UnifiedAuditLog\Get-GraphUALKnownRecordType.ps1' 98
-#Region '.\Private\UnifiedAuditLog\Get-GraphUALOpenUnfilteredJob.ps1' -1
+#EndRegion './Private/UnifiedAuditLog/Get-GraphUALKnownRecordType.ps1' 98
+#Region './Private/UnifiedAuditLog/Get-GraphUALOpenUnfilteredJob.ps1' -1
 
 function Get-GraphUALOpenUnfilteredJob {
     <#
@@ -8123,8 +8917,8 @@ function Get-GraphUALOpenUnfilteredJob {
 
     return $null
 }
-#EndRegion '.\Private\UnifiedAuditLog\Get-GraphUALOpenUnfilteredJob.ps1' 78
-#Region '.\Private\UnifiedAuditLog\Get-GraphUALRecord.ps1' -1
+#EndRegion './Private/UnifiedAuditLog/Get-GraphUALOpenUnfilteredJob.ps1' 78
+#Region './Private/UnifiedAuditLog/Get-GraphUALRecord.ps1' -1
 
 function Get-GraphUALRecord {
     <#
@@ -8203,8 +8997,8 @@ function Get-GraphUALRecord {
         Error   = $PageError
     }
 }
-#EndRegion '.\Private\UnifiedAuditLog\Get-GraphUALRecord.ps1' 78
-#Region '.\Private\UnifiedAuditLog\Get-GraphUALRetryDelay.ps1' -1
+#EndRegion './Private/UnifiedAuditLog/Get-GraphUALRecord.ps1' 78
+#Region './Private/UnifiedAuditLog/Get-GraphUALRetryDelay.ps1' -1
 
 function Get-GraphUALRetryDelay {
     <#
@@ -8280,8 +9074,8 @@ function Get-GraphUALRetryDelay {
     $Wait = [int]($BaseSeconds * [Math]::Pow(2, $Attempt - 1))
     return [Math]::Min($Wait, $MaxWait)
 }
-#EndRegion '.\Private\UnifiedAuditLog\Get-GraphUALRetryDelay.ps1' 75
-#Region '.\Private\UnifiedAuditLog\Get-GraphUALRiskyOperation.ps1' -1
+#EndRegion './Private/UnifiedAuditLog/Get-GraphUALRetryDelay.ps1' 75
+#Region './Private/UnifiedAuditLog/Get-GraphUALRiskyOperation.ps1' -1
 
 function Get-GraphUALRiskyOperation {
     <#
@@ -8362,8 +9156,8 @@ function Get-GraphUALRiskyOperation {
 
     return [string[]]$Operations
 }
-#EndRegion '.\Private\UnifiedAuditLog\Get-GraphUALRiskyOperation.ps1' 80
-#Region '.\Private\UnifiedAuditLog\Get-InboxRuleSummary.ps1' -1
+#EndRegion './Private/UnifiedAuditLog/Get-GraphUALRiskyOperation.ps1' 80
+#Region './Private/UnifiedAuditLog/Get-InboxRuleSummary.ps1' -1
 
 function Get-InboxRuleSummary {
     <#
@@ -8407,8 +9201,8 @@ function Get-InboxRuleSummary {
         return $EventObject
     }
 }
-#EndRegion '.\Private\UnifiedAuditLog\Get-InboxRuleSummary.ps1' 43
-#Region '.\Private\UnifiedAuditLog\Get-LoginOperationSummary.ps1' -1
+#EndRegion './Private/UnifiedAuditLog/Get-InboxRuleSummary.ps1' 43
+#Region './Private/UnifiedAuditLog/Get-LoginOperationSummary.ps1' -1
 
 function Get-LoginOperationSummary {
     <#
@@ -8491,8 +9285,8 @@ function Get-LoginOperationSummary {
         return $EventObject
     }
 }
-#EndRegion '.\Private\UnifiedAuditLog\Get-LoginOperationSummary.ps1' 82
-#Region '.\Private\UnifiedAuditLog\Get-MailItemsAccessedSummary.ps1' -1
+#EndRegion './Private/UnifiedAuditLog/Get-LoginOperationSummary.ps1' 82
+#Region './Private/UnifiedAuditLog/Get-MailItemsAccessedSummary.ps1' -1
 
 function Get-MailItemsAccessedSummary {
     <#
@@ -8560,8 +9354,8 @@ function Get-MailItemsAccessedSummary {
         return $EventObject
     }
 }
-#EndRegion '.\Private\UnifiedAuditLog\Get-MailItemsAccessedSummary.ps1' 67
-#Region '.\Private\UnifiedAuditLog\Get-MeetingParticipantDetailParty.ps1' -1
+#EndRegion './Private/UnifiedAuditLog/Get-MailItemsAccessedSummary.ps1' 67
+#Region './Private/UnifiedAuditLog/Get-MeetingParticipantDetailParty.ps1' -1
 
 function Get-MeetingParticipantDetailParty {
     <#
@@ -8623,8 +9417,8 @@ function Get-MeetingParticipantDetailParty {
     ConvertTo-TeamsParty -TenantId $AuditData.ResourceTenantId
     ConvertTo-TeamsParty -Upn $AuditData.UserId
 }
-#EndRegion '.\Private\UnifiedAuditLog\Get-MeetingParticipantDetailParty.ps1' 61
-#Region '.\Private\UnifiedAuditLog\Get-MemberAddedParty.ps1' -1
+#EndRegion './Private/UnifiedAuditLog/Get-MeetingParticipantDetailParty.ps1' 61
+#Region './Private/UnifiedAuditLog/Get-MemberAddedParty.ps1' -1
 
 function Get-MemberAddedParty {
     <#
@@ -8678,8 +9472,8 @@ function Get-MemberAddedParty {
     ConvertTo-TeamsParty -Upn $AuditData.UserId -TenantId $AuditData.UserTenantId
     ConvertTo-TeamsParty -TenantId $AuditData.ResourceTenantId
 }
-#EndRegion '.\Private\UnifiedAuditLog\Get-MemberAddedParty.ps1' 53
-#Region '.\Private\UnifiedAuditLog\Get-MessageCreatedHasLinkParty.ps1' -1
+#EndRegion './Private/UnifiedAuditLog/Get-MemberAddedParty.ps1' 53
+#Region './Private/UnifiedAuditLog/Get-MessageCreatedHasLinkParty.ps1' -1
 
 function Get-MessageCreatedHasLinkParty {
     <#
@@ -8730,8 +9524,8 @@ function Get-MessageCreatedHasLinkParty {
     ConvertTo-TeamsParty -Upn $AuditData.UserId -TenantId $AuditData.UserTenantId
     ConvertTo-TeamsParty -TenantId $AuditData.ResourceTenantId
 }
-#EndRegion '.\Private\UnifiedAuditLog\Get-MessageCreatedHasLinkParty.ps1' 50
-#Region '.\Private\UnifiedAuditLog\Get-MessageEditedHasLinkParty.ps1' -1
+#EndRegion './Private/UnifiedAuditLog/Get-MessageCreatedHasLinkParty.ps1' 50
+#Region './Private/UnifiedAuditLog/Get-MessageEditedHasLinkParty.ps1' -1
 
 function Get-MessageEditedHasLinkParty {
     <#
@@ -8782,8 +9576,8 @@ function Get-MessageEditedHasLinkParty {
     ConvertTo-TeamsParty -Upn $AuditData.UserId -TenantId $AuditData.UserTenantId
     ConvertTo-TeamsParty -TenantId $AuditData.ResourceTenantId
 }
-#EndRegion '.\Private\UnifiedAuditLog\Get-MessageEditedHasLinkParty.ps1' 50
-#Region '.\Private\UnifiedAuditLog\Get-MessageSentParty.ps1' -1
+#EndRegion './Private/UnifiedAuditLog/Get-MessageEditedHasLinkParty.ps1' 50
+#Region './Private/UnifiedAuditLog/Get-MessageSentParty.ps1' -1
 
 function Get-MessageSentParty {
     <#
@@ -8831,8 +9625,8 @@ function Get-MessageSentParty {
     ConvertTo-TeamsParty -Upn $AuditData.UserId -TenantId $AuditData.UserTenantId
     ConvertTo-TeamsParty -TenantId $AuditData.ResourceTenantId
 }
-#EndRegion '.\Private\UnifiedAuditLog\Get-MessageSentParty.ps1' 47
-#Region '.\Private\UnifiedAuditLog\Get-MessageUpdatedParty.ps1' -1
+#EndRegion './Private/UnifiedAuditLog/Get-MessageSentParty.ps1' 47
+#Region './Private/UnifiedAuditLog/Get-MessageUpdatedParty.ps1' -1
 
 function Get-MessageUpdatedParty {
     <#
@@ -8880,8 +9674,8 @@ function Get-MessageUpdatedParty {
     ConvertTo-TeamsParty -Upn $AuditData.UserId -TenantId $AuditData.UserTenantId
     ConvertTo-TeamsParty -TenantId $AuditData.ResourceTenantId
 }
-#EndRegion '.\Private\UnifiedAuditLog\Get-MessageUpdatedParty.ps1' 47
-#Region '.\Private\UnifiedAuditLog\Get-PageViewedSummary.ps1' -1
+#EndRegion './Private/UnifiedAuditLog/Get-MessageUpdatedParty.ps1' 47
+#Region './Private/UnifiedAuditLog/Get-PageViewedSummary.ps1' -1
 
 function Get-PageViewedSummary {
     <#
@@ -8919,8 +9713,8 @@ function Get-PageViewedSummary {
         return $EventObject
     }
 }
-#EndRegion '.\Private\UnifiedAuditLog\Get-PageViewedSummary.ps1' 37
-#Region '.\Private\UnifiedAuditLog\Get-PIMRoleAssignedSummary.ps1' -1
+#EndRegion './Private/UnifiedAuditLog/Get-PageViewedSummary.ps1' 37
+#Region './Private/UnifiedAuditLog/Get-PIMRoleAssignedSummary.ps1' -1
 
 function Get-PIMRoleAssignedSummary {
     <#
@@ -8984,8 +9778,8 @@ function Get-PIMRoleAssignedSummary {
         return $EventObject
     }
 }
-#EndRegion '.\Private\UnifiedAuditLog\Get-PIMRoleAssignedSummary.ps1' 63
-#Region '.\Private\UnifiedAuditLog\Get-ReactedToMessageParty.ps1' -1
+#EndRegion './Private/UnifiedAuditLog/Get-PIMRoleAssignedSummary.ps1' 63
+#Region './Private/UnifiedAuditLog/Get-ReactedToMessageParty.ps1' -1
 
 function Get-ReactedToMessageParty {
     <#
@@ -9034,8 +9828,8 @@ function Get-ReactedToMessageParty {
     ConvertTo-TeamsParty -Upn $AuditData.UserId -TenantId $AuditData.UserTenantId
     ConvertTo-TeamsParty -TenantId $AuditData.ResourceTenantId
 }
-#EndRegion '.\Private\UnifiedAuditLog\Get-ReactedToMessageParty.ps1' 48
-#Region '.\Private\UnifiedAuditLog\Get-SearchQueryPerformedSummary.ps1' -1
+#EndRegion './Private/UnifiedAuditLog/Get-ReactedToMessageParty.ps1' 48
+#Region './Private/UnifiedAuditLog/Get-SearchQueryPerformedSummary.ps1' -1
 
 function Get-SearchQueryPerformedSummary {
     <#
@@ -9072,8 +9866,8 @@ function Get-SearchQueryPerformedSummary {
         return $EventObject
     }
 }
-#EndRegion '.\Private\UnifiedAuditLog\Get-SearchQueryPerformedSummary.ps1' 36
-#Region '.\Private\UnifiedAuditLog\Get-SetConditionalAccessPolicySummary.ps1' -1
+#EndRegion './Private/UnifiedAuditLog/Get-SearchQueryPerformedSummary.ps1' 36
+#Region './Private/UnifiedAuditLog/Get-SetConditionalAccessPolicySummary.ps1' -1
 
 function Get-SetConditionalAccessPolicySummary {
     <#
@@ -9111,8 +9905,8 @@ function Get-SetConditionalAccessPolicySummary {
         return $EventObject
     }
 }
-#EndRegion '.\Private\UnifiedAuditLog\Get-SetConditionalAccessPolicySummary.ps1' 37
-#Region '.\Private\UnifiedAuditLog\Get-SharePointFileOperationSummary.ps1' -1
+#EndRegion './Private/UnifiedAuditLog/Get-SetConditionalAccessPolicySummary.ps1' 37
+#Region './Private/UnifiedAuditLog/Get-SharePointFileOperationSummary.ps1' -1
 
 function Get-SharePointFileOperationSummary {
     <#
@@ -9164,8 +9958,8 @@ function Get-SharePointFileOperationSummary {
         return $SummaryObject
     }
 }
-#EndRegion '.\Private\UnifiedAuditLog\Get-SharePointFileOperationSummary.ps1' 51
-#Region '.\Private\UnifiedAuditLog\Get-TeamsParticipantInfoParty.ps1' -1
+#EndRegion './Private/UnifiedAuditLog/Get-SharePointFileOperationSummary.ps1' 51
+#Region './Private/UnifiedAuditLog/Get-TeamsParticipantInfoParty.ps1' -1
 
 function Get-TeamsParticipantInfoParty {
     <#
@@ -9218,8 +10012,8 @@ function Get-TeamsParticipantInfoParty {
         ConvertTo-TeamsParty -TenantId $Id
     }
 }
-#EndRegion '.\Private\UnifiedAuditLog\Get-TeamsParticipantInfoParty.ps1' 52
-#Region '.\Private\UnifiedAuditLog\Get-TeamsSessionStartedSummary.ps1' -1
+#EndRegion './Private/UnifiedAuditLog/Get-TeamsParticipantInfoParty.ps1' 52
+#Region './Private/UnifiedAuditLog/Get-TeamsSessionStartedSummary.ps1' -1
 
 function Get-TeamsSessionStartedSummary {
     <#
@@ -9273,8 +10067,8 @@ function Get-TeamsSessionStartedSummary {
 
     }
 }
-#EndRegion '.\Private\UnifiedAuditLog\Get-TeamsSessionStartedSummary.ps1' 53
-#Region '.\Private\UnifiedAuditLog\Get-UpdateUserSummary.ps1' -1
+#EndRegion './Private/UnifiedAuditLog/Get-TeamsSessionStartedSummary.ps1' 53
+#Region './Private/UnifiedAuditLog/Get-UpdateUserSummary.ps1' -1
 
 function Get-UpdateUserSummary {
     <#
@@ -9314,8 +10108,8 @@ function Get-UpdateUserSummary {
         return $EventObject
     }
 }
-#EndRegion '.\Private\UnifiedAuditLog\Get-UpdateUserSummary.ps1' 39
-#Region '.\Private\UnifiedAuditLog\Get-UserAcceptedParty.ps1' -1
+#EndRegion './Private/UnifiedAuditLog/Get-UpdateUserSummary.ps1' 39
+#Region './Private/UnifiedAuditLog/Get-UserAcceptedParty.ps1' -1
 
 function Get-UserAcceptedParty {
     <#
@@ -9363,8 +10157,8 @@ function Get-UserAcceptedParty {
         ConvertTo-TeamsParty -Upn $Member.UPN -TenantId $Member.OrganizationId
     }
 }
-#EndRegion '.\Private\UnifiedAuditLog\Get-UserAcceptedParty.ps1' 47
-#Region '.\Private\UnifiedAuditLog\Get-UserBlockedParty.ps1' -1
+#EndRegion './Private/UnifiedAuditLog/Get-UserAcceptedParty.ps1' 47
+#Region './Private/UnifiedAuditLog/Get-UserBlockedParty.ps1' -1
 
 function Get-UserBlockedParty {
     <#
@@ -9412,8 +10206,8 @@ function Get-UserBlockedParty {
         ConvertTo-TeamsParty -Upn $Member.UPN -TenantId $Member.OrganizationId
     }
 }
-#EndRegion '.\Private\UnifiedAuditLog\Get-UserBlockedParty.ps1' 47
-#Region '.\Private\UnifiedAuditLog\Invoke-GraphUALRequest.ps1' -1
+#EndRegion './Private/UnifiedAuditLog/Get-UserBlockedParty.ps1' 47
+#Region './Private/UnifiedAuditLog/Invoke-GraphUALRequest.ps1' -1
 
 function Invoke-GraphUALRequest {
     <#
@@ -9616,8 +10410,8 @@ function Invoke-GraphUALRequest {
         }
     }
 }
-#EndRegion '.\Private\UnifiedAuditLog\Invoke-GraphUALRequest.ps1' 202
-#Region '.\Private\UnifiedAuditLog\New-GraphUALName.ps1' -1
+#EndRegion './Private/UnifiedAuditLog/Invoke-GraphUALRequest.ps1' 202
+#Region './Private/UnifiedAuditLog/New-GraphUALName.ps1' -1
 
 function New-GraphUALName {
     <#
@@ -9731,8 +10525,8 @@ function New-GraphUALName {
 
     return $Prefix + ($Parts -join '|')
 }
-#EndRegion '.\Private\UnifiedAuditLog\New-GraphUALName.ps1' 113
-#Region '.\Private\UnifiedAuditLog\New-UalGapMarker.ps1' -1
+#EndRegion './Private/UnifiedAuditLog/New-GraphUALName.ps1' 113
+#Region './Private/UnifiedAuditLog/New-UalGapMarker.ps1' -1
 
 function New-UalGapMarker {
     <#
@@ -9804,8 +10598,8 @@ function New-UalGapMarker {
         AuditData    = $AuditData
     }
 }
-#EndRegion '.\Private\UnifiedAuditLog\New-UalGapMarker.ps1' 71
-#Region '.\Private\UnifiedAuditLog\Read-GraphUALName.ps1' -1
+#EndRegion './Private/UnifiedAuditLog/New-UalGapMarker.ps1' 71
+#Region './Private/UnifiedAuditLog/Read-GraphUALName.ps1' -1
 
 function Read-GraphUALName {
     <#
@@ -9897,8 +10691,8 @@ function Read-GraphUALName {
         Index      = $Index
     }
 }
-#EndRegion '.\Private\UnifiedAuditLog\Read-GraphUALName.ps1' 91
-#Region '.\Private\UnifiedAuditLog\Remove-ODataAnnotation.ps1' -1
+#EndRegion './Private/UnifiedAuditLog/Read-GraphUALName.ps1' 91
+#Region './Private/UnifiedAuditLog/Remove-ODataAnnotation.ps1' -1
 
 function Remove-ODataAnnotation {
     <#
@@ -9971,8 +10765,8 @@ function Remove-ODataAnnotation {
 
     return $InputObject
 }
-#EndRegion '.\Private\UnifiedAuditLog\Remove-ODataAnnotation.ps1' 72
-#Region '.\Private\UnifiedAuditLog\Select-GraphUALFocus.ps1' -1
+#EndRegion './Private/UnifiedAuditLog/Remove-ODataAnnotation.ps1' 72
+#Region './Private/UnifiedAuditLog/Select-GraphUALFocus.ps1' -1
 
 function Select-GraphUALFocus {
     <#
@@ -10077,8 +10871,8 @@ function Select-GraphUALFocus {
 
     return [string[]]$GroupIds
 }
-#EndRegion '.\Private\UnifiedAuditLog\Select-GraphUALFocus.ps1' 104
-#Region '.\Private\UnifiedAuditLog\Show-GraphUALStatus.ps1' -1
+#EndRegion './Private/UnifiedAuditLog/Select-GraphUALFocus.ps1' 104
+#Region './Private/UnifiedAuditLog/Show-GraphUALStatus.ps1' -1
 
 function Show-GraphUALStatus {
     <#
@@ -10177,8 +10971,8 @@ function Show-GraphUALStatus {
         }
     }
 }
-#EndRegion '.\Private\UnifiedAuditLog\Show-GraphUALStatus.ps1' 98
-#Region '.\Private\UnifiedAuditLog\Test-GraphUALRecordType.ps1' -1
+#EndRegion './Private/UnifiedAuditLog/Show-GraphUALStatus.ps1' 98
+#Region './Private/UnifiedAuditLog/Test-GraphUALRecordType.ps1' -1
 
 function Test-GraphUALRecordType {
     <#
@@ -10268,8 +11062,8 @@ function Test-GraphUALRecordType {
 
     return [string[]]$Unknown
 }
-#EndRegion '.\Private\UnifiedAuditLog\Test-GraphUALRecordType.ps1' 89
-#Region '.\Private\UnifiedAuditLog\Test-IRTInteractiveHost.ps1' -1
+#EndRegion './Private/UnifiedAuditLog/Test-GraphUALRecordType.ps1' 89
+#Region './Private/UnifiedAuditLog/Test-IRTInteractiveHost.ps1' -1
 
 function Test-IRTInteractiveHost {
     <#
@@ -10309,8 +11103,8 @@ function Test-IRTInteractiveHost {
 
     return $true
 }
-#EndRegion '.\Private\UnifiedAuditLog\Test-IRTInteractiveHost.ps1' 39
-#Region '.\Private\User\Format-SentinelDate.ps1' -1
+#EndRegion './Private/UnifiedAuditLog/Test-IRTInteractiveHost.ps1' 39
+#Region './Private/User/Format-SentinelDate.ps1' -1
 
 function Format-SentinelDate {
     param(
@@ -10335,8 +11129,8 @@ function Format-SentinelDate {
         if ($IsEmptyDate) { $Obj.$Name = $null }
     }
 }
-#EndRegion '.\Private\User\Format-SentinelDate.ps1' 24
-#Region '.\Private\User\Get-FullUserObject.ps1' -1
+#EndRegion './Private/User/Format-SentinelDate.ps1' 24
+#Region './Private/User/Get-FullUserObject.ps1' -1
 
 function Get-FullUserObject {
     <#
@@ -10475,8 +11269,8 @@ function Get-FullUserObject {
         Write-Output $ScriptUserObject
     }
 }
-#EndRegion '.\Private\User\Get-FullUserObject.ps1' 138
-#Region '.\Private\User\Set-UserEnabled.ps1' -1
+#EndRegion './Private/User/Get-FullUserObject.ps1' 138
+#Region './Private/User/Set-UserEnabled.ps1' -1
 
 function Set-UserEnabled {
     <#
@@ -10608,8 +11402,8 @@ function Set-UserEnabled {
         }
     }
 }
-#EndRegion '.\Private\User\Set-UserEnabled.ps1' 131
-#Region '.\Private\User\Show-GraphUserTree.ps1' -1
+#EndRegion './Private/User/Set-UserEnabled.ps1' 131
+#Region './Private/User/Show-GraphUserTree.ps1' -1
 
 function Show-GraphUserTree {
     <#
@@ -10660,8 +11454,8 @@ function Show-GraphUserTree {
         }
     }
 }
-#EndRegion '.\Private\User\Show-GraphUserTree.ps1' 50
-#Region '.\Private\Utility\Add-IpInfoToSheet.ps1' -1
+#EndRegion './Private/User/Show-GraphUserTree.ps1' 50
+#Region './Private/Utility/Add-IpInfoToSheet.ps1' -1
 
 function Add-IpInfoToSheet {
     <#
@@ -10677,6 +11471,11 @@ function Add-IpInfoToSheet {
     Does nothing if $Global:IRT_Config.IpInfoAvailable is $false or the worksheet has
     no table.
 
+    Each enriched column also gets the IP address color-coding rules. They are copied
+    from the workbook named in $Global:IRT_Config.IPConditionalFormattingTemplatePath,
+    or from the default rules built by New-IpConditionalFormattingTemplate when that
+    setting is blank.
+
     .PARAMETER Worksheet
     An OfficeOpenXml worksheet object (e.g., from $Workbook.Workbook.Worksheets['Name']).
 
@@ -10690,8 +11489,11 @@ function Add-IpInfoToSheet {
     .EXAMPLE
     Add-IpInfoToSheet -Worksheet $Worksheet -ColumnName 'FromIP', 'ToIP'
 
+    .OUTPUTS
+    None. The worksheet is modified in place.
+
     .NOTES
-    Version: 1.1.0
+    Version: 1.2.0
     #>
     [CmdletBinding()]
     param (
@@ -10702,6 +11504,8 @@ function Add-IpInfoToSheet {
         [Parameter(Mandatory)]
         [string[]] $ColumnName
     )
+
+    Import-IRTModule -Name 'PSFramework'
 
     if (-not $Global:IRT_Config.IpInfoAvailable) { return }
     if ($null -eq $Worksheet) { return }
@@ -10826,21 +11630,41 @@ function Add-IpInfoToSheet {
     $DestPackage = if ($PkgField) { $PkgField.GetValue($Worksheet.Workbook) } else { $null }
 
     if ($null -ne $DestPackage) {
-        foreach ($Name in $ColMap.Keys) {
-            $ColLetter = $ColMap[$Name] | Convert-DecimalToExcelColumn
-            $CopyParams = @{
-                Source           = $Global:IRT_Config.IPConditionalFormattingTemplatePath
-                SourceRange      = 'A1:A1048576'
-                Destination      = $DestPackage
-                DestinationSheet = $Worksheet.Name
-                DestinationRange = "${ColLetter}:${ColLetter}"
+        # A configured template path wins; otherwise build the default rules in memory.
+        $FunctionName = $MyInvocation.MyCommand.Name
+        $TemplatePath = $Global:IRT_Config.IPConditionalFormattingTemplatePath
+        if ($TemplatePath) {
+            Write-PSFMessage -Level 8 -Message (
+                "${FunctionName}: using CF template '${TemplatePath}'")
+            $Template = $TemplatePath
+        }
+        else {
+            Write-PSFMessage -Level 8 -Message "${FunctionName}: using default CF rules"
+            $Template = New-IpConditionalFormattingTemplate
+        }
+
+        try {
+            foreach ($Name in $ColMap.Keys) {
+                $ColLetter = $ColMap[$Name] | Convert-DecimalToExcelColumn
+                $CopyParams = @{
+                    Source           = $Template
+                    SourceRange      = 'A1:A1048576'
+                    Destination      = $DestPackage
+                    DestinationSheet = $Worksheet.Name
+                    DestinationRange = "${ColLetter}:${ColLetter}"
+                }
+                Copy-ConditionalFormatting @CopyParams
             }
-            Copy-ConditionalFormatting @CopyParams
+        }
+        finally {
+            if ($Template -is [OfficeOpenXml.ExcelPackage]) {
+                $Template.Dispose()
+            }
         }
     }
 }
-#EndRegion '.\Private\Utility\Add-IpInfoToSheet.ps1' 177
-#Region '.\Private\Utility\Convert-DecimalToExcelColumn.ps1' -1
+#EndRegion './Private/Utility/Add-IpInfoToSheet.ps1' 207
+#Region './Private/Utility/Convert-DecimalToExcelColumn.ps1' -1
 
 function Convert-DecimalToExcelColumn {
     <#
@@ -10895,8 +11719,8 @@ function Convert-DecimalToExcelColumn {
         return ($ColumnLetters -join '')
     }
 }
-#EndRegion '.\Private\Utility\Convert-DecimalToExcelColumn.ps1' 54
-#Region '.\Private\Utility\ConvertTo-HumanErrorDescription.ps1' -1
+#EndRegion './Private/Utility/Convert-DecimalToExcelColumn.ps1' 54
+#Region './Private/Utility/ConvertTo-HumanErrorDescription.ps1' -1
 
 function ConvertTo-HumanErrorDescription {
     <#
@@ -10909,7 +11733,7 @@ function ConvertTo-HumanErrorDescription {
     data file and returns a formatted string in the form "CODE:Description". The lookup
     table is cached in $Global:IRT_EntraErrorTable after the first call for performance.
 
-    Used internally by Get-IRTEntraSignIn and Get-IRTNonInteractiveSignIn to annotate each log row.
+    Used internally by Get-IRTEntraUserSignInLog and Get-IRTEntraSPSignInLog to annotate each row.
 
     .PARAMETER ErrorCode
     The integer Entra sign-in error code to look up.
@@ -10956,8 +11780,8 @@ function ConvertTo-HumanErrorDescription {
         }
     }
 }
-#EndRegion '.\Private\Utility\ConvertTo-HumanErrorDescription.ps1' 59
-#Region '.\Private\Utility\Copy-ConditionalFormatting.ps1' -1
+#EndRegion './Private/Utility/ConvertTo-HumanErrorDescription.ps1' 59
+#Region './Private/Utility/Copy-ConditionalFormatting.ps1' -1
 
 function Copy-ConditionalFormatting {
     <#
@@ -11294,8 +12118,8 @@ function Copy-ConditionalFormatting {
         }
     }
 }
-#EndRegion '.\Private\Utility\Copy-ConditionalFormatting.ps1' 336
-#Region '.\Private\Utility\Format-PhoneNumber.ps1' -1
+#EndRegion './Private/Utility/Copy-ConditionalFormatting.ps1' 336
+#Region './Private/Utility/Format-PhoneNumber.ps1' -1
 
 function Format-PhoneNumber {
     <#
@@ -11340,8 +12164,8 @@ function Format-PhoneNumber {
         return $PhoneNumber
     }
 }
-#EndRegion '.\Private\Utility\Format-PhoneNumber.ps1' 44
-#Region '.\Private\Utility\Get-DefaultDomain.ps1' -1
+#EndRegion './Private/Utility/Format-PhoneNumber.ps1' 44
+#Region './Private/Utility/Get-DefaultDomain.ps1' -1
 
 function Get-DefaultDomain {
     <#
@@ -11457,8 +12281,56 @@ function Get-DefaultDomain {
         return $DefaultDomainName
     }
 }
-#EndRegion '.\Private\Utility\Get-DefaultDomain.ps1' 115
-#Region '.\Private\Utility\Get-GlobalUserObject.ps1' -1
+#EndRegion './Private/Utility/Get-DefaultDomain.ps1' 115
+#Region './Private/Utility/Get-GlobalServicePrincipalObject.ps1' -1
+
+function Get-GlobalServicePrincipalObject {
+    <#
+    .SYNOPSIS
+    Gets service principal objects from global variables. Designed to be used by other scripts.
+
+    .DESCRIPTION
+    Returns the de-duplicated, DisplayName-sorted list of Entra ID service principal objects
+    currently stored in $Global:IRT_ServicePrincipalObjects. This is the standard way IRT
+    functions resolve service principals when no -ServicePrincipalObject parameter is
+    supplied directly. Mirrors Get-GlobalUserObject.
+
+    .EXAMPLE
+    $ServicePrincipals = Get-GlobalServicePrincipalObject
+    Returns all service principal objects currently in the global session.
+
+    .OUTPUTS
+    System.Collections.Generic.List[PSObject]
+
+    .NOTES
+    Version: 1.0.0
+    #>
+    [CmdletBinding()]
+    param (
+    )
+
+    begin {
+
+        # variables
+        $ScriptSPObjects = [System.Collections.Generic.List[PsObject]]::new()
+    }
+
+    process {
+
+        # add service principal objects
+        if ( $Global:IRT_ServicePrincipalObjects ) {
+            $IterationList = @( $Global:IRT_ServicePrincipalObjects )
+            foreach ( $i in $IterationList ) {
+                $ScriptSPObjects.Add( $i )
+            }
+        }
+
+        # return service principal objects
+        return $ScriptSPObjects | Sort-Object Id -Unique | Sort-Object DisplayName
+    }
+}
+#EndRegion './Private/Utility/Get-GlobalServicePrincipalObject.ps1' 46
+#Region './Private/Utility/Get-GlobalUserObject.ps1' -1
 
 function Get-GlobalUserObject {
     <#
@@ -11504,8 +12376,69 @@ function Get-GlobalUserObject {
         return $ScriptUserObjects | Sort-Object Id -Unique | Sort-Object DisplayName
     }
 }
-#EndRegion '.\Private\Utility\Get-GlobalUserObject.ps1' 45
-#Region '.\Private\Utility\Get-IRTClipboardSearch.ps1' -1
+#EndRegion './Private/Utility/Get-GlobalUserObject.ps1' 45
+#Region './Private/Utility/Get-IRTAppDataPath.ps1' -1
+
+function Get-IRTAppDataPath {
+    <#
+    .SYNOPSIS
+    Returns the per-user folder where the module keeps its files, or a path inside it.
+
+    .DESCRIPTION
+    Internal helper. The module keeps its config, tenant caches, and token cache in a
+    per-user application data folder, resolved with [Environment]::GetFolderPath so it
+    works on every platform. On Windows that is %APPDATA% (or %LOCALAPPDATA% with
+    -Local), where these files have always lived. On Linux and macOS it is the
+    platform's equivalent, such as ~/.config. $env:APPDATA and $env:LOCALAPPDATA exist
+    only on Windows.
+
+    The folder is not created; callers that write to it create it first.
+
+    .PARAMETER ChildPath
+    Path segments to append below the module folder, such as a file name.
+
+    .PARAMETER Local
+    Use the machine-local application data folder instead of the roaming one.
+
+    .EXAMPLE
+    ```powershell
+    $ConfigPath = Get-IRTAppDataPath -ChildPath 'config.json'
+    ```
+    Returns %APPDATA%\M365IncidentResponseTools\config.json on Windows and
+    ~/.config/M365IncidentResponseTools/config.json on Linux.
+
+    .OUTPUTS
+    [string] the module folder, or the path below it.
+
+    .NOTES
+    Version: 1.0.0
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param(
+        [string[]] $ChildPath = @(),
+        [switch] $Local
+    )
+
+    Import-IRTModule -Name 'PSFramework'
+
+    $SpecialFolder = if ($Local) { 'LocalApplicationData' } else { 'ApplicationData' }
+    $BaseDir = [Environment]::GetFolderPath($SpecialFolder)
+    if (-not $BaseDir) {
+        # .NET returns an empty string when the platform has no such folder, e.g. on
+        # Linux with HOME unset.
+        throw "Cannot find the per-user $SpecialFolder folder. Is HOME set?"
+    }
+
+    $Path = Join-Path -Path $BaseDir -ChildPath 'M365IncidentResponseTools'
+    foreach ($Segment in $ChildPath) {
+        $Path = Join-Path -Path $Path -ChildPath $Segment
+    }
+    Write-PSFMessage -Level 9 -Message "Get-IRTAppDataPath ($SpecialFolder): $Path"
+    return $Path
+}
+#EndRegion './Private/Utility/Get-IRTAppDataPath.ps1' 59
+#Region './Private/Utility/Get-IRTClipboardSearch.ps1' -1
 
 function Get-IRTClipboardSearch {
     <#
@@ -11559,8 +12492,8 @@ function Get-IRTClipboardSearch {
         return [string[]] $Lines
     }
 }
-#EndRegion '.\Private\Utility\Get-IRTClipboardSearch.ps1' 53
-#Region '.\Private\Utility\Get-IRTJobNamePrefix.ps1' -1
+#EndRegion './Private/Utility/Get-IRTClipboardSearch.ps1' 53
+#Region './Private/Utility/Get-IRTJobNamePrefix.ps1' -1
 
 function Get-IRTJobNamePrefix {
     <#
@@ -11603,8 +12536,8 @@ function Get-IRTJobNamePrefix {
     }
     return 'IRT: '
 }
-#EndRegion '.\Private\Utility\Get-IRTJobNamePrefix.ps1' 42
-#Region '.\Private\Utility\Get-RandomPassword.ps1' -1
+#EndRegion './Private/Utility/Get-IRTJobNamePrefix.ps1' 42
+#Region './Private/Utility/Get-RandomPassword.ps1' -1
 
 function Get-RandomPassword {
     <#
@@ -11657,8 +12590,8 @@ function Get-RandomPassword {
 
     return ( -join $result )
 }
-#EndRegion '.\Private\Utility\Get-RandomPassword.ps1' 52
-#Region '.\Private\Utility\Import-IRTModule.ps1' -1
+#EndRegion './Private/Utility/Get-RandomPassword.ps1' 52
+#Region './Private/Utility/Import-IRTModule.ps1' -1
 
 function Import-IRTModule {
     <#
@@ -11730,8 +12663,8 @@ function Import-IRTModule {
         Import-LockedModule -ModuleName $module
     }
 }
-#EndRegion '.\Private\Utility\Import-IRTModule.ps1' 71
-#Region '.\Private\Utility\Import-ReferenceData.ps1' -1
+#EndRegion './Private/Utility/Import-IRTModule.ps1' 71
+#Region './Private/Utility/Import-ReferenceData.ps1' -1
 
 function Import-ReferenceData {
     <#
@@ -11751,7 +12684,7 @@ function Import-ReferenceData {
       $Global:IRT_UalUserTypeTable  - Hashtable[int -> 'UserType member name']
         from UALUserType.csv
       $Global:IRT_TenantInfoTable   - Hashtable[TenantId -> row]
-        from APPDATA\<ModuleName>\TenantOwnerInfo.csv
+        from TenantOwnerInfo.csv in the module's per-user folder (Get-IRTAppDataPath)
 
     The AllOperations path can be overridden by setting AllOperationsSheetPath in config.json.
 
@@ -11813,13 +12746,7 @@ function Import-ReferenceData {
     $Global:IRT_UalUserTypeTable = $UserTypeTable
 
     # Tenant owner info cache (keyed by TenantId GUID string)
-    $ModuleName = $MyInvocation.MyCommand.ModuleName
-    $TcJoin = @{
-        Path                = $env:APPDATA
-        ChildPath           = $ModuleName
-        AdditionalChildPath = 'TenantOwnerInfo.csv'
-    }
-    $TenantCachePath = Join-Path @TcJoin
+    $TenantCachePath = Get-IRTAppDataPath -ChildPath 'TenantOwnerInfo.csv'
     $TenantTable = [hashtable]::Synchronized(@{})
     if (Test-Path -LiteralPath $TenantCachePath) {
         foreach ($Row in (Import-Csv -Path $TenantCachePath)) {
@@ -11834,8 +12761,114 @@ function Import-ReferenceData {
         "UserTypes=$($Global:IRT_UalUserTypeTable.Count), " +
         "TenantCache=$($Global:IRT_TenantInfoTable.Count)")
 }
-#EndRegion '.\Private\Utility\Import-ReferenceData.ps1' 102
-#Region '.\Private\Utility\Invoke-IRTNativeCommand.ps1' -1
+#EndRegion './Private/Utility/Import-ReferenceData.ps1' 96
+#Region './Private/Utility/Initialize-IRTFileLogging.ps1' -1
+
+function Initialize-IRTFileLogging {
+    <#
+    .SYNOPSIS
+    Enables or disables PSFramework file logging from the LogFolderPath config value.
+
+    .DESCRIPTION
+    Reads $Global:IRT_Config.LogFolderPath and configures the PSFramework 'logfile'
+    logging provider to match:
+
+      - When LogFolderPath is a folder (or a path that does not exist yet, which is
+        created), the provider is enabled and every Write-PSFMessage call (all levels)
+        is written to <LogFolderPath>\IRT-<date>.log. A new file is written per day and
+        files older than 30 days are deleted automatically. There is no size limit and
+        no compression.
+      - When LogFolderPath is blank/null, the provider is disabled.
+      - When LogFolderPath points at an existing file, a warning is shown and the
+        provider is disabled, since no log could be written there.
+
+    Called at module import (from Suffix.ps1) and again by Set-IRTConfig whenever the
+    log folder setting changes, so a change takes effect immediately without reimporting
+    the module. Wrapped so a bad path cannot break module import or the config menu.
+
+    The caller skips this for runspace workers: PSFramework's logging queue is process
+    wide, so the main session's provider already captures worker messages.
+
+    .EXAMPLE
+    Initialize-IRTFileLogging
+    Applies the current LogFolderPath setting to the logfile provider.
+
+    .OUTPUTS
+    None. Configures the PSFramework logfile provider; writes a warning via Write-IRT
+    when the configured path cannot be used.
+
+    .NOTES
+    Version: 1.0.0
+    #>
+    [CmdletBinding()]
+    param()
+
+    Import-IRTModule -Name 'PSFramework'
+
+    $InstanceName = 'M365IRT'
+    $LogFolder = $Global:IRT_Config.LogFolderPath
+    Write-PSFMessage -Level 8 -Message "LogFolderPath: '$LogFolder'"
+
+    $DisableReason = $null
+    if ([string]::IsNullOrWhiteSpace($LogFolder)) {
+        $DisableReason = 'LogFolderPath is blank'
+    }
+    elseif (Test-Path -LiteralPath $LogFolder -PathType Leaf) {
+        # A file path would enable the provider but silently write nothing.
+        Write-IRT -Level Warn -Message (
+            "File logging is off: LogFolderPath '$LogFolder' is a file, not a folder.")
+        $DisableReason = 'LogFolderPath is a file'
+    }
+
+    # No usable folder: make sure file logging is off, then done.
+    if ($DisableReason) {
+        Write-PSFMessage -Level 8 -Message "Disabling file logging ($DisableReason)."
+        $DisableParams = @{
+            Name         = 'logfile'
+            InstanceName = $InstanceName
+            Enabled      = $false
+        }
+        try {
+            Set-PSFLoggingProvider @DisableParams
+        }
+        catch {
+            Write-PSFMessage -Level 8 -Message 'No logfile provider instance to disable.'
+        }
+        return
+    }
+
+    try {
+        # The provider creates the folder if able, but create it up front so a bad
+        # path surfaces here as a warning rather than silently producing no logs.
+        if (-not (Test-Path -LiteralPath $LogFolder -PathType Container)) {
+            Write-PSFMessage -Level 8 -Message "Creating log folder '$LogFolder'."
+            $null = New-Item -ItemType Directory -Path $LogFolder -Force
+        }
+
+        # One file per day (%Date% resolves to yyyy-MM-dd). The glob matches every
+        # dated file and feeds the age-based cleanup (LogRetentionTime).
+        $DatedLogPath = Join-Path -Path $LogFolder -ChildPath 'IRT-%Date%.log'
+        $LogRotateGlob = Join-Path -Path $LogFolder -ChildPath 'IRT-*.log'
+
+        $LoggingParams = @{
+            Name             = 'logfile'
+            InstanceName     = $InstanceName
+            FilePath         = $DatedLogPath
+            FileType         = 'TXT'
+            Enabled          = $true
+            LogRotatePath    = $LogRotateGlob
+            LogRetentionTime = '30d'
+            MutexName        = 'M365IRT-LogFile'
+        }
+        Set-PSFLoggingProvider @LoggingParams
+        Write-PSFMessage -Level 8 -Message "File logging enabled: '$DatedLogPath'."
+    }
+    catch {
+        Write-IRT -Level Warn -Message "Failed to enable file logging in '$LogFolder': $_"
+    }
+}
+#EndRegion './Private/Utility/Initialize-IRTFileLogging.ps1' 104
+#Region './Private/Utility/Invoke-IRTNativeCommand.ps1' -1
 
 function Invoke-IRTNativeCommand {
     <#
@@ -11980,8 +13013,117 @@ function Invoke-IRTNativeCommand {
         ExitCode = $ExitCode
     }
 }
-#EndRegion '.\Private\Utility\Invoke-IRTNativeCommand.ps1' 144
-#Region '.\Private\Utility\Write-IRT.ps1' -1
+#EndRegion './Private/Utility/Invoke-IRTNativeCommand.ps1' 144
+#Region './Private/Utility/New-IpConditionalFormattingTemplate.ps1' -1
+
+function New-IpConditionalFormattingTemplate {
+    <#
+    .SYNOPSIS
+    Builds the default IP address conditional-formatting template in memory.
+
+    .DESCRIPTION
+    Returns an unsaved workbook whose only worksheet carries the default IP address
+    color-coding rules on column A. Add-IpInfoToSheet copies these rules onto each
+    enriched IP address column when IPConditionalFormattingTemplatePath is not set.
+
+    The rules are defined here in code rather than shipped as a bundled .xlsx template.
+    Changing a rule is an edit to the list below, which reviews as a readable diff, and
+    takes effect without regenerating a file.
+
+    Each rule is a "contains text" match that fills the cell background. Rules are
+    evaluated in order and stop at the first match, so an address tagged with both
+    "microsoft" and " hosting" is colored as Microsoft.
+
+    Nothing is written to disk. The caller owns the returned package and must dispose of
+    it.
+
+    .EXAMPLE
+    $Template = New-IpConditionalFormattingTemplate
+    try {
+        $CopyParams = @{
+            Source           = $Template
+            SourceRange      = 'A1:A1048576'
+            Destination      = $Package
+            DestinationSheet = 'SignInLogs'
+            DestinationRange = 'D:D'
+        }
+        Copy-ConditionalFormatting @CopyParams
+    }
+    finally {
+        $Template.Dispose()
+    }
+
+    Applies the default IP address color-coding to column D of the SignInLogs sheet.
+
+    .OUTPUTS
+    OfficeOpenXml.ExcelPackage. An unsaved package holding one worksheet, IpAddress,
+    with the rules applied to column A.
+
+    .NOTES
+    Version: 1.0.0
+    #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+        'PSUseShouldProcessForStateChangingFunctions', '',
+        Justification = 'Builds an in-memory workbook; changes no state.')]
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+        'PSUseOutputTypeCorrectly', '',
+        Justification = 'Type literal fails before ImportExcel loads; PSSA ignores string form.')]
+    [CmdletBinding()]
+    [OutputType('OfficeOpenXml.ExcelPackage')]
+    param ()
+
+    begin {
+        Import-IRTModule -Name 'ImportExcel', 'PSFramework'
+        $FunctionName = $MyInvocation.MyCommand.Name
+
+        # Rules apply in this order and stop at the first match. The leading space on
+        # most tokens keeps them from matching the end of a longer word (' tor' does
+        # not match 'monitor').
+        $Rules = @(
+            @{ Text = 'microsoft'; Color = 'LightBlue' }
+            @{ Text = 'proofpoint'; Color = '#59ABF8' }
+            @{ Text = ' vpn'; Color = 'LightPink' }
+            @{ Text = ' tor'; Color = 'LightPink' }
+            @{ Text = ' proxy'; Color = 'LightPink' }
+            @{ Text = ' hosting'; Color = '#FACD90' }
+            @{ Text = ' cloud'; Color = '#FACD90' }
+            @{ Text = ' datacenter'; Color = '#FACD90' }
+            @{ Text = 'mobile'; Color = '#F2CEEF' }
+        )
+    }
+
+    process {
+
+        $Package = [OfficeOpenXml.ExcelPackage]::new()
+        try {
+            $Worksheet = $Package.Workbook.Worksheets.Add('IpAddress')
+
+            foreach ($Rule in $Rules) {
+                $CFParams = @{
+                    Worksheet       = $Worksheet
+                    Address         = 'A:A'
+                    RuleType        = 'ContainsText'
+                    ConditionValue  = $Rule.Text
+                    BackgroundColor = [System.Drawing.ColorTranslator]::FromHtml($Rule.Color)
+                    StopIfTrue      = $true
+                }
+                Add-ConditionalFormatting @CFParams
+            }
+        }
+        catch {
+            $Package.Dispose()
+            throw
+        }
+
+        $RuleCount = $Worksheet.ConditionalFormatting.Count
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: built in-memory template with ${RuleCount} rules")
+
+        $Package
+    }
+}
+#EndRegion './Private/Utility/New-IpConditionalFormattingTemplate.ps1' 107
+#Region './Private/Utility/Write-IRT.ps1' -1
 
 function Write-IRT {
     <#
@@ -12095,8 +13237,8 @@ function Write-IRT {
         Write-Host $text -ForegroundColor $color -NoNewline:$NoNewline
     }
 }
-#EndRegion '.\Private\Utility\Write-IRT.ps1' 113
-#Region '.\Public\Connect\Clear-IRTTokenCache.ps1' -1
+#EndRegion './Private/Utility/Write-IRT.ps1' 113
+#Region './Public/Connect/Clear-IRTTokenCache.ps1' -1
 
 function Clear-IRTTokenCache {
     <#
@@ -12114,7 +13256,9 @@ function Clear-IRTTokenCache {
       2. Clears the sticky per-client account memory so the next acquisition
          starts fresh.
       3. Deletes the on-disk cache file as a belt-and-suspenders measure in
-         case no MSAL app is currently registered against it.
+         case no MSAL app is currently registered against it. On macOS and
+         Linux the tokens live in the OS keyring rather than the file, so the
+         keyring entry is cleared as well.
 
     Use this after a credential rotation, when sharing a workstation, or to
     force the next Connect-IRT to prompt interactively.
@@ -12129,7 +13273,8 @@ function Clear-IRTTokenCache {
     None.
 
     .NOTES
-    Version: 1.0.0
+    Version: 1.1.0
+    1.1.0 - Also clears the OS keyring entry that holds the cache on macOS and Linux.
     #>
     [Alias('ClearIRTTokenCache')]
     [CmdletBinding(SupportsShouldProcess)]
@@ -12158,6 +13303,18 @@ function Clear-IRTTokenCache {
 
     # Belt-and-suspenders: delete the cache file directly if it survived.
     $CachePath = $Global:IRT_Config.MsalCachePath
+
+    # Off Windows the cache file is only a lock; the tokens live in the OS keyring,
+    # which a new session's apps are not yet registered against.
+    if (-not $IsWindows -and $PSCmdlet.ShouldProcess('OS keyring', 'Clear MSAL token cache')) {
+        try {
+            (Get-MsalCacheHelper -CachePath $CachePath).Clear()
+            Write-IRT 'Cleared the token cache from the OS keyring.'
+        }
+        catch {
+            Write-IRT "Could not clear the token cache from the OS keyring: $_" -Level Warn
+        }
+    }
     if (Test-Path $CachePath) {
         if ($PSCmdlet.ShouldProcess($CachePath, 'Delete MSAL token cache file')) {
             Remove-Item -Path $CachePath -Force -ErrorAction SilentlyContinue
@@ -12168,8 +13325,8 @@ function Clear-IRTTokenCache {
         Write-IRT 'No token cache file found.'
     }
 }
-#EndRegion '.\Public\Connect\Clear-IRTTokenCache.ps1' 71
-#Region '.\Public\Connect\Connect-IRT.ps1' -1
+#EndRegion './Public/Connect/Clear-IRTTokenCache.ps1' 86
+#Region './Public/Connect/Connect-IRT.ps1' -1
 
 function Connect-IRT {
     <#
@@ -12488,8 +13645,8 @@ function Connect-IRT {
         }
     }
 }
-#EndRegion '.\Public\Connect\Connect-IRT.ps1' 318
-#Region '.\Public\Connect\Connect-IRTRunspaceExchange.ps1' -1
+#EndRegion './Public/Connect/Connect-IRT.ps1' 318
+#Region './Public/Connect/Connect-IRTRunspaceExchange.ps1' -1
 
 function Connect-IRTRunspaceExchange {
     <#
@@ -12617,8 +13774,8 @@ function Connect-IRTRunspaceExchange {
         "ConnectionId: $($NewConnection.ConnectionId), " +
         "BoundTokenExpiry: $($TokenResult.ExpiresOn.UtcDateTime)")
 }
-#EndRegion '.\Public\Connect\Connect-IRTRunspaceExchange.ps1' 127
-#Region '.\Public\Connect\Connect-IRTTenant.ps1' -1
+#EndRegion './Public/Connect/Connect-IRTRunspaceExchange.ps1' 127
+#Region './Public/Connect/Connect-IRTTenant.ps1' -1
 
 function Connect-IRTTenant {
     <#
@@ -12634,7 +13791,9 @@ function Connect-IRTTenant {
     select which tenant to connect to. This allows the same alias patterns to be shared
     across multiple tenants belonging to the same client.
 
-    The tenants worksheet should be stored at $env:APPDATA\M365IncidentResponseTools\tenants.xlsx.
+    The tenants worksheet is tenants.xlsx in the module's per-user folder:
+    %APPDATA%\M365IncidentResponseTools on Windows, ~/.config/M365IncidentResponseTools on
+    Linux and macOS.
     Run Open-IRTTenantSheet to generate a starter worksheet with the expected columns.
 
     .PARAMETER Alias
@@ -12642,7 +13801,9 @@ function Connect-IRTTenant {
     Aliases column in the tenants worksheet.
 
     .PARAMETER TenantFile
-    Path to the tenants worksheet. Defaults to $env:APPDATA\M365IncidentResponseTools\tenants.xlsx.
+    Path to the tenants worksheet. Defaults to tenants.xlsx in the module's per-user
+    folder: %APPDATA%\M365IncidentResponseTools on Windows,
+    ~/.config/M365IncidentResponseTools on Linux and macOS.
 
     .PARAMETER Graph
     Connect to Microsoft Graph only.
@@ -12683,7 +13844,7 @@ function Connect-IRTTenant {
     1.2.0 - Multiple-match now prompts user with a selection menu instead of throwing.
     1.1.0 - Updated to use xlsx file instead of csv.
     #>
-    [Alias('IRTTenant', 'TenantIRT')]
+    [Alias('IRTTenant', 'TenantIRT', 'IRT')]
     [CmdletBinding()]
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
         'PSAvoidUsingPlainTextForPassword', 'PasswordBrowser')]
@@ -12783,8 +13944,8 @@ function Connect-IRTTenant {
         Connect-IRT @ConnectParams
     }
 }
-#EndRegion '.\Public\Connect\Connect-IRTTenant.ps1' 164
-#Region '.\Public\Connect\Disconnect-IRT.ps1' -1
+#EndRegion './Public/Connect/Connect-IRTTenant.ps1' 168
+#Region './Public/Connect/Disconnect-IRT.ps1' -1
 
 function Disconnect-IRT {
     <#
@@ -12895,8 +14056,8 @@ function Disconnect-IRT {
         }
     }
 }
-#EndRegion '.\Public\Connect\Disconnect-IRT.ps1' 110
-#Region '.\Public\Connect\Get-IRTAccessToken.ps1' -1
+#EndRegion './Public/Connect/Disconnect-IRT.ps1' 110
+#Region './Public/Connect/Get-IRTAccessToken.ps1' -1
 
 function Get-IRTAccessToken {
     <#
@@ -13154,29 +14315,30 @@ function Get-IRTAccessToken {
         return $Result
     }
 }
-#EndRegion '.\Public\Connect\Get-IRTAccessToken.ps1' 257
-#Region '.\Public\Connect\Open-IRTTab.ps1' -1
+#EndRegion './Public/Connect/Get-IRTAccessToken.ps1' 257
+#Region './Public/Connect/Open-IRTTab.ps1' -1
 
 function Open-IRTTab {
     <#
     .SYNOPSIS
-    Opens a new Windows Terminal tab and loads the module.
+    Opens a new terminal tab (Windows Terminal or tmux) and loads the module.
 
     .DESCRIPTION
-    Opens a new tab in the current Windows Terminal window and imports
-    M365IncidentResponseTools. If an active IRT session exists, also calls
-    Connect-IRT to connect to the same tenant.
+    Opens a new tab in the current Windows Terminal window, or a new window in the
+    current tmux session on Linux and macOS, and imports M365IncidentResponseTools.
+    If an active IRT session exists, also calls Connect-IRT to connect to the same
+    tenant. The new tab opens in the background, without taking focus.
 
-    Must be run from within Windows Terminal; detected via the WT_SESSION
-    environment variable set by Windows Terminal in every hosted session.
+    Must be run from within Windows Terminal (detected via the WT_SESSION
+    environment variable) or tmux (detected via TMUX).
 
     .PARAMETER Title
     Title for the new terminal tab. Defaults to '[IRT]'.
 
     .PARAMETER Quiet
-    When set, silently returns without error if the current console is not
-    Windows Terminal. Useful when calling from a profile or script that may
-    run in multiple console hosts.
+    When set, silently returns without error if the current console is neither
+    Windows Terminal nor tmux. Useful when calling from a profile or script that
+    may run in multiple console hosts.
 
     .EXAMPLE
     ```powershell
@@ -13188,7 +14350,7 @@ function Open-IRTTab {
     ```powershell
     Open-IRTTab -Quiet
     ```
-    Opens a new tab if in Windows Terminal; silently does nothing otherwise.
+    Opens a new tab if in Windows Terminal or tmux; silently does nothing otherwise.
 
     .EXAMPLE
     ```powershell
@@ -13200,7 +14362,8 @@ function Open-IRTTab {
     None
 
     .NOTES
-    Version: 1.1.0
+    Version: 1.2.0
+    1.2.0 - Opens a tmux window when run inside tmux, on Linux and macOS.
     1.1.0 - Requires Windows Terminal host. Opens without connecting when no
             active session exists.
     #>
@@ -13214,9 +14377,14 @@ function Open-IRTTab {
     )
 
     process {
-        if (-not $env:WT_SESSION) {
+        Import-IRTModule -Name 'PSFramework'
+
+        $InTmux = $env:TMUX -and (Get-Command -Name 'tmux' -ErrorAction Ignore)
+        if (-not $env:WT_SESSION -and -not $InTmux) {
             if (-not $Quiet) {
-                Write-Error 'This command must be run from within Windows Terminal.'
+                $Msg = 'This command must be run from within Windows Terminal, ' +
+                'or tmux on Linux and macOS.'
+                Write-Error $Msg
             }
             return
         }
@@ -13245,20 +14413,28 @@ function Open-IRTTab {
             [Text.Encoding]::Unicode.GetBytes($InnerScript)
         )
 
-        $WtArgs = @(
-            '--window', '0',
-            'new-tab',
-            '--startingDirectory', $PWD.Path,
-            '--no-focus',
-            '--title', $Title,
-            '--',
-            'pwsh', '-NoExit', '-EncodedCommand', $Encoded
-        )
-        & wt $WtArgs
+        $PwshArgs = @('pwsh', '-NoExit', '-EncodedCommand', $Encoded)
+        if ($env:WT_SESSION) {
+            $WtArgs = @(
+                '--window', '0',
+                'new-tab',
+                '--startingDirectory', $PWD.Path,
+                '--no-focus',
+                '--title', $Title,
+                '--'
+            ) + $PwshArgs
+            Write-PSFMessage -Level 8 -Message 'Opening a Windows Terminal tab.'
+            & wt $WtArgs
+        } else {
+            # -d keeps focus here, like Windows Terminal's --no-focus
+            $TmuxArgs = @('new-window', '-d', '-n', $Title, '-c', $PWD.Path) + $PwshArgs
+            Write-PSFMessage -Level 8 -Message 'Opening a tmux window.'
+            & tmux $TmuxArgs
+        }
     }
 }
-#EndRegion '.\Public\Connect\Open-IRTTab.ps1' 101
-#Region '.\Public\Connect\Test-IRTConnection.ps1' -1
+#EndRegion './Public/Connect/Open-IRTTab.ps1' 116
+#Region './Public/Connect/Test-IRTConnection.ps1' -1
 
 function Test-IRTConnection {
     <#
@@ -13404,8 +14580,8 @@ function Test-IRTConnection {
         }
     }
 }
-#EndRegion '.\Public\Connect\Test-IRTConnection.ps1' 145
-#Region '.\Public\Connect\Update-IRTToken.ps1' -1
+#EndRegion './Public/Connect/Test-IRTConnection.ps1' 145
+#Region './Public/Connect/Update-IRTToken.ps1' -1
 
 function Update-IRTToken {
     <#
@@ -13635,8 +14811,8 @@ function Update-IRTToken {
         return $status
     }
 }
-#EndRegion '.\Public\Connect\Update-IRTToken.ps1' 229
-#Region '.\Public\Device\Disable-IRTDevice.ps1' -1
+#EndRegion './Public/Connect/Update-IRTToken.ps1' 229
+#Region './Public/Device/Disable-IRTDevice.ps1' -1
 
 function Disable-IRTDevice {
     <#
@@ -13663,8 +14839,8 @@ function Disable-IRTDevice {
 
     Set-IRTDeviceEnabled @Params
 }
-#EndRegion '.\Public\Device\Disable-IRTDevice.ps1' 26
-#Region '.\Public\Device\Enable-IRTDevice.ps1' -1
+#EndRegion './Public/Device/Disable-IRTDevice.ps1' 26
+#Region './Public/Device/Enable-IRTDevice.ps1' -1
 
 function Enable-IRTDevice {
     <#
@@ -13691,8 +14867,8 @@ function Enable-IRTDevice {
 
     Set-IRTDeviceEnabled @Params
 }
-#EndRegion '.\Public\Device\Enable-IRTDevice.ps1' 26
-#Region '.\Public\Device\Find-IRTDevice.ps1' -1
+#EndRegion './Public/Device/Enable-IRTDevice.ps1' 26
+#Region './Public/Device/Find-IRTDevice.ps1' -1
 
 function Find-IRTDevice {
     <#
@@ -13898,8 +15074,8 @@ function Find-IRTDevice {
         }
     }
 }
-#EndRegion '.\Public\Device\Find-IRTDevice.ps1' 205
-#Region '.\Public\Device\Get-IRTAllEntraDevice.ps1' -1
+#EndRegion './Public/Device/Find-IRTDevice.ps1' 205
+#Region './Public/Device/Get-IRTAllEntraDevice.ps1' -1
 
 function Get-IRTAllEntraDevice {
     <#
@@ -13918,7 +15094,7 @@ function Get-IRTAllEntraDevice {
     registration and last sign-in timestamps.
 
     .PARAMETER Open
-    Open the Excel file immediately after export. Default: $true.
+    Open the Excel file immediately after export. Defaults to IRT_Config.OpenSpreadsheets.
 
     .PARAMETER Xml
     Export the raw device objects to a .xml file alongside the workbook.
@@ -13955,7 +15131,7 @@ function Get-IRTAllEntraDevice {
     )]
     [CmdletBinding()]
     param (
-        [boolean] $Open = $true,
+        [boolean] $Open = [bool]$Global:IRT_Config.OpenSpreadsheets,
         [boolean] $Xml = $Global:IRT_Config.ExportXml,
         [string] $TableStyle = $Global:IRT_Config.ExcelTableStyle,
         [string] $Font = $Global:IRT_Config.ExcelFont
@@ -14175,8 +15351,8 @@ function Get-IRTAllEntraDevice {
         }
     }
 }
-#EndRegion '.\Public\Device\Get-IRTAllEntraDevice.ps1' 275
-#Region '.\Public\Device\Remove-IRTDevice.ps1' -1
+#EndRegion './Public/Device/Get-IRTAllEntraDevice.ps1' 275
+#Region './Public/Device/Remove-IRTDevice.ps1' -1
 
 function Remove-IRTDevice {
     <#
@@ -14309,8 +15485,8 @@ function Remove-IRTDevice {
         Write-IRT ''
     }
 }
-#EndRegion '.\Public\Device\Remove-IRTDevice.ps1' 132
-#Region '.\Public\Device\Show-IRTDevice.ps1' -1
+#EndRegion './Public/Device/Remove-IRTDevice.ps1' 132
+#Region './Public/Device/Show-IRTDevice.ps1' -1
 
 function Show-IRTDevice {
     <#
@@ -14417,8 +15593,8 @@ function Show-IRTDevice {
         }
     }
 }
-#EndRegion '.\Public\Device\Show-IRTDevice.ps1' 106
-#Region '.\Public\Email\Get-IRTEmailSearch.ps1' -1
+#EndRegion './Public/Device/Show-IRTDevice.ps1' 106
+#Region './Public/Email/Get-IRTEmailSearch.ps1' -1
 
 function Get-IRTEmailSearch {
     <#
@@ -14692,6 +15868,7 @@ function Get-IRTEmailSearch {
                     $Safe = ($SearchName -replace '[\\/:*?"<>|]', '_')
                     $Stamp = (Get-Date).ToString('yy-MM-dd_HH-mm')
                     $Path = "EmailSearchResults_${Safe}_${Stamp}.xlsx"
+                    $OpenSheet = [bool]$Global:IRT_Config.OpenSpreadsheets
                     $ExcelParams = @{
                         Path          = $Path
                         WorkSheetname = 'Results'
@@ -14699,11 +15876,16 @@ function Get-IRTEmailSearch {
                         TableStyle    = $Global:IRT_Config.ExcelTableStyle
                         AutoSize      = $true
                         FreezeTopRow  = $true
-                        Show          = $true
+                        Show          = $OpenSheet
                     }
                     try {
                         $Results | Export-Excel @ExcelParams
-                        Write-IRT "Saved and opened: $Path"
+                        if ($OpenSheet) {
+                            Write-IRT "Saved and opened: $Path"
+                        }
+                        else {
+                            Write-IRT "Saved: $Path"
+                        }
                     }
                     catch {
                         $_
@@ -14823,8 +16005,8 @@ function Get-IRTEmailSearch {
         }
     }
 }
-#EndRegion '.\Public\Email\Get-IRTEmailSearch.ps1' 404
-#Region '.\Public\Email\Get-IRTMessageTrace.ps1' -1
+#EndRegion './Public/Email/Get-IRTEmailSearch.ps1' 410
+#Region './Public/Email/Get-IRTMessageTrace.ps1' -1
 
 function Get-IRTMessageTrace {
     <#
@@ -14885,6 +16067,9 @@ function Get-IRTMessageTrace {
     Enrich FromIP/ToIP with ip_info lookup data in the Excel output. Off by default
     because lookups are slow for large message traces. Ignored if ip_info is not installed.
 
+    .PARAMETER Open
+    Open the Excel workbook after exporting. Defaults to IRT_Config.OpenSpreadsheets.
+
     .EXAMPLE
     ```powershell
     Get-IRTMessageTrace
@@ -14938,7 +16123,8 @@ function Get-IRTMessageTrace {
         [boolean] $Xml = $Global:IRT_Config.ExportXml,
         [string] $TableStyle = $Global:IRT_Config.ExcelTableStyle,
         [string] $Font = $Global:IRT_Config.ExcelFont,
-        [switch] $IpInfo
+        [switch] $IpInfo,
+        [boolean] $Open = [bool]$Global:IRT_Config.OpenSpreadsheets
     )
 
     begin {
@@ -15318,14 +16504,15 @@ function Get-IRTMessageTrace {
                     TableStyle = $TableStyle
                     Font       = $Font
                     IpInfo     = $IpInfo
+                    Open       = $Open
                 }
                 Show-IRTMessageTrace @Params
             }
         }
     }
 }
-#EndRegion '.\Public\Email\Get-IRTMessageTrace.ps1' 499
-#Region '.\Public\Email\New-IRTEmailSearch.ps1' -1
+#EndRegion './Public/Email/Get-IRTMessageTrace.ps1' 504
+#Region './Public/Email/New-IRTEmailSearch.ps1' -1
 
 function New-IRTEmailSearch {
     <#
@@ -15629,17 +16816,57 @@ function New-IRTEmailSearch {
 
     return $Result
 }
-#EndRegion '.\Public\Email\New-IRTEmailSearch.ps1' 303
-#Region '.\Public\Email\Show-IRTMessageTrace.ps1' -1
+#EndRegion './Public/Email/New-IRTEmailSearch.ps1' 303
+#Region './Public/Email/Show-IRTMessageTrace.ps1' -1
 
 function Show-IRTMessageTrace {
     <#
-	.SYNOPSIS
-	Processes message trace data and creates spreadsheet.
+    .SYNOPSIS
+    Processes message trace data into an Excel spreadsheet.
 
-	.NOTES
-	Version: 1.0.0
-	#>
+    .DESCRIPTION
+    Takes message trace records produced by Get-IRTMessageTrace (or imported from a raw
+    XML export) and renders them into a formatted Excel workbook.
+
+    .PARAMETER Message
+    A list of message trace records with a metadata entry at index 0. Produced by
+    Get-IRTMessageTrace. Accepts pipeline input. Mutually exclusive with -XmlPath.
+
+    .PARAMETER XmlPath
+    Path to a raw XML file exported by Get-IRTMessageTrace. Mutually exclusive with
+    -Message.
+
+    .PARAMETER TableStyle
+    Excel table style. Defaults to IRT_Config.ExcelTableStyle.
+
+    .PARAMETER Font
+    Excel font name. Defaults to IRT_Config.ExcelFont.
+
+    .PARAMETER IpInfo
+    Enrich FromIP/ToIP with ip_info lookup data in the Excel output. Off by default
+    because lookups are slow for large message traces. Ignored if ip_info is not installed.
+
+    .PARAMETER Open
+    Open the Excel workbook after exporting. Defaults to IRT_Config.OpenSpreadsheets.
+
+    .EXAMPLE
+    ```powershell
+    Show-IRTMessageTrace -XmlPath '.\MessageTrace_10Days_bob_26-09-16_14-30.xml'
+    ```
+    Rebuilds the message trace workbook from a raw XML export.
+
+    .EXAMPLE
+    ```powershell
+    Show-IRTMessageTrace -XmlPath '.\MessageTrace_10Days_bob_26-09-16_14-30.xml' -IpInfo
+    ```
+    Rebuilds the workbook with ip_info lookups on the FromIP and ToIP columns.
+
+    .OUTPUTS
+    None. Results are written to an Excel workbook.
+
+    .NOTES
+    Version: 1.0.0
+    #>
     [CmdletBinding( DefaultParameterSetName = 'Objects' )]
     param (
         [Parameter(Position = 0, ValueFromPipeline, ParameterSetName = 'Objects')]
@@ -15652,7 +16879,8 @@ function Show-IRTMessageTrace {
         [string] $TableStyle = $Global:IRT_Config.ExcelTableStyle,
         [string] $Font = $Global:IRT_Config.ExcelFont,
         # opt-in: ip_info lookups on FromIP/ToIP are slow for large message traces
-        [switch] $IpInfo
+        [switch] $IpInfo,
+        [boolean] $Open = [bool]$Global:IRT_Config.OpenSpreadsheets
     )
 
     begin {
@@ -15955,11 +17183,17 @@ function Show-IRTMessageTrace {
 
         # save and close
         Write-IRT "Exporting to: ${ExcelOutputPath}"
-        $Workbook | Close-ExcelPackage -Show
+        if ($Open) {
+            Write-IRT "Opening Excel."
+            $Workbook | Close-ExcelPackage -Show
+        }
+        else {
+            $Workbook | Close-ExcelPackage
+        }
     }
 }
-#EndRegion '.\Public\Email\Show-IRTMessageTrace.ps1' 327
-#Region '.\Public\Entra\Get-IRTEntraAuditLog.ps1' -1
+#EndRegion './Public/Email/Show-IRTMessageTrace.ps1' 374
+#Region './Public/Entra/Get-IRTEntraAuditLog.ps1' -1
 
 function Get-IRTEntraAuditLog {
     <#
@@ -15992,7 +17226,7 @@ function Get-IRTEntraAuditLog {
     Use the Microsoft Graph beta endpoint instead of v1.0.
 
     .PARAMETER Open
-    Open the Excel file immediately after export. Default: $true.
+    Open the Excel file immediately after export. Defaults to IRT_Config.OpenSpreadsheets.
 
     .PARAMETER Xml
     Export raw XML alongside the Excel file. Defaults to IRT_Config.ExportXml.
@@ -16037,7 +17271,7 @@ function Get-IRTEntraAuditLog {
 
         [switch] $AllUsers,
         [switch] $Beta,
-        [boolean] $Open = $true,
+        [boolean] $Open = [bool]$Global:IRT_Config.OpenSpreadsheets,
         [boolean] $Xml = $Global:IRT_Config.ExportXml,
         [switch] $Cached
     )
@@ -16199,19 +17433,279 @@ function Get-IRTEntraAuditLog {
         }
     }
 }
-#EndRegion '.\Public\Entra\Get-IRTEntraAuditLog.ps1' 239
-#Region '.\Public\Entra\Get-IRTEntraSignInLog.ps1' -1
+#EndRegion './Public/Entra/Get-IRTEntraAuditLog.ps1' 239
+#Region './Public/Entra/Get-IRTEntraSPSignInLog.ps1' -1
 
-function Get-IRTEntraSignInLog {
+function Get-IRTEntraSPSignInLog {
     <#
     .SYNOPSIS
-    Downloads user sign in logs.
+    Downloads service principal sign-in logs.
 
     .DESCRIPTION
-    Retrieves Entra ID interactive sign-in logs via Microsoft Graph for one or more users,
-    a set of IP addresses, or all users in the tenant. Enriches each log entry with
-    IP geolocation data and human-readable Entra error descriptions, then exports results
-    to an Excel workbook.
+    Retrieves Entra ID service principal sign-in logs via Microsoft Graph for one or more
+    service principals or all service principals in the tenant. Enriches each log entry
+    with IP geolocation data and human-readable Entra error descriptions, then exports
+    results to an Excel workbook.
+
+    A thin wrapper that resolves the target service principals, builds the SP-specific
+    filter and naming, and hands off to the shared Invoke-IRTSignInLogQuery engine
+    (chunking, throttle/retry, export). For user sign-ins, see Get-IRTEntraUserSignInLog.
+
+    Date range defaults to the last 30 days when no -Days, -Start, or -End is specified.
+
+    Falls back to $Global:IRT_ServicePrincipalObjects if no -ServicePrincipalObject is
+    passed. Use Find-IRTServicePrincipal first to populate that global variable.
+
+    .PARAMETER ServicePrincipalObject
+    One or more service principal objects whose sign-in logs to retrieve. Mutually
+    exclusive with -AllServicePrincipals. Falls back to global session objects if omitted.
+
+    .PARAMETER AllServicePrincipals
+    Retrieve sign-in logs for all service principals in the tenant. Mutually exclusive
+    with -ServicePrincipalObject.
+
+    .PARAMETER Days
+    Number of days back to search. Cannot be used with -Start / -End.
+
+    .PARAMETER Start
+    Start of date range (parseable date string). Used with -End for an absolute range.
+
+    .PARAMETER End
+    End of date range (parseable date string). Used with -Start for an absolute range.
+
+    .PARAMETER ChunkDays
+    Splits the requested date range into sub-queries of this many days each, querying
+    newest to oldest and merging the results. Default: 30. Pass a smaller value to break
+    large pulls into windows small enough to return before Graph's per-request timeout.
+
+    .PARAMETER ChunkDelaySeconds
+    Seconds to pause between chunk queries to reduce throttling on multi-chunk pulls.
+    Default: 2. Only applies when the range spans more than one chunk.
+
+    .PARAMETER ThrottleDelaySeconds
+    Base backoff (seconds) used when Graph throttles a request but does not return a
+    Retry-After value. Backoff grows exponentially per retry. Default: 60.
+
+    .PARAMETER Beta
+    Use the Microsoft Graph beta endpoint. Default: $true.
+
+    .PARAMETER Excel
+    Export results to an Excel workbook. Default: $true.
+
+    .PARAMETER IpInfo
+    Enrich results with IP geolocation data. Defaults to IRT_Config.IpInfoAvailable.
+
+    .PARAMETER Open
+    Open the Excel file immediately after export. Defaults to IRT_Config.OpenSpreadsheets.
+
+    .PARAMETER Xml
+    Export raw XML alongside the Excel file. Defaults to IRT_Config.ExportXml.
+
+    .EXAMPLE
+    ```powershell
+    Find-IRTServicePrincipal MyApp
+    Get-IRTEntraSPSignInLog
+    ```
+    Two-step workflow: find the SP then download its sign-in logs.
+
+    .EXAMPLE
+    ```powershell
+    Get-IRTEntraSPSignInLog -ServicePrincipalObject $SP -Days 90
+    ```
+    Downloads 90 days of sign-in logs for a specific service principal.
+
+    .EXAMPLE
+    ```powershell
+    Get-IRTEntraSPSignInLog -AllServicePrincipals -Days 7
+    ```
+    Downloads 7 days of sign-in logs for all service principals in the tenant.
+
+    .OUTPUTS
+    None. Results are exported to an Excel workbook.
+
+    .NOTES
+    Version: 2.0.0
+    2.0.0 - Renamed from Get-IRTServicePrincipalSignInLog. Now a thin wrapper over the
+            shared Invoke-IRTSignInLogQuery engine (parallel to Get-IRTEntraUserSignInLog),
+            gaining chunking and throttle/timeout retry. Resolution falls back to globals
+            via the new Get-GlobalServicePrincipalObject helper.
+    1.0.0 - Initial version.
+    #>
+    [Alias('GetSPSILog', 'GetSPSILogs', 'SPSILog', 'SPSILogs')]
+    [CmdletBinding(DefaultParameterSetName = 'ServicePrincipalObject')]
+    param (
+        [Parameter(Position = 0, ParameterSetName = 'ServicePrincipalObject')]
+        [Alias('ServicePrincipalObjects')]
+        [psobject[]] $ServicePrincipalObject,
+
+        [Parameter(ParameterSetName = 'AllServicePrincipals')]
+        [switch] $AllServicePrincipals,
+
+        # relative date range
+        [int] $Days,
+        # absolute date range
+        [string] $Start,
+        [string] $End,
+
+        # split the date range into sub-queries of this many days each
+        [ValidateRange(1, 3650)]
+        [int] $ChunkDays = 30,
+
+        # seconds to pause between chunk queries to avoid tripping throttle limits
+        [ValidateRange(0, 3600)]
+        [int] $ChunkDelaySeconds = 2,
+
+        # base seconds for throttle backoff when Graph sends no Retry-After
+        [ValidateRange(1, 3600)]
+        [int] $ThrottleDelaySeconds = 60,
+
+        [boolean] $Beta = $true,
+        [boolean] $Excel = $true,
+        [boolean] $IpInfo = [bool]$Global:IRT_Config.IpInfoAvailable,
+        [boolean] $Open = [bool]$Global:IRT_Config.OpenSpreadsheets,
+        [boolean] $Xml = $Global:IRT_Config.ExportXml
+    )
+
+    begin {
+        Update-IRTToken -Service 'Graph'
+        $ImportParams = @{
+            Name = @(
+                'ImportExcel'
+                'Microsoft.Graph.Beta.Reports'
+                'Microsoft.Graph.Reports'
+                'PSFramework'
+            )
+        }
+        Import-IRTModule @ImportParams
+
+        #region BEGIN
+
+        $ParameterSet = $PSCmdlet.ParameterSetName
+
+        # resolve service principal objects
+        switch ($ParameterSet) {
+            'ServicePrincipalObject' {
+                if (($ServicePrincipalObject | Measure-Object).Count -gt 0) {
+                    $ScriptSPObjects = $ServicePrincipalObject
+                }
+                else {
+                    $ScriptSPObjects = @(Get-GlobalServicePrincipalObject)
+                    if (-not $ScriptSPObjects -or $ScriptSPObjects.Count -eq 0) {
+                        $Msg = 'No service principal objects passed or found in global variables.'
+                        Write-IRT $Msg -Level Error
+                        return
+                    }
+                }
+            }
+            'AllServicePrincipals' {
+                $null = $AllServicePrincipals  # switch controls parameter set
+                $ScriptSPObjects = @(
+                    [pscustomobject]@{
+                        DisplayName = 'AllServicePrincipals'
+                        Id          = $null
+                    }
+                )
+            }
+        }
+
+        # get client domain name
+        $DomainName = Get-DefaultDomain
+
+        #region DATE RANGE
+
+        $DefaultDays = 30
+
+        $DateRangeParams = @{
+            Days        = $Days
+            Start       = $Start
+            End         = $End
+            DefaultDays = $DefaultDays
+        }
+        $DateRange = Resolve-DateRange @DateRangeParams
+        $Days = $DateRange.Days
+        $StartDateUtc = $DateRange.StartUtc
+        $EndDateUtc = $DateRange.EndUtc
+    }
+
+    process {
+
+        foreach ($ScriptSPObject in $ScriptSPObjects) {
+
+            $FilterStrings = [System.Collections.Generic.List[string]]::new()
+
+            #region FILTERS
+
+            switch ($ParameterSet) {
+                'ServicePrincipalObject' {
+                    $Target = $ScriptSPObject.DisplayName
+                    $FilterStrings.Add( "servicePrincipalId eq '$($ScriptSPObject.Id)'" )
+                }
+                'AllServicePrincipals' {
+                    $Target = $DomainName
+                    # don't add a service principal filter
+                }
+            }
+
+            # restrict to service principal sign-in events
+            $FilterStrings.Add( "signInEventTypes/any(t: t eq 'servicePrincipal')" )
+
+            # build file names -- must be after target is set
+            $FileNamePrefix = 'SPSignInLogs'
+            $FileNameDateString = Get-Date -Format 'yy-MM-dd_HH-mm'
+            $FileNameBase =
+            "${FileNamePrefix}_${Days}Days_${DomainName}_${Target}_${FileNameDateString}"
+
+            # build spreadsheet title
+            $TitleDateFormat = 'M/d/yy h:mmtt'
+            $TitleStartDate = $StartDateUtc.ToLocalTime().ToString($TitleDateFormat)
+            $TitleEndDate = $EndDateUtc.ToLocalTime().ToString($TitleDateFormat)
+            $SheetTitle = "Service principal sign-in logs for ${Target}." +
+            " Covers ${Days} days, ${TitleStartDate} to ${TitleEndDate}."
+
+            #region QUERY LOGS
+
+            # hand off to the shared engine (chunking, throttle/retry, export, Show)
+            $QueryParams = @{
+                BaseFilter           = $FilterStrings
+                StartDateUtc         = $StartDateUtc
+                EndDateUtc           = $EndDateUtc
+                Days                 = $Days
+                Target               = $Target
+                LogTypeLabel         = 'service principal sign-in'
+                FileNamePrefix       = $FileNamePrefix
+                FileNameBase         = $FileNameBase
+                Title                = $SheetTitle
+                ShowCommand          = 'Show-IRTEntraSPSignInLog'
+                ChunkDays            = $ChunkDays
+                ChunkDelaySeconds    = $ChunkDelaySeconds
+                ThrottleDelaySeconds = $ThrottleDelaySeconds
+                Beta                 = $Beta
+                Excel                = $Excel
+                IpInfo               = $IpInfo
+                Open                 = $Open
+                Xml                  = $Xml
+            }
+            Invoke-IRTSignInLogQuery @QueryParams
+        }
+    }
+}
+#EndRegion './Public/Entra/Get-IRTEntraSPSignInLog.ps1' 254
+#Region './Public/Entra/Get-IRTEntraUserSignInLog.ps1' -1
+
+function Get-IRTEntraUserSignInLog {
+    <#
+    .SYNOPSIS
+    Downloads user sign-in logs.
+
+    .DESCRIPTION
+    Retrieves Entra ID user sign-in logs via Microsoft Graph for one or more users, a set
+    of IP addresses, or all users in the tenant. Enriches each log entry with IP
+    geolocation data and human-readable Entra error descriptions, then exports results to
+    an Excel workbook.
+
+    A thin wrapper that resolves the target users, builds the user-specific filter and
+    naming, and hands off to the shared Invoke-IRTSignInLogQuery engine (chunking,
+    throttle/retry, export). For service principal sign-ins, see Get-IRTEntraSPSignInLog.
 
     Date range defaults to the last 30 days when no -Days, -Start, or -End is specified.
 
@@ -16256,7 +17750,14 @@ function Get-IRTEntraSignInLog {
     Default: 60.
 
     .PARAMETER NonInteractive
-    Retrieve non-interactive sign-in logs instead of interactive logs.
+    Include non-interactive sign-ins alongside the interactive ones. By default Graph
+    returns only interactive sign-ins; with this switch the pull covers both types
+    (use the SignInEventTypes column to tell them apart). Because non-interactive
+    sign-ins are far more numerous, the default date range drops to 3 days.
+
+    .PARAMETER DeviceCode
+    Limit results to device code sign-ins: the redemption leg (authenticationProtocol)
+    and the downstream token use Entra carries forward on originalTransferMethod.
 
     .PARAMETER Beta
     Use the Microsoft Graph beta endpoint. Default: $true.
@@ -16265,37 +17766,60 @@ function Get-IRTEntraSignInLog {
     Export results to an Excel workbook. Default: $true.
 
     .PARAMETER IpInfo
-    Enrich results with IP geolocation data. Default: $true.
+    Enrich results with IP geolocation data. Defaults to IRT_Config.IpInfoAvailable.
 
     .PARAMETER Open
-    Open the Excel file immediately after export. Default: $true.
+    Open the Excel file immediately after export. Defaults to IRT_Config.OpenSpreadsheets.
 
     .PARAMETER Xml
     Export raw XML alongside the Excel file. Defaults to IRT_Config.ExportXml.
 
     .EXAMPLE
     ```powershell
-    Get-IRTEntraSignInLog
+    Get-IRTEntraUserSignInLog
     ```
     Downloads the last 30 days of sign-in logs for the user in the global session.
 
     .EXAMPLE
     ```powershell
-    Get-IRTEntraSignInLog -UserObject $User -Days 7
+    Get-IRTEntraUserSignInLog -UserObject $User -Days 7
     ```
     Downloads 7 days of sign-in logs for a specific user.
 
     .EXAMPLE
     ```powershell
-    Get-IRTEntraSignInLog -IpAddress '203.0.113.5' -Days 14
+    Get-IRTEntraUserSignInLog -IpAddress '203.0.113.5' -Days 14
     ```
     Finds all sign-ins from a specific IP over the last 14 days.
+
+    .EXAMPLE
+    ```powershell
+    Get-IRTEntraUserSignInLog -NonInteractive
+    ```
+    Downloads interactive and non-interactive sign-ins (3-day default) for the global user.
 
     .OUTPUTS
     None. Results are exported to an Excel workbook.
 
     .NOTES
-    Version: 1.2.2
+    Version: 2.0.0
+    2.0.0 - Renamed from Get-IRTEntraSignInLog. The query/chunk/throttle/export engine
+            was extracted into the shared private Invoke-IRTSignInLogQuery; this function
+            is now a user-specific wrapper around it (parallel to Get-IRTEntraSPSignInLog).
+    1.5.0 - -NonInteractive now returns BOTH interactive and non-interactive sign-ins
+            (previously non-interactive only). The SignInEventTypes column (surfaced
+            by Show-IRTEntraUserSignInLog) distinguishes them. The 3-day default range
+            still applies whenever non-interactive logs are included.
+    1.4.0 - -DeviceCode now also matches originalTransferMethod, which Entra carries
+            forward onto the downstream token use that follows a device code
+            redemption, via a server-side OR filter.
+    1.3.0 - File names now start with EntraSignInLog plus short filter flags
+            (_NI_ non-interactive, _DC_ device code) and a clearer subject token
+            (user / AllUsers / IP); the redundant domain section was dropped.
+            Titles spell out scope, device code, and an absolute "start to end"
+            or relative "N days from start" date range.
+    1.2.3 - Fixed -DeviceCode filter referencing an undefined variable, so the
+            authenticationProtocol filter never applied.
     1.2.2 - Fixed chunk-boundary off-by-one that produced a degenerate zero-width
             trailing chunk when the date range was an exact multiple of ChunkDays.
     1.2.1 - Throttle handling: honor and print Retry-After, exponential backoff
@@ -16344,7 +17868,7 @@ function Get-IRTEntraSignInLog {
         [boolean] $Beta = $true,
         [boolean] $Excel = $true,
         [boolean] $IpInfo = [bool]$Global:IRT_Config.IpInfoAvailable,
-        [boolean] $Open = $true,
+        [boolean] $Open = [bool]$Global:IRT_Config.OpenSpreadsheets,
         [boolean] $Xml = $Global:IRT_Config.ExportXml
     )
 
@@ -16362,9 +17886,6 @@ function Get-IRTEntraSignInLog {
 
         #region BEGIN
 
-        $FunctionName = $MyInvocation.MyCommand.Name
-        $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
-        # constants
         $ParameterSet = $PSCmdlet.ParameterSetName
 
         # create user objects depending on parameters used
@@ -16399,10 +17920,13 @@ function Get-IRTEntraSignInLog {
             }
             'IpAddress' {
                 $ScriptUserObjects = [System.Collections.Generic.List[pscustomobject]]::new()
-                foreach ($IpAddress in $IpAddress) {
+                # use a distinct loop variable: reusing the [string[]]-typed $IpAddress
+                # parameter as the loop var re-coerces each element back into a
+                # single-element String[], which then leaks downstream as the subject.
+                foreach ($Ip in $IpAddress) {
                     [void]$ScriptUserObjects.Add(
                         [pscustomobject]@{
-                            UserPrincipalName = $IpAddress
+                            UserPrincipalName = $Ip
                         }
                     )
                 }
@@ -16437,32 +17961,7 @@ function Get-IRTEntraSignInLog {
         $Days = $DateRange.Days
         $StartDateUtc = $DateRange.StartUtc
         $EndDateUtc = $DateRange.EndUtc
-
-        # build non-overlapping date chunks, newest to oldest, clamped to the range
-        $DateChunks = [System.Collections.Generic.List[hashtable]]::new()
-        $ChunkEnd = $EndDateUtc
-        while ($ChunkEnd -gt $StartDateUtc) {
-            $ProposedStart = $ChunkEnd.AddDays(-$ChunkDays)
-            # Snap to the range start once the proposed start lands within a second of it,
-            # so a range that is an exact multiple of ChunkDays doesn't leave a degenerate
-            # sub-second trailing chunk. Resolve-DateRange reads the clock twice (StartUtc,
-            # EndUtc), so EndDateUtc.AddDays(-ChunkDays) can sit a few ms past StartDateUtc.
-            $ReachedStart = ($ProposedStart - $StartDateUtc).TotalSeconds -le 1
-            $ChunkStart = $ReachedStart ? $StartDateUtc : $ProposedStart
-            $DateChunks.Add(@{ Start = $ChunkStart; End = $ChunkEnd })
-            $ChunkEnd = $ChunkStart # newest-first; halves meet at the boundary
-        }
-        $ChunkCount = $DateChunks.Count
-        $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-        if ($ChunkCount -gt 1) {
-            $ChunkMsg = "Date range is $Days days, split into $ChunkCount ${ChunkDays}-day chunks."
-            Write-IRT $ChunkMsg
-            Write-PSFMessage -Level 8 -Message "${FunctionName}: $ChunkMsg [$Elapsed]"
-        }
-        else {
-            Write-PSFMessage -Level 8 -Message (
-                "${FunctionName}: Date range is $Days days (single chunk). [$Elapsed]")
-        }
+        $RangeType = $DateRange.RangeType
     }
 
     process {
@@ -16473,641 +17972,168 @@ function Get-IRTEntraSignInLog {
 
             #region FILTERS
 
-            # users
+            # users. $Target drives progress messages; $FileNameSubject is the
+            # file-name token; $ScopeText is the subject phrase used in the title.
             switch ( $ParameterSet ) {
                 'UserObject' {
                     $Target = $ScriptUserObject.UserPrincipalName -split '@' |
                         Select-Object -First 1
+                    $FileNameSubject = $Target
+                    $ScopeText = $ScriptUserObject.UserPrincipalName
                     $FilterStrings.Add( "UserId eq '$($ScriptUserObject.Id)'" )
                 }
                 'IpAddress' {
                     $Target = $ScriptUserObject.UserPrincipalName
+                    $FileNameSubject = $Target
+                    $ScopeText = "IP ${Target}"
                     $FilterStrings.Add( "ipAddress eq '$($ScriptUserObject.UserPrincipalName)'" )
                 }
                 'AllUsers' {
                     $Target = $DomainName
+                    $FileNameSubject = 'AllUsers'
+                    $ScopeText = "All Users in ${DomainName}"
                     # don't add a user filter
                 }
             }
 
             # build file names # must be after target is set
-            if ( $NonInteractive ) {
-                $FileNamePrefix = 'NonInteractiveLogs'
-            }
-            else {
-                $FileNamePrefix = 'SignInLogs'
-            }
-            $FileNameDateFormat = "yy-MM-dd_HH-mm"
-            $FileNameDateString = Get-Date -Format $FileNameDateFormat
-            $FileNameBase = "${FileNamePrefix}_${Days}Days_${DomainName}" +
-            "_${Target}_${FileNameDateString}"
-            $XmlOutputPath = "${FileNameBase}.xml"
+            # the name is sections joined with underscores: always EntraSignInLog, then
+            # short flags for active filters (NI = incl. non-interactive, DC = device code), the
+            # subject (user / AllUsers / IP), and the timestamp. The domain is omitted -
+            # the output folder is already named for the domain.
+            $NameSections = [System.Collections.Generic.List[string]]::new()
+            $NameSections.Add( 'EntraSignInLog' )
+            if ( $NonInteractive ) { $NameSections.Add( 'NI' ) }
+            if ( $DeviceCode ) { $NameSections.Add( 'DC' ) }
+            # the prefix is reused as the worksheet tab name in the Show- function
+            $FileNamePrefix = $NameSections -join '_'
+            $NameSections.Add( $FileNameSubject )
+            $NameSections.Add( (Get-Date -Format 'yy-MM-dd_HH-mm') )
+            $FileNameBase = $NameSections -join '_'
 
-            # build spreadsheet title
+            # build spreadsheet title - mirrors the file name: a base label, then a
+            # comma-separated list of the subject and any active filters, then the date
+            # range (absolute "start to end" or relative "N days from start").
             $TitleDateFormat = "M/d/yy h:mmtt"
             $TitleStartDate = $StartDateUtc.ToLocalTime().ToString($TitleDateFormat)
             $TitleEndDate = $EndDateUtc.ToLocalTime().ToString($TitleDateFormat)
-            $TitleType = if ($NonInteractive) { 'Non-Interactive' } else { 'Interactive' }
-            $SheetTitle = "${TitleType} sign-in logs for ${Target}." +
-            " Covers ${Days} days, ${TitleStartDate} to ${TitleEndDate}."
+            $TitleSections = [System.Collections.Generic.List[string]]::new()
+            $TitleSections.Add( $ScopeText )
+            if ( $NonInteractive ) { $TitleSections.Add( 'Incl. Non-Interactive' ) }
+            if ( $DeviceCode ) { $TitleSections.Add( 'Device Code' ) }
+            $TitleScope = $TitleSections -join ', '
+            if ( $RangeType -eq 'Absolute' ) {
+                $DateText = "${TitleStartDate} to ${TitleEndDate}"
+            }
+            else {
+                $DateText = "${Days} days from ${TitleStartDate}"
+            }
+            $SheetTitle = "Entra sign in logs. ${TitleScope}. ${DateText}."
 
             # additional filters
+            # non-interactive: Graph returns only interactive sign-ins unless asked
+            # otherwise, so include both event types explicitly. The outer parentheses
+            # keep the OR from binding loosely against the and-joined clauses.
             if ( $NonInteractive ) {
-                $FilterStrings.Add( "signInEventTypes/any(t: t eq 'NonInteractiveUser')" )
+                $FilterStrings.Add(
+                    "(signInEventTypes/any(t: t eq 'interactiveUser')" +
+                    " or signInEventTypes/any(t: t eq 'nonInteractiveUser'))" )
             }
+            # device code: match the redemption leg (authenticationProtocol) and the
+            # downstream token use Entra carries forward on originalTransferMethod. The
+            # parentheses keep the OR from binding loosely against the and-joined clauses.
             if ( $DeviceCode ) {
-                $FilterStrings.Add( "authenticationProtocol eq 'devicecode'" )
-            }
-            # base filters are constant per user; date bounds are added per chunk
-            $BaseFilterStrings = $FilterStrings
-
-            #region QUERY LOGS
-            # user messages
-            if ( $NonInteractive ) {
-                Write-IRT "Retrieving ${Days} days of noninteractive sign-in logs for ${Target}."
-            }
-            else {
-                Write-IRT "Retrieving ${Days} days of sign-in logs for ${Target}."
+                $FilterStrings.Add(
+                    "(authenticationProtocol eq 'devicecode'" +
+                    " or originalTransferMethod eq 'deviceCodeFlow')" )
             }
 
-            # $GetProperties = @( # FIXME going to see how much slower pulling all properties is
-            #     'AppDisplayName'
-            #     'AuthenticationProtocol'
-            #     'CorrelationID'
-            #     'CreatedDateTime'
-            #     'DeviceDetail'
-            #     'IpAddress'
-            #     'Location'
-            #     'ResourceId'
-            #     'Status'
-            #     # 'UniqueTokenIdentifier'
-            #     'UserAgent'
-            #     'UserPrincipalName'
-            # )
-
-            # accumulate logs across all date chunks
-            $Logs = [System.Collections.Generic.List[PSObject]]::new()
-            $MaxRetry = 3
-            $ChunkIndex = 0
-            foreach ($Chunk in $DateChunks) {
-                $ChunkIndex++
-
-                # refresh token each chunk; a long multi-chunk run can outlive the
-                # token's 5-minute refresh window and start failing with 401s
-                Update-IRTToken -Service 'Graph'
-
-                # build this chunk's filter: base filters + explicit date bounds
-                $ChunkFilterStrings = [System.Collections.Generic.List[string]]::new()
-                foreach ( $f in $BaseFilterStrings ) { $ChunkFilterStrings.Add( $f ) }
-                $ChunkStartString = $Chunk.Start.ToString('yyyy-MM-ddTHH:mm:ssZ')
-                $ChunkEndString = $Chunk.End.ToString('yyyy-MM-ddTHH:mm:ssZ')
-                $ChunkFilterStrings.Add( "createdDateTime ge $ChunkStartString" )
-                $ChunkFilterStrings.Add( "createdDateTime le $ChunkEndString" )
-                $FilterString = $ChunkFilterStrings -join " and "
-
-                # chunk progress message
-                if ( $ChunkCount -gt 1 ) {
-                    $ChunkStartLocal = $Chunk.Start.ToLocalTime().ToString('M/d/yy h:mmtt')
-                    $ChunkEndLocal = $Chunk.End.ToLocalTime().ToString('M/d/yy h:mmtt')
-                    Write-IRT ("Chunk ${ChunkIndex} of ${ChunkCount}:" +
-                        " ${ChunkStartLocal} to ${ChunkEndLocal}.")
-                }
-                Write-PSFMessage -Level 8 -Message (
-                    "${FunctionName}: Filter string: '${FilterString}'")
-                $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-                Write-PSFMessage -Level 8 -Message (
-                    "${FunctionName}: Get-MgAuditLogSignIn [$Elapsed]")
-
-                $GetParams = @{
-                    Filter = $FilterString
-                    # Property = $GetProperties
-                    All = $true
-                }
-
-                # query logs, retrying on Graph timeout / throttling
-                $RetryCount = 0
-                while ($true) {
-                    try {
-                        if ($Beta) { # default is beta, which returns more information
-                            $ChunkLogs = Get-MgBetaAuditLogSignIn @GetParams
-                        }
-                        else {
-                            $ChunkLogs = Get-MgAuditLogSignIn @GetParams
-                        }
-                        break
-                    }
-                    catch {
-                        $Message = $_.Exception.Message
-                        $IsTimeout = $Message -match
-                        'HttpClient\.Timeout|request was canceled|task was canceled'
-                        $IsThrottle = $Message -match 'TooManyRequests|429'
-
-                        if ($IsThrottle -and $RetryCount -lt $MaxRetry) {
-                            $RetryCount++
-
-                            # determine server-requested Retry-After, if any: prefer the
-                            # response header object, then fall back to the message text
-                            $RetryAfter = $null
-                            try {
-                                $Delta = $_.Exception.Response.Headers.RetryAfter.Delta
-                                if ($null -ne $Delta) { $RetryAfter = [int]$Delta.TotalSeconds }
-                            }
-                            catch { $RetryAfter = $null }
-                            if (-not $RetryAfter -and
-                                $Message -match 'try again (?:in|after)[^0-9]*([0-9]+)\s*second') {
-                                $RetryAfter = [int]$Matches[1]
-                            }
-
-                            if ($RetryAfter) {
-                                # honor and surface the server's requested delay
-                                $Wait = $RetryAfter
-                                Write-IRT ("Throttled by Graph. Honoring Retry-After of" +
-                                    " ${Wait}s (retry ${RetryCount}/${MaxRetry})...") -Level Warn
-                            }
-                            else {
-                                # no Retry-After: exponential backoff from the base
-                                $Factor = [Math]::Pow(2, $RetryCount - 1)
-                                $Wait = [int]($ThrottleDelaySeconds * $Factor)
-                                Write-IRT ("Throttled by Graph (no Retry-After). Backing off" +
-                                    " ${Wait}s (retry ${RetryCount}/${MaxRetry})...") -Level Warn
-                            }
-                            Start-Sleep -Seconds $Wait
-                            continue
-                        }
-                        elseif ($IsTimeout -and $RetryCount -lt $MaxRetry) {
-                            $RetryCount++
-                            Write-IRT ("Request timed out. Retrying" +
-                                " (${RetryCount}/${MaxRetry})...") -Level Warn
-                            Start-Sleep -Seconds 5
-                            continue
-                        }
-                        elseif ($IsTimeout) {
-                            Write-IRT ("Chunk still timing out after ${MaxRetry} retries." +
-                                " Skipping - re-run with a smaller -ChunkDays.") -Level Error
-                            $ChunkLogs = $null
-                            break
-                        }
-                        else {
-                            throw
-                        }
-                    }
-                }
-
-                # accumulate this chunk's results
-                foreach ( $l in $ChunkLogs ) { $Logs.Add( $l ) }
-
-                # brief pause between chunks to avoid tripping throttle limits
-                if ( $ChunkDelaySeconds -gt 0 -and $ChunkIndex -lt $ChunkCount ) {
-                    Start-Sleep -Seconds $ChunkDelaySeconds
-                }
-            }
-
-            if (($Logs | Measure-Object).Count -eq 0 ) {
-                Write-IRT "No logs found for ${Target} for past ${Days} days. Exiting." -Level Error
-                continue
-            }
-
-            # sort newest first (chunks are concatenated newest-first; safety net)
-            $Logs = [System.Collections.Generic.List[PSObject]](
-                $Logs | Sort-Object -Property CreatedDateTime -Descending)
-
-            # add metadata to results
-            $Logs.Insert(0,
-                [pscustomobject]@{
-                    Metadata = $true
-                    FileNamePrefix = $FileNamePrefix
-                    FileName = $FileNameBase
-                    Title = $SheetTitle
-                }
-            )
-
-            #region OUTPUT
-
-            # show count, export
-            $LogCount = ($Logs | Measure-Object).Count
-            if ($LogCount -gt 0) {
-                Write-IRT "Retrieved ${LogCount} logs."
-
-                # export to xml
-                if ($Xml) {
-                    $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-                    Write-PSFMessage -Level 8 -Message "${FunctionName}: Export-Clixml [$Elapsed]"
-                    Write-IRT "Saving logs to: ${XmlOutputPath}"
-                    $Logs | Export-Clixml -Depth 10 -Path $XmlOutputPath
-                }
-
-                # export excel spreadsheet
-                if ($Excel) {
-                    $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-                    Write-PSFMessage -Level 8 -Message (
-                        "${FunctionName}: Show-IRTEntraSignInLog [$Elapsed]")
-                    $Params = @{
-                        Logs   = $Logs
-                        IpInfo = $IpInfo
-                        Open   = $Open
-                    }
-                    Show-IRTEntraSignInLog @Params
-                }
+            # noun phrase for the "Retrieving N days of <label> logs" progress message
+            $LogTypeLabel = if ( $NonInteractive ) {
+                'interactive and non-interactive sign-in'
             }
             else {
-                Write-IRT "Retrieved 0 logs." -Level Error
+                'sign-in'
             }
-        }
-    }
-}
-#EndRegion '.\Public\Entra\Get-IRTEntraSignInLog.ps1' 514
-#Region '.\Public\Entra\Get-IRTNonInteractiveSignIn.ps1' -1
-
-function Get-IRTNonInteractiveSignIn {
-    <#
-    .SYNOPSIS
-    Downloads non-interactive Entra ID sign-in logs for one or more users.
-
-    .DESCRIPTION
-    A convenience wrapper around Get-IRTEntraSignInLog that sets -NonInteractive automatically.
-    Non-interactive sign-ins include token refresh events, legacy protocol logins, and
-    service-to-service calls - often missed during investigations that focus only on
-    interactive sign-ins.
-
-    Date range and output behavior are identical to Get-IRTEntraSignInLog.
-    Falls back to $Global:IRT_UserObjects if no -UserObject is passed.
-
-    .PARAMETER UserObject
-    One or more user objects to query. Falls back to global session objects if omitted.
-
-    .PARAMETER Days
-    Number of days back to search.
-
-    .PARAMETER Beta
-    Use the Microsoft Graph beta endpoint. Default: $true.
-
-    .PARAMETER Xml
-    Export raw XML alongside the Excel file. Defaults to IRT_Config.ExportXml.
-
-    .PARAMETER Script
-    Return raw objects instead of exporting to Excel. Default: $false.
-
-    .PARAMETER Open
-    Open the Excel file immediately after export. Default: $true.
-
-    .EXAMPLE
-    ```powershell
-    Get-IRTNonInteractiveSignIn
-    ```
-    Downloads non-interactive sign-in logs for the user in the global session.
-
-    .EXAMPLE
-    ```powershell
-    Get-IRTNonInteractiveSignIn -UserObject $User -Days 30
-    ```
-    Downloads 30 days of non-interactive sign-ins for a specific user.
-
-    .OUTPUTS
-    None by default. PSCustomObject[] when -Script is $true.
-
-    .NOTES
-    Version: 1.0.0
-    #>
-    [Alias('GetNILog', 'GetNILogs', 'NILog', 'NILogs')]
-    [CmdletBinding()]
-    param (
-        [Parameter( Position = 0 )]
-        [Alias( 'UserObjects' )]
-        [psobject[]] $UserObject,
-
-        [int] $Days,
-        [boolean] $Beta = $true,
-        [boolean] $Xml = $Global:IRT_Config.ExportXml,
-        [boolean] $Script = $false,
-        [boolean] $Open = $true
-    )
-
-    begin {
-        Update-IRTToken -Service 'Graph'
-        Import-IRTModule -Name 'PSFramework'
-
-        # variables
-        $Params = @{
-            UserObjects = $UserObject
-            NonInteractive = $true
-            Days = $Days
-            Xml = $Xml
-            Beta = $Beta
-            Open = $Open
-        }
-        if ( $Script ) {
-            $Params['Script'] = $true
-        }
-    }
-
-    process {
-
-        # run command
-        Get-IRTEntraSignInLog @Params
-    }
-}
-#EndRegion '.\Public\Entra\Get-IRTNonInteractiveSignIn.ps1' 89
-#Region '.\Public\Entra\Get-IRTServicePrincipalSignInLog.ps1' -1
-
-function Get-IRTServicePrincipalSignInLog {
-    <#
-    .SYNOPSIS
-    Downloads service principal sign-in logs.
-
-    .DESCRIPTION
-    Retrieves Entra ID service principal sign-in logs via Microsoft Graph for one or more
-    service principals or all service principals in the tenant. Enriches each log entry
-    with IP geolocation data and human-readable Entra error descriptions, then exports
-    results to an Excel workbook.
-
-    Date range defaults to the last 30 days when no -Days, -Start, or -End is specified.
-
-    Falls back to $Global:IRT_ServicePrincipalObjects if no -ServicePrincipalObject is
-    passed. Use Find-IRTServicePrincipal first to populate that global variable.
-
-    .PARAMETER ServicePrincipalObject
-    One or more service principal objects whose sign-in logs to retrieve. Mutually
-    exclusive with -AllServicePrincipals. Falls back to global session objects if omitted.
-
-    .PARAMETER AllServicePrincipals
-    Retrieve sign-in logs for all service principals in the tenant. Mutually exclusive
-    with -ServicePrincipalObject.
-
-    .PARAMETER Days
-    Number of days back to search. Cannot be used with -Start / -End.
-
-    .PARAMETER Start
-    Start of date range (parseable date string). Used with -End for an absolute range.
-
-    .PARAMETER End
-    End of date range (parseable date string). Used with -Start for an absolute range.
-
-    .PARAMETER Beta
-    Use the Microsoft Graph beta endpoint. Default: $true.
-
-    .PARAMETER Excel
-    Export results to an Excel workbook. Default: $true.
-
-    .PARAMETER IpInfo
-    Enrich results with IP geolocation data. Default: $true.
-
-    .PARAMETER Open
-    Open the Excel file immediately after export. Default: $true.
-
-    .PARAMETER Test
-    Enable stopwatch timing output.
-
-    .PARAMETER Xml
-    Export raw XML alongside the Excel file. Defaults to IRT_Config.ExportXml.
-
-    .EXAMPLE
-    ```powershell
-    Find-IRTServicePrincipal MyApp
-    Get-IRTServicePrincipalSignInLog
-    ```
-    Two-step workflow: find the SP then download its sign-in logs.
-
-    .EXAMPLE
-    ```powershell
-    Get-IRTServicePrincipalSignInLog -ServicePrincipalObject $SP -Days 90
-    ```
-    Downloads 90 days of sign-in logs for a specific service principal.
-
-    .EXAMPLE
-    ```powershell
-    Get-IRTServicePrincipalSignInLog -AllServicePrincipals -Days 7
-    ```
-    Downloads 7 days of sign-in logs for all service principals in the tenant.
-
-    .OUTPUTS
-    None. Results are exported to an Excel workbook.
-
-    .NOTES
-    Version: 1.0.0
-    #>
-    [Alias('GetSPSILog', 'GetSPSILogs', 'SPSILog', 'SPSILogs')]
-    [CmdletBinding(DefaultParameterSetName = 'ServicePrincipalObject')]
-    param (
-        [Parameter(Position = 0, ParameterSetName = 'ServicePrincipalObject')]
-        [Alias('ServicePrincipalObjects')]
-        [psobject[]] $ServicePrincipalObject,
-
-        [Parameter(ParameterSetName = 'AllServicePrincipals')]
-        [switch] $AllServicePrincipals,
-
-        # relative date range
-        [int] $Days,
-        # absolute date range
-        [string] $Start,
-        [string] $End,
-
-        [boolean] $Beta = $true,
-        [boolean] $Excel = $true,
-        [boolean] $IpInfo = [bool]$Global:IRT_Config.IpInfoAvailable,
-        [boolean] $Open = $true,
-        [boolean] $Xml = $Global:IRT_Config.ExportXml
-    )
-
-    begin {
-        Update-IRTToken -Service 'Graph'
-        $ImportParams = @{
-            Name = @(
-                'ImportExcel'
-                'Microsoft.Graph.Beta.Reports'
-                'Microsoft.Graph.Reports'
-                'PSFramework'
-            )
-        }
-        Import-IRTModule @ImportParams
-
-        #region BEGIN
-
-        $FunctionName = $MyInvocation.MyCommand.Name
-        $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
-        $ParameterSet = $PSCmdlet.ParameterSetName
-
-        # resolve service principal objects
-        switch ($ParameterSet) {
-            'ServicePrincipalObject' {
-                if (($ServicePrincipalObject | Measure-Object).Count -gt 0) {
-                    $ScriptSPObjects = $ServicePrincipalObject
-                }
-                else {
-                    $ScriptSPObjects = @($Global:IRT_ServicePrincipalObjects)
-                    if (-not $ScriptSPObjects -or $ScriptSPObjects.Count -eq 0) {
-                        $Msg = 'No service principal objects passed or found in global variables.'
-                        Write-IRT $Msg -Level Error
-                        return
-                    }
-                }
-            }
-            'AllServicePrincipals' {
-                $null = $AllServicePrincipals
-                $ScriptSPObjects = @(
-                    [pscustomobject]@{
-                        DisplayName = 'AllServicePrincipals'
-                        Id          = $null
-                    }
-                )
-            }
-        }
-
-        # get client domain name
-        $DomainName = Get-DefaultDomain
-
-        #region DATE RANGE
-
-        $DefaultDays = 30
-
-        $DateRangeParams = @{
-            Days        = $Days
-            Start       = $Start
-            End         = $End
-            DefaultDays = $DefaultDays
-        }
-        $DateRange = Resolve-DateRange @DateRangeParams
-        $DateRangeType = $DateRange.RangeType
-        $Days = $DateRange.Days
-        $StartDateUtc = $DateRange.StartUtc
-        $EndDateUtc = $DateRange.EndUtc
-    }
-
-    process {
-
-        foreach ($ScriptSPObject in $ScriptSPObjects) {
-
-            $FilterStrings = [System.Collections.Generic.List[string]]::new()
-
-            #region FILTERS
-
-            switch ($ParameterSet) {
-                'ServicePrincipalObject' {
-                    $Target = $ScriptSPObject.DisplayName
-                    $FilterStrings.Add( "servicePrincipalId eq '$($ScriptSPObject.Id)'" )
-                }
-                'AllServicePrincipals' {
-                    $Target = $DomainName
-                    # no SP filter
-                }
-            }
-
-            # build file names -- must be after target is set
-            $FileNamePrefix = 'SPSignInLogs'
-            $FileNameDateFormat = 'yy-MM-dd_HH-mm'
-            $FileNameDateString = Get-Date -Format $FileNameDateFormat
-            $FileNameBase =
-            "${FileNamePrefix}_${Days}Days_${DomainName}_${Target}_${FileNameDateString}"
-            $XmlOutputPath = "${FileNameBase}.xml"
-
-            # build spreadsheet title
-            $TitleDateFormat = 'M/d/yy h:mmtt'
-            $TitleStartDate = $StartDateUtc.ToLocalTime().ToString($TitleDateFormat)
-            $TitleEndDate = $EndDateUtc.ToLocalTime().ToString($TitleDateFormat)
-            $SheetTitle = "Service principal sign-in logs for ${Target}." +
-            " Covers ${Days} days, ${TitleStartDate} to ${TitleEndDate}."
-
-            # sign-in event type filter
-            $FilterStrings.Add( "signInEventTypes/any(t: t eq 'servicePrincipal')" )
-
-            # time range
-            if ($DateRangeType -eq 'Relative') {
-                if ($Days -ne 30) {
-                    $FilterStrings.Add( "createdDateTime ge $($DateRange.StartString)" )
-                }
-            }
-            elseif ($DateRangeType -eq 'Absolute') {
-                $FilterStrings.Add( "createdDateTime ge $($DateRange.StartString)" )
-                $FilterStrings.Add( "createdDateTime le $($DateRange.EndString)" )
-            }
-
-            $FilterString = $FilterStrings -join ' and '
 
             #region QUERY LOGS
 
-            Write-IRT "Retrieving ${Days} days of service principal sign-in logs for ${Target}."
-            Write-PSFMessage -Level 8 -Message (
-                "${FunctionName}: Filter string: '${FilterString}'")
-            $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-            Write-PSFMessage -Level 8 -Message (
-                "${FunctionName}: Get-MgAuditLogSignIn [$Elapsed]")
-
-            if ($Beta) {
-                $GetParams = @{
-                    Filter = $FilterString
-                    All    = $true
-                }
-                [System.Collections.Generic.List[PSObject]]$Logs =
-                Get-MgBetaAuditLogSignIn @GetParams
+            # hand off to the shared engine (chunking, throttle/retry, export, Show)
+            $QueryParams = @{
+                BaseFilter           = $FilterStrings
+                StartDateUtc         = $StartDateUtc
+                EndDateUtc           = $EndDateUtc
+                Days                 = $Days
+                Target               = $Target
+                LogTypeLabel         = $LogTypeLabel
+                FileNamePrefix       = $FileNamePrefix
+                FileNameBase         = $FileNameBase
+                Title                = $SheetTitle
+                ShowCommand          = 'Show-IRTEntraUserSignInLog'
+                ChunkDays            = $ChunkDays
+                ChunkDelaySeconds    = $ChunkDelaySeconds
+                ThrottleDelaySeconds = $ThrottleDelaySeconds
+                Beta                 = $Beta
+                Excel                = $Excel
+                IpInfo               = $IpInfo
+                Open                 = $Open
+                Xml                  = $Xml
             }
-            else {
-                $GetParams = @{
-                    Filter = $FilterString
-                    All    = $true
-                }
-                [System.Collections.Generic.List[PSObject]]$Logs = Get-MgAuditLogSignIn @GetParams
-            }
-
-            if (($Logs | Measure-Object).Count -eq 0) {
-                Write-IRT "No logs found for ${Target} for past ${Days} days. Exiting." -Level Error
-                continue
-            }
-
-            # add metadata to results
-            $Logs.Insert(0,
-                [pscustomobject]@{
-                    Metadata       = $true
-                    FileNamePrefix = $FileNamePrefix
-                    FileName       = $FileNameBase
-                    Title          = $SheetTitle
-                }
-            )
-
-            #region OUTPUT
-
-            $LogCount = ($Logs | Measure-Object).Count
-            if ($LogCount -gt 0) {
-                Write-IRT "Retrieved ${LogCount} logs."
-
-                # export to xml
-                if ($Xml) {
-                    $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-                    Write-PSFMessage -Level 8 -Message "${FunctionName}: Export-Clixml [$Elapsed]"
-                    Write-IRT "Saving logs to: ${XmlOutputPath}"
-                    $Logs | Export-Clixml -Depth 10 -Path $XmlOutputPath
-                }
-
-                # export excel spreadsheet
-                if ($Excel) {
-                    $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-                    Write-PSFMessage -Level 8 -Message (
-                        "${FunctionName}: Show-IRTServicePrincipalSignIn [$Elapsed]")
-                    $Params = @{
-                        Logs   = $Logs
-                        IpInfo = $IpInfo
-                        Open   = $Open
-                    }
-                    Show-IRTServicePrincipalSignIn @Params
-                }
-            }
-            else {
-                Write-IRT "Retrieved 0 logs." -Level Error
-            }
+            Invoke-IRTSignInLogQuery @QueryParams
         }
     }
 }
-#EndRegion '.\Public\Entra\Get-IRTServicePrincipalSignInLog.ps1' 287
-#Region '.\Public\Entra\Show-IRTEntraAuditLog.ps1' -1
+#EndRegion './Public/Entra/Get-IRTEntraUserSignInLog.ps1' 392
+#Region './Public/Entra/Show-IRTEntraAuditLog.ps1' -1
 
 function Show-IRTEntraAuditLog {
     <#
-	.SYNOPSIS
-    Shows Entra audit logs in terminal, or saves as an excel spreadsheet.
+    .SYNOPSIS
+    Processes Entra audit log objects into an Excel spreadsheet.
 
-	.NOTES
-	Version: 1.2.1
+    .DESCRIPTION
+    Takes Entra audit log objects produced by Get-IRTEntraAuditLog (or imported from a
+    raw XML export) and renders them into a formatted Excel workbook. User, group, role
+    and service principal IDs in the logs are resolved to display names.
+
+    .PARAMETER Log
+    A list of Entra audit log objects with a metadata entry at index 0. Produced by
+    Get-IRTEntraAuditLog. Mutually exclusive with -XmlPath.
+
+    .PARAMETER XmlPath
+    Path to a raw XML file exported by Get-IRTEntraAuditLog. Mutually exclusive with -Log.
+
+    .PARAMETER TableStyle
+    Excel table style. Defaults to IRT_Config.ExcelTableStyle.
+
+    .PARAMETER Font
+    Excel font name. Defaults to IRT_Config.ExcelFont.
+
+    .PARAMETER IpInfo
+    Enrich the InitiatedByIp column with ip_info lookup data. Defaults to
+    IRT_Config.IpInfoAvailable.
+
+    .PARAMETER Open
+    Open the Excel file immediately after export. Defaults to IRT_Config.OpenSpreadsheets.
+
+    .PARAMETER Cached
+    Use pre-cached Graph data where available.
+
+    .EXAMPLE
+    ```powershell
+    Show-IRTEntraAuditLog -XmlPath '.\EntraAuditLogs_30Days_contoso.com_bob_26-09-16_14-30.xml'
+    ```
+    Rebuilds the Entra audit log workbook from a raw XML export.
+
+    .OUTPUTS
+    None. Results are written to an Excel workbook.
+
+    .NOTES
+    Version: 1.2.1
     1.2.1 - Updates to use new get-graphobject functions.
-    1.2.0 - Many small updates to standardize across IR functions. Updated to readable date format.
-	#>
+    1.2.0 - Many small updates to standardize across IR functions. Updated to readable
+            date format.
+    #>
     [CmdletBinding(DefaultParameterSetName = 'Objects')]
     param (
         [Parameter(Position = 0, ParameterSetName = 'Objects')]
@@ -17120,7 +18146,7 @@ function Show-IRTEntraAuditLog {
         [string] $TableStyle = $Global:IRT_Config.ExcelTableStyle,
         [string] $Font = $Global:IRT_Config.ExcelFont,
         [boolean] $IpInfo = [bool]$Global:IRT_Config.IpInfoAvailable,
-        [boolean] $Open = $true,
+        [boolean] $Open = [bool]$Global:IRT_Config.OpenSpreadsheets,
         [switch] $Cached
     )
 
@@ -17663,357 +18689,25 @@ function Show-IRTEntraAuditLog {
         }
     }
 }
-#EndRegion '.\Public\Entra\Show-IRTEntraAuditLog.ps1' 566
-#Region '.\Public\Entra\Show-IRTEntraSignInLog.ps1' -1
+#EndRegion './Public/Entra/Show-IRTEntraAuditLog.ps1' 604
+#Region './Public/Entra/Show-IRTEntraSPSignInLog.ps1' -1
 
-function Show-IRTEntraSignInLog {
-    <#
-	.SYNOPSIS
-	Processes Sign in log .XML file into Excel spreadsheet.
-
-	.NOTES
-	Version: 1.1.3
-    1.1.3 - Added timers/progress for testing.
-	#>
-    [CmdletBinding(DefaultParameterSetName = 'Objects')]
-    param (
-        [Parameter(Position = 0, ParameterSetName = 'Objects')]
-        [Alias('Logs')]
-        [System.Collections.Generic.List[PSObject]] $Log,
-
-        [Parameter(Mandatory, ParameterSetName = 'Xml')]
-        [string] $XmlPath,
-
-        [string] $TableStyle = $Global:IRT_Config.ExcelTableStyle,
-        [string] $Font = $Global:IRT_Config.ExcelFont,
-
-        [boolean] $IpInfo = [bool]$Global:IRT_Config.IpInfoAvailable,
-        [boolean] $Open = $true
-    )
-
-    begin {
-        Import-IRTModule -Name 'ImportExcel', 'PSFramework'
-        $FunctionName = $MyInvocation.MyCommand.Name
-        $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
-        $ParameterSet = $PSCmdlet.ParameterSetName
-        $RawDateProperty = 'CreatedDateTime'
-        $DateColumnHeader = 'DateTime'
-
-        # import from xml
-        if ($ParameterSet -eq 'Xml') {
-            try {
-                $ResolvedXmlPath = Resolve-ScriptPath -Path $XmlPath -File -FileExtension 'xml'
-                $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-                Write-PSFMessage -Level 8 -Message "${FunctionName}: Import-CliXml [$Elapsed]"
-                [System.Collections.Generic.List[PSObject]]$Log =
-                Import-CliXml -Path $ResolvedXmlPath
-            }
-            catch {
-                $_
-                $ErrorParams = @{
-                    Category    = 'ReadError'
-                    Message     = "Error importing from ${XmlPath}."
-                    ErrorAction = 'Stop'
-                }
-                Write-Error @ErrorParams
-            }
-        }
-
-        # logs must come from either -Log or -XmlPath
-        if (-not $Log) {
-            $ErrorParams = @{
-                Category    = 'InvalidArgument'
-                Message     = 'No logs provided. Use -Log or -XmlPath.'
-                ErrorAction = 'Stop'
-            }
-            Write-Error @ErrorParams
-        }
-
-        #region Metadata
-        if ($Log[0].Metadata) {
-
-            # remove metadata from beginning of list
-            $Metadata = $Log[0]
-            $Log.RemoveAt(0)
-        }
-        else {
-            Write-IRT "No Metadata found." -Level Error
-        }
-
-        # build file name
-        $ExcelOutputPath = $Metadata.FileName + ".xlsx"
-
-        # get worksheet title from metadata
-        $WorksheetTitle = $Metadata.Title
-    }
-
-    process {
-
-        #region ROW LOOP
-
-        $RowCount = ($Log | Measure-Object).Count
-        $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-        Write-PSFMessage -Level 8 -Message (
-            "${FunctionName}: Row loop starting ($RowCount rows) [$Elapsed]")
-        $Rows = [System.Collections.Generic.List[PSCustomObject]]::new($RowCount)
-        for ($i = 0; $i -lt $RowCount; $i++) {
-
-            $LogEntry = $Log[$i]
-
-            # Raw
-            $Raw = $LogEntry | ConvertTo-Json -Depth 10
-
-            # Date/Time
-            $DateTime = $null
-            if ($LogEntry.$RawDateProperty) {
-                $DateTime = $LogEntry.$RawDateProperty.ToLocalTime()
-            }
-
-            # IpAddress
-            $IpText = $LogEntry.IpAddress
-
-            # application display name / resource id
-            if ( $LogEntry.AppDisplayName ) {
-                $AppDisplayName = $LogEntry.AppDisplayName
-            }
-            else {
-                $AppDisplayName = $LogEntry.ResourceId
-            }
-
-            # compress trust
-            $Trust = Convert-TrustType -TrustType $LogEntry.DeviceDetail.TrustType
-
-            # add to list
-            [void]$Rows.Add([PSCustomObject]@{
-                    Raw = $Raw
-                    $DateColumnHeader = $DateTime
-                    UserPrincipalName = $LogEntry.UserPrincipalName
-                    Error = ConvertTo-HumanErrorDescription -ErrorCode $LogEntry.Status.ErrorCode
-                    IpAddress = $IpText
-                    City = $LogEntry.Location.City
-                    State = $LogEntry.Location.State
-                    Co = $LogEntry.Location.CountryOrRegion
-                    Application = $AppDisplayName
-                    Browser = $LogEntry.DeviceDetail.Browser
-                    OS = $LogEntry.DeviceDetail.OperatingSystem
-                    Trust = $Trust
-                    UserAgent = $LogEntry.UserAgent
-                    Session = $LogEntry.CorrelationId
-                    Token = $LogEntry.UniqueTokenIdentifier
-                })
-
-            if ($VerbosePreference -ne 'SilentlyContinue' -and ($i % 100 -eq 0)) {
-                $Percent = [int]( ($i / $RowCount ) * 100 )
-                $ProgressParams = @{
-                    Id              = 1
-                    Activity        = 'Row loop'
-                    Status          = "Completed ${i} of ${RowCount}"
-                    PercentComplete = $Percent
-                }
-                Write-Progress @ProgressParams
-            }
-        }
-
-        if ($VerbosePreference -ne 'SilentlyContinue') {
-            Write-Progress -Id 1 -Activity 'Row loop' -Completed
-        }
-
-        #region EXPORT SPREADSHEET
-        Write-PSFMessage -Level 8 -Message (
-            "${FunctionName}: Export-Excel [$($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))]")
-        $ExcelParams = @{
-            Path          = $ExcelOutputPath
-            WorkSheetname = $Metadata.FileNamePrefix
-            Title         = $WorksheetTitle
-            TableStyle    = $TableStyle
-            # AutoSize      = $true # apparently very slow?
-            FreezeTopRow  = $true
-            Passthru      = $true
-        }
-        try {
-            $Workbook = $Rows | Export-Excel @ExcelParams
-        }
-        catch {
-            Write-Error "Unable to open new Excel document."
-            if ( Get-YesNo "Try closing open files." ) {
-                try {
-                    $Workbook = $Rows | Export-Excel @ExcelParams
-                }
-                catch {
-                    throw "Unable to open new Excel document. Exiting."
-                }
-            }
-        }
-        $Worksheet = $Workbook.Workbook.Worksheets[$ExcelParams.WorksheetName]
-
-        # get table ranges
-        $SheetStartColumn = $WorkSheet.Dimension.Start.Column | Convert-DecimalToExcelColumn
-        $SheetStartRow = $WorkSheet.Dimension.Start.Row
-        $TableStartColumn = ( $workSheet.Tables.Address | Select-Object -First 1 ).Start.Column |
-            Convert-DecimalToExcelColumn
-        $TableStartRow = ( $workSheet.Tables.Address | Select-Object -First 1 ).Start.Row
-        $EndColumn = $WorkSheet.Dimension.End.Column | Convert-DecimalToExcelColumn
-        $EndRow = $WorkSheet.Dimension.End.Row
-
-        $IpAddressColumn = ($Worksheet.Tables[0].Columns |
-                Where-Object { $_.Name -eq 'IpAddress' }).Id |
-                Convert-DecimalToExcelColumn
-        $ApplicationColumn = ($Worksheet.Tables[0].Columns |
-                Where-Object { $_.Name -eq 'Application' }).Id |
-                Convert-DecimalToExcelColumn
-        $UserAgentColumn = ($Worksheet.Tables[0].Columns |
-                Where-Object { $_.Name -eq 'UserAgent' }).Id |
-                Convert-DecimalToExcelColumn
-
-        #region CELL COLORING
-
-        # ip address enrichment and conditional formatting
-        if ($IpInfo) {
-            $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
-            Write-PSFMessage -Level 8 -Message "${FunctionName}: Add-IpInfoToSheet [$Elapsed]"
-            Add-IpInfoToSheet -Worksheet $Worksheet -ColumnName 'IpAddress'
-        }
-
-        # applications
-        $Strings = @(
-            'Azure Active Directory PowerShell'
-            'Microsoft Azure CLI'
-            'Microsoft Exchange REST API Based Powershell'
-            'Microsoft Graph Command Line Tools'
-        )
-        foreach ( $String in $Strings ) {
-            $CFParams = @{
-                Worksheet       = $WorkSheet
-                Address         = "${ApplicationColumn}:${ApplicationColumn}"
-                RuleType        = 'Equal'
-                ConditionValue  = $String
-                BackgroundColor = 'LightPink'
-            }
-            Add-ConditionalFormatting @CFParams
-        }
-
-        # user agents
-        $Strings = @(
-            'axios'
-            'BAV2ROPC'
-        )
-        foreach ( $String in $Strings ) {
-            $CFParams = @{
-                Worksheet       = $WorkSheet
-                Address         = "${UserAgentColumn}:${UserAgentColumn}"
-                RuleType        = 'ContainsText'
-                ConditionValue  = $String
-                BackgroundColor = 'LightPink'
-            }
-            Add-ConditionalFormatting @CFParams
-        }
-
-        #region COLUMN WIDTH
-
-        $ColumnWidths = @{
-            'Raw'               = 8
-            $DateColumnHeader   = 26
-            'UserPrincipalName' = 30
-            'Error'             = 25
-            'IpAddress'         = 20
-            'City'              = 10
-            'State'             = 10
-            'Co'                = 6
-            'Application'       = 25
-            'Browser'           = 20
-            'OS'                = 12
-            'Trust'             = 12
-            'UserAgent'         = 150
-            'Session'           = 10
-            'Token'             = 10
-        }
-        foreach ($ColName in $ColumnWidths.Keys) {
-            $Col = ($Worksheet.Tables[0].Columns | Where-Object { $_.Name -eq $ColName }).Id
-            if ($Col) { $Worksheet.Column($Col).Width = $ColumnWidths[$ColName] }
-        }
-
-        #region FORMATTING
-
-        # set date format
-        $FmtParams = @{
-            Worksheet = $Worksheet
-            Range = "B:B"
-            NumberFormat  = 'm/d/yyyy h:mm:ss AM/PM'
-        }
-        Set-ExcelRange @FmtParams
-
-        # set text wrapping on ip address column
-        $WrapParams = @{
-            Worksheet = $Worksheet
-            Range = "${IpAddressColumn}:${IpAddressColumn}"
-            WrapText = $true
-        }
-        Set-ExcelRange @WrapParams
-
-        # set font and size
-        $SetParams = @{
-            Worksheet = $Worksheet
-            Range     = "${SheetStartColumn}${SheetStartRow}:${EndColumn}${EndRow}"
-            FontName  = $Font
-        }
-        try {
-            Set-ExcelRange @SetParams
-        } catch {}
-
-        # add left side border
-        $BorderParams = @{
-            Worksheet = $Worksheet
-            Range = "${TableStartColumn}${TableStartRow}:${EndColumn}${EndRow}"
-            BorderLeft = 'Thin'
-            BorderColor = 'Black'
-        }
-        Set-ExcelRange @BorderParams
-
-        # set row height
-        # $HeightParams = @{
-        #     Worksheet = $Worksheet
-        #     Row = ($TableStartRow..$EndRow)
-        #     Height = 15
-        # }
-        # Set-ExcelRow @HeightParams
-        for ( $i = $TableStartRow; $i -le $EndRow; $i++ ) {
-            $Row = $Worksheet.Row($i)
-            $Row.Height = 15
-            $Row.CustomHeight = $true
-        }
-
-        #region OUTPUT
-
-        # save and close
-        Write-IRT "Exporting to: ${ExcelOutputPath}"
-        if ($Open) {
-            Write-IRT "Opening Excel."
-            $Workbook | Close-ExcelPackage -Show
-        }
-        else {
-            $Workbook | Close-ExcelPackage
-        }
-    }
-}
-#EndRegion '.\Public\Entra\Show-IRTEntraSignInLog.ps1' 330
-#Region '.\Public\Entra\Show-IRTServicePrincipalSignIn.ps1' -1
-
-function Show-IRTServicePrincipalSignIn {
+function Show-IRTEntraSPSignInLog {
     <#
     .SYNOPSIS
     Processes service principal sign-in log objects into an Excel spreadsheet.
 
     .DESCRIPTION
-    Takes service principal sign-in log objects produced by Get-IRTServicePrincipalSignInLog
+    Takes service principal sign-in log objects produced by Get-IRTEntraSPSignInLog
     (or imported from a raw XML export) and renders them into a formatted Excel workbook.
     Enriches IP addresses with geolocation data when -IpInfo is enabled.
 
     .PARAMETER Log
     A list of service principal sign-in log objects with a metadata entry at index 0.
-    Produced by Get-IRTServicePrincipalSignInLog. Mutually exclusive with -XmlPath.
+    Produced by Get-IRTEntraSPSignInLog. Mutually exclusive with -XmlPath.
 
     .PARAMETER XmlPath
-    Path to a raw XML file exported by Get-IRTServicePrincipalSignInLog. Mutually
+    Path to a raw XML file exported by Get-IRTEntraSPSignInLog. Mutually
     exclusive with -Log.
 
     .PARAMETER TableStyle
@@ -18023,10 +18717,16 @@ function Show-IRTServicePrincipalSignIn {
     Excel font name. Defaults to IRT_Config.ExcelFont.
 
     .PARAMETER IpInfo
-    Enrich IP addresses with geolocation data. Default: $true.
+    Enrich IP addresses with geolocation data. Defaults to IRT_Config.IpInfoAvailable.
 
     .PARAMETER Open
-    Open the Excel file immediately after export. Default: $true.
+    Open the Excel file immediately after export. Defaults to IRT_Config.OpenSpreadsheets.
+
+    .EXAMPLE
+    ```powershell
+    Show-IRTEntraSPSignInLog -XmlPath '.\SPSignInLogs_30Days_contoso.com_MyApp_26-09-16_14-30.xml'
+    ```
+    Rebuilds the service principal sign-in log workbook from a raw XML export.
 
     .OUTPUTS
     None. Results are written to an Excel workbook.
@@ -18047,7 +18747,7 @@ function Show-IRTServicePrincipalSignIn {
         [string]  $Font = $Global:IRT_Config.ExcelFont,
 
         [boolean] $IpInfo = [bool]$Global:IRT_Config.IpInfoAvailable,
-        [boolean] $Open = $true
+        [boolean] $Open = [bool]$Global:IRT_Config.OpenSpreadsheets
     )
 
     begin {
@@ -18285,8 +18985,512 @@ function Show-IRTServicePrincipalSignIn {
         }
     }
 }
-#EndRegion '.\Public\Entra\Show-IRTServicePrincipalSignIn.ps1' 288
-#Region '.\Public\Lib\Get-TenantOidc.ps1' -1
+#EndRegion './Public/Entra/Show-IRTEntraSPSignInLog.ps1' 294
+#Region './Public/Entra/Show-IRTEntraUserSignInLog.ps1' -1
+
+function Show-IRTEntraUserSignInLog {
+    <#
+    .SYNOPSIS
+    Processes user sign-in log objects into an Excel spreadsheet.
+
+    .DESCRIPTION
+    Takes user sign-in log objects produced by Get-IRTEntraUserSignInLog (or imported
+    from a raw XML export) and renders them into a formatted Excel workbook. Curated
+    columns are shown by default and all other sign-in fields are present but hidden.
+    Device code values in AuthenticationProtocol and OriginalTransferMethod are
+    highlighted. Enriches IP addresses with geolocation data when -IpInfo is enabled.
+
+    .PARAMETER Log
+    A list of user sign-in log objects with a metadata entry at index 0. Produced by
+    Get-IRTEntraUserSignInLog. Mutually exclusive with -XmlPath.
+
+    .PARAMETER XmlPath
+    Path to a raw XML file exported by Get-IRTEntraUserSignInLog. Mutually exclusive
+    with -Log.
+
+    .PARAMETER TableStyle
+    Excel table style. Defaults to IRT_Config.ExcelTableStyle.
+
+    .PARAMETER Font
+    Excel font name. Defaults to IRT_Config.ExcelFont.
+
+    .PARAMETER IpInfo
+    Enrich IP addresses with geolocation data. Defaults to IRT_Config.IpInfoAvailable.
+
+    .PARAMETER Open
+    Open the Excel file immediately after export. Defaults to IRT_Config.OpenSpreadsheets.
+
+    .EXAMPLE
+    ```powershell
+    Show-IRTEntraUserSignInLog -XmlPath '.\EntraSignInLog_jsmith_26-09-16_14-30.xml'
+    ```
+    Rebuilds the sign-in log workbook from a raw XML export.
+
+    .OUTPUTS
+    None. Results are written to an Excel workbook.
+
+    .NOTES
+    Version: 1.4.0
+    1.4.0 - SignInEventTypes is now shown by default (right after UserPrincipalName)
+            so interactive and non-interactive sign-ins can be told apart in a mixed
+            pull.
+    1.3.0 - OriginalTransferMethod is now shown by default immediately after
+            AuthenticationProtocol, and both columns are highlighted when a cell
+            contains a device code value. AutonomousSystemNumber now sits right after
+            IpAddress (still hidden by default).
+    1.2.0 - Surfaced many more sign-in fields as columns (incl. AuthenticationProtocol);
+            all non-curated columns are present but hidden by default.
+    1.1.3 - Added timers/progress for testing.
+    #>
+    [CmdletBinding(DefaultParameterSetName = 'Objects')]
+    param (
+        [Parameter(Position = 0, ParameterSetName = 'Objects')]
+        [Alias('Logs')]
+        [System.Collections.Generic.List[PSObject]] $Log,
+
+        [Parameter(Mandatory, ParameterSetName = 'Xml')]
+        [string] $XmlPath,
+
+        [string] $TableStyle = $Global:IRT_Config.ExcelTableStyle,
+        [string] $Font = $Global:IRT_Config.ExcelFont,
+
+        [boolean] $IpInfo = [bool]$Global:IRT_Config.IpInfoAvailable,
+        [boolean] $Open = [bool]$Global:IRT_Config.OpenSpreadsheets
+    )
+
+    begin {
+        Import-IRTModule -Name 'ImportExcel', 'PSFramework'
+        $FunctionName = $MyInvocation.MyCommand.Name
+        $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+        $ParameterSet = $PSCmdlet.ParameterSetName
+        $RawDateProperty = 'CreatedDateTime'
+        $DateColumnHeader = 'DateTime'
+
+        # import from xml
+        if ($ParameterSet -eq 'Xml') {
+            try {
+                $ResolvedXmlPath = Resolve-ScriptPath -Path $XmlPath -File -FileExtension 'xml'
+                $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+                Write-PSFMessage -Level 8 -Message "${FunctionName}: Import-CliXml [$Elapsed]"
+                [System.Collections.Generic.List[PSObject]]$Log =
+                Import-CliXml -Path $ResolvedXmlPath
+            }
+            catch {
+                $_
+                $ErrorParams = @{
+                    Category    = 'ReadError'
+                    Message     = "Error importing from ${XmlPath}."
+                    ErrorAction = 'Stop'
+                }
+                Write-Error @ErrorParams
+            }
+        }
+
+        # logs must come from either -Log or -XmlPath
+        if (-not $Log) {
+            $ErrorParams = @{
+                Category    = 'InvalidArgument'
+                Message     = 'No logs provided. Use -Log or -XmlPath.'
+                ErrorAction = 'Stop'
+            }
+            Write-Error @ErrorParams
+        }
+
+        #region Metadata
+        if ($Log[0].Metadata) {
+
+            # remove metadata from beginning of list
+            $Metadata = $Log[0]
+            $Log.RemoveAt(0)
+        }
+        else {
+            Write-IRT "No Metadata found." -Level Error
+        }
+
+        # build file name
+        $ExcelOutputPath = $Metadata.FileName + ".xlsx"
+
+        # get worksheet title from metadata
+        $WorksheetTitle = $Metadata.Title
+    }
+
+    process {
+
+        #region ROW LOOP
+
+        $RowCount = ($Log | Measure-Object).Count
+        $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: Row loop starting ($RowCount rows) [$Elapsed]")
+        $Rows = [System.Collections.Generic.List[PSCustomObject]]::new($RowCount)
+        for ($i = 0; $i -lt $RowCount; $i++) {
+
+            $LogEntry = $Log[$i]
+
+            # Raw
+            $Raw = $LogEntry | ConvertTo-Json -Depth 10
+
+            # Date/Time
+            $DateTime = $null
+            if ($LogEntry.$RawDateProperty) {
+                $DateTime = $LogEntry.$RawDateProperty.ToLocalTime()
+            }
+
+            # IpAddress
+            $IpText = $LogEntry.IpAddress
+
+            # application display name / resource id
+            if ( $LogEntry.AppDisplayName ) {
+                $AppDisplayName = $LogEntry.AppDisplayName
+            }
+            else {
+                $AppDisplayName = $LogEntry.ResourceId
+            }
+
+            # compress trust
+            $Trust = Convert-TrustType -TrustType $LogEntry.DeviceDetail.TrustType
+
+            # flatten applied conditional access policies to "Name=Result; Name=Result"
+            $CaPolicies = ($LogEntry.AppliedConditionalAccessPolicies | ForEach-Object {
+                    "$($_.DisplayName)=$($_.Result)" }) -join '; '
+
+            # add to list. PSCustomObject literal order = column order, so keep Raw first
+            # (column A) and DateTime second (column B) - the date format step hardcodes B:B.
+            # Columns after Token are present for reference but hidden by default (see
+            # $ColumnMeta below); unhide any when needed.
+            [void]$Rows.Add([PSCustomObject]@{
+                    # visible by default
+                    Raw = $Raw
+                    $DateColumnHeader = $DateTime
+                    UserPrincipalName = $LogEntry.UserPrincipalName
+                    SignInEventTypes = $LogEntry.SignInEventTypes -join ', '
+                    Error = ConvertTo-HumanErrorDescription -ErrorCode $LogEntry.Status.ErrorCode
+                    IpAddress = $IpText
+                    AutonomousSystemNumber = $LogEntry.AutonomousSystemNumber
+                    City = $LogEntry.Location.City
+                    State = $LogEntry.Location.State
+                    Co = $LogEntry.Location.CountryOrRegion
+                    Application = $AppDisplayName
+                    AuthenticationProtocol = $LogEntry.AuthenticationProtocol
+                    OriginalTransferMethod = $LogEntry.OriginalTransferMethod
+                    Browser = $LogEntry.DeviceDetail.Browser
+                    OS = $LogEntry.DeviceDetail.OperatingSystem
+                    Trust = $Trust
+                    UserAgent = $LogEntry.UserAgent
+                    Session = $LogEntry.CorrelationId
+                    Token = $LogEntry.UniqueTokenIdentifier
+                    # hidden by default
+                    AppId = $LogEntry.AppId
+                    ResourceDisplayName = $LogEntry.ResourceDisplayName
+                    ResourceId = $LogEntry.ResourceId
+                    ClientAppUsed = $LogEntry.ClientAppUsed
+                    ClientCredentialType = $LogEntry.ClientCredentialType
+                    IncomingTokenType = $LogEntry.IncomingTokenType
+                    TokenIssuerType = $LogEntry.TokenIssuerType
+                    AuthenticationRequirement = $LogEntry.AuthenticationRequirement
+                    ConditionalAccessStatus = $LogEntry.ConditionalAccessStatus
+                    ConditionalAccessPolicies = $CaPolicies
+                    AuthenticationMethodsUsed = $LogEntry.AuthenticationMethodsUsed -join ', '
+                    MfaAuthMethod = $LogEntry.MfaDetail.AuthMethod
+                    IsInteractive = $LogEntry.IsInteractive
+                    CrossTenantAccessType = $LogEntry.CrossTenantAccessType
+                    IsThroughGlobalSecureAccess = $LogEntry.IsThroughGlobalSecureAccess
+                    RiskState = $LogEntry.RiskState
+                    RiskDetail = $LogEntry.RiskDetail
+                    RiskLevelDuringSignIn = $LogEntry.RiskLevelDuringSignIn
+                    RiskLevelAggregated = $LogEntry.RiskLevelAggregated
+                    RiskEventTypes = $LogEntry.RiskEventTypesV2 -join ', '
+                    ErrorCode = $LogEntry.Status.ErrorCode
+                    FailureReason = $LogEntry.Status.FailureReason
+                    StatusDetails = $LogEntry.Status.AdditionalDetails
+                    DeviceId = $LogEntry.DeviceDetail.DeviceId
+                    DeviceName = $LogEntry.DeviceDetail.DisplayName
+                    IsCompliant = $LogEntry.DeviceDetail.IsCompliant
+                    IsManaged = $LogEntry.DeviceDetail.IsManaged
+                    HomeTenantId = $LogEntry.HomeTenantId
+                    ResourceTenantId = $LogEntry.ResourceTenantId
+                    UserId = $LogEntry.UserId
+                    UserType = $LogEntry.UserType
+                    SignInIdentifier = $LogEntry.SignInIdentifier
+                    SignInIdentifierType = $LogEntry.SignInIdentifierType
+                    SignInTokenProtectionStatus = $LogEntry.SignInTokenProtectionStatus
+                    SessionId = $LogEntry.SessionId
+                    ProcessingTimeMs = $LogEntry.ProcessingTimeInMilliseconds
+                    FlaggedForReview = $LogEntry.FlaggedForReview
+                    Id = $LogEntry.Id
+                    OriginalRequestId = $LogEntry.OriginalRequestId
+                })
+
+            if ($VerbosePreference -ne 'SilentlyContinue' -and ($i % 100 -eq 0)) {
+                $Percent = [int]( ($i / $RowCount ) * 100 )
+                $ProgressParams = @{
+                    Id              = 1
+                    Activity        = 'Row loop'
+                    Status          = "Completed ${i} of ${RowCount}"
+                    PercentComplete = $Percent
+                }
+                Write-Progress @ProgressParams
+            }
+        }
+
+        if ($VerbosePreference -ne 'SilentlyContinue') {
+            Write-Progress -Id 1 -Activity 'Row loop' -Completed
+        }
+
+        #region EXPORT SPREADSHEET
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: Export-Excel [$($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))]")
+        $ExcelParams = @{
+            Path          = $ExcelOutputPath
+            WorkSheetname = $Metadata.FileNamePrefix
+            Title         = $WorksheetTitle
+            TableStyle    = $TableStyle
+            # AutoSize      = $true # apparently very slow?
+            FreezeTopRow  = $true
+            Passthru      = $true
+        }
+        try {
+            $Workbook = $Rows | Export-Excel @ExcelParams
+        }
+        catch {
+            Write-Error "Unable to open new Excel document."
+            if ( Get-YesNo "Try closing open files." ) {
+                try {
+                    $Workbook = $Rows | Export-Excel @ExcelParams
+                }
+                catch {
+                    throw "Unable to open new Excel document. Exiting."
+                }
+            }
+        }
+        $Worksheet = $Workbook.Workbook.Worksheets[$ExcelParams.WorksheetName]
+
+        # get table ranges
+        $SheetStartColumn = $WorkSheet.Dimension.Start.Column | Convert-DecimalToExcelColumn
+        $SheetStartRow = $WorkSheet.Dimension.Start.Row
+        $TableStartColumn = ( $workSheet.Tables.Address | Select-Object -First 1 ).Start.Column |
+            Convert-DecimalToExcelColumn
+        $TableStartRow = ( $workSheet.Tables.Address | Select-Object -First 1 ).Start.Row
+        $EndColumn = $WorkSheet.Dimension.End.Column | Convert-DecimalToExcelColumn
+        $EndRow = $WorkSheet.Dimension.End.Row
+
+        $IpAddressColumn = ($Worksheet.Tables[0].Columns |
+                Where-Object { $_.Name -eq 'IpAddress' }).Id |
+                Convert-DecimalToExcelColumn
+        $ApplicationColumn = ($Worksheet.Tables[0].Columns |
+                Where-Object { $_.Name -eq 'Application' }).Id |
+                Convert-DecimalToExcelColumn
+        $UserAgentColumn = ($Worksheet.Tables[0].Columns |
+                Where-Object { $_.Name -eq 'UserAgent' }).Id |
+                Convert-DecimalToExcelColumn
+        $AuthenticationProtocolColumn = ($Worksheet.Tables[0].Columns |
+                Where-Object { $_.Name -eq 'AuthenticationProtocol' }).Id |
+                Convert-DecimalToExcelColumn
+        $OriginalTransferMethodColumn = ($Worksheet.Tables[0].Columns |
+                Where-Object { $_.Name -eq 'OriginalTransferMethod' }).Id |
+                Convert-DecimalToExcelColumn
+
+        #region CELL COLORING
+
+        # ip address enrichment and conditional formatting
+        if ($IpInfo) {
+            $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
+            Write-PSFMessage -Level 8 -Message "${FunctionName}: Add-IpInfoToSheet [$Elapsed]"
+            Add-IpInfoToSheet -Worksheet $Worksheet -ColumnName 'IpAddress'
+        }
+
+        # applications
+        $Strings = @(
+            'Azure Active Directory PowerShell'
+            'Microsoft Azure CLI'
+            'Microsoft Exchange REST API Based Powershell'
+            'Microsoft Graph Command Line Tools'
+        )
+        foreach ( $String in $Strings ) {
+            $CFParams = @{
+                Worksheet       = $WorkSheet
+                Address         = "${ApplicationColumn}:${ApplicationColumn}"
+                RuleType        = 'Equal'
+                ConditionValue  = $String
+                BackgroundColor = 'LightPink'
+            }
+            Add-ConditionalFormatting @CFParams
+        }
+
+        # user agents
+        $Strings = @(
+            'axios'
+            'BAV2ROPC'
+        )
+        foreach ( $String in $Strings ) {
+            $CFParams = @{
+                Worksheet       = $WorkSheet
+                Address         = "${UserAgentColumn}:${UserAgentColumn}"
+                RuleType        = 'ContainsText'
+                ConditionValue  = $String
+                BackgroundColor = 'LightPink'
+            }
+            Add-ConditionalFormatting @CFParams
+        }
+
+        # device code: flag both the redemption leg (AuthenticationProtocol) and the
+        # downstream token use Entra carries forward on OriginalTransferMethod. Matches
+        # 'deviceCode' and 'deviceCodeFlow' (ContainsText is case-insensitive).
+        $DeviceCodeColumns = @(
+            $AuthenticationProtocolColumn
+            $OriginalTransferMethodColumn
+        )
+        foreach ( $Column in $DeviceCodeColumns ) {
+            $CFParams = @{
+                Worksheet       = $WorkSheet
+                Address         = "${Column}:${Column}"
+                RuleType        = 'ContainsText'
+                ConditionValue  = 'devicecode'
+                BackgroundColor = 'LightPink'
+            }
+            Add-ConditionalFormatting @CFParams
+        }
+
+        #region COLUMN WIDTH AND VISIBILITY
+
+        # Width + default visibility for every column. Every field is present in the
+        # workbook; only the curated subset (Visible = $true) shows on open. Unhide any
+        # other column in Excel when needed.
+        $ColumnMeta = @(
+            # visible by default
+            @{ Name = 'Raw'; Width = 8; Visible = $true }
+            @{ Name = $DateColumnHeader; Width = 26; Visible = $true }
+            @{ Name = 'UserPrincipalName'; Width = 30; Visible = $true }
+            @{ Name = 'SignInEventTypes'; Width = 20; Visible = $true }
+            @{ Name = 'Error'; Width = 25; Visible = $true }
+            @{ Name = 'IpAddress'; Width = 20; Visible = $true }
+            @{ Name = 'AutonomousSystemNumber'; Width = 14; Visible = $false }
+            @{ Name = 'City'; Width = 10; Visible = $true }
+            @{ Name = 'State'; Width = 10; Visible = $true }
+            @{ Name = 'Co'; Width = 6; Visible = $true }
+            @{ Name = 'Application'; Width = 25; Visible = $true }
+            @{ Name = 'AuthenticationProtocol'; Width = 4; Visible = $true }
+            @{ Name = 'OriginalTransferMethod'; Width = 4; Visible = $true }
+            @{ Name = 'Browser'; Width = 20; Visible = $true }
+            @{ Name = 'OS'; Width = 12; Visible = $true }
+            @{ Name = 'Trust'; Width = 12; Visible = $true }
+            @{ Name = 'UserAgent'; Width = 150; Visible = $true }
+            @{ Name = 'Session'; Width = 10; Visible = $true }
+            @{ Name = 'Token'; Width = 10; Visible = $true }
+            # hidden by default
+            @{ Name = 'AppId'; Width = 38; Visible = $false }
+            @{ Name = 'ResourceDisplayName'; Width = 30; Visible = $false }
+            @{ Name = 'ResourceId'; Width = 38; Visible = $false }
+            @{ Name = 'ClientAppUsed'; Width = 20; Visible = $false }
+            @{ Name = 'ClientCredentialType'; Width = 20; Visible = $false }
+            @{ Name = 'IncomingTokenType'; Width = 18; Visible = $false }
+            @{ Name = 'TokenIssuerType'; Width = 16; Visible = $false }
+            @{ Name = 'AuthenticationRequirement'; Width = 24; Visible = $false }
+            @{ Name = 'ConditionalAccessStatus'; Width = 22; Visible = $false }
+            @{ Name = 'ConditionalAccessPolicies'; Width = 40; Visible = $false }
+            @{ Name = 'AuthenticationMethodsUsed'; Width = 26; Visible = $false }
+            @{ Name = 'MfaAuthMethod'; Width = 16; Visible = $false }
+            @{ Name = 'IsInteractive'; Width = 12; Visible = $false }
+            @{ Name = 'CrossTenantAccessType'; Width = 20; Visible = $false }
+            @{ Name = 'IsThroughGlobalSecureAccess'; Width = 26; Visible = $false }
+            @{ Name = 'RiskState'; Width = 12; Visible = $false }
+            @{ Name = 'RiskDetail'; Width = 16; Visible = $false }
+            @{ Name = 'RiskLevelDuringSignIn'; Width = 20; Visible = $false }
+            @{ Name = 'RiskLevelAggregated'; Width = 18; Visible = $false }
+            @{ Name = 'RiskEventTypes'; Width = 18; Visible = $false }
+            @{ Name = 'ErrorCode'; Width = 10; Visible = $false }
+            @{ Name = 'FailureReason'; Width = 30; Visible = $false }
+            @{ Name = 'StatusDetails'; Width = 24; Visible = $false }
+            @{ Name = 'DeviceId'; Width = 38; Visible = $false }
+            @{ Name = 'DeviceName'; Width = 24; Visible = $false }
+            @{ Name = 'IsCompliant'; Width = 12; Visible = $false }
+            @{ Name = 'IsManaged'; Width = 12; Visible = $false }
+            @{ Name = 'HomeTenantId'; Width = 38; Visible = $false }
+            @{ Name = 'ResourceTenantId'; Width = 38; Visible = $false }
+            @{ Name = 'UserId'; Width = 38; Visible = $false }
+            @{ Name = 'UserType'; Width = 12; Visible = $false }
+            @{ Name = 'SignInIdentifier'; Width = 30; Visible = $false }
+            @{ Name = 'SignInIdentifierType'; Width = 20; Visible = $false }
+            @{ Name = 'SignInTokenProtectionStatus'; Width = 26; Visible = $false }
+            @{ Name = 'SessionId'; Width = 38; Visible = $false }
+            @{ Name = 'ProcessingTimeMs'; Width = 16; Visible = $false }
+            @{ Name = 'FlaggedForReview'; Width = 16; Visible = $false }
+            @{ Name = 'Id'; Width = 38; Visible = $false }
+            @{ Name = 'OriginalRequestId'; Width = 38; Visible = $false }
+        )
+        foreach ($Meta in $ColumnMeta) {
+            $Col = ($Worksheet.Tables[0].Columns | Where-Object { $_.Name -eq $Meta.Name }).Id
+            if ($Col) {
+                $Worksheet.Column($Col).Width = $Meta.Width
+                $Worksheet.Column($Col).Hidden = -not $Meta.Visible
+            }
+        }
+
+        #region FORMATTING
+
+        # set date format
+        $FmtParams = @{
+            Worksheet = $Worksheet
+            Range = "B:B"
+            NumberFormat  = 'm/d/yyyy h:mm:ss AM/PM'
+        }
+        Set-ExcelRange @FmtParams
+
+        # set text wrapping on ip address column
+        $WrapParams = @{
+            Worksheet = $Worksheet
+            Range = "${IpAddressColumn}:${IpAddressColumn}"
+            WrapText = $true
+        }
+        Set-ExcelRange @WrapParams
+
+        # set font and size
+        $SetParams = @{
+            Worksheet = $Worksheet
+            Range     = "${SheetStartColumn}${SheetStartRow}:${EndColumn}${EndRow}"
+            FontName  = $Font
+        }
+        try {
+            Set-ExcelRange @SetParams
+        } catch {}
+
+        # add left side border
+        $BorderParams = @{
+            Worksheet = $Worksheet
+            Range = "${TableStartColumn}${TableStartRow}:${EndColumn}${EndRow}"
+            BorderLeft = 'Thin'
+            BorderColor = 'Black'
+        }
+        Set-ExcelRange @BorderParams
+
+        # set row height
+        # $HeightParams = @{
+        #     Worksheet = $Worksheet
+        #     Row = ($TableStartRow..$EndRow)
+        #     Height = 15
+        # }
+        # Set-ExcelRow @HeightParams
+        for ( $i = $TableStartRow; $i -le $EndRow; $i++ ) {
+            $Row = $Worksheet.Row($i)
+            $Row.Height = 15
+            $Row.CustomHeight = $true
+        }
+
+        #region OUTPUT
+
+        # save and close
+        Write-IRT "Exporting to: ${ExcelOutputPath}"
+        if ($Open) {
+            Write-IRT "Opening Excel."
+            $Workbook | Close-ExcelPackage -Show
+        }
+        else {
+            $Workbook | Close-ExcelPackage
+        }
+    }
+}
+#EndRegion './Public/Entra/Show-IRTEntraUserSignInLog.ps1' 502
+#Region './Public/Lib/Get-TenantOidc.ps1' -1
 
 function Get-TenantOidc {
     <#
@@ -18388,6 +19592,7 @@ function Get-TenantOidc {
     .NOTES
     Version: 1.2.0
     #>
+    [Alias('GetTenantOidc', 'Get-Oidc', 'GetOidc')]
     [CmdletBinding(DefaultParameterSetName = 'Probe')]
     [OutputType([pscustomobject], ParameterSetName = 'Probe')]
     [OutputType([System.Collections.Specialized.OrderedDictionary],
@@ -18502,8 +19707,8 @@ function Get-TenantOidc {
 
     return $null
 }
-#EndRegion '.\Public\Lib\Get-TenantOidc.ps1' 215
-#Region '.\Public\Mailbox\Add-IRTMailboxFullAccess.ps1' -1
+#EndRegion './Public/Lib/Get-TenantOidc.ps1' 216
+#Region './Public/Mailbox/Add-IRTMailboxFullAccess.ps1' -1
 
 function Add-IRTMailboxFullAccess {
     <#
@@ -18685,8 +19890,8 @@ function Add-IRTMailboxFullAccess {
         }
     }
 }
-#EndRegion '.\Public\Mailbox\Add-IRTMailboxFullAccess.ps1' 181
-#Region '.\Public\Mailbox\Get-IRTInboxRule.ps1' -1
+#EndRegion './Public/Mailbox/Add-IRTMailboxFullAccess.ps1' 181
+#Region './Public/Mailbox/Get-IRTInboxRule.ps1' -1
 
 function Get-IRTInboxRule {
     <#
@@ -18712,7 +19917,7 @@ function Get-IRTInboxRule {
     Excel font name. Defaults to IRT_Config.ExcelFont.
 
     .PARAMETER Open
-    Open the Excel file immediately after export. Default: $true.
+    Open the Excel file immediately after export. Defaults to IRT_Config.OpenSpreadsheets.
 
     .PARAMETER Xml
     Export raw XML alongside the Excel file. Defaults to IRT_Config.ExportXml.
@@ -18746,7 +19951,7 @@ function Get-IRTInboxRule {
 
         [string] $TableStyle = $Global:IRT_Config.ExcelTableStyle,
         [string] $Font = $Global:IRT_Config.ExcelFont,
-        [boolean] $Open = $true,
+        [boolean] $Open = [bool]$Global:IRT_Config.OpenSpreadsheets,
         [boolean] $Xml = $Global:IRT_Config.ExportXml
     )
 
@@ -19004,8 +20209,8 @@ function Get-IRTInboxRule {
         }
     }
 }
-#EndRegion '.\Public\Mailbox\Get-IRTInboxRule.ps1' 317
-#Region '.\Public\Mailbox\Open-IRTMailboxInOwa.ps1' -1
+#EndRegion './Public/Mailbox/Get-IRTInboxRule.ps1' 317
+#Region './Public/Mailbox/Open-IRTMailboxInOwa.ps1' -1
 
 function Open-IRTMailboxInOwa {
     <#
@@ -19115,8 +20320,8 @@ function Open-IRTMailboxInOwa {
         }
     }
 }
-#EndRegion '.\Public\Mailbox\Open-IRTMailboxInOwa.ps1' 109
-#Region '.\Public\Mailbox\Remove-IRTMailboxFullAccess.ps1' -1
+#EndRegion './Public/Mailbox/Open-IRTMailboxInOwa.ps1' 109
+#Region './Public/Mailbox/Remove-IRTMailboxFullAccess.ps1' -1
 
 function Remove-IRTMailboxFullAccess {
     <#
@@ -19161,8 +20366,8 @@ function Remove-IRTMailboxFullAccess {
         }
     }
 }
-#EndRegion '.\Public\Mailbox\Remove-IRTMailboxFullAccess.ps1' 44
-#Region '.\Public\Mailbox\Show-IRTMailbox.ps1' -1
+#EndRegion './Public/Mailbox/Remove-IRTMailboxFullAccess.ps1' 44
+#Region './Public/Mailbox/Show-IRTMailbox.ps1' -1
 
 function Show-IRTMailbox {
     <#
@@ -19316,8 +20521,8 @@ function Show-IRTMailbox {
         }
     }
 }
-#EndRegion '.\Public\Mailbox\Show-IRTMailbox.ps1' 153
-#Region '.\Public\Mailbox\Show-IRTMailboxAccess.ps1' -1
+#EndRegion './Public/Mailbox/Show-IRTMailbox.ps1' 153
+#Region './Public/Mailbox/Show-IRTMailboxAccess.ps1' -1
 
 function Show-IRTMailboxAccess {
     <#
@@ -19392,8 +20597,8 @@ function Show-IRTMailboxAccess {
         }
     }
 }
-#EndRegion '.\Public\Mailbox\Show-IRTMailboxAccess.ps1' 74
-#Region '.\Public\OnPremAd\Disable-IRTAdUser.ps1' -1
+#EndRegion './Public/Mailbox/Show-IRTMailboxAccess.ps1' 74
+#Region './Public/OnPremAd/Disable-IRTAdUser.ps1' -1
 
 function Disable-IRTAdUser {
     <#
@@ -19454,8 +20659,8 @@ function Disable-IRTAdUser {
 
     Set-AdUserEnabled @Params
 }
-#EndRegion '.\Public\OnPremAd\Disable-IRTAdUser.ps1' 60
-#Region '.\Public\OnPremAd\Enable-IRTAdUser.ps1' -1
+#EndRegion './Public/OnPremAd/Disable-IRTAdUser.ps1' 60
+#Region './Public/OnPremAd/Enable-IRTAdUser.ps1' -1
 
 function Enable-IRTAdUser {
     <#
@@ -19516,8 +20721,8 @@ function Enable-IRTAdUser {
 
     Set-AdUserEnabled @Params
 }
-#EndRegion '.\Public\OnPremAd\Enable-IRTAdUser.ps1' 60
-#Region '.\Public\OnPremAd\Find-IRTAdDevice.ps1' -1
+#EndRegion './Public/OnPremAd/Enable-IRTAdUser.ps1' 60
+#Region './Public/OnPremAd/Find-IRTAdDevice.ps1' -1
 
 function Find-IRTAdDevice {
     <#
@@ -19705,8 +20910,8 @@ function Find-IRTAdDevice {
         }
     }
 }
-#EndRegion '.\Public\OnPremAd\Find-IRTAdDevice.ps1' 187
-#Region '.\Public\OnPremAd\Find-IRTAdOu.ps1' -1
+#EndRegion './Public/OnPremAd/Find-IRTAdDevice.ps1' 187
+#Region './Public/OnPremAd/Find-IRTAdOu.ps1' -1
 
 function Find-IRTAdOu {
     <#
@@ -19832,8 +21037,8 @@ function Find-IRTAdOu {
         }
     }
 }
-#EndRegion '.\Public\OnPremAd\Find-IRTAdOu.ps1' 125
-#Region '.\Public\OnPremAd\Find-IRTAdUser.ps1' -1
+#EndRegion './Public/OnPremAd/Find-IRTAdOu.ps1' 125
+#Region './Public/OnPremAd/Find-IRTAdUser.ps1' -1
 
 function Find-IRTAdUser {
     <#
@@ -20040,8 +21245,8 @@ function Find-IRTAdUser {
         }
     }
 }
-#EndRegion '.\Public\OnPremAd\Find-IRTAdUser.ps1' 206
-#Region '.\Public\OnPremAd\Find-IRTDomainController.ps1' -1
+#EndRegion './Public/OnPremAd/Find-IRTAdUser.ps1' 206
+#Region './Public/OnPremAd/Find-IRTDomainController.ps1' -1
 
 function Find-IRTDomainController {
     <#
@@ -20086,8 +21291,8 @@ function Find-IRTDomainController {
 
     Get-ADDomainController -Filter * | Select-Object Name
 }
-#EndRegion '.\Public\OnPremAd\Find-IRTDomainController.ps1' 44
-#Region '.\Public\OnPremAd\Get-IRTAdAdminUser.ps1' -1
+#EndRegion './Public/OnPremAd/Find-IRTDomainController.ps1' 44
+#Region './Public/OnPremAd/Get-IRTAdAdminUser.ps1' -1
 
 function Get-IRTAdAdminUser {
     <#
@@ -20194,8 +21399,8 @@ function Get-IRTAdAdminUser {
         }
     }
 }
-#EndRegion '.\Public\OnPremAd\Get-IRTAdAdminUser.ps1' 106
-#Region '.\Public\OnPremAd\Push-IRTAdSync.ps1' -1
+#EndRegion './Public/OnPremAd/Get-IRTAdAdminUser.ps1' 106
+#Region './Public/OnPremAd/Push-IRTAdSync.ps1' -1
 
 function Push-IRTAdSync {
     <#
@@ -20205,13 +21410,21 @@ function Push-IRTAdSync {
     .DESCRIPTION
     Triggers an AD-to-Entra delta sync as quickly as possible. The execution path is:
 
-    1. If running on a domain controller, fires 'repadmin /syncall /AdeP' to force
-       intra-AD replication first.
+    1. If Active Directory is available from this device, pushes intra-AD replication
+       from a writable DC via repadmin (this computer if it is one, otherwise a
+       discovered DC). Skipped with a warning otherwise.
     2. If the ADSync service is running locally, invokes Start-ADSyncSyncCycle directly
        and exits.
-    3. Otherwise, discovers candidate servers (DCs first, then other enabled AD computers
-       by last logon) in parallel using a runspace pool and invokes the sync cycle
-       remotely on the first server found to have the service.
+    3. Otherwise, checks candidate servers in parallel using a runspace pool (opening a
+       PSSession and looking for the service) and invokes the sync cycle remotely on the
+       first server to report the service. Each check is handled as soon as it finishes,
+       so slow or unreachable servers don't delay the push, and checks still running
+       afterward are stopped. Candidates are the -SyncServer names if given, or else
+       discovered from AD (DCs first, then other enabled servers by last logon).
+
+    The ActiveDirectory module is only required for AD discovery. It is not needed when
+    the ADSync service is on this device or when -SyncServer is given; without it, only
+    the replication push is skipped.
 
     Domain admin credentials are cached in $Global:Storage for the session.
     Use -ResetCredentials to force a re-prompt.
@@ -20220,7 +21433,8 @@ function Push-IRTAdSync {
     Clear the cached domain admin credentials and prompt again before connecting.
 
     .PARAMETER SyncServer
-    Target one or more specific server names directly, bypassing AD discovery.
+    Target one or more specific server names directly, bypassing AD discovery. The
+    ActiveDirectory module is not required when this is used.
 
     .PARAMETER ThrottleLimit
     Maximum number of parallel runspaces used for server discovery. Default: 20.
@@ -20247,7 +21461,13 @@ function Push-IRTAdSync {
     None. Progress is written to the console.
 
     .NOTES
-    Version: 2.0.0
+    Version: 2.1.0
+    2.1.0 - ActiveDirectory module only required for AD discovery.
+            Removed ping check; session and service check errors are reported per server.
+            Server checks are handled as they finish instead of in query order.
+            AD replication is pushed from this computer if it is a writable DC, otherwise
+            from a discovered DC, so it no longer requires running on a DC.
+            Fixed single-DC domains merging all discovered server names into one hostname.
     2.0.0 - Parallel server discovery via runspace pool (ping, open session, service check).
             Added -SyncServer parameter to target specific servers directly, bypassing AD query.
             Added -ThrottleLimit parameter.
@@ -20271,22 +21491,29 @@ function Push-IRTAdSync {
         [int] $ThrottleLimit = 20
     )
 
-    begin {
-        Import-IRTModule -Name 'ActiveDirectory'
-    }
-
     process {
 
-        if (Test-RunningOnDomainController) {
-            Write-IRT "Pushing AD replication..."
-            $null = repadmin /syncall /AdeP
+        # push AD replication first when AD is available. optional: the sync server may not
+        # have the ActiveDirectory module, and a failure here must not block the sync
+        $AdAvailable = Test-AdAvailable
+        if ($AdAvailable) {
+            Import-IRTModule -Name 'ActiveDirectory'
+            try {
+                $DomainController = Get-TargetDomainController
+                Push-AdReplication -Server $DomainController
+            }
+            catch {
+                $Msg = "Finding a domain controller failed. Skipping AD replication push: $_"
+                Write-IRT $Msg -Level Warn
+            }
         }
         else {
-            Write-IRT "Not running on a domain controller. Skipping AD replication." -Level Warn
+            $Msg = "Active Directory not available on this device. Skipping AD replication push."
+            Write-IRT $Msg -Level Warn
         }
 
         # if sync service is running on this server, push sync locally
-        $SyncService = Get-Service -Name 'adsync' -ErrorAction SilentlyContinue
+        $SyncService = Get-LocalAdSyncService
         if ($SyncService) {
             Write-IRT "Pushing sync."
             Start-ADSyncSyncCycle -PolicyType Delta
@@ -20300,12 +21527,12 @@ function Push-IRTAdSync {
 
         # build the ordered candidate server list
         if ($SyncServer) {
-            # user supplied explicit targets - skip AD query, RSAT check, and DC check entirely
+            # user supplied explicit targets - skip AD query and RSAT check entirely
             $ServerNamesInQueryOrder = $SyncServer
         }
         else {
             # require AD RSAT for discovery
-            if (-not (Test-AdAvailable)) {
+            if (-not $AdAvailable) {
                 $Msg = "Active Directory can't be reached from this device. " +
                 "Specify hostnames with -SyncServer."
                 Write-IRT $Msg -Level Error
@@ -20322,9 +21549,12 @@ function Push-IRTAdSync {
             ).Name
 
             # domain controllers first, then remaining servers by last logon date
-            $DomainControllerNames = (Get-ADDomainController -Filter *).Name
-            $NonDCServerNames = $ServerNames |
-                Where-Object { $_ -notin $DomainControllerNames }
+            # @() on both: with a single DC, .Name is a string, and string + array
+            # concatenates every name into one bogus hostname
+            $DomainControllerNames = @((Get-ADDomainController -Filter *).Name)
+            $NonDCServerNames = @(
+                $ServerNames | Where-Object { $_ -notin $DomainControllerNames }
+            )
             $ServerNamesInQueryOrder = $DomainControllerNames + $NonDCServerNames
         }
 
@@ -20352,7 +21582,9 @@ function Push-IRTAdSync {
         Get-PSSession | Remove-PSSession
 
         ########################################################################
-        # parallel discovery: ping + open session + check adsync service
+        # parallel discovery: open session + check adsync service
+        # no ping first: hosts may block ICMP but still accept PS remoting, so session
+        # errors are the reachability check
 
         $DiscoveryScriptBlock = {
             param(
@@ -20362,23 +21594,11 @@ function Push-IRTAdSync {
 
             $Result = [PSCustomObject]@{
                 ComputerName  = $ComputerName
-                Reachable     = $false
                 SessionOpened = $false
                 AdsyncPresent = $false
                 Session       = $null
                 Error         = $null
             }
-
-            # ping
-            try {
-                $Reply = ([System.Net.NetworkInformation.Ping]::new()).Send($ComputerName, 1000)
-                $Result.Reachable = $Reply.Status -eq 'Success'
-            }
-            catch {
-                $Result.Reachable = $false
-            }
-
-            if (-not $Result.Reachable) { return $Result }
 
             # open session
             try {
@@ -20391,18 +21611,21 @@ function Push-IRTAdSync {
                 $Result.SessionOpened = $true
             }
             catch {
-                $Result.Error = "Session failed: $_"
+                $Result.Error = "$_"
                 return $Result
             }
 
             # check for adsync service
             try {
-                $Result.AdsyncPresent = Invoke-Command -Session $Result.Session -ScriptBlock {
-                    [bool](Get-Service 'adsync' -ErrorAction SilentlyContinue)
+                $CheckParams = @{
+                    Session     = $Result.Session
+                    ScriptBlock = { [bool](Get-Service 'adsync' -ErrorAction SilentlyContinue) }
+                    ErrorAction = 'Stop'
                 }
+                $Result.AdsyncPresent = Invoke-Command @CheckParams
             }
             catch {
-                $Result.Error = "Service check failed: $_"
+                $Result.Error = "$_"
             }
 
             # close session now if adsync is not present - only keep sessions where adsync was found
@@ -20440,10 +21663,11 @@ function Push-IRTAdSync {
             $Total = $Runspaces.Count
             $Done = 0
             $Synced = $false
+            $Pending = [System.Collections.Generic.List[hashtable]]::new($Runspaces)
 
-            # process runspaces in priority order;
-            # EndInvoke blocks per entry while others keep running
-            foreach ($RS in $Runspaces) {
+            # handle each check as soon as it finishes, so a slow or unreachable server
+            # never delays the push; checks still running after a push are stopped in finally
+            while ($Pending.Count -gt 0 -and -not $Synced) {
 
                 $ProgressParams = @{
                     Activity        = 'Discovering sync server'
@@ -20452,52 +21676,72 @@ function Push-IRTAdSync {
                 }
                 Write-Progress @ProgressParams
 
-                $DiscoveryResult = ($RS.PS.EndInvoke($RS.Handle))[0]
-                $RS.PS.Dispose()
-                $RS.PS = $null
-                $Done++
-
-                $CN = $RS.ComputerName
-
-                if (-not $DiscoveryResult.Reachable) {
-                    Write-IRT "Pinging ${CN}: FAILED." -Level Warn
+                $Finished = @($Pending | Where-Object { $_.Handle.IsCompleted })
+                if ($Finished.Count -eq 0) {
+                    Start-Sleep -Milliseconds 100
                     continue
                 }
 
-                if (-not $DiscoveryResult.SessionOpened) {
-                    $Msg = "Opening session on ${CN} failed: $($DiscoveryResult.Error)"
-                    Write-IRT $Msg -Level Warn
-                    continue
-                }
+                foreach ($RS in $Finished) {
 
-                if (-not $DiscoveryResult.AdsyncPresent) {
-                    Write-IRT "Adsync service not present on ${CN}."
-                    continue
-                }
+                    $null = $Pending.Remove($RS)
+                    $DiscoveryResult = ($RS.PS.EndInvoke($RS.Handle))[0]
+                    $RS.PS.Dispose()
+                    $RS.PS = $null
+                    $Done++
 
-                # adsync found - attempt push
-                Write-IRT "Adsync service found on ${CN}. Pushing sync..."
-                try {
-                    $SyncResult = Invoke-Command -Session $DiscoveryResult.Session -ScriptBlock {
-                        [string]( Start-ADSyncSyncCycle -PolicyType Delta ).Result
+                    $CN = $RS.ComputerName
+
+                    if (-not $DiscoveryResult.SessionOpened) {
+                        $Msg = "Opening session on ${CN} failed: $($DiscoveryResult.Error)"
+                        Write-IRT $Msg -Level Warn
+                        continue
                     }
 
-                    if ($SyncResult -eq 'Success') {
-                        Write-IRT "Sync pushed successfully on ${CN}."
-                        $Synced = $true
+                    if ($DiscoveryResult.Error) {
+                        $Msg = "Checking adsync service on ${CN} failed: " +
+                        "$($DiscoveryResult.Error)"
+                        Write-IRT $Msg -Level Warn
+                        continue
                     }
-                    else {
-                        Write-IRT "Sync failed on ${CN} (result: $SyncResult)." -Level Error
-                    }
-                }
-                catch {
-                    Write-IRT "Sync failed on ${CN}: $_" -Level Error
-                }
-                finally {
-                    Remove-PSSession -Session $DiscoveryResult.Session -ErrorAction SilentlyContinue
-                }
 
-                if ($Synced) { break }
+                    if (-not $DiscoveryResult.AdsyncPresent) {
+                        Write-IRT "Adsync service not present on ${CN}."
+                        continue
+                    }
+
+                    # adsync found - attempt push
+                    Write-IRT "Adsync service found on ${CN}. Pushing sync..."
+                    try {
+                        $SyncParams = @{
+                            Session     = $DiscoveryResult.Session
+                            ScriptBlock = {
+                                [string]( Start-ADSyncSyncCycle -PolicyType Delta ).Result
+                            }
+                        }
+                        $SyncResult = Invoke-Command @SyncParams
+
+                        if ($SyncResult -eq 'Success') {
+                            Write-IRT "Sync pushed successfully on ${CN}."
+                            $Synced = $true
+                        }
+                        else {
+                            Write-IRT "Sync failed on ${CN} (result: $SyncResult)." -Level Error
+                        }
+                    }
+                    catch {
+                        Write-IRT "Sync failed on ${CN}: $_" -Level Error
+                    }
+                    finally {
+                        $RemoveParams = @{
+                            Session     = $DiscoveryResult.Session
+                            ErrorAction = 'SilentlyContinue'
+                        }
+                        Remove-PSSession @RemoveParams
+                    }
+
+                    if ($Synced) { break }
+                }
             }
 
             if (-not $Synced) {
@@ -20508,7 +21752,7 @@ function Push-IRTAdSync {
         finally {
             Write-Progress -Activity 'Discovering sync server' -Completed
 
-            # stop and dispose any runspaces not yet processed (e.g. after an early break)
+            # stop and dispose any runspaces not yet processed (e.g. still checking after a push)
             foreach ($RS in $Runspaces) {
                 if ($null -ne $RS.PS) {
                     try { $RS.PS.Stop() } catch {}
@@ -20524,8 +21768,8 @@ function Push-IRTAdSync {
         }
     }
 }
-#EndRegion '.\Public\OnPremAd\Push-IRTAdSync.ps1' 328
-#Region '.\Public\OnPremAd\Reset-IRTAdUserPassword.ps1' -1
+#EndRegion './Public/OnPremAd/Push-IRTAdSync.ps1' 367
+#Region './Public/OnPremAd/Reset-IRTAdUserPassword.ps1' -1
 
 function Reset-IRTAdUserPassword {
     <#
@@ -20552,9 +21796,12 @@ function Reset-IRTAdUserPassword {
     If no -UserObjects is supplied, the function falls back to the global session objects
     stored via Get-AdGlobalUserObject. An error is thrown if neither source yields a user.
 
-    After the reset, updated account properties are retrieved and displayed as a table.
-    If running on a domain controller, intra-AD replication is triggered via repadmin.
-    If the ADSync service is local, an Azure AD delta sync is started.
+    All changes and the readback go to one writable domain controller: this computer if it
+    is one, otherwise a discovered DC. So this runs from any device with the
+    ActiveDirectory module, not only a DC. After the reset,
+    updated account properties are retrieved and displayed as a table, and AD replication
+    is pushed from that DC via repadmin (skipped with a warning if repadmin isn't
+    installed). If the ADSync service is local, an Azure AD delta sync is started.
 
     Supports -WhatIf and -Confirm via SupportsShouldProcess.
 
@@ -20619,7 +21866,9 @@ function Reset-IRTAdUserPassword {
     None. Updated user properties are displayed as a formatted table in the console.
 
     .NOTES
-    Version: 1.1.0
+    Version: 1.2.0
+    1.2.0 - Targets one writable DC (this computer if it is one, otherwise a discovered
+            DC), so it no longer needs to run on a DC. Replication is pushed from that DC.
     1.1.0 - Added ForceChangePasswordNextSignIn parameter set. Removed default parameter
             set; operator must now explicitly choose a password mode. Added -Length
             parameter. Renamed to Reset-IRTAdUserPassword.
@@ -20681,6 +21930,10 @@ function Reset-IRTAdUserPassword {
             return
         }
 
+        # make every change on one writable DC, so the readback sees it and replication
+        # pushes it from where it was made
+        $DomainController = Get-TargetDomainController
+
         Write-IRT ''
 
         foreach ($ScriptUserObject in $ScriptUserObjects) {
@@ -20700,7 +21953,7 @@ function Reset-IRTAdUserPassword {
                         $SetParams = @{
                             Identity              = $ScriptUserObject
                             ChangePasswordAtLogon = $true
-                            Server                = $env:ComputerName
+                            Server                = $DomainController
                         }
                         Set-ADUser @SetParams
                     }
@@ -20725,7 +21978,7 @@ function Reset-IRTAdUserPassword {
                     Identity    = $ScriptUserObject
                     Reset       = $true
                     NewPassword = $Password
-                    Server      = $env:ComputerName
+                    Server      = $DomainController
                 }
                 if ($PSCmdlet.ShouldProcess($Username, 'Reset password')) {
                     Set-AdAccountPassword @ResetParams
@@ -20737,7 +21990,7 @@ function Reset-IRTAdUserPassword {
             $Params = @{
                 Identity   = $ScriptUserObject
                 Properties = $UserProperties
-                Server     = $env:ComputerName
+                Server     = $DomainController
             }
             $NewObject = Get-AdUser @Params
             $OutputObjects.Add($NewObject)
@@ -20746,17 +21999,10 @@ function Reset-IRTAdUserPassword {
         # show results
         $OutputObjects | Format-Table $UserProperties
 
-        # push ad replication
-        if (Test-RunningOnDomainController) {
-            Write-IRT "Pushing AD replication."
-            $null = & repadmin /syncall $env:ComputerName /APed *>&1
-        }
-        else {
-            Write-IRT "Not running on a domain controller; skipping replication push." -Level Warn
-        }
+        Push-AdReplication -Server $DomainController
 
         # push azure sync, if on this server
-        $SyncService = Get-Service -Name "adsync" -ErrorAction SilentlyContinue
+        $SyncService = Get-LocalAdSyncService
         if ($SyncService) {
             Write-IRT "Pushing Azure sync."
             Start-ADSyncSyncCycle -PolicyType Delta
@@ -20768,8 +22014,8 @@ function Reset-IRTAdUserPassword {
         }
     }
 }
-#EndRegion '.\Public\OnPremAd\Reset-IRTAdUserPassword.ps1' 242
-#Region '.\Public\OnPremAd\Show-IRTAdDevice.ps1' -1
+#EndRegion './Public/OnPremAd/Reset-IRTAdUserPassword.ps1' 244
+#Region './Public/OnPremAd/Show-IRTAdDevice.ps1' -1
 
 function Show-IRTAdDevice {
     <#
@@ -20919,8 +22165,8 @@ function Show-IRTAdDevice {
         }
     }
 }
-#EndRegion '.\Public\OnPremAd\Show-IRTAdDevice.ps1' 149
-#Region '.\Public\OnPremAd\Show-IRTAdOus.ps1' -1
+#EndRegion './Public/OnPremAd/Show-IRTAdDevice.ps1' 149
+#Region './Public/OnPremAd/Show-IRTAdOus.ps1' -1
 
 function Show-IRTAdOus {
     <#
@@ -21015,8 +22261,8 @@ function Show-IRTAdOus {
         }
     }
 }
-#EndRegion '.\Public\OnPremAd\Show-IRTAdOus.ps1' 94
-#Region '.\Public\OnPremAd\Show-IRTAdUser.ps1' -1
+#EndRegion './Public/OnPremAd/Show-IRTAdOus.ps1' 94
+#Region './Public/OnPremAd/Show-IRTAdUser.ps1' -1
 
 function Show-IRTAdUser {
     <#
@@ -21174,8 +22420,8 @@ function Show-IRTAdUser {
         }
     }
 }
-#EndRegion '.\Public\OnPremAd\Show-IRTAdUser.ps1' 157
-#Region '.\Public\Role\Get-IRTAdminRole.ps1' -1
+#EndRegion './Public/OnPremAd/Show-IRTAdUser.ps1' 157
+#Region './Public/Role/Get-IRTAdminRole.ps1' -1
 
 function Get-IRTAdminRole {
     <#
@@ -21212,7 +22458,8 @@ function Get-IRTAdminRole {
     Font name for the Excel workbook. Defaults to the value in IRT_Config.ExcelFont.
 
     .PARAMETER Open
-    When exporting to Excel, open the file immediately after writing. Default: $true.
+    When exporting to Excel, open the file immediately after writing. Defaults to the value
+    in IRT_Config.OpenSpreadsheets.
 
     .EXAMPLE
     ```powershell
@@ -21245,7 +22492,7 @@ function Get-IRTAdminRole {
         [string[]] $Highlight,
         [string] $TableStyle = $Global:IRT_Config.ExcelTableStyle,
         [string] $Font = $Global:IRT_Config.ExcelFont,
-        [boolean] $Open = $true
+        [boolean] $Open = [bool]$Global:IRT_Config.OpenSpreadsheets
     )
 
     begin {
@@ -21534,8 +22781,8 @@ function Get-IRTAdminRole {
         }
     }
 }
-#EndRegion '.\Public\Role\Get-IRTAdminRole.ps1' 358
-#Region '.\Public\ServicePrincipal\Find-IRTRiskyServicePrincipal.ps1' -1
+#EndRegion './Public/Role/Get-IRTAdminRole.ps1' 359
+#Region './Public/ServicePrincipal/Find-IRTRiskyServicePrincipal.ps1' -1
 
 function Find-IRTRiskyServicePrincipal {
     <#
@@ -21691,8 +22938,8 @@ function Find-IRTRiskyServicePrincipal {
         }
     }
 }
-#EndRegion '.\Public\ServicePrincipal\Find-IRTRiskyServicePrincipal.ps1' 155
-#Region '.\Public\ServicePrincipal\Find-IRTServicePrincipal.ps1' -1
+#EndRegion './Public/ServicePrincipal/Find-IRTRiskyServicePrincipal.ps1' 155
+#Region './Public/ServicePrincipal/Find-IRTServicePrincipal.ps1' -1
 
 function Find-IRTServicePrincipal {
     <#
@@ -21920,18 +23167,59 @@ function Find-IRTServicePrincipal {
         }
     }
 }
-#EndRegion '.\Public\ServicePrincipal\Find-IRTServicePrincipal.ps1' 227
-#Region '.\Public\ServicePrincipal\Get-IRTServicePrincipal.ps1' -1
+#EndRegion './Public/ServicePrincipal/Find-IRTServicePrincipal.ps1' 227
+#Region './Public/ServicePrincipal/Get-IRTServicePrincipal.ps1' -1
 
 function Get-IRTServicePrincipal {
     <#
-	.SYNOPSIS
-	Displays all service principals in the tenant, or filters by a search term.
+    .SYNOPSIS
+    Displays all service principals in the tenant, or filters by a search term.
 
-	.NOTES
-	Version: 1.3.0
-	1.3.0 - Added -Excel export option.
-	#>
+    .DESCRIPTION
+    Lists the tenant's service principals with created date, type, sign-in audience, reply
+    URLs and owning tenant. Owning tenant IDs are resolved to names with
+    Get-IRTTenantOwner. Returns objects by default. Use -Excel to export a workbook
+    instead.
+
+    .PARAMETER Search
+    Regular expression matched against service principal display names. When omitted, all
+    service principals are returned.
+
+    .PARAMETER Cached
+    Use pre-cached Graph data where available.
+
+    .PARAMETER Excel
+    Export results to an Excel workbook instead of returning objects.
+
+    .PARAMETER TableStyle
+    Excel table style. Used with -Excel. Defaults to IRT_Config.ExcelTableStyle.
+
+    .PARAMETER Font
+    Excel font name. Used with -Excel. Defaults to IRT_Config.ExcelFont.
+
+    .PARAMETER Open
+    Open the Excel file immediately after export. Used with -Excel. Defaults to
+    IRT_Config.OpenSpreadsheets.
+
+    .EXAMPLE
+    ```powershell
+    Get-IRTServicePrincipal -Search 'Graph'
+    ```
+    Lists service principals whose display name matches 'Graph'.
+
+    .EXAMPLE
+    ```powershell
+    Get-IRTServicePrincipal -Excel
+    ```
+    Exports all service principals in the tenant to an Excel workbook.
+
+    .OUTPUTS
+    IRT.TenantServicePrincipal objects. None when -Excel is used.
+
+    .NOTES
+    Version: 1.3.0
+    1.3.0 - Added -Excel export option.
+    #>
     [Alias('GetTenantServicePrincipal', 'GetTenantServicePrincipals',
         'GetTenantSP', 'GetTenantSPs',
         'GetTenantApp', 'GetTenantApps',
@@ -21948,7 +23236,7 @@ function Get-IRTServicePrincipal {
         [switch] $Excel,
         [string] $TableStyle = $Global:IRT_Config.ExcelTableStyle,
         [string] $Font = $Global:IRT_Config.ExcelFont,
-        [boolean] $Open = $true
+        [boolean] $Open = [bool]$Global:IRT_Config.OpenSpreadsheets
     )
 
     begin {
@@ -22108,17 +23396,22 @@ function Get-IRTServicePrincipal {
         }
     }
 }
-#EndRegion '.\Public\ServicePrincipal\Get-IRTServicePrincipal.ps1' 186
-#Region '.\Public\ServicePrincipal\Get-IRTTenantOwner.ps1' -1
+#EndRegion './Public/ServicePrincipal/Get-IRTServicePrincipal.ps1' 227
+#Region './Public/ServicePrincipal/Get-IRTTenantOwner.ps1' -1
 
 function Get-IRTTenantOwner {
     <#
     .SYNOPSIS
-    Resolves a tenant GUID to its organization name, default domain, and cloud environment.
+    Resolves a tenant GUID or domain to its organization name, default domain, and cloud
+    environment.
 
     .DESCRIPTION
-    Looks up a Microsoft 365 / Entra ID tenant by GUID and returns its display name,
-    default domain, and environment details.
+    Looks up a Microsoft 365 / Entra ID tenant by GUID or verified domain and returns its
+    display name, default domain, and environment details.
+
+    A domain is first resolved to its tenant GUID through OIDC discovery. The returned
+    TenantId is always the GUID. A domain that OIDC cannot resolve is reported as not
+    found.
 
     The display name and default domain come from the Graph cross-tenant information
     API, which is the only endpoint that maps a tenant GUID to its org identity. This
@@ -22130,8 +23423,9 @@ function Get-IRTTenantOwner {
     Graph session exists), OIDC can still confirm the tenant exists and identify its
     cloud, but the display name and domain will be unavailable.
 
-    Results are cached in $Global:IRT_TenantInfoTable, pre-loaded at module import from:
-        $env:APPDATA\<ModuleName>\TenantOwnerInfo.csv
+    Results are cached in $Global:IRT_TenantInfoTable, pre-loaded at module import from
+    TenantOwnerInfo.csv in the module's per-user folder: %APPDATA%\<ModuleName> on
+    Windows, ~/.config/<ModuleName> on Linux and macOS.
 
     By default this function always queries live endpoints and updates the cache. Pass
     -Cached to return the in-memory entry when available, skipping live lookups. New
@@ -22140,7 +23434,9 @@ function Get-IRTTenantOwner {
     reimporting the module.
 
     .PARAMETER TenantId
-    One or more Entra ID tenant GUIDs to look up.
+    One or more tenants to look up, each given as an Entra ID tenant GUID or a verified
+    domain name (a custom domain such as 'contoso.com' or the '.onmicrosoft.com'
+    default). Accepts the alias 'Domain'.
 
     .PARAMETER SkipGraph
     Skip the authenticated Graph lookup and use only OIDC endpoints.
@@ -22161,6 +23457,11 @@ function Get-IRTTenantOwner {
 
     .EXAMPLE
     ```powershell
+    Get-IRTTenantOwner -Domain 'contoso.com'
+    ```
+
+    .EXAMPLE
+    ```powershell
     $guids | Get-IRTTenantOwner
     ```
 
@@ -22172,14 +23473,19 @@ function Get-IRTTenantOwner {
     .NOTES
     The Graph lookup requires the CrossTenantInformation.ReadBasic.All scope.
 
-    Version: 1.2.1
+    Version: 1.3.0
+    1.3.0 - -TenantId accepts domains as well as GUIDs.
     1.2.1 - -Cached no longer throws on a cache hit. The entry was assigned to $cached,
     which is the [switch] $Cached parameter under PowerShell's case-insensitive names.
     #>
+    [Alias(
+        'GetIRTTenantOwner', 'Get-IRTTenantOwners', 'GetIRTTenantOwners',
+        'Get-TenantOwner', 'GetTenantOwner', 'Get-TenantOwners', 'GetTenantOwners'
+    )]
     [CmdletBinding()]
     param (
         [Parameter( Mandatory, Position = 0, ValueFromPipeline, ValueFromPipelineByPropertyName )]
-        [Alias('TenantIds')]
+        [Alias('TenantIds', 'Domain')]
         [string[]] $TenantId,
 
         [switch] $SkipGraph,
@@ -22196,13 +23502,7 @@ function Get-IRTTenantOwner {
         Import-IRTModule -Name 'Microsoft.Graph.Authentication', 'PSFramework'
 
         $NewCacheEntries = [System.Collections.Generic.List[psobject]]::new()
-        $ModuleName = $MyInvocation.MyCommand.ModuleName
-        $JpParams = @{
-            Path                = $env:APPDATA
-            ChildPath           = $ModuleName
-            AdditionalChildPath = 'TenantOwnerInfo.csv'
-        }
-        $CachePath = Join-Path @JpParams
+        $CachePath = Get-IRTAppDataPath -ChildPath 'TenantOwnerInfo.csv'
         $CacheDir = Split-Path $CachePath -Parent
         if (-not (Test-Path $CacheDir)) {
             $null = New-Item -ItemType Directory -Path $CacheDir -Force
@@ -22236,19 +23536,50 @@ function Get-IRTTenantOwner {
 
         foreach ($Tid in $TenantId) {
 
-            # --- Validate GUID ---
+            $Oidc = $null
+            $CacheHit = $null
+
+            # --- Resolve GUID ---
+            # Anything that is not a GUID is treated as a domain. With -Cached, a domain
+            # matching a cached default domain skips the network. Otherwise OIDC discovery
+            # resolves it, and its issuer carries the tenant GUID the cache and Graph need.
             $guidParsed = [guid]::Empty
-            if (-not [guid]::TryParse($Tid, [ref] $guidParsed)) {
-                Write-Error "TenantId '$Tid' is not a valid GUID."
-                continue
+            if ([guid]::TryParse($Tid, [ref] $guidParsed)) {
+                $Tid = $guidParsed.ToString()
             }
-            $Tid = $guidParsed.ToString()
+            else {
+                $Domain = $Tid
+                if ($Cached) {
+                    $CacheHit = $Global:IRT_TenantInfoTable.Values |
+                        Where-Object { $_.DefaultDomain -eq $Domain } |
+                        Select-Object -First 1
+                }
+                if ($CacheHit) {
+                    $Tid = $CacheHit.TenantId
+                }
+                else {
+                    $Oidc = Get-TenantOidc -TenantId $Domain
+                    if (-not ($Oidc)?.TenantId) {
+                        Write-PSFMessage -Level 8 -Message (
+                            "Domain '$Domain' did not resolve to a tenant via OIDC.")
+                        if (-not $Quiet) {
+                            Write-IRT "Tenant '$Domain' was not found." -Level Warn
+                        }
+                        [pscustomobject]@{ TenantId = $Domain; Exists = $false }
+                        continue
+                    }
+                    $Tid = $Oidc.TenantId
+                }
+                Write-PSFMessage -Level 8 -Message "Resolved domain '$Domain' to tenant '$Tid'."
+            }
 
             # --- Cache lookup ---
-            if ($Cached -and $Global:IRT_TenantInfoTable.ContainsKey($Tid)) {
+            if (-not $CacheHit -and $Cached -and $Global:IRT_TenantInfoTable.ContainsKey($Tid)) {
                 # Not $cached: variable names are case-insensitive, so that would assign
                 # the entry to the [switch] $Cached parameter and throw on every hit.
                 $CacheHit = $Global:IRT_TenantInfoTable[$Tid]
+            }
+            if ($CacheHit) {
                 Write-PSFMessage -Level 8 -Message (
                     "Cache hit for '$Tid' (cached $($CacheHit.CachedAt), " +
                     "DisplayName='$($CacheHit.DisplayName)')")
@@ -22271,7 +23602,8 @@ function Get-IRTTenantOwner {
             # --- OIDC Discovery ---
             # Done first so we know the target cloud before attempting Graph.
             # Provides cloud, region, Graph host, and confirms the tenant exists.
-            $Oidc = Get-TenantOidc -TenantId $Tid
+            # Already done when the input was a domain.
+            if (-not $Oidc) { $Oidc = Get-TenantOidc -TenantId $Tid }
             $Cloud = ($Oidc)?.Cloud
 
             Write-PSFMessage -Level 8 -Message (
@@ -22393,8 +23725,8 @@ function Get-IRTTenantOwner {
         }
     }
 }
-#EndRegion '.\Public\ServicePrincipal\Get-IRTTenantOwner.ps1' 283
-#Region '.\Public\ServicePrincipal\Get-IRTUserServicePrincipal.ps1' -1
+#EndRegion './Public/ServicePrincipal/Get-IRTTenantOwner.ps1' 327
+#Region './Public/ServicePrincipal/Get-IRTUserServicePrincipal.ps1' -1
 
 function Get-IRTUserServicePrincipal { # FIXME rename to Get-IRTUserAppConsent
     <#
@@ -22422,7 +23754,7 @@ function Get-IRTUserServicePrincipal { # FIXME rename to Get-IRTUserAppConsent
     Export raw XML alongside the Excel file. Defaults to IRT_Config.ExportXml.
 
     .PARAMETER Open
-    Open the Excel file immediately after export. Default: $true.
+    Open the Excel file immediately after export. Defaults to IRT_Config.OpenSpreadsheets.
 
     .PARAMETER Cached
     Use pre-cached Graph service principal data instead of making new API calls.
@@ -22458,7 +23790,7 @@ function Get-IRTUserServicePrincipal { # FIXME rename to Get-IRTUserAppConsent
         [string] $TableStyle = $Global:IRT_Config.ExcelTableStyle,
         [string] $Font = $Global:IRT_Config.ExcelFont,
         [boolean] $Xml = $Global:IRT_Config.ExportXml,
-        [boolean] $Open = $true,
+        [boolean] $Open = [bool]$Global:IRT_Config.OpenSpreadsheets,
         [switch] $Cached
     )
 
@@ -22625,8 +23957,8 @@ function Get-IRTUserServicePrincipal { # FIXME rename to Get-IRTUserAppConsent
         }
     }
 }
-#EndRegion '.\Public\ServicePrincipal\Get-IRTUserServicePrincipal.ps1' 230
-#Region '.\Public\ServicePrincipal\Open-IRTTenantOwnerCSV.ps1' -1
+#EndRegion './Public/ServicePrincipal/Get-IRTUserServicePrincipal.ps1' 230
+#Region './Public/ServicePrincipal/Open-IRTTenantOwnerCSV.ps1' -1
 
 function Open-IRTTenantOwnerCSV {
     <#
@@ -22634,9 +23966,9 @@ function Open-IRTTenantOwnerCSV {
     Opens the local tenant info cache CSV in the default application.
 
     .DESCRIPTION
-    Opens $env:APPDATA\<ModuleName>\TenantOwnerInfo.csv in the system default
-    application (typically Excel or Notepad), where <ModuleName> is resolved at
-    runtime. If the file does not exist yet, a warning is displayed.
+    Opens TenantOwnerInfo.csv from the module's per-user folder (%APPDATA%\<ModuleName>
+    on Windows, ~/.config/<ModuleName> on Linux and macOS) in the system default
+    application. If the file does not exist yet, a warning is displayed.
 
     .EXAMPLE
     ```powershell
@@ -22651,13 +23983,7 @@ function Open-IRTTenantOwnerCSV {
 
     Import-IRTModule -Name 'PSFramework'
 
-    $moduleName = $MyInvocation.MyCommand.ModuleName
-    $JpParams = @{
-        Path                = $env:APPDATA
-        ChildPath           = $moduleName
-        AdditionalChildPath = 'TenantOwnerInfo.csv'
-    }
-    $cachePath = Join-Path @JpParams
+    $cachePath = Get-IRTAppDataPath -ChildPath 'TenantOwnerInfo.csv'
 
     if (-not (Test-Path $cachePath)) {
         $Msg = "Tenant info cache not found at '$cachePath'. " +
@@ -22669,8 +23995,8 @@ function Open-IRTTenantOwnerCSV {
     Write-PSFMessage -Level 8 -Message "Opening $cachePath"
     Start-Process $cachePath
 }
-#EndRegion '.\Public\ServicePrincipal\Open-IRTTenantOwnerCSV.ps1' 42
-#Region '.\Public\ServicePrincipal\Open-IRTTenantSheet.ps1' -1
+#EndRegion './Public/ServicePrincipal/Open-IRTTenantOwnerCSV.ps1' 36
+#Region './Public/ServicePrincipal/Open-IRTTenantSheet.ps1' -1
 
 function Open-IRTTenantSheet {
     <#
@@ -22683,7 +24009,9 @@ function Open-IRTTenantSheet {
     showing the expected format, then opened in the default handler for .xlsx files.
 
     .PARAMETER TenantFile
-    Path to the tenants worksheet. Defaults to $env:APPDATA\M365IncidentResponseTools\tenants.xlsx.
+    Path to the tenants worksheet. Defaults to tenants.xlsx in the module's per-user
+    folder: %APPDATA%\M365IncidentResponseTools on Windows,
+    ~/.config/M365IncidentResponseTools on Linux and macOS.
 
     .EXAMPLE
     ```powershell
@@ -22701,7 +24029,8 @@ function Open-IRTTenantSheet {
     None. The worksheet is opened in the default application for .xlsx files.
 
     .NOTES
-    Version: 1.1.0
+    Version: 1.1.1
+    1.1.1 - Imports PSFramework explicitly.
     #>
     [Alias(
         'Open-IRTTenantWorksheet', 'OpenIRTTenantWorksheet',
@@ -22713,6 +24042,7 @@ function Open-IRTTenantSheet {
     )
 
     begin {
+        Import-IRTModule -Name 'PSFramework'
         $FunctionName = $MyInvocation.MyCommand.Name
 
         if (-not $TenantFile) {
@@ -22733,8 +24063,8 @@ function Open-IRTTenantSheet {
         Invoke-Item $TenantFile
     }
 }
-#EndRegion '.\Public\ServicePrincipal\Open-IRTTenantSheet.ps1' 62
-#Region '.\Public\ServicePrincipal\Show-IRTServicePrincipal.ps1' -1
+#EndRegion './Public/ServicePrincipal/Open-IRTTenantSheet.ps1' 66
+#Region './Public/ServicePrincipal/Show-IRTServicePrincipal.ps1' -1
 
 function Show-IRTServicePrincipal {
     <#
@@ -23058,8 +24388,8 @@ function Show-IRTServicePrincipal {
         }
     }
 }
-#EndRegion '.\Public\ServicePrincipal\Show-IRTServicePrincipal.ps1' 323
-#Region '.\Public\UnifiedAuditLog\Get-IRTTeamsExternalDomain.ps1' -1
+#EndRegion './Public/ServicePrincipal/Show-IRTServicePrincipal.ps1' 323
+#Region './Public/UnifiedAuditLog/Get-IRTTeamsExternalDomain.ps1' -1
 
 function Get-IRTTeamsExternalDomain {
     <#
@@ -23431,8 +24761,8 @@ function Get-IRTTeamsExternalDomain {
         Write-PSFMessage -Level 8 -Message "${FunctionName}: Complete [$Elapsed]"
     }
 }
-#EndRegion '.\Public\UnifiedAuditLog\Get-IRTTeamsExternalDomain.ps1' 371
-#Region '.\Public\UnifiedAuditLog\Get-IRTUnifiedAuditLog.ps1' -1
+#EndRegion './Public/UnifiedAuditLog/Get-IRTTeamsExternalDomain.ps1' 371
+#Region './Public/UnifiedAuditLog/Get-IRTUnifiedAuditLog.ps1' -1
 
 function Get-IRTUnifiedAuditLog {
     <#
@@ -24557,8 +25887,8 @@ function Get-IRTUnifiedAuditLog {
         }
     }
 }
-#EndRegion '.\Public\UnifiedAuditLog\Get-IRTUnifiedAuditLog.ps1' 1124
-#Region '.\Public\UnifiedAuditLog\Open-IRTAllOperationsSheet.ps1' -1
+#EndRegion './Public/UnifiedAuditLog/Get-IRTUnifiedAuditLog.ps1' 1124
+#Region './Public/UnifiedAuditLog/Open-IRTAllOperationsSheet.ps1' -1
 
 function Open-IRTAllOperationsSheet {
     <#
@@ -24587,8 +25917,8 @@ function Open-IRTAllOperationsSheet {
         Invoke-Item $SheetPath
     }
 }
-#EndRegion '.\Public\UnifiedAuditLog\Open-IRTAllOperationsSheet.ps1' 28
-#Region '.\Public\UnifiedAuditLog\Receive-IRTGraphUAL.ps1' -1
+#EndRegion './Public/UnifiedAuditLog/Open-IRTAllOperationsSheet.ps1' 28
+#Region './Public/UnifiedAuditLog/Receive-IRTGraphUAL.ps1' -1
 
 function Receive-IRTGraphUAL {
     <#
@@ -24857,8 +26187,8 @@ function Receive-IRTGraphUAL {
         }
     }
 }
-#EndRegion '.\Public\UnifiedAuditLog\Receive-IRTGraphUAL.ps1' 268
-#Region '.\Public\UnifiedAuditLog\Show-IRTTeamsExternalDomain.ps1' -1
+#EndRegion './Public/UnifiedAuditLog/Receive-IRTGraphUAL.ps1' 268
+#Region './Public/UnifiedAuditLog/Show-IRTTeamsExternalDomain.ps1' -1
 
 function Show-IRTTeamsExternalDomain {
     <#
@@ -24919,7 +26249,7 @@ function Show-IRTTeamsExternalDomain {
     its own chunk unresolved, so lower this if lookups fail in bulk. Default: 100.
 
     .PARAMETER Open
-    Open the workbook after export. Default: $true.
+    Open the workbook after export. Defaults to IRT_Config.OpenSpreadsheets.
 
     .PARAMETER TableStyle
     Excel table style. Defaults to IRT_Config.ExcelTableStyle.
@@ -24931,7 +26261,8 @@ function Show-IRTTeamsExternalDomain {
     ```powershell
     Show-IRTTeamsExternalDomain
     ```
-    Summarises the .xml files in the current directory and opens the workbook.
+    Summarises the .xml files in the current directory. The workbook opens if the
+    OpenSpreadsheets setting is on.
 
     .EXAMPLE
     ```powershell
@@ -24956,7 +26287,8 @@ function Show-IRTTeamsExternalDomain {
     None. Writes an Excel workbook into -Path.
 
     .NOTES
-    Version: 1.1.1
+    Version: 1.2.0
+    1.2.0 - -Open defaults to the OpenSpreadsheets config setting instead of $true.
     1.1.1 - Progress is shown with Write-Progress instead of a console line for each file
     and each lookup chunk.
     1.1.0 - Tenant IDs are looked up in chunks of -TenantIdChunkSize, so one failed
@@ -24971,7 +26303,7 @@ function Show-IRTTeamsExternalDomain {
         [ValidateRange(1, 1000)]
         [int] $TenantIdChunkSize = 100,
 
-        [boolean] $Open = $true,
+        [boolean] $Open = [bool]$Global:IRT_Config.OpenSpreadsheets,
 
         [string] $TableStyle = $Global:IRT_Config.ExcelTableStyle,
         [string] $Font = $Global:IRT_Config.ExcelFont
@@ -25466,20 +26798,74 @@ function Show-IRTTeamsExternalDomain {
         Write-PSFMessage -Level 8 -Message "${FunctionName}: Complete [$Elapsed]"
     }
 }
-#EndRegion '.\Public\UnifiedAuditLog\Show-IRTTeamsExternalDomain.ps1' 607
-#Region '.\Public\UnifiedAuditLog\Show-IRTUnifiedAuditLog.ps1' -1
+#EndRegion './Public/UnifiedAuditLog/Show-IRTTeamsExternalDomain.ps1' 609
+#Region './Public/UnifiedAuditLog/Show-IRTUnifiedAuditLog.ps1' -1
 
 function Show-IRTUnifiedAuditLog {
     <#
-	.SYNOPSIS
-	Parse and show unified audit logs.
+    .SYNOPSIS
+    Processes unified audit log records into an Excel spreadsheet.
 
-	.NOTES
-	Version: 1.0.2
+    .DESCRIPTION
+    Takes unified audit log records produced by Get-IRTUnifiedAuditLog or the Graph UAL
+    commands (or imported from a raw XML export) and renders them into a formatted Excel
+    workbook. The workbook always has an all-operations sheet, plus a sign-in sheet when
+    the logs contain sign-in operations. Logs from a -SignInLog query get only the
+    sign-in sheet. Data-gap marker rows appear on every sheet.
+
+    .PARAMETER Log
+    A list of unified audit log records with a metadata entry at index 0. Produced by
+    Get-IRTUnifiedAuditLog. Mutually exclusive with -XmlPath.
+
+    .PARAMETER XmlPath
+    Path to a raw XML file exported by Get-IRTUnifiedAuditLog. Mutually exclusive with
+    -Log.
+
+    .PARAMETER TableStyle
+    Excel table style. Defaults to IRT_Config.ExcelTableStyle.
+
+    .PARAMETER Font
+    Excel font name. Defaults to IRT_Config.ExcelFont.
+
+    .PARAMETER IpInfo
+    Enrich IP addresses with ip_info lookup data. Defaults to IRT_Config.IpInfoAvailable.
+
+    .PARAMETER Open
+    Open the Excel file immediately after export. Defaults to IRT_Config.OpenSpreadsheets.
+
+    .PARAMETER WaitOnMessageTrace
+    Wait for pending message trace jobs to finish, so email subjects can be added to the
+    all-operations sheet. Intended for use when running playbook. (running functions in
+    parallel) Default: $false.
+
+    .PARAMETER MaxWaitMinutes
+    How long -WaitOnMessageTrace waits before continuing without email subjects.
+    Default: 15.
+
+    .PARAMETER Cached
+    Use pre-cached Graph data where available.
+
+    .EXAMPLE
+    ```powershell
+    Show-IRTUnifiedAuditLog -XmlPath '.\UnifiedAuditLogs_7Days_contoso.com_bob_26-09-16_14-30.xml'
+    ```
+    Rebuilds the unified audit log workbook from a raw XML export.
+
+    .EXAMPLE
+    ```powershell
+    Show-IRTUnifiedAuditLog -XmlPath $XmlPath -IpInfo $false -Open $false
+    ```
+    Rebuilds the workbook without IP lookups, and saves it without opening it.
+
+    .OUTPUTS
+    None. Results are written to an Excel workbook.
+
+    .NOTES
+    Version: 1.0.2
     1.0.2 - Data-gap marker rows (IRTDataGap) always pass operation filtering so
             missing-data markers appear on every sheet.
     1.0.1 - Added option pass raw log objects, not just import from file.
-	#>
+    #>
     [CmdletBinding(DefaultParameterSetName = 'Objects')]
     param (
         [Parameter(Position = 0, ParameterSetName = 'Objects')]
@@ -25493,7 +26879,7 @@ function Show-IRTUnifiedAuditLog {
         [string] $Font = $Global:IRT_Config.ExcelFont,
 
         [boolean] $IpInfo = [bool]$Global:IRT_Config.IpInfoAvailable,
-        [boolean] $Open = $true,
+        [boolean] $Open = [bool]$Global:IRT_Config.OpenSpreadsheets,
         [boolean] $WaitOnMessageTrace = $false,
         [int] $MaxWaitMinutes = 15,
         [switch] $Cached
@@ -25716,8 +27102,8 @@ function Show-IRTUnifiedAuditLog {
         }
     }
 }
-#EndRegion '.\Public\UnifiedAuditLog\Show-IRTUnifiedAuditLog.ps1' 248
-#Region '.\Public\UnifiedAuditLog\Start-IRTGraphUAL.ps1' -1
+#EndRegion './Public/UnifiedAuditLog/Show-IRTUnifiedAuditLog.ps1' 302
+#Region './Public/UnifiedAuditLog/Start-IRTGraphUAL.ps1' -1
 
 function Start-IRTGraphUAL {
     <#
@@ -26218,8 +27604,8 @@ function Start-IRTGraphUAL {
         Wait-IRTGraphUAL @WaitParams
     }
 }
-#EndRegion '.\Public\UnifiedAuditLog\Start-IRTGraphUAL.ps1' 500
-#Region '.\Public\UnifiedAuditLog\Wait-IRTGraphUAL.ps1' -1
+#EndRegion './Public/UnifiedAuditLog/Start-IRTGraphUAL.ps1' 500
+#Region './Public/UnifiedAuditLog/Wait-IRTGraphUAL.ps1' -1
 
 function Wait-IRTGraphUAL {
     <#
@@ -26428,8 +27814,8 @@ function Wait-IRTGraphUAL {
         Receive-IRTGraphUAL @ReceiveParams
     }
 }
-#EndRegion '.\Public\UnifiedAuditLog\Wait-IRTGraphUAL.ps1' 208
-#Region '.\Public\User\Disable-IRTUser.ps1' -1
+#EndRegion './Public/UnifiedAuditLog/Wait-IRTGraphUAL.ps1' 208
+#Region './Public/User/Disable-IRTUser.ps1' -1
 
 function Disable-IRTUser {
     <#
@@ -26457,8 +27843,8 @@ function Disable-IRTUser {
 
     Set-UserEnabled @Params
 }
-#EndRegion '.\Public\User\Disable-IRTUser.ps1' 27
-#Region '.\Public\User\Enable-IRTUser.ps1' -1
+#EndRegion './Public/User/Disable-IRTUser.ps1' 27
+#Region './Public/User/Enable-IRTUser.ps1' -1
 
 function Enable-IRTUser {
     <#
@@ -26486,8 +27872,8 @@ function Enable-IRTUser {
 
     Set-UserEnabled @Params
 }
-#EndRegion '.\Public\User\Enable-IRTUser.ps1' 27
-#Region '.\Public\User\Find-IRTUser.ps1' -1
+#EndRegion './Public/User/Enable-IRTUser.ps1' 27
+#Region './Public/User/Find-IRTUser.ps1' -1
 
 function Find-IRTUser {
     <#
@@ -26684,8 +28070,8 @@ function Find-IRTUser {
         }
     }
 }
-#EndRegion '.\Public\User\Find-IRTUser.ps1' 196
-#Region '.\Public\User\Reset-IRTUserPassword.ps1' -1
+#EndRegion './Public/User/Find-IRTUser.ps1' 196
+#Region './Public/User/Reset-IRTUserPassword.ps1' -1
 
 function Reset-IRTUserPassword {
     <#
@@ -26943,8 +28329,8 @@ function Reset-IRTUserPassword {
         }
     }
 }
-#EndRegion '.\Public\User\Reset-IRTUserPassword.ps1' 257
-#Region '.\Public\User\Revoke-IRTUserSession.ps1' -1
+#EndRegion './Public/User/Reset-IRTUserPassword.ps1' 257
+#Region './Public/User/Revoke-IRTUserSession.ps1' -1
 
 function Revoke-IRTUserSession {
     <#
@@ -27000,8 +28386,8 @@ function Revoke-IRTUserSession {
         }
     }
 }
-#EndRegion '.\Public\User\Revoke-IRTUserSession.ps1' 55
-#Region '.\Public\User\Set-IRTUserUsageLocation.ps1' -1
+#EndRegion './Public/User/Revoke-IRTUserSession.ps1' 55
+#Region './Public/User/Set-IRTUserUsageLocation.ps1' -1
 
 function Set-IRTUserUsageLocation {
     <#
@@ -27118,8 +28504,8 @@ function Set-IRTUserUsageLocation {
         }
     }
 }
-#EndRegion '.\Public\User\Set-IRTUserUsageLocation.ps1' 116
-#Region '.\Public\User\Show-IRTUser.ps1' -1
+#EndRegion './Public/User/Set-IRTUserUsageLocation.ps1' 116
+#Region './Public/User/Show-IRTUser.ps1' -1
 
 function Show-IRTUser {
     <#
@@ -27222,8 +28608,8 @@ function Show-IRTUser {
         }
     }
 }
-#EndRegion '.\Public\User\Show-IRTUser.ps1' 102
-#Region '.\Public\User\Show-IRTUserMfa.ps1' -1
+#EndRegion './Public/User/Show-IRTUser.ps1' 102
+#Region './Public/User/Show-IRTUserMfa.ps1' -1
 
 function Show-IRTUserMfa {
     <#
@@ -27251,7 +28637,7 @@ function Show-IRTUserMfa {
     Export raw XML alongside the Excel file. Defaults to IRT_Config.ExportXml.
 
     .PARAMETER Open
-    Open the Excel file immediately after export. Default: $true.
+    Open the Excel file immediately after export. Defaults to IRT_Config.OpenSpreadsheets.
 
     .EXAMPLE
     ```powershell
@@ -27283,7 +28669,7 @@ function Show-IRTUserMfa {
         [string] $TableStyle = $Global:IRT_Config.ExcelTableStyle,
         [string] $Font = $Global:IRT_Config.ExcelFont,
         [boolean] $Xml = $Global:IRT_Config.ExportXml,
-        [boolean] $Open = $true
+        [boolean] $Open = [bool]$Global:IRT_Config.OpenSpreadsheets
     )
 
     begin {
@@ -27721,8 +29107,8 @@ function Show-IRTUserMfa {
         }
     }
 }
-#EndRegion '.\Public\User\Show-IRTUserMfa.ps1' 497
-#Region '.\Public\Utility\Compress-IRTInvestigationFolder.ps1' -1
+#EndRegion './Public/User/Show-IRTUserMfa.ps1' 497
+#Region './Public/Utility/Compress-IRTInvestigationFolder.ps1' -1
 
 function Compress-IRTInvestigationFolder {
     <#
@@ -27805,8 +29191,8 @@ function Compress-IRTInvestigationFolder {
         }
     }
 }
-#EndRegion '.\Public\Utility\Compress-IRTInvestigationFolder.ps1' 82
-#Region '.\Public\Utility\Copy-IRTFunction.ps1' -1
+#EndRegion './Public/Utility/Compress-IRTInvestigationFolder.ps1' 82
+#Region './Public/Utility/Copy-IRTFunction.ps1' -1
 
 function Copy-IRTFunction {
     <#
@@ -27884,7 +29270,9 @@ function Copy-IRTFunction {
             'Find-IRTDomainController'
             'Get-IRTAdAdminUser'
             'Get-AdGlobalUserObject'
+            'Get-TargetDomainController'
             'Import-IRTModule'
+            'Push-AdReplication'
             'Push-IRTAdSync'
             'Reset-IRTAdUserPassword'
             'Set-AdUserEnabled'
@@ -27892,7 +29280,6 @@ function Copy-IRTFunction {
             'Show-IRTAdOus'
             'Show-IRTAdUser'
             'Test-AdAvailable'
-            'Test-RunningOnDomainController'
         )
 
         $Queue = [System.Collections.Generic.List[string]]::new()
@@ -27993,8 +29380,8 @@ if (-not `$Global:IRT_Config) {
         Write-IRT "Copied $Resolved function(s) to clipboard."
     }
 }
-#EndRegion '.\Public\Utility\Copy-IRTFunction.ps1' 186
-#Region '.\Public\Utility\Find-IRTDirectoryObject.ps1' -1
+#EndRegion './Public/Utility/Copy-IRTFunction.ps1' 187
+#Region './Public/Utility/Find-IRTDirectoryObject.ps1' -1
 
 function Find-IRTDirectoryObject {
     [Alias('FindObject', 'FindObjects')]
@@ -28109,8 +29496,8 @@ function Find-IRTDirectoryObject {
         }
     }
 }
-#EndRegion '.\Public\Utility\Find-IRTDirectoryObject.ps1' 114
-#Region '.\Public\Utility\Get-IRTLicenseReport.ps1' -1
+#EndRegion './Public/Utility/Find-IRTDirectoryObject.ps1' 114
+#Region './Public/Utility/Get-IRTLicenseReport.ps1' -1
 
 function Get-IRTLicenseReport {
     <#
@@ -28254,8 +29641,8 @@ function Get-IRTLicenseReport {
         }
     }
 }
-#EndRegion '.\Public\Utility\Get-IRTLicenseReport.ps1' 143
-#Region '.\Public\Utility\Import-IRT.ps1' -1
+#EndRegion './Public/Utility/Get-IRTLicenseReport.ps1' 143
+#Region './Public/Utility/Import-IRT.ps1' -1
 
 function Import-IRT {
     <#
@@ -28290,8 +29677,8 @@ function Import-IRT {
     [OutputType([void])]
     param()
 }
-#EndRegion '.\Public\Utility\Import-IRT.ps1' 34
-#Region '.\Public\Utility\Import-IRTConfig.ps1' -1
+#EndRegion './Public/Utility/Import-IRT.ps1' 34
+#Region './Public/Utility/Import-IRTConfig.ps1' -1
 
 function Import-IRTConfig {
     <#
@@ -28299,7 +29686,8 @@ function Import-IRTConfig {
     Loads the current IRT configuration.
 
     .DESCRIPTION
-    Reads the user configuration from $env:APPDATA\<ModuleName>\config.json.
+    Reads the user configuration from config.json in the module's per-user folder:
+    %APPDATA%\<ModuleName> on Windows, ~/.config/<ModuleName> on Linux and macOS.
     If the file does not exist, copies the template from the module root and loads it.
     The parsed config is cached in $Global:IRT_Config.
 
@@ -28312,10 +29700,9 @@ function Import-IRTConfig {
         [switch] $Force
     )
 
-    $ModuleName = $MyInvocation.MyCommand.Module.Name
     $ModuleRoot = $MyInvocation.MyCommand.Module.ModuleBase
-    $ConfigDir = Join-Path -Path $env:APPDATA -ChildPath $ModuleName
-    $ConfigPath = Join-Path -Path $ConfigDir -ChildPath 'Config.json'
+    $ConfigDir = Get-IRTAppDataPath
+    $ConfigPath = Get-IRTAppDataPath -ChildPath 'config.json'
     $TemplatePath = Join-Path -Path $ModuleRoot -ChildPath 'Data\ConfigTemplate.json'
 
     if (-not (Test-Path $ConfigPath)) {
@@ -28349,13 +29736,11 @@ function Import-IRTConfig {
 
     # Resolve null path values to their defaults (in-memory only; defaults are not written back)
     if (-not $Global:IRT_Config.TenantsSheetPath) {
-        $TenantDir = Join-Path -Path $env:APPDATA -ChildPath 'M365IncidentResponseTools'
-        $TenantPath = Join-Path -Path $TenantDir -ChildPath 'tenants.xlsx'
-        $Global:IRT_Config.TenantsSheetPath = $TenantPath
+        $Global:IRT_Config.TenantsSheetPath = Get-IRTAppDataPath -ChildPath 'tenants.xlsx'
     }
 }
-#EndRegion '.\Public\Utility\Import-IRTConfig.ps1' 62
-#Region '.\Public\Utility\New-IRTInvestigationFolder.ps1' -1
+#EndRegion './Public/Utility/Import-IRTConfig.ps1' 60
+#Region './Public/Utility/New-IRTInvestigationFolder.ps1' -1
 
 function New-IRTInvestigationFolder {
     <#
@@ -28484,8 +29869,8 @@ function New-IRTInvestigationFolder {
         }
     }
 }
-#EndRegion '.\Public\Utility\New-IRTInvestigationFolder.ps1' 128
-#Region '.\Public\Utility\Open-IRTConfig.ps1' -1
+#EndRegion './Public/Utility/New-IRTInvestigationFolder.ps1' 128
+#Region './Public/Utility/Open-IRTConfig.ps1' -1
 
 function Open-IRTConfig {
     <#
@@ -28496,13 +29881,7 @@ function Open-IRTConfig {
     [CmdletBinding()]
     param()
 
-    $ModuleName = $MyInvocation.MyCommand.Module.Name
-    $JoinParams = @{
-        Path                = $env:APPDATA
-        ChildPath           = $ModuleName
-        AdditionalChildPath = 'config.json'
-    }
-    $ConfigPath = Join-Path @JoinParams
+    $ConfigPath = Get-IRTAppDataPath -ChildPath 'config.json'
 
     if (-not (Test-Path $ConfigPath)) {
         Import-IRTConfig
@@ -28510,8 +29889,85 @@ function Open-IRTConfig {
 
     Invoke-Item $ConfigPath
 }
-#EndRegion '.\Public\Utility\Open-IRTConfig.ps1' 24
-#Region '.\Public\Utility\Set-IRTConfig.ps1' -1
+#EndRegion './Public/Utility/Open-IRTConfig.ps1' 18
+#Region './Public/Utility/Open-IRTSpreadsheet.ps1' -1
+
+function Open-IRTSpreadsheet {
+    <#
+    .SYNOPSIS
+    Opens the .xlsx spreadsheets in a folder.
+
+    .DESCRIPTION
+    Opens every .xlsx workbook in a folder (the current directory by default) using the
+    system default spreadsheet application. Intended for users who turn off the
+    OpenSpreadsheets config setting so IRT exports do not open automatically: after running
+    a batch of commands, run Open-IRTSpreadsheet to open the workbooks that were created.
+
+    Excel lock and temporary files (names beginning with '~$') are skipped.
+
+    .PARAMETER Path
+    Folder to search for .xlsx files. Defaults to the current directory.
+
+    .PARAMETER Recurse
+    Also open .xlsx files found in subfolders of Path.
+
+    .EXAMPLE
+    ```powershell
+    Open-IRTSpreadsheet
+    ```
+    Opens every .xlsx file in the current directory.
+
+    .EXAMPLE
+    ```powershell
+    Open-IRTSpreadsheet -Path 'C:\Cases\Contoso' -Recurse
+    ```
+    Opens every .xlsx file under C:\Cases\Contoso and all of its subfolders.
+
+    .OUTPUTS
+    None.
+
+    .NOTES
+    Version: 1.0.1
+    1.0.1 - Fences the help examples as PowerShell code.
+    #>
+    [Alias('Open-IRTSpreadsheets', 'OpenIRTSpreadsheet', 'IRTSpreadsheet')]
+    [CmdletBinding()]
+    param (
+        [string] $Path = '.',
+        [switch] $Recurse
+    )
+
+    process {
+        if (-not (Test-Path -Path $Path)) {
+            Write-IRT "Path not found: ${Path}" -Level Error
+            return
+        }
+
+        $GetParams = @{
+            Path   = $Path
+            Filter = '*.xlsx'
+            File   = $true
+        }
+        if ($Recurse) {
+            $GetParams.Recurse = $true
+        }
+        $Files = Get-ChildItem @GetParams |
+            Where-Object { $_.Extension -eq '.xlsx' -and $_.Name -notlike '~$*' }
+
+        if (-not $Files) {
+            $Resolved = (Resolve-Path -Path $Path).Path
+            Write-IRT "No .xlsx files found in: ${Resolved}" -Level Warn
+            return
+        }
+
+        foreach ($File in $Files) {
+            Write-IRT "Opening: $($File.Name)"
+            Invoke-Item -Path $File.FullName
+        }
+    }
+}
+#EndRegion './Public/Utility/Open-IRTSpreadsheet.ps1' 75
+#Region './Public/Utility/Set-IRTConfig.ps1' -1
 
 function Set-IRTConfig {
     <#
@@ -28533,10 +29989,9 @@ function Set-IRTConfig {
         [switch] $Reset
     )
 
-    $ModuleName = $MyInvocation.MyCommand.Module.Name
     $ModuleRoot = $MyInvocation.MyCommand.Module.ModuleBase
-    $ConfigDir = Join-Path -Path $env:APPDATA -ChildPath $ModuleName
-    $ConfigPath = Join-Path -Path $ConfigDir -ChildPath 'config.json'
+    $ConfigDir = Get-IRTAppDataPath
+    $ConfigPath = Get-IRTAppDataPath -ChildPath 'config.json'
     $TplJoin = @{
         Path                = $ModuleRoot
         ChildPath           = 'Data'
@@ -28563,7 +30018,7 @@ function Set-IRTConfig {
     # define settings metadata
     $Settings = [ordered]@{
         PasswordBrowser = @{
-            Summary     = 'Browser for opening password URLs in Tenants CSV'
+            Summary     = 'Browser for opening password URLs'
             Description = 'Which browser to use when opening password URLs from the Tenants CSV. ' +
             'Set to "default" to use the system default browser.'
             Options     = @('default', 'msedge', 'chrome', 'firefox', 'brave')
@@ -28594,8 +30049,18 @@ function Set-IRTConfig {
             'Enter any font name installed on your system.'
             Options     = $null  # free text
         }
+        OpenSpreadsheets = @{
+            Summary     = 'Auto-open spreadsheets'
+            Description = 'When enabled, Excel workbooks created by IRT ' +
+            '(sign-in logs, UAL, message trace, device/SP reports, etc.) ' +
+            'open automatically after they are exported. ' +
+            'When disabled, workbooks are saved without opening; ' +
+            'run Open-IRTSpreadsheet to open the .xlsx files in a folder. ' +
+            'Commands that accept an -Open parameter can override this per run.'
+            Options     = @('true', 'false')
+        }
         ExportXml = @{
-            Summary     = 'Export raw XML with log pulls'
+            Summary     = 'Export raw XML'
             Description = 'When enabled, log commands ' +
             '(sign-in logs, UAL, message trace) will save ' +
             'the raw XML response alongside the parsed Excel output.'
@@ -28612,8 +30077,9 @@ function Set-IRTConfig {
         TenantsSheetPath = @{
             Summary     = 'Tenants worksheet path'
             Description = 'Path to the tenants.xlsx file used by Connect-IRTTenant. ' +
-            'Leave blank (null) to use the default location: ' +
-            '$env:APPDATA\M365IncidentResponseTools\tenants.xlsx. ' +
+            'Leave blank (null) to use tenants.xlsx in the module folder: ' +
+            '%APPDATA%\M365IncidentResponseTools on Windows, ' +
+            '~/.config/M365IncidentResponseTools on Linux and macOS. ' +
             'Set to an absolute path to use a custom file.'
             Options     = $null  # free text / file path
         }
@@ -28668,42 +30134,55 @@ function Set-IRTConfig {
         }
         EnableTokenCache = @{
             Summary         = 'Persistent MSAL token cache'
-            Description     = 'When enabled, refresh tokens are written to an ' +
-            'encrypted file on disk, so Connect-IRT skips the browser prompt ' +
+            Description     = 'When enabled, refresh tokens are kept in an ' +
+            'encrypted cache, so Connect-IRT skips the browser prompt ' +
             'across PowerShell sessions (up to ~90 days, until the refresh token ' +
-            'expires or is revoked). On first use, the required ' +
-            'Microsoft.Identity.Client.Extensions.Msal DLL is downloaded from ' +
-            'nuget.org. Run Clear-IRTTokenCache to wipe the cache.'
-            SecurityWarning = 'SECURITY WARNING: The cache file is DPAPI-encrypted and ' +
-            'bound to your Windows user account, but any process running as that ' +
-            'user can decrypt it. Do not enable this on shared or multi-user ' +
+            'expires or is revoked). The cache uses the ' +
+            'Microsoft.Identity.Client.Extensions.Msal DLL that ships with the ' +
+            'module. Run Clear-IRTTokenCache to wipe the cache.'
+            SecurityWarning = 'SECURITY WARNING: The cache is encrypted and bound to ' +
+            'your user account (a DPAPI-encrypted file on Windows, the Keychain on ' +
+            'macOS, the Secret Service keyring on Linux), but any process running as ' +
+            'that user can read it. Do not enable this on shared or multi-user ' +
             'machines. Always run Clear-IRTTokenCache when you finish an investigation.'
             Options         = @('true', 'false')
         }
         MsalCachePath = @{
             Summary     = 'MSAL token cache file path'
-            Description = 'Absolute path for the DPAPI-encrypted MSAL token cache file. ' +
+            Description = 'Absolute path for the MSAL token cache file (on macOS and ' +
+            'Linux, a lock file; the tokens are kept in the OS keyring). ' +
             'Leave blank (null) to use the default path set in ' +
             'M365IncidentResponseTools.psm1. ' +
             'Override to an isolated path for testing or multi-instance scenarios. ' +
             'Takes effect on the next Connect-IRT call.'
             Options     = $null  # free text / file path
         }
-        IPConditionalFormattingTemplatePath = @{
-            Summary     = 'IP address CF template path'
-            Description = 'Absolute path to an Excel file whose first sheet A columncontains the ' +
-            'conditional-formatting rules to apply to IP address columns. ' +
-            'Leave blank (null) to use the default template bundled with the module ' +
-            '(Data/IpAddressConditionalFormattingTemplate.xlsx). ' +
-            'Replace with a custom file to change color-coding without editing code.'
-            Options     = $null  # free text / file path
-        }
         PlaybookOpenNewTab = @{
             Summary     = 'New tab when starting Playbook'
             Description = 'When enabled, Start-IRTPlaybook opens a new terminal tab ' +
             'at the start of each playbook run. ' +
-            'Use -NoNewTab on Start-IRTPlaybook to override for a single run.'
+            'When disabled, use -NewTab on Start-IRTPlaybook to open a tab for a single run.'
             Options     = @('true', 'false')
+        }
+        IPConditionalFormattingTemplatePath = @{
+            Summary     = 'IP address CF template path'
+            Description = 'Absolute path to an Excel file whose first sheet column A ' +
+            'contains the conditional-formatting rules to apply to IP address columns. ' +
+            'Leave blank (null) to use the default rules built into the module. ' +
+            'Replace with a custom file to change color-coding without editing code.'
+            Options     = $null  # free text / file path
+        }
+        LogFolderPath = @{
+            Summary     = 'Debug log folder'
+            Description = 'Folder where IRT writes its PSFramework diagnostic log ' +
+            '(every Write-PSFMessage call, all levels). ' +
+            'Enter a FOLDER path, not a file - for example C:\IRLogs. ' +
+            'Leave blank to disable file logging. ' +
+            'When set, a new plain-text file named IRT-<date>.log is written to the ' +
+            'folder each day (e.g. IRT-2026-06-30.log), and files older than 30 days ' +
+            'are deleted automatically (no size limit or zipping). ' +
+            'The change takes effect immediately.'
+            Options     = $null  # free text / folder path
         }
         JobNamePrefix = @{
             Summary     = 'Job name prefix'
@@ -28779,7 +30258,7 @@ function Set-IRTConfig {
         }
         else {
             # Free text input; for path settings blank clears back to null (restores default)
-            if ($SelectedKey -in 'AllOperationsSheetPath', 'TenantsSheetPath') {
+            if ($SelectedKey -in 'AllOperationsSheetPath', 'TenantsSheetPath', 'LogFolderPath') {
                 $NewValue = Read-Host "Enter new value (blank to clear and use module default)"
             }
             else {
@@ -28792,12 +30271,13 @@ function Set-IRTConfig {
         }
 
         # Convert blank/null path settings back to null
-        if ($SelectedKey -in 'AllOperationsSheetPath', 'TenantsSheetPath') {
+        if ($SelectedKey -in 'AllOperationsSheetPath', 'TenantsSheetPath', 'LogFolderPath') {
             if ([string]::IsNullOrWhiteSpace($NewValue)) { $NewValue = $null }
         }
 
         # Convert string to bool for boolean settings
-        if ($SelectedKey -in 'ExportXml', 'EnableTokenCache', 'PlaybookOpenNewTab') {
+        $BoolKeys = @('ExportXml', 'EnableTokenCache', 'PlaybookOpenNewTab', 'OpenSpreadsheets')
+        if ($SelectedKey -in $BoolKeys) {
             $NewValue = $NewValue -eq 'true'
         }
 
@@ -28811,12 +30291,17 @@ function Set-IRTConfig {
         if ($PSCmdlet.ShouldProcess($ConfigPath, "Set $SelectedKey = $NewValue")) {
             $Config | ConvertTo-Json -Depth 10 | Set-Content -Path $ConfigPath -Encoding utf8
             Import-IRTConfig -Force
+            # Apply a logging-folder change to the running session right away so the
+            # user does not have to reimport the module to start/stop file logging.
+            if ($SelectedKey -eq 'LogFolderPath') {
+                Initialize-IRTFileLogging
+            }
             Write-IRT "$SelectedKey updated to: $NewValue"
         }
     }
 }
-#EndRegion '.\Public\Utility\Set-IRTConfig.ps1' 303
-#Region '.\Public\Utility\Start-IRTPlaybook.ps1' -1
+#EndRegion './Public/Utility/Set-IRTConfig.ps1' 332
+#Region './Public/Utility/Start-IRTPlaybook.ps1' -1
 
 function Start-IRTPlaybook {
     <#
@@ -29073,10 +30558,10 @@ function Start-IRTPlaybook {
                 }
             }
 
-            @{  Name   = 'Get-IRTEntraSignInLog'
+            @{  Name   = 'Get-IRTEntraUserSignInLog'
                 Script = {
                     Set-Location -Path $WorkingPath
-                    Get-IRTEntraSignInLog
+                    Get-IRTEntraUserSignInLog
                 }
             }
 
@@ -29120,10 +30605,10 @@ function Start-IRTPlaybook {
                 }
             }
 
-            @{  Name   = 'Get-IRTNonInteractiveSignIn'
+            @{  Name   = 'Get-IRTEntraUserSignInLog -NonInteractive'
                 Script = {
                     Set-Location -Path $WorkingPath
-                    Get-IRTNonInteractiveSignIn
+                    Get-IRTEntraUserSignInLog -NonInteractive
                 }
             }
 
@@ -29144,6 +30629,18 @@ function Start-IRTPlaybook {
                         Quiet    = $true
                     }
                     Get-IRTMessageTrace @Params
+                }
+            }
+
+            @{  Name   = 'Get-IRTEntraUserSignInLog -AllUsers -DeviceCode'
+                Script = {
+                    Set-Location -Path $WorkingPath
+                    $Params = @{
+                        AllUsers   = $true
+                        DeviceCode = $true
+                        Days       = 30
+                    }
+                    Get-IRTEntraUserSignInLog @Params
                 }
             }
         )
@@ -29326,8 +30823,8 @@ function Start-IRTPlaybook {
             "${FunctionName}: Playbook complete. Total elapsed: $TotalElapsed")
     }
 }
-#EndRegion '.\Public\Utility\Start-IRTPlaybook.ps1' 509
-#Region '.\Suffix.ps1' -1
+#EndRegion './Public/Utility/Start-IRTPlaybook.ps1' 521
+#Region './Suffix.ps1' -1
 
 # ModuleBuilder Notes: Code in this file will be appended to the built .psm1 file.
 
@@ -29363,22 +30860,16 @@ Import-IRTConfig
 
 # Set the default MSAL cache path if the config does not override it.
 if (-not $Global:IRT_Config.MsalCachePath) {
-    $JpParams = @{
-        Path                = $env:LOCALAPPDATA
-        ChildPath           = 'M365IncidentResponseTools'
-        AdditionalChildPath = 'IRT-Cache.bin'
-    }
-    $Global:IRT_Config.MsalCachePath = Join-Path @JpParams
+    $Global:IRT_Config.MsalCachePath = Get-IRTAppDataPath -Local -ChildPath 'IRT-Cache.bin'
 }
 
-# Set the default IP address CF template path when the config does not override it.
-if (-not $Global:IRT_Config.IPConditionalFormattingTemplatePath) {
-    $IpcftJoin = @{
-        Path                = $PSScriptRoot
-        ChildPath           = 'Data'
-        AdditionalChildPath = 'IpAddressConditionalFormattingTemplate.xlsx'
-    }
-    $Global:IRT_Config.IPConditionalFormattingTemplatePath = Join-Path @IpcftJoin
+# Apply PSFramework file logging from the LogFolderPath config value (blank = off).
+# Initialize-IRTFileLogging routes every Write-PSFMessage call to a per-day TXT file
+# in that folder and prunes files older than 30 days. Skipped in runspace workers:
+# they share the parent process, so the main session's provider already captures
+# their messages.
+if (-not $Global:IRT_IsRunspaceWorker) {
+    Initialize-IRTFileLogging
 }
 
 # Check ip_info availability once at module load and cache in config.
@@ -29401,4 +30892,4 @@ if ($Global:IRT_LoadStopwatch) {
     Write-PSFMessage -Level 8 -Message "Module loaded in $($Elapsed.ToString('N2'))s."
     Remove-Variable -Name 'IRT_LoadStopwatch' -Scope Global
 }
-#EndRegion '.\Suffix.ps1' 73
+#EndRegion './Suffix.ps1' 67
