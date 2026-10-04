@@ -18,18 +18,23 @@ function Open-IRTSpreadsheet {
     Also open .xlsx files found in subfolders of Path.
 
     .EXAMPLE
+    ```powershell
     Open-IRTSpreadsheet
+    ```
     Opens every .xlsx file in the current directory.
 
     .EXAMPLE
+    ```powershell
     Open-IRTSpreadsheet -Path 'C:\Cases\Contoso' -Recurse
+    ```
     Opens every .xlsx file under C:\Cases\Contoso and all of its subfolders.
 
     .OUTPUTS
     None.
 
     .NOTES
-    Version: 1.0.0
+    Version: 1.0.1
+    1.0.1 - Fences the help examples as PowerShell code.
     #>
     [Alias('Open-IRTSpreadsheets', 'OpenIRTSpreadsheet', 'IRTSpreadsheet')]
     [CmdletBinding()]
