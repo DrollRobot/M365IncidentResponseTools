@@ -124,6 +124,7 @@ nav:
       - Import-IRTConfig: M365IncidentResponseTools/Import-IRTConfig.md
       - New-IRTInvestigationFolder: M365IncidentResponseTools/New-IRTInvestigationFolder.md
       - Open-IRTConfig: M365IncidentResponseTools/Open-IRTConfig.md
+      - Open-IRTSpreadsheet: M365IncidentResponseTools/Open-IRTSpreadsheet.md
       - Set-IRTConfig: M365IncidentResponseTools/Set-IRTConfig.md
     - On-Premises AD:
       - Disable-IRTAdUser: M365IncidentResponseTools/Disable-IRTAdUser.md

@@ -4,7 +4,7 @@ external help file: M365IncidentResponseTools-Help.xml
 HelpUri: ''
 Locale: en-US
 Module Name: M365IncidentResponseTools
-ms.date: 09/16/2026
+ms.date: 10/03/2026
 PlatyPS schema version: 2024-05-01
 title: Push-IRTAdSync
 ---
@@ -32,15 +32,27 @@ Triggers an AD-to-Entra delta sync as quickly as possible.
 The execution path is:
 
 1.
-If running on a domain controller, fires 'repadmin /syncall /AdeP' to force
-   intra-AD replication first.
+If Active Directory is available from this device, pushes intra-AD replication
+   from a writable DC via repadmin (this computer if it is one, otherwise a
+   discovered DC).
+Skipped with a warning otherwise.
 2.
 If the ADSync service is running locally, invokes Start-ADSyncSyncCycle directly
    and exits.
 3.
-Otherwise, discovers candidate servers (DCs first, then other enabled AD computers
-   by last logon) in parallel using a runspace pool and invokes the sync cycle
-   remotely on the first server found to have the service.
+Otherwise, checks candidate servers in parallel using a runspace pool (opening a
+   PSSession and looking for the service) and invokes the sync cycle remotely on the
+   first server to report the service.
+Each check is handled as soon as it finishes,
+   so slow or unreachable servers don't delay the push, and checks still running
+   afterward are stopped.
+Candidates are the -SyncServer names if given, or else
+   discovered from AD (DCs first, then other enabled servers by last logon).
+
+The ActiveDirectory module is only required for AD discovery.
+It is not needed when
+the ADSync service is on this device or when -SyncServer is given; without it, only
+the replication push is skipped.
 
 Domain admin credentials are cached in $Global:Storage for the session.
 Use -ResetCredentials to force a re-prompt.
@@ -96,6 +108,8 @@ HelpMessage: ''
 ### -SyncServer
 
 Target one or more specific server names directly, bypassing AD discovery.
+The
+ActiveDirectory module is not required when this is used.
 
 ```yaml
 Type: System.String[]
@@ -152,7 +166,13 @@ This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable
 
 ## NOTES
 
-Version: 2.0.0
+Version: 2.1.0
+2.1.0 - ActiveDirectory module only required for AD discovery.
+        Removed ping check; session and service check errors are reported per server.
+        Server checks are handled as they finish instead of in query order.
+        AD replication is pushed from this computer if it is a writable DC, otherwise
+        from a discovered DC, so it no longer requires running on a DC.
+        Fixed single-DC domains merging all discovered server names into one hostname.
 2.0.0 - Parallel server discovery via runspace pool (ping, open session, service check).
         Added -SyncServer parameter to target specific servers directly, bypassing AD query.
         Added -ThrottleLimit parameter.

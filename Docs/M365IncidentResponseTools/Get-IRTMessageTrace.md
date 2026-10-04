@@ -4,7 +4,7 @@ external help file: M365IncidentResponseTools-Help.xml
 HelpUri: ''
 Locale: en-US
 Module Name: M365IncidentResponseTools
-ms.date: 09/16/2026
+ms.date: 10/03/2026
 PlatyPS schema version: 2024-05-01
 title: Get-IRTMessageTrace
 ---
@@ -22,7 +22,7 @@ Downloads incoming and outgoing message trace for specified user, or all users.
 ```
 Get-IRTMessageTrace [[-UserObject] <psobject[]>] [-Days <int>] [-Start <string>] [-End <string>]
  [-ResultLimit <int>] [-Variable <bool>] [-Excel <bool>] [-Quiet] [-Xml <bool>]
- [-TableStyle <string>] [-Font <string>] [<CommonParameters>]
+ [-TableStyle <string>] [-Font <string>] [-IpInfo] [-Open <bool>] [<CommonParameters>]
 ```
 
 ### UserEmail
@@ -30,7 +30,7 @@ Get-IRTMessageTrace [[-UserObject] <psobject[]>] [-Days <int>] [-Start <string>]
 ```
 Get-IRTMessageTrace [-UserEmail <string[]>] [-Days <int>] [-Start <string>] [-End <string>]
  [-ResultLimit <int>] [-Variable <bool>] [-Excel <bool>] [-Quiet] [-Xml <bool>]
- [-TableStyle <string>] [-Font <string>] [<CommonParameters>]
+ [-TableStyle <string>] [-Font <string>] [-IpInfo] [-Open <bool>] [<CommonParameters>]
 ```
 
 ### AllUsers
@@ -38,7 +38,7 @@ Get-IRTMessageTrace [-UserEmail <string[]>] [-Days <int>] [-Start <string>] [-En
 ```
 Get-IRTMessageTrace [-AllUsers] [-Days <int>] [-Start <string>] [-End <string>] [-ResultLimit <int>]
  [-Variable <bool>] [-Excel <bool>] [-Quiet] [-Xml <bool>] [-TableStyle <string>] [-Font <string>]
- [<CommonParameters>]
+ [-IpInfo] [-Open <bool>] [<CommonParameters>]
 ```
 
 ## ALIASES
@@ -179,6 +179,52 @@ Defaults to IRT_Config.ExcelFont.
 ```yaml
 Type: System.String
 DefaultValue: $Global:IRT_Config.ExcelFont
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+### -IpInfo
+
+Enrich FromIP/ToIP with ip_info lookup data in the Excel output.
+Off by default
+because lookups are slow for large message traces.
+Ignored if ip_info is not installed.
+
+```yaml
+Type: System.Management.Automation.SwitchParameter
+DefaultValue: False
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+### -Open
+
+Open the Excel workbook after exporting.
+Defaults to IRT_Config.OpenSpreadsheets.
+
+```yaml
+Type: System.Boolean
+DefaultValue: '[bool]$Global:IRT_Config.OpenSpreadsheets'
 SupportsWildcards: false
 Aliases: []
 ParameterSets:

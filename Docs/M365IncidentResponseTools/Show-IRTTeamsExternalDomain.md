@@ -4,7 +4,7 @@ external help file: M365IncidentResponseTools-Help.xml
 HelpUri: ''
 Locale: en-US
 Module Name: M365IncidentResponseTools
-ms.date: 09/16/2026
+ms.date: 10/03/2026
 PlatyPS schema version: 2024-05-01
 title: Show-IRTTeamsExternalDomain
 ---
@@ -88,7 +88,8 @@ The workbook is written into -Path as TeamsExternalDomainSummary_<date>.xlsx.
 ```powershell
 Show-IRTTeamsExternalDomain
 ```
-Summarises the .xml files in the current directory and opens the workbook.
+Summarises the .xml files in the current directory. The workbook opens if the
+OpenSpreadsheets setting is on.
 
 ### EXAMPLE 2
 
@@ -139,11 +140,11 @@ HelpMessage: ''
 ### -Open
 
 Open the workbook after export.
-Default: $true.
+Defaults to IRT_Config.OpenSpreadsheets.
 
 ```yaml
 Type: System.Boolean
-DefaultValue: True
+DefaultValue: '[bool]$Global:IRT_Config.OpenSpreadsheets'
 SupportsWildcards: false
 Aliases: []
 ParameterSets:
@@ -242,7 +243,8 @@ This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable
 
 ## NOTES
 
-Version: 1.1.1
+Version: 1.2.0
+1.2.0 - -Open defaults to the OpenSpreadsheets config setting instead of $true.
 1.1.1 - Progress is shown with Write-Progress instead of a console line for each file
 and each lookup chunk.
 1.1.0 - Tenant IDs are looked up in chunks of -TenantIdChunkSize, so one failed

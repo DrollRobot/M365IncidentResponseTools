@@ -6,114 +6,87 @@ Locale: en-US
 Module Name: M365IncidentResponseTools
 ms.date: 10/03/2026
 PlatyPS schema version: 2024-05-01
-title: Open-IRTMailboxInOwa
+title: Open-IRTSpreadsheet
 ---
 
-# Open-IRTMailboxInOwa
+# Open-IRTSpreadsheet
 
 ## SYNOPSIS
 
-{{ Fill in the Synopsis }}
+Opens the .xlsx spreadsheets in a folder.
 
 ## SYNTAX
 
 ```
-Open-IRTMailboxInOwa [[-UserObject] <psobject[]>] [-Browser <string>] [-Private] [-ToClipboard]
- [<CommonParameters>]
+Open-IRTSpreadsheet [[-Path] <string>] [-Recurse] [<CommonParameters>]
 ```
 
 ## ALIASES
 
-OpenMailbox
+Open-IRTSpreadsheets, OpenIRTSpreadsheet, IRTSpreadsheet
 
 ## DESCRIPTION
 
-{{ Fill in the Description }}
+Opens every .xlsx workbook in a folder (the current directory by default) using the
+system default spreadsheet application.
+Intended for users who turn off the
+OpenSpreadsheets config setting so IRT exports do not open automatically: after running
+a batch of commands, run Open-IRTSpreadsheet to open the workbooks that were created.
+
+Excel lock and temporary files (names beginning with '~$') are skipped.
 
 ## EXAMPLES
 
-### Example 1
+### EXAMPLE 1
 
-{{ Add example description here }}
+```powershell
+Open-IRTSpreadsheet
+```
+Opens every .xlsx file in the current directory.
+
+### EXAMPLE 2
+
+```powershell
+Open-IRTSpreadsheet -Path 'C:\Cases\Contoso' -Recurse
+```
+Opens every .xlsx file under C:\Cases\Contoso and all of its subfolders.
 
 ## PARAMETERS
 
-### -Browser
+### -Path
 
-{{ Fill Browser Description }}
+Folder to search for .xlsx files.
+Defaults to the current directory.
 
 ```yaml
 Type: System.String
-DefaultValue: $Global:IRT_Config.Browser
+DefaultValue: .
 SupportsWildcards: false
 Aliases: []
-ParameterSets:
-- Name: (All)
-  Position: Named
-  IsRequired: false
-  ValueFromPipeline: false
-  ValueFromPipelineByPropertyName: false
-  ValueFromRemainingArguments: false
-DontShow: false
-AcceptedValues: []
-HelpMessage: ''
-```
-
-### -Private
-
-{{ Fill Private Description }}
-
-```yaml
-Type: System.Management.Automation.SwitchParameter
-DefaultValue: False
-SupportsWildcards: false
-Aliases: []
-ParameterSets:
-- Name: (All)
-  Position: Named
-  IsRequired: false
-  ValueFromPipeline: false
-  ValueFromPipelineByPropertyName: false
-  ValueFromRemainingArguments: false
-DontShow: false
-AcceptedValues: []
-HelpMessage: ''
-```
-
-### -ToClipboard
-
-{{ Fill ToClipboard Description }}
-
-```yaml
-Type: System.Management.Automation.SwitchParameter
-DefaultValue: False
-SupportsWildcards: false
-Aliases: []
-ParameterSets:
-- Name: (All)
-  Position: Named
-  IsRequired: false
-  ValueFromPipeline: false
-  ValueFromPipelineByPropertyName: false
-  ValueFromRemainingArguments: false
-DontShow: false
-AcceptedValues: []
-HelpMessage: ''
-```
-
-### -UserObject
-
-{{ Fill UserObject Description }}
-
-```yaml
-Type: System.Management.Automation.PSObject[]
-DefaultValue: ''
-SupportsWildcards: false
-Aliases:
-- UserObjects
 ParameterSets:
 - Name: (All)
   Position: 0
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+### -Recurse
+
+Also open .xlsx files found in subfolders of Path.
+
+```yaml
+Type: System.Management.Automation.SwitchParameter
+DefaultValue: False
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
   IsRequired: false
   ValueFromPipeline: false
   ValueFromPipelineByPropertyName: false
@@ -134,9 +107,13 @@ This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable
 
 ## OUTPUTS
 
+### None.
+
 ## NOTES
 
-{{ Fill in the Notes }}
+Version: 1.0.1
+1.0.1 - Fences the help examples as PowerShell code.
+
 
 ## RELATED LINKS
 

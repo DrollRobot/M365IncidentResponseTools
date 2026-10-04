@@ -4,7 +4,7 @@ external help file: M365IncidentResponseTools-Help.xml
 HelpUri: ''
 Locale: en-US
 Module Name: M365IncidentResponseTools
-ms.date: 09/16/2026
+ms.date: 10/03/2026
 PlatyPS schema version: 2024-05-01
 title: Clear-IRTTokenCache
 ---
@@ -43,6 +43,9 @@ Clears the sticky per-client account memory so the next acquisition
   3.
 Deletes the on-disk cache file as a belt-and-suspenders measure in
      case no MSAL app is currently registered against it.
+On macOS and
+     Linux the tokens live in the OS keyring rather than the file, so the
+     keyring entry is cleared as well.
 
 Use this after a credential rotation, when sharing a workstation, or to
 force the next Connect-IRT to prompt interactively.
@@ -117,7 +120,8 @@ This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable
 
 ## NOTES
 
-Version: 1.0.0
+Version: 1.1.0
+1.1.0 - Also clears the OS keyring entry that holds the cache on macOS and Linux.
 
 
 ## RELATED LINKS

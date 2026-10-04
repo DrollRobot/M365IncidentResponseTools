@@ -4,7 +4,7 @@ external help file: M365IncidentResponseTools-Help.xml
 HelpUri: ''
 Locale: en-US
 Module Name: M365IncidentResponseTools
-ms.date: 09/16/2026
+ms.date: 10/03/2026
 PlatyPS schema version: 2024-05-01
 title: Get-IRTServicePrincipal
 ---
@@ -13,7 +13,7 @@ title: Get-IRTServicePrincipal
 
 ## SYNOPSIS
 
-{{ Fill in the Synopsis }}
+Displays all service principals in the tenant, or filters by a search term.
 
 ## SYNTAX
 
@@ -28,19 +28,35 @@ GetTenantServicePrincipal, GetTenantServicePrincipals, GetTenantSP, GetTenantSPs
 
 ## DESCRIPTION
 
-{{ Fill in the Description }}
+Lists the tenant's service principals with created date, type, sign-in audience, reply
+URLs and owning tenant.
+Owning tenant IDs are resolved to names with
+Get-IRTTenantOwner.
+Returns objects by default.
+Use -Excel to export a workbook
+instead.
 
 ## EXAMPLES
 
-### Example 1
+### EXAMPLE 1
 
-{{ Add example description here }}
+```powershell
+Get-IRTServicePrincipal -Search 'Graph'
+```
+Lists service principals whose display name matches 'Graph'.
+
+### EXAMPLE 2
+
+```powershell
+Get-IRTServicePrincipal -Excel
+```
+Exports all service principals in the tenant to an Excel workbook.
 
 ## PARAMETERS
 
 ### -Cached
 
-{{ Fill Cached Description }}
+Use pre-cached Graph data where available.
 
 ```yaml
 Type: System.Management.Automation.SwitchParameter
@@ -61,7 +77,7 @@ HelpMessage: ''
 
 ### -Excel
 
-{{ Fill Excel Description }}
+Export results to an Excel workbook instead of returning objects.
 
 ```yaml
 Type: System.Management.Automation.SwitchParameter
@@ -82,7 +98,9 @@ HelpMessage: ''
 
 ### -Font
 
-{{ Fill Font Description }}
+Excel font name.
+Used with -Excel.
+Defaults to IRT_Config.ExcelFont.
 
 ```yaml
 Type: System.String
@@ -103,11 +121,14 @@ HelpMessage: ''
 
 ### -Open
 
-{{ Fill Open Description }}
+Open the Excel file immediately after export.
+Used with -Excel.
+Defaults to
+IRT_Config.OpenSpreadsheets.
 
 ```yaml
 Type: System.Boolean
-DefaultValue: True
+DefaultValue: '[bool]$Global:IRT_Config.OpenSpreadsheets'
 SupportsWildcards: false
 Aliases: []
 ParameterSets:
@@ -124,7 +145,9 @@ HelpMessage: ''
 
 ### -Search
 
-{{ Fill Search Description }}
+Regular expression matched against service principal display names.
+When omitted, all
+service principals are returned.
 
 ```yaml
 Type: System.String
@@ -145,7 +168,9 @@ HelpMessage: ''
 
 ### -TableStyle
 
-{{ Fill TableStyle Description }}
+Excel table style.
+Used with -Excel.
+Defaults to IRT_Config.ExcelTableStyle.
 
 ```yaml
 Type: System.String
@@ -175,13 +200,15 @@ This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable
 
 ## OUTPUTS
 
-### System.Collections.Generic.List`1[[System.Management.Automation.PSObject
+### IRT.TenantServicePrincipal objects. None when -Excel is used.
 
 ### System.Collections.Generic.List`1[[System.Management.Automation.PSObject, System.Management.Automation, Version=7.6.0.500, Culture=neutral, PublicKeyToken=31bf3856ad364e35]]
 
 ## NOTES
 
-{{ Fill in the Notes }}
+Version: 1.3.0
+1.3.0 - Added -Excel export option.
+
 
 ## RELATED LINKS
 

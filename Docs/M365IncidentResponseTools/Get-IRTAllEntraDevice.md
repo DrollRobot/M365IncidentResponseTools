@@ -4,7 +4,7 @@ external help file: M365IncidentResponseTools-Help.xml
 HelpUri: ''
 Locale: en-US
 Module Name: M365IncidentResponseTools
-ms.date: 09/16/2026
+ms.date: 10/03/2026
 PlatyPS schema version: 2024-05-01
 title: Get-IRTAllEntraDevice
 ---
@@ -82,11 +82,11 @@ HelpMessage: ''
 ### -Open
 
 Open the Excel file immediately after export.
-Default: $true.
+Defaults to IRT_Config.OpenSpreadsheets.
 
 ```yaml
 Type: System.Boolean
-DefaultValue: True
+DefaultValue: '[bool]$Global:IRT_Config.OpenSpreadsheets'
 SupportsWildcards: false
 Aliases: []
 ParameterSets:

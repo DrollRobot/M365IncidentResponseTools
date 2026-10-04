@@ -4,7 +4,7 @@ external help file: M365IncidentResponseTools-Help.xml
 HelpUri: ''
 Locale: en-US
 Module Name: M365IncidentResponseTools
-ms.date: 09/16/2026
+ms.date: 10/03/2026
 PlatyPS schema version: 2024-05-01
 title: Connect-IRTTenant
 ---
@@ -24,7 +24,7 @@ Connect-IRTTenant [-Alias] <string> [-TenantFile <string>] [-Graph] [-Exchange]
 
 ## ALIASES
 
-IRTTenant, TenantIRT
+IRTTenant, TenantIRT, IRT
 
 ## DESCRIPTION
 
@@ -38,7 +38,9 @@ select which tenant to connect to.
 This allows the same alias patterns to be shared
 across multiple tenants belonging to the same client.
 
-The tenants worksheet should be stored at $env:APPDATA\M365IncidentResponseTools\tenants.xlsx.
+The tenants worksheet is tenants.xlsx in the module's per-user folder:
+%APPDATA%\M365IncidentResponseTools on Windows, ~/.config/M365IncidentResponseTools on
+Linux and macOS.
 Run Open-IRTTenantSheet to generate a starter worksheet with the expected columns.
 
 ## EXAMPLES
@@ -200,7 +202,9 @@ HelpMessage: ''
 ### -TenantFile
 
 Path to the tenants worksheet.
-Defaults to $env:APPDATA\M365IncidentResponseTools\tenants.xlsx.
+Defaults to tenants.xlsx in the module's per-user
+folder: %APPDATA%\M365IncidentResponseTools on Windows,
+~/.config/M365IncidentResponseTools on Linux and macOS.
 
 ```yaml
 Type: System.String

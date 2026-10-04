@@ -4,7 +4,7 @@ external help file: M365IncidentResponseTools-Help.xml
 HelpUri: ''
 Locale: en-US
 Module Name: M365IncidentResponseTools
-ms.date: 09/16/2026
+ms.date: 10/03/2026
 PlatyPS schema version: 2024-05-01
 title: Open-IRTTenantSheet
 ---
@@ -53,7 +53,9 @@ Opens a tenants worksheet stored outside the default configuration directory.
 ### -TenantFile
 
 Path to the tenants worksheet.
-Defaults to $env:APPDATA\M365IncidentResponseTools\tenants.xlsx.
+Defaults to tenants.xlsx in the module's per-user
+folder: %APPDATA%\M365IncidentResponseTools on Windows,
+~/.config/M365IncidentResponseTools on Linux and macOS.
 
 ```yaml
 Type: System.String
@@ -87,7 +89,8 @@ This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable
 
 ## NOTES
 
-Version: 1.1.0
+Version: 1.1.1
+1.1.1 - Imports PSFramework explicitly.
 
 
 ## RELATED LINKS

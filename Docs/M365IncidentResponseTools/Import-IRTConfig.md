@@ -4,7 +4,7 @@ external help file: M365IncidentResponseTools-Help.xml
 HelpUri: ''
 Locale: en-US
 Module Name: M365IncidentResponseTools
-ms.date: 09/16/2026
+ms.date: 10/03/2026
 PlatyPS schema version: 2024-05-01
 title: Import-IRTConfig
 ---
@@ -27,7 +27,8 @@ ImportConfig, IRTConfig
 
 ## DESCRIPTION
 
-Reads the user configuration from $env:APPDATA\<ModuleName>\config.json.
+Reads the user configuration from config.json in the module's per-user folder:
+%APPDATA%\<ModuleName> on Windows, ~/.config/<ModuleName> on Linux and macOS.
 If the file does not exist, copies the template from the module root and loads it.
 The parsed config is cached in $Global:IRT_Config.
 

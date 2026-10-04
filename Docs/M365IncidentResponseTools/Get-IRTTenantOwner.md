@@ -4,7 +4,7 @@ external help file: M365IncidentResponseTools-Help.xml
 HelpUri: ''
 Locale: en-US
 Module Name: M365IncidentResponseTools
-ms.date: 09/16/2026
+ms.date: 10/03/2026
 PlatyPS schema version: 2024-05-01
 title: Get-IRTTenantOwner
 ---
@@ -13,7 +13,8 @@ title: Get-IRTTenantOwner
 
 ## SYNOPSIS
 
-Resolves a tenant GUID to its organization name, default domain, and cloud environment.
+Resolves a tenant GUID or domain to its organization name, default domain, and cloud
+environment.
 
 ## SYNTAX
 
@@ -23,12 +24,18 @@ Get-IRTTenantOwner [-TenantId] <string[]> [-SkipGraph] [-Cached] [-Quiet] [<Comm
 
 ## ALIASES
 
-None.
+GetIRTTenantOwner, Get-IRTTenantOwners, GetIRTTenantOwners, Get-TenantOwner, GetTenantOwner, Get-TenantOwners, GetTenantOwners
 
 ## DESCRIPTION
 
-Looks up a Microsoft 365 / Entra ID tenant by GUID and returns its display name,
-default domain, and environment details.
+Looks up a Microsoft 365 / Entra ID tenant by GUID or verified domain and returns its
+display name, default domain, and environment details.
+
+A domain is first resolved to its tenant GUID through OIDC discovery.
+The returned
+TenantId is always the GUID.
+A domain that OIDC cannot resolve is reported as not
+found.
 
 The display name and default domain come from the Graph cross-tenant information
 API, which is the only endpoint that maps a tenant GUID to its org identity.
@@ -42,8 +49,9 @@ When -SkipGraph is used (or no
 Graph session exists), OIDC can still confirm the tenant exists and identify its
 cloud, but the display name and domain will be unavailable.
 
-Results are cached in $Global:IRT_TenantInfoTable, pre-loaded at module import from:
-    $env:APPDATA\<ModuleName>\TenantOwnerInfo.csv
+Results are cached in $Global:IRT_TenantInfoTable, pre-loaded at module import from
+TenantOwnerInfo.csv in the module's per-user folder: %APPDATA%\<ModuleName> on
+Windows, ~/.config/<ModuleName> on Linux and macOS.
 
 By default this function always queries live endpoints and updates the cache.
 Pass
@@ -65,10 +73,16 @@ Get-IRTTenantOwner -TenantId 'f8cdef31-a31e-4b4a-93e4-5f571e91255a' # Microsoft 
 ### EXAMPLE 2
 
 ```powershell
-$guids | Get-IRTTenantOwner
+Get-IRTTenantOwner -Domain 'contoso.com'
 ```
 
 ### EXAMPLE 3
+
+```powershell
+$guids | Get-IRTTenantOwner
+```
+
+### EXAMPLE 4
 
 ```powershell
 Get-IRTTenantOwner $tid -SkipGraph
@@ -145,7 +159,10 @@ HelpMessage: ''
 
 ### -TenantId
 
-One or more Entra ID tenant GUIDs to look up.
+One or more tenants to look up, each given as an Entra ID tenant GUID or a verified
+domain name (a custom domain such as 'contoso.com' or the '.onmicrosoft.com'
+default).
+Accepts the alias 'Domain'.
 
 ```yaml
 Type: System.String[]
@@ -153,6 +170,7 @@ DefaultValue: ''
 SupportsWildcards: false
 Aliases:
 - TenantIds
+- Domain
 ParameterSets:
 - Name: (All)
   Position: 0
@@ -184,7 +202,8 @@ This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable
 
 The Graph lookup requires the CrossTenantInformation.ReadBasic.All scope.
 
-Version: 1.2.1
+Version: 1.3.0
+1.3.0 - -TenantId accepts domains as well as GUIDs.
 1.2.1 - -Cached no longer throws on a cache hit.
 The entry was assigned to $cached,
 which is the [switch] $Cached parameter under PowerShell's case-insensitive names.

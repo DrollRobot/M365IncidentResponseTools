@@ -4,7 +4,7 @@ external help file: M365IncidentResponseTools-Help.xml
 HelpUri: ''
 Locale: en-US
 Module Name: M365IncidentResponseTools
-ms.date: 09/16/2026
+ms.date: 10/03/2026
 PlatyPS schema version: 2024-05-01
 title: Open-IRTTab
 ---
@@ -13,7 +13,7 @@ title: Open-IRTTab
 
 ## SYNOPSIS
 
-Opens a new Windows Terminal tab and loads the module.
+Opens a new terminal tab (Windows Terminal or tmux) and loads the module.
 
 ## SYNTAX
 
@@ -27,13 +27,14 @@ OpenIRTTab, Open-Tab, OpenTab, NewIRTTab, New-Tab, NewTab, IRTTab
 
 ## DESCRIPTION
 
-Opens a new tab in the current Windows Terminal window and imports
-M365IncidentResponseTools.
-If an active IRT session exists, also calls
-Connect-IRT to connect to the same tenant.
+Opens a new tab in the current Windows Terminal window, or a new window in the
+current tmux session on Linux and macOS, and imports M365IncidentResponseTools.
+If an active IRT session exists, also calls Connect-IRT to connect to the same
+tenant.
+The new tab opens in the background, without taking focus.
 
-Must be run from within Windows Terminal; detected via the WT_SESSION
-environment variable set by Windows Terminal in every hosted session.
+Must be run from within Windows Terminal (detected via the WT_SESSION
+environment variable) or tmux (detected via TMUX).
 
 ## EXAMPLES
 
@@ -49,7 +50,7 @@ Opens a new tab. Connects to the current tenant if a session is active.
 ```powershell
 Open-IRTTab -Quiet
 ```
-Opens a new tab if in Windows Terminal; silently does nothing otherwise.
+Opens a new tab if in Windows Terminal or tmux; silently does nothing otherwise.
 
 ### EXAMPLE 3
 
@@ -62,10 +63,10 @@ Opens a new tab with a custom title.
 
 ### -Quiet
 
-When set, silently returns without error if the current console is not
-Windows Terminal.
-Useful when calling from a profile or script that may
-run in multiple console hosts.
+When set, silently returns without error if the current console is neither
+Windows Terminal nor tmux.
+Useful when calling from a profile or script that
+may run in multiple console hosts.
 
 ```yaml
 Type: System.Management.Automation.SwitchParameter
@@ -121,7 +122,8 @@ This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable
 
 ## NOTES
 
-Version: 1.1.0
+Version: 1.2.0
+1.2.0 - Opens a tmux window when run inside tmux, on Linux and macOS.
 1.1.0 - Requires Windows Terminal host.
 Opens without connecting when no
         active session exists.

@@ -4,7 +4,7 @@ external help file: M365IncidentResponseTools-Help.xml
 HelpUri: ''
 Locale: en-US
 Module Name: M365IncidentResponseTools
-ms.date: 09/16/2026
+ms.date: 10/03/2026
 PlatyPS schema version: 2024-05-01
 title: Open-IRTTenantOwnerCSV
 ---
@@ -27,9 +27,9 @@ None.
 
 ## DESCRIPTION
 
-Opens $env:APPDATA\<ModuleName>\TenantOwnerInfo.csv in the system default
-application (typically Excel or Notepad), where <ModuleName> is resolved at
-runtime.
+Opens TenantOwnerInfo.csv from the module's per-user folder (%APPDATA%\<ModuleName>
+on Windows, ~/.config/<ModuleName> on Linux and macOS) in the system default
+application.
 If the file does not exist yet, a warning is displayed.
 
 ## EXAMPLES

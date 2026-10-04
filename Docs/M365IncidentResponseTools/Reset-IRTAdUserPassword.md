@@ -4,7 +4,7 @@ external help file: M365IncidentResponseTools-Help.xml
 HelpUri: ''
 Locale: en-US
 Module Name: M365IncidentResponseTools
-ms.date: 09/16/2026
+ms.date: 10/03/2026
 PlatyPS schema version: 2024-05-01
 title: Reset-IRTAdUserPassword
 ---
@@ -68,8 +68,14 @@ If no -UserObjects is supplied, the function falls back to the global session ob
 stored via Get-AdGlobalUserObject.
 An error is thrown if neither source yields a user.
 
-After the reset, updated account properties are retrieved and displayed as a table.
-If running on a domain controller, intra-AD replication is triggered via repadmin.
+All changes and the readback go to one writable domain controller: this computer if it
+is one, otherwise a discovered DC.
+So this runs from any device with the
+ActiveDirectory module, not only a DC.
+After the reset,
+updated account properties are retrieved and displayed as a table, and AD replication
+is pushed from that DC via repadmin (skipped with a warning if repadmin isn't
+installed).
 If the ADSync service is local, an Azure AD delta sync is started.
 
 Supports -WhatIf and -Confirm via SupportsShouldProcess.
@@ -297,7 +303,10 @@ This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable
 
 ## NOTES
 
-Version: 1.1.0
+Version: 1.2.0
+1.2.0 - Targets one writable DC (this computer if it is one, otherwise a discovered
+        DC), so it no longer needs to run on a DC.
+Replication is pushed from that DC.
 1.1.0 - Added ForceChangePasswordNextSignIn parameter set.
 Removed default parameter
         set; operator must now explicitly choose a password mode.
