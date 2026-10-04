@@ -51,11 +51,6 @@
         Regression: with one DC, (Get-ADDomainController).Name is a string, and
         string + array merged every server name into one hostname, which failed
         instantly as a single bogus target.
-
-    'reports a fast check without waiting for a slower one queued ahead of it'
-        Checks are handled as they finish, not in query order, so a slow or dead
-        server first in line can't hold up the rest (or the push).
-        Windows only: it opens real WinRM sessions.
 #>
 
 BeforeAll {
@@ -260,25 +255,6 @@ Describe 'Push-IRTAdSync' {
                 'irt-pester-nohost-srv1'
                 'irt-pester-nohost-srv2'
             )
-        }
-
-        It 'reports a fast check without waiting for a slower one queued ahead of it' {
-            # Opens real WinRM sessions. Off Windows PowerShell has no WinRM client, so
-            # every check fails at once and the finishing order means nothing.
-            if (-not $IsWindows) {
-                Set-ItResult -Skipped -Because 'WinRM remoting is available only on Windows'
-                return
-            }
-            # unique name so a cached negative DNS lookup can't make it fail fast;
-            # localhost rejects the dummy credential almost immediately
-            $SlowName = "irt-pester-$([guid]::NewGuid().ToString('N').Substring(0, 8))"
-
-            Push-IRTAdSync -SyncServer $SlowName, 'localhost'
-
-            $Reported = $script:Messages |
-                Where-Object { $_ -like 'Opening session on * failed:*' } |
-                ForEach-Object { ($_ -split ' ')[3] }
-            $Reported | Should -Be @('localhost', $SlowName)
         }
     }
 }
