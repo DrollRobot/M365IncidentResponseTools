@@ -6,8 +6,9 @@ function Import-MsalAssembly {
     .DESCRIPTION
     Checks whether Microsoft.Identity.Client is already present in the current AppDomain.
     If not, locates the DLL bundled under the Microsoft.Graph.Authentication module and
-    loads it via Add-Type. Throws if the module is unavailable, the DLL path does not
-    exist, or Add-Type fails.
+    loads it via Add-Type, after Import-MsalDependency has loaded the
+    Microsoft.IdentityModel.Abstractions assembly MSAL needs. Throws if the module
+    is unavailable, the DLL path does not exist, or Add-Type fails.
 
     .OUTPUTS
     System.Reflection.Assembly. The loaded Microsoft.Identity.Client assembly.
@@ -16,7 +17,8 @@ function Import-MsalAssembly {
     Import-MsalAssembly
 
     .NOTES
-    Version: 1.1.0
+    Version: 1.2.0
+    1.2.0 - Preloads MSAL's dependency via Import-MsalDependency (Graph 2.41+).
     #>
     [CmdletBinding()]
     [OutputType([System.Reflection.Assembly])]
@@ -52,6 +54,10 @@ function Import-MsalAssembly {
     if (-not (Test-Path -LiteralPath $MsalDll)) {
         throw "MSAL assembly not found at expected path: $MsalDll"
     }
+
+    # .NET cannot find MSAL's dependency on its own (see Import-MsalDependency).
+    $null = Import-MsalDependency
+
     try {
         Add-Type -Path $MsalDll -ErrorAction Stop
     } catch {

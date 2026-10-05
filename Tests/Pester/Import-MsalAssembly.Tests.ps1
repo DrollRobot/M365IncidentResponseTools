@@ -29,6 +29,13 @@
     the module before reading ModuleBase, and must throw a message naming the
     dependency if it still cannot be loaded.
 
+-- dependency preload ------------------------------------------------------
+
+    MSAL needs Microsoft.IdentityModel.Abstractions, which .NET cannot find on
+    its own under Graph 2.41+. The function calls Import-MsalDependency before
+    loading MSAL. Which DLL that picks is covered in
+    Import-MsalDependency.Tests.ps1.
+
 -- return value ------------------------------------------------------------
 
     Callers use the returned assembly to reach MSAL types, and
@@ -100,6 +107,7 @@ InModuleScope M365IncidentResponseTools {
             BeforeEach {
                 # Force the load path: nothing is loaded yet.
                 Mock Get-LoadedAssembly { $null }
+                Mock Import-MsalDependency { }
                 Mock Import-IRTModule { }
                 Mock Add-Type { }
             }
@@ -133,9 +141,47 @@ InModuleScope M365IncidentResponseTools {
             }
         }
 
+        Context 'dependency preload' {
+
+            BeforeEach {
+                Mock Get-LoadedAssembly { $null }
+                Mock Import-IRTModule { }
+                Mock Get-Module { New-StubGraphModule }
+                Mock Test-Path { $true }
+                $script:CallOrder = [System.Collections.Generic.List[string]]::new()
+                Mock Import-MsalDependency { $script:CallOrder.Add('dependency') }
+                Mock Add-Type { $script:CallOrder.Add('msal') }
+            }
+
+            It 'loads the dependency before MSAL' {
+                # Regression: under Graph 2.41+ MSAL threw "Could not load file or
+                # assembly 'Microsoft.IdentityModel.Abstractions'" on its first call.
+                $null = Import-MsalAssembly
+
+                $script:CallOrder -join ',' | Should -BeExactly 'dependency,msal'
+            }
+
+            It 'does not load the dependency when MSAL is already loaded' {
+                Mock Get-LoadedAssembly { New-StubAssembly }
+
+                $null = Import-MsalAssembly
+
+                Should -Invoke Import-MsalDependency -Times 0 -Exactly
+            }
+
+            It 'propagates a dependency load failure' {
+                Mock Import-MsalDependency { throw 'simulated dependency failure' }
+
+                { Import-MsalAssembly } |
+                    Should -Throw -ExpectedMessage '*simulated dependency failure*'
+                Should -Invoke Add-Type -Times 0 -Exactly
+            }
+        }
+
         Context 'load failure surfacing' {
 
             BeforeEach {
+                Mock Import-MsalDependency { }
                 Mock Get-LoadedAssembly { $null }
                 Mock Import-IRTModule { }
                 Mock Get-Module { New-StubGraphModule }
@@ -161,6 +207,7 @@ InModuleScope M365IncidentResponseTools {
                 Mock Get-Module { New-StubGraphModule }
                 Mock Test-Path { $true }
                 Mock Add-Type { }
+                Mock Import-MsalDependency { }
                 # Absent on the first probe, present once Add-Type has run.
                 $script:ProbeCalls = 0
                 Mock Get-LoadedAssembly {
@@ -189,6 +236,16 @@ InModuleScope M365IncidentResponseTools {
             $First = Import-MsalAssembly
             $Second = Import-MsalAssembly
             $Second.FullName | Should -BeExactly $First.FullName
+        }
+
+        It 'builds a public client with an authority' -Tag 'regression' {
+            # Regression: WithAuthority is the first MSAL call that needs
+            # Microsoft.IdentityModel.Abstractions, and threw when it was unresolvable.
+            $null = Import-MsalAssembly
+            $Builder = [Microsoft.Identity.Client.PublicClientApplicationBuilder]::Create(
+                '14d82eec-204b-4c2f-b7e8-296a70dab67e')
+            $App = $Builder.WithAuthority('https://login.microsoftonline.com/common').Build()
+            $App | Should -Not -BeNullOrEmpty
         }
     }
 }

@@ -68,6 +68,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   domain controller.
 - On Windows, links did not open when the default browser was not Edge, Chrome,
   Firefox, or Brave.
+- Sign-in failed with "Could not load file or assembly
+  'Microsoft.IdentityModel.Abstractions'" under Microsoft.Graph.Authentication 2.41.
 
 ## [v2.11.0] - 2026-09-08
 
