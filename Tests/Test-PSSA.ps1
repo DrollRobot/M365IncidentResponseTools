@@ -181,7 +181,7 @@ if (-not (Get-Module -ListAvailable -Name PSScriptAnalyzer)) {
 
 $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
 
-# Root-level files to exclude (relative paths from $Path).
+# Root-level files to exclude (relative paths from $RepoRoot).
 $ExcludedFiles = @()
 
 # Folder names to exclude from scanning. Any file under a matching folder is skipped.
@@ -191,6 +191,22 @@ $ExcludedFolders = @('.local')
 if (Get-Variable -Name Dev_FormattingExclusions -Scope Global -ErrorAction SilentlyContinue) {
     $ExcludedFiles += $Global:Dev_FormattingExclusions.ExcludeFiles
     $ExcludedFolders += $Global:Dev_FormattingExclusions.ExcludeFolders
+}
+
+# Exclusion keys are repo-root-relative, so resolve against $RepoRoot, not $Path:
+# when -Path is a single file (pre-push hook), relative to $Path it is just '.'.
+function Test-IsExcluded {
+    param([Parameter(Mandatory)][string] $FullPath)
+    $Rel = ConvertTo-ConfigPath ([System.IO.Path]::GetRelativePath($RepoRoot, $FullPath))
+    ($ExcludedFiles -contains $Rel) -or
+    [bool]($ExcludedFolders | Where-Object { $Rel -like "$_\*" })
+}
+
+# A single excluded file (e.g. a built artifact passed by the pre-push hook) is a
+# skip, not a scan: analyzing it only to drop every result costs minutes.
+if ((Test-Path -LiteralPath $Path -PathType Leaf) -and (Test-IsExcluded -FullPath $Path)) {
+    Write-Host "Skipped $Path -- excluded from PSScriptAnalyzer." -ForegroundColor DarkGray
+    return
 }
 
 # --- AutoFormat pass ---
@@ -205,11 +221,7 @@ if ($AutoFormat) {
     }
     $FormatFiles = Get-ChildItem @GetChildParams |
         Where-Object Extension -in '.ps1', '.psm1', '.psd1' |
-        Where-Object {
-            $Rel = ConvertTo-ConfigPath ([System.IO.Path]::GetRelativePath($RepoRoot, $_.FullName))
-            (-not ($ExcludedFiles -contains $Rel)) -and
-            (-not ($ExcludedFolders | Where-Object { $Rel -like "$_\*" }))
-        }
+        Where-Object { -not (Test-IsExcluded -FullPath $_.FullName) }
 
     Write-Host 'Applying auto-fixes and formatting...' -ForegroundColor Cyan
 
@@ -280,11 +292,7 @@ try {
         $_ -isnot [System.Management.Automation.VerboseRecord]
     }
     # Exclude built artifacts and copy-path folders -- source files are already scanned.
-    $Results = $Results | Where-Object {
-        $Rel = ConvertTo-ConfigPath ([System.IO.Path]::GetRelativePath($Path, $_.ScriptPath))
-        (-not ($ExcludedFiles -contains $Rel)) -and
-        (-not ($ExcludedFolders | Where-Object { $Rel -like "$_\*" }))
-    }
+    $Results = $Results | Where-Object { -not (Test-IsExcluded -FullPath $_.ScriptPath) }
     # Apply per-file and per-path rule suppressions.
     if ($PerFileSuppressions.Count -gt 0 -or $PerPathSuppressions.Count -gt 0) {
         $BeforeCount = ($Results | Measure-Object).Count
