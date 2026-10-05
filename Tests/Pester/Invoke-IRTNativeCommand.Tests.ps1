@@ -39,7 +39,7 @@ InModuleScope M365IncidentResponseTools {
             $script:BaseArgs = @('-NoProfile', '-NonInteractive', '-Command')
         }
 
-        It 'captures stdout as a line array' {
+        It 'captures stdout as a line array' -Tag 'slow' {
             $Result = Invoke-IRTNativeCommand -FilePath $script:Pwsh -Arguments (
                 $script:BaseArgs + "Write-Output 'hello-stdout'")
             $Result.ExitCode | Should -Be 0
@@ -48,14 +48,14 @@ InModuleScope M365IncidentResponseTools {
             $Result.StdErr | Should -BeNullOrEmpty
         }
 
-        It 'captures stderr text' {
+        It 'captures stderr text' -Tag 'slow' {
             $Result = Invoke-IRTNativeCommand -FilePath $script:Pwsh -Arguments (
                 $script:BaseArgs + "[Console]::Error.WriteLine('boom-stderr')")
             $Result.ExitCode | Should -Be 0
             $Result.StdErr | Should -BeLike '*boom-stderr*'
         }
 
-        It 'returns the process exit code' {
+        It 'returns the process exit code' -Tag 'slow' {
             $Result = Invoke-IRTNativeCommand -FilePath $script:Pwsh -Arguments (
                 $script:BaseArgs + 'exit 3')
             $Result.ExitCode | Should -Be 3
@@ -67,7 +67,7 @@ InModuleScope M365IncidentResponseTools {
             $Result.StdErr | Should -Not -BeNullOrEmpty
         }
 
-        It 'passes environment variables to the child process' {
+        It 'passes environment variables to the child process' -Tag 'slow' {
             $Result = Invoke-IRTNativeCommand -FilePath $script:Pwsh -Arguments (
                 $script:BaseArgs + 'Write-Output $env:IRT_TEST_VAR') -Environment @{
                 IRT_TEST_VAR = 'child-value'

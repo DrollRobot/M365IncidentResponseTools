@@ -202,7 +202,7 @@ Describe 'Get-IRTUnifiedAuditLog' -Tag 'unit' {
     }
 
     # -------------------------------------------------------------------
-    Context 'paging stops at ResultLimit' {
+    Context 'paging stops at ResultLimit' -Tag 'slow' {
 
         BeforeEach {
             Mock Search-UnifiedAuditLog {
@@ -263,7 +263,7 @@ Describe 'Get-IRTUnifiedAuditLog' -Tag 'unit' {
     }
 
     # -------------------------------------------------------------------
-    Context 'paging continues until the page is not full' {
+    Context 'paging continues until the page is not full' -Tag 'slow' {
 
         BeforeEach {
             # First call returns a full page to trigger paging; subsequent
@@ -638,7 +638,7 @@ Describe 'Get-IRTUnifiedAuditLog' -Tag 'unit' {
     }
 
     # -------------------------------------------------------------------
-    Context 'page-relative ResultIndex/ResultCount does not end paging' -Tag 'regression' {
+    Context 'page-relative ResultIndex/ResultCount does not end paging' -Tag 'regression', 'slow' {
 
         BeforeEach {
             # Three full pages of distinct records, each reporting ResultIndex
@@ -682,7 +682,7 @@ Describe 'Get-IRTUnifiedAuditLog' -Tag 'unit' {
     }
 
     # -------------------------------------------------------------------
-    Context 'paging stops on a full page of records already served' -Tag 'regression' {
+    Context 'paging stops on a full page of records already served' -Tag 'regression', 'slow' {
 
         BeforeEach {
             # Same 5000 identities on every call and no ResultIndex/ResultCount,
@@ -724,7 +724,7 @@ Describe 'Get-IRTUnifiedAuditLog' -Tag 'unit' {
     }
 
     # -------------------------------------------------------------------
-    Context 'ResultLimit counts deduplicated records' -Tag 'regression' {
+    Context 'ResultLimit counts deduplicated records' -Tag 'regression', 'slow' {
 
         BeforeEach {
             # Pages overlap by half, so the raw record count runs at twice the
@@ -800,7 +800,7 @@ Describe 'Get-IRTUnifiedAuditLog' -Tag 'unit' {
     }
 
     # -------------------------------------------------------------------
-    Context '-ExhaustedPageQueries sets how many duplicate pages end paging' {
+    Context '-ExhaustedPageQueries sets how many duplicate pages end paging' -Tag 'slow' {
 
         BeforeEach {
             # Same 5000 identities on every call. The short page after 10 calls
@@ -843,7 +843,7 @@ Describe 'Get-IRTUnifiedAuditLog' -Tag 'unit' {
     }
 
     # -------------------------------------------------------------------
-    Context 'a page of new records resets the duplicate streak' {
+    Context 'a page of new records resets the duplicate streak' -Tag 'slow' {
 
         BeforeEach {
             # Calls 1-2 serve records 0-4999 and calls 3-5 serve 5000-9999: new,
