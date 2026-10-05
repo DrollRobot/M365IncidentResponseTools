@@ -60,10 +60,11 @@ repos:
         pass_filenames: false
         always_run: true
 
+      # Only the PowerShell files changed in the pushed commits. A full-repo scan
+      # takes minutes, long enough for GitHub to drop the push's SSH connection.
       - id: pssa-prepush
         name: PSScriptAnalyzer (prepush)
         entry: pwsh -NoProfile -File Tests.ps1 -Test PSSA -Quiet
         language: system
         stages: [pre-push]
-        pass_filenames: false
-        always_run: true
+        files: \.(ps1|psm1|psd1)$
