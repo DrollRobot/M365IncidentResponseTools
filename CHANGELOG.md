@@ -55,6 +55,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - **Breaking:** `Get-IRTNonInteractiveSignIn`. Use
   `Get-IRTEntraUserSignInLog -NonInteractive`.
+- The Huntress RogueApps feed from `Find-IRTRiskyServicePrincipal`, since Huntress
+  took the project down. The PSToml module is no longer required.
 
 ### Fixed
 

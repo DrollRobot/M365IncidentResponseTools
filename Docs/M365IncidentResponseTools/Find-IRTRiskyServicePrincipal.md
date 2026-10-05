@@ -4,7 +4,7 @@ external help file: M365IncidentResponseTools-Help.xml
 HelpUri: ''
 Locale: en-US
 Module Name: M365IncidentResponseTools
-ms.date: 10/03/2026
+ms.date: 10/05/2026
 PlatyPS schema version: 2024-05-01
 title: Find-IRTRiskyServicePrincipal
 ---
@@ -36,8 +36,6 @@ Also reports on tenant-level app registration and user consent policies.
 
 New feeds can be added to the $ThreatFeeds array in the begin block.
 Each feed requires: Name, Url, Parser (scriptblock), AppIdField, and DisplayProperties.
-
-Requires the PSToml module for feeds that use TOML format.
 
 ## EXAMPLES
 

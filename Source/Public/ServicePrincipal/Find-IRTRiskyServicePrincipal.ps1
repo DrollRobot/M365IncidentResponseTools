@@ -13,8 +13,6 @@ function Find-IRTRiskyServicePrincipal {
     New feeds can be added to the $ThreatFeeds array in the begin block.
     Each feed requires: Name, Url, Parser (scriptblock), AppIdField, and DisplayProperties.
 
-    Requires the PSToml module for feeds that use TOML format.
-
     .PARAMETER Cached
     Use pre-cached Graph service principal and OAuth grant data instead of making new
     API calls. Speeds up repeated runs during the same session.
@@ -60,18 +58,6 @@ function Find-IRTRiskyServicePrincipal {
             'Id'
         )
         $ThreatFeeds = @(
-            @{
-                Name              = 'Huntress RogueApps'
-                Url               = 'https://raw.githubusercontent.com/' +
-                'huntresslabs/rogueapps/refs/heads/main/data/rogueapps.toml'
-                Parser            = {
-                    param($r)
-                    ($r | ConvertFrom-Toml).apps | ForEach-Object { [PSCustomObject]$_ }
-                }
-                AppIdField        = 'appId'
-                DisplayProperties = @('appDisplayName', 'description', 'tags', 'references')
-                Apps              = $null
-            }
             @{
                 Name              = 'Syne/randomaccess3'
                 Url               = 'https://raw.githubusercontent.com/' +
