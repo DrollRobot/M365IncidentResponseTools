@@ -1,8 +1,8 @@
-﻿#Region './Prefix.ps1' -1
+﻿#Region '.\Prefix.ps1' -1
 
 # ModuleBuilder Notes: Code in this file will be prepended to the built .psm1 file.
-#EndRegion './Prefix.ps1' 2
-#Region './Private/Connect/Connect-IRTExchange.ps1' -1
+#EndRegion '.\Prefix.ps1' 2
+#Region '.\Private\Connect\Connect-IRTExchange.ps1' -1
 
 function Connect-IRTExchange {
     <#
@@ -265,8 +265,8 @@ function Connect-IRTExchange {
         return $Result
     }
 }
-#EndRegion './Private/Connect/Connect-IRTExchange.ps1' 262
-#Region './Private/Connect/Connect-IRTGraph.ps1' -1
+#EndRegion '.\Private\Connect\Connect-IRTExchange.ps1' 262
+#Region '.\Private\Connect\Connect-IRTGraph.ps1' -1
 
 function Connect-IRTGraph {
     <#
@@ -603,8 +603,8 @@ function Connect-IRTGraph {
         return $Result
     }
 }
-#EndRegion './Private/Connect/Connect-IRTGraph.ps1' 336
-#Region './Private/Connect/Connect-IRTIPPS.ps1' -1
+#EndRegion '.\Private\Connect\Connect-IRTGraph.ps1' 336
+#Region '.\Private\Connect\Connect-IRTIPPS.ps1' -1
 
 function Connect-IRTIPPS {
     <#
@@ -824,8 +824,49 @@ function Connect-IRTIPPS {
         return $Result
     }
 }
-#EndRegion './Private/Connect/Connect-IRTIPPS.ps1' 219
-#Region './Private/Connect/Get-IRTGraphDefaultScope.ps1' -1
+#EndRegion '.\Private\Connect\Connect-IRTIPPS.ps1' 219
+#Region '.\Private\Connect\Get-AssemblyFileVersion.ps1' -1
+
+function Get-AssemblyFileVersion {
+    <#
+    .SYNOPSIS
+    Returns the assembly version of a DLL on disk, without loading it.
+
+    .DESCRIPTION
+    Internal helper. Wraps [System.Reflection.AssemblyName]::GetAssemblyName so
+    Import-MsalDependency can compare candidate DLLs by version. Keeping the static
+    call in one mockable function lets the selection logic be tested without real
+    DLLs on disk.
+
+    .PARAMETER Path
+    Full path to the DLL.
+
+    .EXAMPLE
+    Get-AssemblyFileVersion -Path 'C:\Modules\Foo\Microsoft.IdentityModel.Abstractions.dll'
+
+    Returns the assembly version, e.g. 8.19.2.0.
+
+    .OUTPUTS
+    System.Version. The assembly version (not the file version).
+
+    .NOTES
+    Version: 1.0.0
+    #>
+    [CmdletBinding()]
+    [OutputType([version])]
+    param(
+        [Parameter(Mandatory)]
+        [string] $Path
+    )
+
+    Import-IRTModule -Name 'PSFramework'
+
+    $Version = [System.Reflection.AssemblyName]::GetAssemblyName($Path).Version
+    Write-PSFMessage -Level 9 -Message "Assembly version $Version at: $Path"
+    return $Version
+}
+#EndRegion '.\Private\Connect\Get-AssemblyFileVersion.ps1' 39
+#Region '.\Private\Connect\Get-IRTGraphDefaultScope.ps1' -1
 
 function Get-IRTGraphDefaultScope {
     <#
@@ -887,8 +928,8 @@ function Get-IRTGraphDefaultScope {
         'UserAuthenticationMethod.ReadWrite.All'
     )
 }
-#EndRegion './Private/Connect/Get-IRTGraphDefaultScope.ps1' 61
-#Region './Private/Connect/Get-IRTPublicClient.ps1' -1
+#EndRegion '.\Private\Connect\Get-IRTGraphDefaultScope.ps1' 61
+#Region '.\Private\Connect\Get-IRTPublicClient.ps1' -1
 
 function Get-IRTPublicClient {
     <#
@@ -982,8 +1023,8 @@ function Get-IRTPublicClient {
     $Global:IRT_Session.Apps[$ClientId] = $NewApp
     return $NewApp
 }
-#EndRegion './Private/Connect/Get-IRTPublicClient.ps1' 93
-#Region './Private/Connect/Get-LoadedAssembly.ps1' -1
+#EndRegion '.\Private\Connect\Get-IRTPublicClient.ps1' 93
+#Region '.\Private\Connect\Get-LoadedAssembly.ps1' -1
 
 function Get-LoadedAssembly {
     <#
@@ -1025,8 +1066,8 @@ function Get-LoadedAssembly {
         Where-Object { $_.GetName().Name -eq $Name } |
         Select-Object -First 1
 }
-#EndRegion './Private/Connect/Get-LoadedAssembly.ps1' 41
-#Region './Private/Connect/Get-MsalCacheHelper.ps1' -1
+#EndRegion '.\Private\Connect\Get-LoadedAssembly.ps1' 41
+#Region '.\Private\Connect\Get-MsalCacheHelper.ps1' -1
 
 function Get-MsalCacheHelper {
     <#
@@ -1094,8 +1135,8 @@ function Get-MsalCacheHelper {
     [Microsoft.Identity.Client.Extensions.Msal.MsalCacheHelper]::CreateAsync(
         $StorageProps).GetAwaiter().GetResult()
 }
-#EndRegion './Private/Connect/Get-MsalCacheHelper.ps1' 67
-#Region './Private/Connect/Get-TokenExpiry.ps1' -1
+#EndRegion '.\Private\Connect\Get-MsalCacheHelper.ps1' 67
+#Region '.\Private\Connect\Get-TokenExpiry.ps1' -1
 
 function Get-TokenExpiry {
     <#
@@ -1141,8 +1182,8 @@ function Get-TokenExpiry {
         return $null
     }
 }
-#EndRegion './Private/Connect/Get-TokenExpiry.ps1' 45
-#Region './Private/Connect/Get-TokenPayload.ps1' -1
+#EndRegion '.\Private\Connect\Get-TokenExpiry.ps1' 45
+#Region '.\Private\Connect\Get-TokenPayload.ps1' -1
 
 function Get-TokenPayload {
     <#
@@ -1183,8 +1224,8 @@ function Get-TokenPayload {
         return $null
     }
 }
-#EndRegion './Private/Connect/Get-TokenPayload.ps1' 40
-#Region './Private/Connect/Import-MsalAssembly.ps1' -1
+#EndRegion '.\Private\Connect\Get-TokenPayload.ps1' 40
+#Region '.\Private\Connect\Import-MsalAssembly.ps1' -1
 
 function Import-MsalAssembly {
     <#
@@ -1194,8 +1235,9 @@ function Import-MsalAssembly {
     .DESCRIPTION
     Checks whether Microsoft.Identity.Client is already present in the current AppDomain.
     If not, locates the DLL bundled under the Microsoft.Graph.Authentication module and
-    loads it via Add-Type. Throws if the module is unavailable, the DLL path does not
-    exist, or Add-Type fails.
+    loads it via Add-Type, after Import-MsalDependency has loaded the
+    Microsoft.IdentityModel.Abstractions assembly MSAL needs. Throws if the module
+    is unavailable, the DLL path does not exist, or Add-Type fails.
 
     .OUTPUTS
     System.Reflection.Assembly. The loaded Microsoft.Identity.Client assembly.
@@ -1204,7 +1246,8 @@ function Import-MsalAssembly {
     Import-MsalAssembly
 
     .NOTES
-    Version: 1.1.0
+    Version: 1.2.0
+    1.2.0 - Preloads MSAL's dependency via Import-MsalDependency (Graph 2.41+).
     #>
     [CmdletBinding()]
     [OutputType([System.Reflection.Assembly])]
@@ -1240,6 +1283,10 @@ function Import-MsalAssembly {
     if (-not (Test-Path -LiteralPath $MsalDll)) {
         throw "MSAL assembly not found at expected path: $MsalDll"
     }
+
+    # .NET cannot find MSAL's dependency on its own (see Import-MsalDependency).
+    $null = Import-MsalDependency
+
     try {
         Add-Type -Path $MsalDll -ErrorAction Stop
     } catch {
@@ -1247,8 +1294,111 @@ function Import-MsalAssembly {
     }
     return Get-LoadedAssembly -Name 'Microsoft.Identity.Client'
 }
-#EndRegion './Private/Connect/Import-MsalAssembly.ps1' 62
-#Region './Private/Connect/Import-MsalExtensionAssembly.ps1' -1
+#EndRegion '.\Private\Connect\Import-MsalAssembly.ps1' 68
+#Region '.\Private\Connect\Import-MsalDependency.ps1' -1
+
+function Import-MsalDependency {
+    <#
+    .SYNOPSIS
+    Loads the highest available Microsoft.IdentityModel.Abstractions assembly.
+
+    .DESCRIPTION
+    Internal helper, called by Import-MsalAssembly before it loads MSAL.
+
+    MSAL depends on Microsoft.IdentityModel.Abstractions. .NET only probes for it
+    next to MSAL, but Microsoft.Graph.Authentication keeps it one folder up, in
+    Dependencies\. Graph 2.41+ isolates its own dependencies, so it no longer makes
+    the DLL available to the session, and MSAL fails with "Could not load file or
+    assembly 'Microsoft.IdentityModel.Abstractions'".
+
+    Only one version can load per session, and an older loaded version cannot
+    satisfy a newer reference. ExchangeOnlineManagement ships its own copy, so
+    loading Graph's when Exchange's is newer breaks Connect-ExchangeOnline. This
+    function therefore loads the highest version shipped by either module.
+
+    Does nothing if the assembly is already loaded, or if neither module ships it.
+
+    .EXAMPLE
+    Import-MsalDependency
+
+    .OUTPUTS
+    System.String. The path of the DLL loaded, or $null when nothing was loaded.
+
+    .NOTES
+    Version: 1.0.0
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param()
+
+    Import-IRTModule -Name 'PSFramework'
+
+    $AssemblyName = 'Microsoft.IdentityModel.Abstractions'
+    $DllName = "$AssemblyName.dll"
+
+    $Loaded = Get-LoadedAssembly -Name $AssemblyName
+    if ($Loaded) {
+        Write-PSFMessage -Level 8 -Message "MSAL dependency already loaded: $($Loaded.FullName)"
+        return $null
+    }
+
+    # Both are required modules. Import them so ModuleBase reflects the versions
+    # this session will actually use.
+    Import-IRTModule -Name 'Microsoft.Graph.Authentication', 'ExchangeOnlineManagement'
+
+    $Candidates = [System.Collections.Generic.List[string]]::new()
+    $GraphModule = Get-Module -Name 'Microsoft.Graph.Authentication'
+    if ($GraphModule) {
+        $GraphDeps = Join-Path -Path $GraphModule.ModuleBase -ChildPath 'Dependencies'
+        $Candidates.Add((Join-Path -Path $GraphDeps -ChildPath $DllName))
+        $GraphCoreParams = @{
+            Path                = $GraphDeps
+            ChildPath           = 'Core'
+            AdditionalChildPath = $DllName
+        }
+        $Candidates.Add((Join-Path @GraphCoreParams))
+    }
+    $ExoModule = Get-Module -Name 'ExchangeOnlineManagement'
+    if ($ExoModule) {
+        $ExoDllParams = @{
+            Path                = $ExoModule.ModuleBase
+            ChildPath           = 'netCore'
+            AdditionalChildPath = $DllName
+        }
+        $Candidates.Add((Join-Path @ExoDllParams))
+    }
+
+    $Best = $null
+    $BestVersion = $null
+    foreach ($Candidate in $Candidates) {
+        if (-not (Test-Path -LiteralPath $Candidate)) {
+            Write-PSFMessage -Level 9 -Message "No $DllName at: $Candidate"
+            continue
+        }
+        $Version = Get-AssemblyFileVersion -Path $Candidate
+        Write-PSFMessage -Level 8 -Message "Found $DllName $Version at: $Candidate"
+        if (-not $BestVersion -or $Version -gt $BestVersion) {
+            $Best = $Candidate
+            $BestVersion = $Version
+        }
+    }
+
+    if (-not $Best) {
+        Write-PSFMessage -Level 8 -Message (
+            "$DllName not found in Graph or Exchange modules. Leaving it to .NET to resolve.")
+        return $null
+    }
+
+    Write-PSFMessage -Level 8 -Message "Loading MSAL dependency $BestVersion from: $Best"
+    try {
+        Add-Type -Path $Best -ErrorAction Stop
+    } catch {
+        throw "Failed to load MSAL dependency from '$Best': $_"
+    }
+    return $Best
+}
+#EndRegion '.\Private\Connect\Import-MsalDependency.ps1' 101
+#Region '.\Private\Connect\Import-MsalExtensionAssembly.ps1' -1
 
 function Import-MsalExtensionAssembly {
     <#
@@ -1329,8 +1479,8 @@ function Import-MsalExtensionAssembly {
     }
     return $DllPath
 }
-#EndRegion './Private/Connect/Import-MsalExtensionAssembly.ps1' 80
-#Region './Private/Connect/Invoke-AdminConsent.ps1' -1
+#EndRegion '.\Private\Connect\Import-MsalExtensionAssembly.ps1' 80
+#Region '.\Private\Connect\Invoke-AdminConsent.ps1' -1
 
 function Invoke-AdminConsent {
     [CmdletBinding()]
@@ -1457,8 +1607,8 @@ function Invoke-AdminConsent {
         }
     }
 }
-#EndRegion './Private/Connect/Invoke-AdminConsent.ps1' 126
-#Region './Private/Connect/Register-MsalCache.ps1' -1
+#EndRegion '.\Private\Connect\Invoke-AdminConsent.ps1' 126
+#Region '.\Private\Connect\Register-MsalCache.ps1' -1
 
 function Register-MsalCache {
     <#
@@ -1528,8 +1678,8 @@ function Register-MsalCache {
     Write-PSFMessage -Level 8 -Message "Register-MsalCache: Registering cache at: $CachePath"
     $Helper.RegisterCache($App.UserTokenCache)
 }
-#EndRegion './Private/Connect/Register-MsalCache.ps1' 69
-#Region './Private/Connect/Select-IRTMsalAccount.ps1' -1
+#EndRegion '.\Private\Connect\Register-MsalCache.ps1' 69
+#Region '.\Private\Connect\Select-IRTMsalAccount.ps1' -1
 
 function Select-IRTMsalAccount {
     <#
@@ -1635,8 +1785,8 @@ function Select-IRTMsalAccount {
 
     return $Ordered
 }
-#EndRegion './Private/Connect/Select-IRTMsalAccount.ps1' 105
-#Region './Private/Connect/Test-GraphAdminConsent.ps1' -1
+#EndRegion '.\Private\Connect\Select-IRTMsalAccount.ps1' 105
+#Region '.\Private\Connect\Test-GraphAdminConsent.ps1' -1
 
 function Test-GraphAdminConsent {
     <#
@@ -1709,8 +1859,8 @@ function Test-GraphAdminConsent {
         "Requested=$($RequestedScope.Count), Missing=$($MissingScopes.Count)")
     [string[]] $MissingScopes
 }
-#EndRegion './Private/Connect/Test-GraphAdminConsent.ps1' 72
-#Region './Private/Connect/Test-TokenExpired.ps1' -1
+#EndRegion '.\Private\Connect\Test-GraphAdminConsent.ps1' 72
+#Region '.\Private\Connect\Test-TokenExpired.ps1' -1
 
 function Test-TokenExpired {
     <#
@@ -1750,8 +1900,8 @@ function Test-TokenExpired {
         "MinutesLeft=$minutesLeft, Expired=$expired")
     return $expired
 }
-#EndRegion './Private/Connect/Test-TokenExpired.ps1' 39
-#Region './Private/Device/Build-EntraDeviceRow.ps1' -1
+#EndRegion '.\Private\Connect\Test-TokenExpired.ps1' 39
+#Region '.\Private\Device\Build-EntraDeviceRow.ps1' -1
 
 function Build-EntraDeviceRow {
     <#
@@ -1836,8 +1986,8 @@ function Build-EntraDeviceRow {
 
     return $Rows
 }
-#EndRegion './Private/Device/Build-EntraDeviceRow.ps1' 84
-#Region './Private/Device/Set-IRTDeviceEnabled.ps1' -1
+#EndRegion '.\Private\Device\Build-EntraDeviceRow.ps1' 84
+#Region '.\Private\Device\Set-IRTDeviceEnabled.ps1' -1
 
 function Set-IRTDeviceEnabled {
     <#
@@ -1929,8 +2079,8 @@ function Set-IRTDeviceEnabled {
         }
     }
 }
-#EndRegion './Private/Device/Set-IRTDeviceEnabled.ps1' 91
-#Region './Private/Device/Show-GraphDeviceTree.ps1' -1
+#EndRegion '.\Private\Device\Set-IRTDeviceEnabled.ps1' 91
+#Region '.\Private\Device\Show-GraphDeviceTree.ps1' -1
 
 function Show-GraphDeviceTree {
     <#
@@ -1972,8 +2122,8 @@ function Show-GraphDeviceTree {
         }
     }
 }
-#EndRegion './Private/Device/Show-GraphDeviceTree.ps1' 41
-#Region './Private/Email/Build-EmailSearchName.ps1' -1
+#EndRegion '.\Private\Device\Show-GraphDeviceTree.ps1' 41
+#Region '.\Private\Email\Build-EmailSearchName.ps1' -1
 
 function Build-EmailSearchName {
     <#
@@ -2059,8 +2209,8 @@ function Build-EmailSearchName {
 
     return $Name
 }
-#EndRegion './Private/Email/Build-EmailSearchName.ps1' 85
-#Region './Private/Email/Build-EmailSearchQuery.ps1' -1
+#EndRegion '.\Private\Email\Build-EmailSearchName.ps1' 85
+#Region '.\Private\Email\Build-EmailSearchQuery.ps1' -1
 
 function Build-EmailSearchQuery {
     <#
@@ -2167,8 +2317,8 @@ function Build-EmailSearchQuery {
 
     return ($Clauses -join ' AND ')
 }
-#EndRegion './Private/Email/Build-EmailSearchQuery.ps1' 106
-#Region './Private/Email/Get-EmailSearchResult.ps1' -1
+#EndRegion '.\Private\Email\Build-EmailSearchQuery.ps1' 106
+#Region '.\Private\Email\Get-EmailSearchResult.ps1' -1
 
 function Get-EmailSearchResult {
     <#
@@ -2263,8 +2413,8 @@ function Get-EmailSearchResult {
 
     return $Rows
 }
-#EndRegion './Private/Email/Get-EmailSearchResult.ps1' 94
-#Region './Private/Email/Read-EmailSearchCriteria.ps1' -1
+#EndRegion '.\Private\Email\Get-EmailSearchResult.ps1' 94
+#Region '.\Private\Email\Read-EmailSearchCriteria.ps1' -1
 
 function Read-EmailSearchCriteria {
     <#
@@ -2505,8 +2655,8 @@ function Read-EmailSearchCriteria {
         }
     }
 }
-#EndRegion './Private/Email/Read-EmailSearchCriteria.ps1' 240
-#Region './Private/Entra/Convert-TrustType.ps1' -1
+#EndRegion '.\Private\Email\Read-EmailSearchCriteria.ps1' 240
+#Region '.\Private\Entra\Convert-TrustType.ps1' -1
 
 function Convert-TrustType {
     <#
@@ -2553,8 +2703,8 @@ function Convert-TrustType {
         }
     }
 }
-#EndRegion './Private/Entra/Convert-TrustType.ps1' 46
-#Region './Private/Entra/Invoke-IRTSignInLogQuery.ps1' -1
+#EndRegion '.\Private\Entra\Convert-TrustType.ps1' 46
+#Region '.\Private\Entra\Invoke-IRTSignInLogQuery.ps1' -1
 
 function Invoke-IRTSignInLogQuery {
     <#
@@ -2897,8 +3047,8 @@ function Invoke-IRTSignInLogQuery {
         Write-IRT "Retrieved 0 logs." -Level Error
     }
 }
-#EndRegion './Private/Entra/Invoke-IRTSignInLogQuery.ps1' 342
-#Region './Private/Graph/Request-DirectoryRole.ps1' -1
+#EndRegion '.\Private\Entra\Invoke-IRTSignInLogQuery.ps1' 342
+#Region '.\Private\Graph\Request-DirectoryRole.ps1' -1
 
 function Request-DirectoryRole {
     <#
@@ -3009,8 +3159,8 @@ function Request-DirectoryRole {
         }
     }
 }
-#EndRegion './Private/Graph/Request-DirectoryRole.ps1' 110
-#Region './Private/Graph/Request-DirectoryRoleTemplate.ps1' -1
+#EndRegion '.\Private\Graph\Request-DirectoryRole.ps1' 110
+#Region '.\Private\Graph\Request-DirectoryRoleTemplate.ps1' -1
 
 function Request-DirectoryRoleTemplate {
     <#
@@ -3118,8 +3268,8 @@ function Request-DirectoryRoleTemplate {
         }
     }
 }
-#EndRegion './Private/Graph/Request-DirectoryRoleTemplate.ps1' 107
-#Region './Private/Graph/Request-GraphDevice.ps1' -1
+#EndRegion '.\Private\Graph\Request-DirectoryRoleTemplate.ps1' 107
+#Region '.\Private\Graph\Request-GraphDevice.ps1' -1
 
 function Request-GraphDevice {
     <#
@@ -3301,8 +3451,8 @@ function Request-GraphDevice {
         }
     }
 }
-#EndRegion './Private/Graph/Request-GraphDevice.ps1' 181
-#Region './Private/Graph/Request-GraphGroup.ps1' -1
+#EndRegion '.\Private\Graph\Request-GraphDevice.ps1' 181
+#Region '.\Private\Graph\Request-GraphGroup.ps1' -1
 
 function Request-GraphGroup {
     <#
@@ -3419,8 +3569,8 @@ function Request-GraphGroup {
         }
     }
 }
-#EndRegion './Private/Graph/Request-GraphGroup.ps1' 116
-#Region './Private/Graph/Request-GraphOauth2Grant.ps1' -1
+#EndRegion '.\Private\Graph\Request-GraphGroup.ps1' 116
+#Region '.\Private\Graph\Request-GraphOauth2Grant.ps1' -1
 
 function Request-GraphOauth2Grant {
     <#
@@ -3529,8 +3679,8 @@ function Request-GraphOauth2Grant {
         }
     }
 }
-#EndRegion './Private/Graph/Request-GraphOauth2Grant.ps1' 108
-#Region './Private/Graph/Request-GraphServicePrincipal.ps1' -1
+#EndRegion '.\Private\Graph\Request-GraphOauth2Grant.ps1' 108
+#Region '.\Private\Graph\Request-GraphServicePrincipal.ps1' -1
 
 function Request-GraphServicePrincipal {
     <#
@@ -3663,8 +3813,8 @@ function Request-GraphServicePrincipal {
         }
     }
 }
-#EndRegion './Private/Graph/Request-GraphServicePrincipal.ps1' 132
-#Region './Private/Graph/Request-GraphUser.ps1' -1
+#EndRegion '.\Private\Graph\Request-GraphServicePrincipal.ps1' 132
+#Region '.\Private\Graph\Request-GraphUser.ps1' -1
 
 function Request-GraphUser {
     <#
@@ -3769,8 +3919,8 @@ function Request-GraphUser {
         }
     }
 }
-#EndRegion './Private/Graph/Request-GraphUser.ps1' 104
-#Region './Private/Graph/Request-IntuneDevice.ps1' -1
+#EndRegion '.\Private\Graph\Request-GraphUser.ps1' 104
+#Region '.\Private\Graph\Request-IntuneDevice.ps1' -1
 
 function Request-IntuneDevice {
     <#
@@ -3805,8 +3955,8 @@ function Request-IntuneDevice {
         }
     }
 }
-#EndRegion './Private/Graph/Request-IntuneDevice.ps1' 34
-#Region './Private/Graph/Resolve-DateRange.ps1' -1
+#EndRegion '.\Private\Graph\Request-IntuneDevice.ps1' 34
+#Region '.\Private\Graph\Resolve-DateRange.ps1' -1
 
 function Resolve-DateRange {
     <#
@@ -3950,8 +4100,8 @@ function Resolve-DateRange {
         EndString   = $EndUtc.ToString('yyyy-MM-ddTHH:mm:ssZ')
     }
 }
-#EndRegion './Private/Graph/Resolve-DateRange.ps1' 143
-#Region './Private/Lib/Build-Menu.ps1' -1
+#EndRegion '.\Private\Graph\Resolve-DateRange.ps1' 143
+#Region '.\Private\Lib\Build-Menu.ps1' -1
 
 function Build-Menu {
     <#
@@ -4161,8 +4311,8 @@ function Build-Menu {
 
     return $Return
 }
-#EndRegion './Private/Lib/Build-Menu.ps1' 209
-#Region './Private/Lib/ConvertTo-TimeSpan.ps1' -1
+#EndRegion '.\Private\Lib\Build-Menu.ps1' 209
+#Region '.\Private\Lib\ConvertTo-TimeSpan.ps1' -1
 
 function ConvertTo-TimeSpan {
     <#
@@ -4234,8 +4384,8 @@ function ConvertTo-TimeSpan {
 
     return $Span
 }
-#EndRegion './Private/Lib/ConvertTo-TimeSpan.ps1' 71
-#Region './Private/Lib/Format-Powershell.ps1' -1
+#EndRegion '.\Private\Lib\ConvertTo-TimeSpan.ps1' 71
+#Region '.\Private\Lib\Format-Powershell.ps1' -1
 
 function Format-Powershell {
     <#
@@ -4636,8 +4786,8 @@ function Format-Powershell {
     } # end end
 
 }
-#EndRegion './Private/Lib/Format-Powershell.ps1' 400
-#Region './Private/Lib/Format-Tree.ps1' -1
+#EndRegion '.\Private\Lib\Format-Powershell.ps1' 400
+#Region '.\Private\Lib\Format-Tree.ps1' -1
 
 function Format-Tree {
     <#
@@ -5029,8 +5179,8 @@ displays a simple tree view of any object (ps 5.1+)
         }
     }
 }
-#EndRegion './Private/Lib/Format-Tree.ps1' 391
-#Region './Private/Lib/Get-DefaultBrowserName.ps1' -1
+#EndRegion '.\Private\Lib\Format-Tree.ps1' 391
+#Region '.\Private\Lib\Get-DefaultBrowserName.ps1' -1
 
 function Get-DefaultBrowserName {
     <#
@@ -5089,8 +5239,8 @@ function Get-DefaultBrowserName {
         '^brave' { return 'brave' }
     }
 }
-#EndRegion './Private/Lib/Get-DefaultBrowserName.ps1' 58
-#Region './Private/Lib/Get-LicenseFullName.ps1' -1
+#EndRegion '.\Private\Lib\Get-DefaultBrowserName.ps1' 58
+#Region '.\Private\Lib\Get-LicenseFullName.ps1' -1
 
 function Get-LicenseFullName {
     <#
@@ -5253,8 +5403,8 @@ function Get-LicenseFullName {
         }
     }
 }
-#EndRegion './Private/Lib/Get-LicenseFullName.ps1' 162
-#Region './Private/Lib/Get-YesNo.ps1' -1
+#EndRegion '.\Private\Lib\Get-LicenseFullName.ps1' 162
+#Region '.\Private\Lib\Get-YesNo.ps1' -1
 
 function Get-YesNo {
     <#
@@ -5314,8 +5464,8 @@ function Get-YesNo {
         return $false
     }
 }
-#EndRegion './Private/Lib/Get-YesNo.ps1' 59
-#Region './Private/Lib/Open-Browser.ps1' -1
+#EndRegion '.\Private\Lib\Get-YesNo.ps1' 59
+#Region '.\Private\Lib\Open-Browser.ps1' -1
 
 function Open-Browser {
     <#
@@ -5384,8 +5534,8 @@ function Open-Browser {
     }
     Start-Process -FilePath $Url
 }
-#EndRegion './Private/Lib/Open-Browser.ps1' 68
-#Region './Private/Lib/Resolve-BrowserLaunch.ps1' -1
+#EndRegion '.\Private\Lib\Open-Browser.ps1' 68
+#Region '.\Private\Lib\Resolve-BrowserLaunch.ps1' -1
 
 function Resolve-BrowserLaunch {
     <#
@@ -5486,8 +5636,8 @@ function Resolve-BrowserLaunch {
         }
     }
 }
-#EndRegion './Private/Lib/Resolve-BrowserLaunch.ps1' 100
-#Region './Private/Lib/Resolve-ScriptPath.ps1' -1
+#EndRegion '.\Private\Lib\Resolve-BrowserLaunch.ps1' 100
+#Region '.\Private\Lib\Resolve-ScriptPath.ps1' -1
 
 function Resolve-ScriptPath {
     <#
@@ -5596,8 +5746,8 @@ function Resolve-ScriptPath {
         return $ResolvedPath
     }
 }
-#EndRegion './Private/Lib/Resolve-ScriptPath.ps1' 108
-#Region './Private/Lib/Set-TerminalTitle.ps1' -1
+#EndRegion '.\Private\Lib\Resolve-ScriptPath.ps1' 108
+#Region '.\Private\Lib\Set-TerminalTitle.ps1' -1
 
 function Set-TerminalTitle {
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
@@ -5642,8 +5792,8 @@ function Set-TerminalTitle {
         $Host.UI.RawUI.WindowTitle = $Title
     }
 }
-#EndRegion './Private/Lib/Set-TerminalTitle.ps1' 44
-#Region './Private/Lib/Test-PythonPackage.ps1' -1
+#EndRegion '.\Private\Lib\Set-TerminalTitle.ps1' 44
+#Region '.\Private\Lib\Test-PythonPackage.ps1' -1
 
 function Test-PythonPackage {
     <#
@@ -5879,8 +6029,8 @@ except Exception:
             })
     }
 }
-#EndRegion './Private/Lib/Test-PythonPackage.ps1' 235
-#Region './Private/MessageTrace/Build-TraceContinuation.ps1' -1
+#EndRegion '.\Private\Lib\Test-PythonPackage.ps1' 235
+#Region '.\Private\MessageTrace\Build-TraceContinuation.ps1' -1
 
 function Build-TraceContinuation {
     # helper: parse continuation Hints from the cmdlet's Warning text
@@ -5907,8 +6057,8 @@ function Build-TraceContinuation {
     if ($next.Count -eq 0) { return $null }
     return $next
 }
-#EndRegion './Private/MessageTrace/Build-TraceContinuation.ps1' 26
-#Region './Private/MessageTrace/Get-WorkingList.ps1' -1
+#EndRegion '.\Private\MessageTrace\Build-TraceContinuation.ps1' 26
+#Region '.\Private\MessageTrace\Get-WorkingList.ps1' -1
 
 function Get-WorkingList {
     # helper: ensure each list is sorted; if not, sort it into a new list
@@ -5947,8 +6097,8 @@ function Get-WorkingList {
     }
     return , $Working
 }
-#EndRegion './Private/MessageTrace/Get-WorkingList.ps1' 38
-#Region './Private/MessageTrace/Merge-ListOnDate.ps1' -1
+#EndRegion '.\Private\MessageTrace\Get-WorkingList.ps1' 38
+#Region '.\Private\MessageTrace\Merge-ListOnDate.ps1' -1
 
 function Merge-ListOnDate {
     # merges lists
@@ -6140,8 +6290,8 @@ function Merge-ListOnDate {
 
     return $MergedList
 }
-#EndRegion './Private/MessageTrace/Merge-ListOnDate.ps1' 191
-#Region './Private/MessageTrace/Request-MessageTrace.ps1' -1
+#EndRegion '.\Private\MessageTrace\Merge-ListOnDate.ps1' 191
+#Region '.\Private\MessageTrace\Request-MessageTrace.ps1' -1
 
 function Request-MessageTrace {
     [CmdletBinding()]
@@ -6355,8 +6505,8 @@ function Request-MessageTrace {
         Write-Output $AllMessages
     }
 }
-#EndRegion './Private/MessageTrace/Request-MessageTrace.ps1' 213
-#Region './Private/MessageTrace/Request-MessageTraceV1.ps1' -1
+#EndRegion '.\Private\MessageTrace\Request-MessageTrace.ps1' 213
+#Region '.\Private\MessageTrace\Request-MessageTraceV1.ps1' -1
 
 function Request-MessageTraceV1 {
     param(
@@ -6426,8 +6576,8 @@ function Request-MessageTraceV1 {
         return $AllMessages
     }
 }
-#EndRegion './Private/MessageTrace/Request-MessageTraceV1.ps1' 69
-#Region './Private/MessageTrace/Test-IsSorted.ps1' -1
+#EndRegion '.\Private\MessageTrace\Request-MessageTraceV1.ps1' 69
+#Region '.\Private\MessageTrace\Test-IsSorted.ps1' -1
 
 function Test-IsSorted {
     # helper: check if a list is sorted on property in the requested direction
@@ -6449,8 +6599,8 @@ function Test-IsSorted {
     }
     return $true
 }
-#EndRegion './Private/MessageTrace/Test-IsSorted.ps1' 21
-#Region './Private/MessageTrace/Test-MergeListOnDate.ps1' -1
+#EndRegion '.\Private\MessageTrace\Test-IsSorted.ps1' 21
+#Region '.\Private\MessageTrace\Test-MergeListOnDate.ps1' -1
 
 function Test-MergeListOnDate {
     [CmdletBinding()]
@@ -6585,8 +6735,8 @@ function Test-MergeListOnDate {
     # return the summary object; no extraneous screen output
     Write-Output $Result
 }
-#EndRegion './Private/MessageTrace/Test-MergeListOnDate.ps1' 134
-#Region './Private/OnPremAd/Get-AdGlobalUserObject.ps1' -1
+#EndRegion '.\Private\MessageTrace\Test-MergeListOnDate.ps1' 134
+#Region '.\Private\OnPremAd\Get-AdGlobalUserObject.ps1' -1
 
 function Get-AdGlobalUserObject {
     <#
@@ -6622,8 +6772,8 @@ function Get-AdGlobalUserObject {
         return $ScriptUserObjects
     }
 }
-#EndRegion './Private/OnPremAd/Get-AdGlobalUserObject.ps1' 35
-#Region './Private/OnPremAd/Get-LocalAdSyncService.ps1' -1
+#EndRegion '.\Private\OnPremAd\Get-AdGlobalUserObject.ps1' 35
+#Region '.\Private\OnPremAd\Get-LocalAdSyncService.ps1' -1
 
 function Get-LocalAdSyncService {
     <#
@@ -6658,8 +6808,8 @@ function Get-LocalAdSyncService {
     }
     Get-Service -Name 'adsync' -ErrorAction SilentlyContinue
 }
-#EndRegion './Private/OnPremAd/Get-LocalAdSyncService.ps1' 34
-#Region './Private/OnPremAd/Get-TargetDomainController.ps1' -1
+#EndRegion '.\Private\OnPremAd\Get-LocalAdSyncService.ps1' 34
+#Region '.\Private\OnPremAd\Get-TargetDomainController.ps1' -1
 
 function Get-TargetDomainController {
     <#
@@ -6716,8 +6866,8 @@ function Get-TargetDomainController {
             Select-Object -ExpandProperty HostName -First 1
     )
 }
-#EndRegion './Private/OnPremAd/Get-TargetDomainController.ps1' 56
-#Region './Private/OnPremAd/Push-AdReplication.ps1' -1
+#EndRegion '.\Private\OnPremAd\Get-TargetDomainController.ps1' 56
+#Region '.\Private\OnPremAd\Push-AdReplication.ps1' -1
 
 function Push-AdReplication {
     <#
@@ -6765,8 +6915,8 @@ function Push-AdReplication {
         Write-IRT $Msg -Level Warn
     }
 }
-#EndRegion './Private/OnPremAd/Push-AdReplication.ps1' 47
-#Region './Private/OnPremAd/Set-AdUserEnabled.ps1' -1
+#EndRegion '.\Private\OnPremAd\Push-AdReplication.ps1' 47
+#Region '.\Private\OnPremAd\Set-AdUserEnabled.ps1' -1
 
 function Set-AdUserEnabled {
     <#
@@ -6905,8 +7055,8 @@ function Set-AdUserEnabled {
         }
     }
 }
-#EndRegion './Private/OnPremAd/Set-AdUserEnabled.ps1' 138
-#Region './Private/OnPremAd/Test-AdAvailable.ps1' -1
+#EndRegion '.\Private\OnPremAd\Set-AdUserEnabled.ps1' 138
+#Region '.\Private\OnPremAd\Test-AdAvailable.ps1' -1
 
 function Test-AdAvailable {
     <#
@@ -6936,8 +7086,8 @@ function Test-AdAvailable {
         return $false
     }
 }
-#EndRegion './Private/OnPremAd/Test-AdAvailable.ps1' 29
-#Region './Private/Role/Get-UnknownObject.ps1' -1
+#EndRegion '.\Private\OnPremAd\Test-AdAvailable.ps1' 29
+#Region '.\Private\Role\Get-UnknownObject.ps1' -1
 
 function Get-UnknownObject {
     <#
@@ -7000,8 +7150,8 @@ function Get-UnknownObject {
         }
     }
 }
-#EndRegion './Private/Role/Get-UnknownObject.ps1' 62
-#Region './Private/Role/New-RoleMemberObject.ps1' -1
+#EndRegion '.\Private\Role\Get-UnknownObject.ps1' 62
+#Region '.\Private\Role\New-RoleMemberObject.ps1' -1
 
 function New-RoleMemberObject {
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
@@ -7053,8 +7203,8 @@ function New-RoleMemberObject {
         }
     }
 }
-#EndRegion './Private/Role/New-RoleMemberObject.ps1' 51
-#Region './Private/ServicePrincipal/New-TenantSheet.ps1' -1
+#EndRegion '.\Private\Role\New-RoleMemberObject.ps1' 51
+#Region '.\Private\ServicePrincipal\New-TenantSheet.ps1' -1
 
 function New-TenantSheet {
     <#
@@ -7156,8 +7306,8 @@ function New-TenantSheet {
         Get-Item -LiteralPath $Path
     }
 }
-#EndRegion './Private/ServicePrincipal/New-TenantSheet.ps1' 101
-#Region './Private/ServicePrincipal/Show-GraphServicePrincipalTree.ps1' -1
+#EndRegion '.\Private\ServicePrincipal\New-TenantSheet.ps1' 101
+#Region '.\Private\ServicePrincipal\Show-GraphServicePrincipalTree.ps1' -1
 
 function Show-GraphServicePrincipalTree {
     <#
@@ -7211,8 +7361,8 @@ function Show-GraphServicePrincipalTree {
         }
     }
 }
-#EndRegion './Private/ServicePrincipal/Show-GraphServicePrincipalTree.ps1' 53
-#Region './Private/UnifiedAuditLog/Build-AllOperationSheet.ps1' -1
+#EndRegion '.\Private\ServicePrincipal\Show-GraphServicePrincipalTree.ps1' 53
+#Region '.\Private\UnifiedAuditLog\Build-AllOperationSheet.ps1' -1
 
 function Build-AllOperationSheet {
     <#
@@ -7612,8 +7762,8 @@ function Build-AllOperationSheet {
         return $Workbook
     }
 }
-#EndRegion './Private/UnifiedAuditLog/Build-AllOperationSheet.ps1' 399
-#Region './Private/UnifiedAuditLog/Build-UserLoginOperationsSheet.ps1' -1
+#EndRegion '.\Private\UnifiedAuditLog\Build-AllOperationSheet.ps1' 399
+#Region '.\Private\UnifiedAuditLog\Build-UserLoginOperationsSheet.ps1' -1
 
 function Build-UserLoginOperationsSheet {
     <#
@@ -7874,8 +8024,8 @@ function Build-UserLoginOperationsSheet {
         return $Workbook
     }
 }
-#EndRegion './Private/UnifiedAuditLog/Build-UserLoginOperationsSheet.ps1' 260
-#Region './Private/UnifiedAuditLog/ConvertTo-TeamsParty.ps1' -1
+#EndRegion '.\Private\UnifiedAuditLog\Build-UserLoginOperationsSheet.ps1' 260
+#Region '.\Private\UnifiedAuditLog\ConvertTo-TeamsParty.ps1' -1
 
 function ConvertTo-TeamsParty {
     <#
@@ -7998,8 +8148,8 @@ function ConvertTo-TeamsParty {
         TenantId = $PartyTenantId
     }
 }
-#EndRegion './Private/UnifiedAuditLog/ConvertTo-TeamsParty.ps1' 122
-#Region './Private/UnifiedAuditLog/ConvertTo-UalRecord.ps1' -1
+#EndRegion '.\Private\UnifiedAuditLog\ConvertTo-TeamsParty.ps1' 122
+#Region '.\Private\UnifiedAuditLog\ConvertTo-UalRecord.ps1' -1
 
 function ConvertTo-UalRecord {
     <#
@@ -8097,8 +8247,8 @@ function ConvertTo-UalRecord {
         }
     }
 }
-#EndRegion './Private/UnifiedAuditLog/ConvertTo-UalRecord.ps1' 97
-#Region './Private/UnifiedAuditLog/Get-AddRemoveRoleSummary.ps1' -1
+#EndRegion '.\Private\UnifiedAuditLog\ConvertTo-UalRecord.ps1' 97
+#Region '.\Private\UnifiedAuditLog\Get-AddRemoveRoleSummary.ps1' -1
 
 function Get-AddRemoveRoleSummary {
     <#
@@ -8164,8 +8314,8 @@ function Get-AddRemoveRoleSummary {
         return $EventObject
     }
 }
-#EndRegion './Private/UnifiedAuditLog/Get-AddRemoveRoleSummary.ps1' 65
-#Region './Private/UnifiedAuditLog/Get-AttachmentAccessSummary.ps1' -1
+#EndRegion '.\Private\UnifiedAuditLog\Get-AddRemoveRoleSummary.ps1' 65
+#Region '.\Private\UnifiedAuditLog\Get-AttachmentAccessSummary.ps1' -1
 
 function Get-AttachmentAccessSummary {
     <#
@@ -8202,8 +8352,8 @@ function Get-AttachmentAccessSummary {
         return $EventObject
     }
 }
-#EndRegion './Private/UnifiedAuditLog/Get-AttachmentAccessSummary.ps1' 36
-#Region './Private/UnifiedAuditLog/Get-CallParticipantDetailParty.ps1' -1
+#EndRegion '.\Private\UnifiedAuditLog\Get-AttachmentAccessSummary.ps1' 36
+#Region '.\Private\UnifiedAuditLog\Get-CallParticipantDetailParty.ps1' -1
 
 function Get-CallParticipantDetailParty {
     <#
@@ -8259,8 +8409,8 @@ function Get-CallParticipantDetailParty {
     ConvertTo-TeamsParty -TenantId $AuditData.ResourceTenantId
     ConvertTo-TeamsParty -Upn $AuditData.UserId
 }
-#EndRegion './Private/UnifiedAuditLog/Get-CallParticipantDetailParty.ps1' 55
-#Region './Private/UnifiedAuditLog/Get-ChatCreatedParty.ps1' -1
+#EndRegion '.\Private\UnifiedAuditLog\Get-CallParticipantDetailParty.ps1' 55
+#Region '.\Private\UnifiedAuditLog\Get-ChatCreatedParty.ps1' -1
 
 function Get-ChatCreatedParty {
     <#
@@ -8313,8 +8463,8 @@ function Get-ChatCreatedParty {
     ConvertTo-TeamsParty -Upn $AuditData.UserId -TenantId $AuditData.UserTenantId
     ConvertTo-TeamsParty -TenantId $AuditData.ResourceTenantId
 }
-#EndRegion './Private/UnifiedAuditLog/Get-ChatCreatedParty.ps1' 52
-#Region './Private/UnifiedAuditLog/Get-ExchangeItemCreateSendSummary.ps1' -1
+#EndRegion '.\Private\UnifiedAuditLog\Get-ChatCreatedParty.ps1' 52
+#Region '.\Private\UnifiedAuditLog\Get-ExchangeItemCreateSendSummary.ps1' -1
 
 function Get-ExchangeItemCreateSendSummary {
     <#
@@ -8354,8 +8504,8 @@ function Get-ExchangeItemCreateSendSummary {
         return $EventObject
     }
 }
-#EndRegion './Private/UnifiedAuditLog/Get-ExchangeItemCreateSendSummary.ps1' 39
-#Region './Private/UnifiedAuditLog/Get-ExchangeItemDeleteSummary.ps1' -1
+#EndRegion '.\Private\UnifiedAuditLog\Get-ExchangeItemCreateSendSummary.ps1' 39
+#Region '.\Private\UnifiedAuditLog\Get-ExchangeItemDeleteSummary.ps1' -1
 
 function Get-ExchangeItemDeleteSummary {
     <#
@@ -8446,8 +8596,8 @@ function Get-ExchangeItemDeleteSummary {
         return $EventObject
     }
 }
-#EndRegion './Private/UnifiedAuditLog/Get-ExchangeItemDeleteSummary.ps1' 90
-#Region './Private/UnifiedAuditLog/Get-ExchangeItemUpdateSummary.ps1' -1
+#EndRegion '.\Private\UnifiedAuditLog\Get-ExchangeItemDeleteSummary.ps1' 90
+#Region '.\Private\UnifiedAuditLog\Get-ExchangeItemUpdateSummary.ps1' -1
 
 function Get-ExchangeItemUpdateSummary {
     <#
@@ -8491,8 +8641,8 @@ function Get-ExchangeItemUpdateSummary {
         return $EventObject
     }
 }
-#EndRegion './Private/UnifiedAuditLog/Get-ExchangeItemUpdateSummary.ps1' 43
-#Region './Private/UnifiedAuditLog/Get-GraphUALErrorStatus.ps1' -1
+#EndRegion '.\Private\UnifiedAuditLog\Get-ExchangeItemUpdateSummary.ps1' 43
+#Region '.\Private\UnifiedAuditLog\Get-GraphUALErrorStatus.ps1' -1
 
 function Get-GraphUALErrorStatus {
     <#
@@ -8538,8 +8688,8 @@ function Get-GraphUALErrorStatus {
     if ($Message -match 'does not indicate success:\s*([A-Za-z]+)') { return $Matches[1] }
     return 'Unknown'
 }
-#EndRegion './Private/UnifiedAuditLog/Get-GraphUALErrorStatus.ps1' 45
-#Region './Private/UnifiedAuditLog/Get-GraphUALJob.ps1' -1
+#EndRegion '.\Private\UnifiedAuditLog\Get-GraphUALErrorStatus.ps1' 45
+#Region '.\Private\UnifiedAuditLog\Get-GraphUALJob.ps1' -1
 
 function Get-GraphUALJob {
     <#
@@ -8671,8 +8821,8 @@ function Get-GraphUALJob {
     Write-PSFMessage -Level 8 -Message "${FunctionName}: returning $($Jobs.Count) job(s)."
     return $Jobs.ToArray()
 }
-#EndRegion './Private/UnifiedAuditLog/Get-GraphUALJob.ps1' 131
-#Region './Private/UnifiedAuditLog/Get-GraphUALJobLabel.ps1' -1
+#EndRegion '.\Private\UnifiedAuditLog\Get-GraphUALJob.ps1' 131
+#Region '.\Private\UnifiedAuditLog\Get-GraphUALJobLabel.ps1' -1
 
 function Get-GraphUALJobLabel {
     <#
@@ -8737,8 +8887,8 @@ function Get-GraphUALJobLabel {
     if ($Label.Length -gt $MaxLength) { $Label = $Label.Substring(0, $MaxLength - 3) + '...' }
     return $Label
 }
-#EndRegion './Private/UnifiedAuditLog/Get-GraphUALJobLabel.ps1' 64
-#Region './Private/UnifiedAuditLog/Get-GraphUALKnownRecordType.ps1' -1
+#EndRegion '.\Private\UnifiedAuditLog\Get-GraphUALJobLabel.ps1' 64
+#Region '.\Private\UnifiedAuditLog\Get-GraphUALKnownRecordType.ps1' -1
 
 function Get-GraphUALKnownRecordType {
     <#
@@ -8837,8 +8987,8 @@ function Get-GraphUALKnownRecordType {
     $Global:IRT_GraphUALRecordTypes = $Types
     return , $Types
 }
-#EndRegion './Private/UnifiedAuditLog/Get-GraphUALKnownRecordType.ps1' 98
-#Region './Private/UnifiedAuditLog/Get-GraphUALOpenUnfilteredJob.ps1' -1
+#EndRegion '.\Private\UnifiedAuditLog\Get-GraphUALKnownRecordType.ps1' 98
+#Region '.\Private\UnifiedAuditLog\Get-GraphUALOpenUnfilteredJob.ps1' -1
 
 function Get-GraphUALOpenUnfilteredJob {
     <#
@@ -8917,8 +9067,8 @@ function Get-GraphUALOpenUnfilteredJob {
 
     return $null
 }
-#EndRegion './Private/UnifiedAuditLog/Get-GraphUALOpenUnfilteredJob.ps1' 78
-#Region './Private/UnifiedAuditLog/Get-GraphUALRecord.ps1' -1
+#EndRegion '.\Private\UnifiedAuditLog\Get-GraphUALOpenUnfilteredJob.ps1' 78
+#Region '.\Private\UnifiedAuditLog\Get-GraphUALRecord.ps1' -1
 
 function Get-GraphUALRecord {
     <#
@@ -8997,8 +9147,8 @@ function Get-GraphUALRecord {
         Error   = $PageError
     }
 }
-#EndRegion './Private/UnifiedAuditLog/Get-GraphUALRecord.ps1' 78
-#Region './Private/UnifiedAuditLog/Get-GraphUALRetryDelay.ps1' -1
+#EndRegion '.\Private\UnifiedAuditLog\Get-GraphUALRecord.ps1' 78
+#Region '.\Private\UnifiedAuditLog\Get-GraphUALRetryDelay.ps1' -1
 
 function Get-GraphUALRetryDelay {
     <#
@@ -9074,8 +9224,8 @@ function Get-GraphUALRetryDelay {
     $Wait = [int]($BaseSeconds * [Math]::Pow(2, $Attempt - 1))
     return [Math]::Min($Wait, $MaxWait)
 }
-#EndRegion './Private/UnifiedAuditLog/Get-GraphUALRetryDelay.ps1' 75
-#Region './Private/UnifiedAuditLog/Get-GraphUALRiskyOperation.ps1' -1
+#EndRegion '.\Private\UnifiedAuditLog\Get-GraphUALRetryDelay.ps1' 75
+#Region '.\Private\UnifiedAuditLog\Get-GraphUALRiskyOperation.ps1' -1
 
 function Get-GraphUALRiskyOperation {
     <#
@@ -9156,8 +9306,8 @@ function Get-GraphUALRiskyOperation {
 
     return [string[]]$Operations
 }
-#EndRegion './Private/UnifiedAuditLog/Get-GraphUALRiskyOperation.ps1' 80
-#Region './Private/UnifiedAuditLog/Get-InboxRuleSummary.ps1' -1
+#EndRegion '.\Private\UnifiedAuditLog\Get-GraphUALRiskyOperation.ps1' 80
+#Region '.\Private\UnifiedAuditLog\Get-InboxRuleSummary.ps1' -1
 
 function Get-InboxRuleSummary {
     <#
@@ -9201,8 +9351,8 @@ function Get-InboxRuleSummary {
         return $EventObject
     }
 }
-#EndRegion './Private/UnifiedAuditLog/Get-InboxRuleSummary.ps1' 43
-#Region './Private/UnifiedAuditLog/Get-LoginOperationSummary.ps1' -1
+#EndRegion '.\Private\UnifiedAuditLog\Get-InboxRuleSummary.ps1' 43
+#Region '.\Private\UnifiedAuditLog\Get-LoginOperationSummary.ps1' -1
 
 function Get-LoginOperationSummary {
     <#
@@ -9285,8 +9435,8 @@ function Get-LoginOperationSummary {
         return $EventObject
     }
 }
-#EndRegion './Private/UnifiedAuditLog/Get-LoginOperationSummary.ps1' 82
-#Region './Private/UnifiedAuditLog/Get-MailItemsAccessedSummary.ps1' -1
+#EndRegion '.\Private\UnifiedAuditLog\Get-LoginOperationSummary.ps1' 82
+#Region '.\Private\UnifiedAuditLog\Get-MailItemsAccessedSummary.ps1' -1
 
 function Get-MailItemsAccessedSummary {
     <#
@@ -9354,8 +9504,8 @@ function Get-MailItemsAccessedSummary {
         return $EventObject
     }
 }
-#EndRegion './Private/UnifiedAuditLog/Get-MailItemsAccessedSummary.ps1' 67
-#Region './Private/UnifiedAuditLog/Get-MeetingParticipantDetailParty.ps1' -1
+#EndRegion '.\Private\UnifiedAuditLog\Get-MailItemsAccessedSummary.ps1' 67
+#Region '.\Private\UnifiedAuditLog\Get-MeetingParticipantDetailParty.ps1' -1
 
 function Get-MeetingParticipantDetailParty {
     <#
@@ -9417,8 +9567,8 @@ function Get-MeetingParticipantDetailParty {
     ConvertTo-TeamsParty -TenantId $AuditData.ResourceTenantId
     ConvertTo-TeamsParty -Upn $AuditData.UserId
 }
-#EndRegion './Private/UnifiedAuditLog/Get-MeetingParticipantDetailParty.ps1' 61
-#Region './Private/UnifiedAuditLog/Get-MemberAddedParty.ps1' -1
+#EndRegion '.\Private\UnifiedAuditLog\Get-MeetingParticipantDetailParty.ps1' 61
+#Region '.\Private\UnifiedAuditLog\Get-MemberAddedParty.ps1' -1
 
 function Get-MemberAddedParty {
     <#
@@ -9472,8 +9622,8 @@ function Get-MemberAddedParty {
     ConvertTo-TeamsParty -Upn $AuditData.UserId -TenantId $AuditData.UserTenantId
     ConvertTo-TeamsParty -TenantId $AuditData.ResourceTenantId
 }
-#EndRegion './Private/UnifiedAuditLog/Get-MemberAddedParty.ps1' 53
-#Region './Private/UnifiedAuditLog/Get-MessageCreatedHasLinkParty.ps1' -1
+#EndRegion '.\Private\UnifiedAuditLog\Get-MemberAddedParty.ps1' 53
+#Region '.\Private\UnifiedAuditLog\Get-MessageCreatedHasLinkParty.ps1' -1
 
 function Get-MessageCreatedHasLinkParty {
     <#
@@ -9524,8 +9674,8 @@ function Get-MessageCreatedHasLinkParty {
     ConvertTo-TeamsParty -Upn $AuditData.UserId -TenantId $AuditData.UserTenantId
     ConvertTo-TeamsParty -TenantId $AuditData.ResourceTenantId
 }
-#EndRegion './Private/UnifiedAuditLog/Get-MessageCreatedHasLinkParty.ps1' 50
-#Region './Private/UnifiedAuditLog/Get-MessageEditedHasLinkParty.ps1' -1
+#EndRegion '.\Private\UnifiedAuditLog\Get-MessageCreatedHasLinkParty.ps1' 50
+#Region '.\Private\UnifiedAuditLog\Get-MessageEditedHasLinkParty.ps1' -1
 
 function Get-MessageEditedHasLinkParty {
     <#
@@ -9576,8 +9726,8 @@ function Get-MessageEditedHasLinkParty {
     ConvertTo-TeamsParty -Upn $AuditData.UserId -TenantId $AuditData.UserTenantId
     ConvertTo-TeamsParty -TenantId $AuditData.ResourceTenantId
 }
-#EndRegion './Private/UnifiedAuditLog/Get-MessageEditedHasLinkParty.ps1' 50
-#Region './Private/UnifiedAuditLog/Get-MessageSentParty.ps1' -1
+#EndRegion '.\Private\UnifiedAuditLog\Get-MessageEditedHasLinkParty.ps1' 50
+#Region '.\Private\UnifiedAuditLog\Get-MessageSentParty.ps1' -1
 
 function Get-MessageSentParty {
     <#
@@ -9625,8 +9775,8 @@ function Get-MessageSentParty {
     ConvertTo-TeamsParty -Upn $AuditData.UserId -TenantId $AuditData.UserTenantId
     ConvertTo-TeamsParty -TenantId $AuditData.ResourceTenantId
 }
-#EndRegion './Private/UnifiedAuditLog/Get-MessageSentParty.ps1' 47
-#Region './Private/UnifiedAuditLog/Get-MessageUpdatedParty.ps1' -1
+#EndRegion '.\Private\UnifiedAuditLog\Get-MessageSentParty.ps1' 47
+#Region '.\Private\UnifiedAuditLog\Get-MessageUpdatedParty.ps1' -1
 
 function Get-MessageUpdatedParty {
     <#
@@ -9674,8 +9824,8 @@ function Get-MessageUpdatedParty {
     ConvertTo-TeamsParty -Upn $AuditData.UserId -TenantId $AuditData.UserTenantId
     ConvertTo-TeamsParty -TenantId $AuditData.ResourceTenantId
 }
-#EndRegion './Private/UnifiedAuditLog/Get-MessageUpdatedParty.ps1' 47
-#Region './Private/UnifiedAuditLog/Get-PageViewedSummary.ps1' -1
+#EndRegion '.\Private\UnifiedAuditLog\Get-MessageUpdatedParty.ps1' 47
+#Region '.\Private\UnifiedAuditLog\Get-PageViewedSummary.ps1' -1
 
 function Get-PageViewedSummary {
     <#
@@ -9713,8 +9863,8 @@ function Get-PageViewedSummary {
         return $EventObject
     }
 }
-#EndRegion './Private/UnifiedAuditLog/Get-PageViewedSummary.ps1' 37
-#Region './Private/UnifiedAuditLog/Get-PIMRoleAssignedSummary.ps1' -1
+#EndRegion '.\Private\UnifiedAuditLog\Get-PageViewedSummary.ps1' 37
+#Region '.\Private\UnifiedAuditLog\Get-PIMRoleAssignedSummary.ps1' -1
 
 function Get-PIMRoleAssignedSummary {
     <#
@@ -9778,8 +9928,8 @@ function Get-PIMRoleAssignedSummary {
         return $EventObject
     }
 }
-#EndRegion './Private/UnifiedAuditLog/Get-PIMRoleAssignedSummary.ps1' 63
-#Region './Private/UnifiedAuditLog/Get-ReactedToMessageParty.ps1' -1
+#EndRegion '.\Private\UnifiedAuditLog\Get-PIMRoleAssignedSummary.ps1' 63
+#Region '.\Private\UnifiedAuditLog\Get-ReactedToMessageParty.ps1' -1
 
 function Get-ReactedToMessageParty {
     <#
@@ -9828,8 +9978,8 @@ function Get-ReactedToMessageParty {
     ConvertTo-TeamsParty -Upn $AuditData.UserId -TenantId $AuditData.UserTenantId
     ConvertTo-TeamsParty -TenantId $AuditData.ResourceTenantId
 }
-#EndRegion './Private/UnifiedAuditLog/Get-ReactedToMessageParty.ps1' 48
-#Region './Private/UnifiedAuditLog/Get-SearchQueryPerformedSummary.ps1' -1
+#EndRegion '.\Private\UnifiedAuditLog\Get-ReactedToMessageParty.ps1' 48
+#Region '.\Private\UnifiedAuditLog\Get-SearchQueryPerformedSummary.ps1' -1
 
 function Get-SearchQueryPerformedSummary {
     <#
@@ -9866,8 +10016,8 @@ function Get-SearchQueryPerformedSummary {
         return $EventObject
     }
 }
-#EndRegion './Private/UnifiedAuditLog/Get-SearchQueryPerformedSummary.ps1' 36
-#Region './Private/UnifiedAuditLog/Get-SetConditionalAccessPolicySummary.ps1' -1
+#EndRegion '.\Private\UnifiedAuditLog\Get-SearchQueryPerformedSummary.ps1' 36
+#Region '.\Private\UnifiedAuditLog\Get-SetConditionalAccessPolicySummary.ps1' -1
 
 function Get-SetConditionalAccessPolicySummary {
     <#
@@ -9905,8 +10055,8 @@ function Get-SetConditionalAccessPolicySummary {
         return $EventObject
     }
 }
-#EndRegion './Private/UnifiedAuditLog/Get-SetConditionalAccessPolicySummary.ps1' 37
-#Region './Private/UnifiedAuditLog/Get-SharePointFileOperationSummary.ps1' -1
+#EndRegion '.\Private\UnifiedAuditLog\Get-SetConditionalAccessPolicySummary.ps1' 37
+#Region '.\Private\UnifiedAuditLog\Get-SharePointFileOperationSummary.ps1' -1
 
 function Get-SharePointFileOperationSummary {
     <#
@@ -9958,8 +10108,8 @@ function Get-SharePointFileOperationSummary {
         return $SummaryObject
     }
 }
-#EndRegion './Private/UnifiedAuditLog/Get-SharePointFileOperationSummary.ps1' 51
-#Region './Private/UnifiedAuditLog/Get-TeamsParticipantInfoParty.ps1' -1
+#EndRegion '.\Private\UnifiedAuditLog\Get-SharePointFileOperationSummary.ps1' 51
+#Region '.\Private\UnifiedAuditLog\Get-TeamsParticipantInfoParty.ps1' -1
 
 function Get-TeamsParticipantInfoParty {
     <#
@@ -10012,8 +10162,8 @@ function Get-TeamsParticipantInfoParty {
         ConvertTo-TeamsParty -TenantId $Id
     }
 }
-#EndRegion './Private/UnifiedAuditLog/Get-TeamsParticipantInfoParty.ps1' 52
-#Region './Private/UnifiedAuditLog/Get-TeamsSessionStartedSummary.ps1' -1
+#EndRegion '.\Private\UnifiedAuditLog\Get-TeamsParticipantInfoParty.ps1' 52
+#Region '.\Private\UnifiedAuditLog\Get-TeamsSessionStartedSummary.ps1' -1
 
 function Get-TeamsSessionStartedSummary {
     <#
@@ -10067,8 +10217,8 @@ function Get-TeamsSessionStartedSummary {
 
     }
 }
-#EndRegion './Private/UnifiedAuditLog/Get-TeamsSessionStartedSummary.ps1' 53
-#Region './Private/UnifiedAuditLog/Get-UpdateUserSummary.ps1' -1
+#EndRegion '.\Private\UnifiedAuditLog\Get-TeamsSessionStartedSummary.ps1' 53
+#Region '.\Private\UnifiedAuditLog\Get-UpdateUserSummary.ps1' -1
 
 function Get-UpdateUserSummary {
     <#
@@ -10108,8 +10258,8 @@ function Get-UpdateUserSummary {
         return $EventObject
     }
 }
-#EndRegion './Private/UnifiedAuditLog/Get-UpdateUserSummary.ps1' 39
-#Region './Private/UnifiedAuditLog/Get-UserAcceptedParty.ps1' -1
+#EndRegion '.\Private\UnifiedAuditLog\Get-UpdateUserSummary.ps1' 39
+#Region '.\Private\UnifiedAuditLog\Get-UserAcceptedParty.ps1' -1
 
 function Get-UserAcceptedParty {
     <#
@@ -10157,8 +10307,8 @@ function Get-UserAcceptedParty {
         ConvertTo-TeamsParty -Upn $Member.UPN -TenantId $Member.OrganizationId
     }
 }
-#EndRegion './Private/UnifiedAuditLog/Get-UserAcceptedParty.ps1' 47
-#Region './Private/UnifiedAuditLog/Get-UserBlockedParty.ps1' -1
+#EndRegion '.\Private\UnifiedAuditLog\Get-UserAcceptedParty.ps1' 47
+#Region '.\Private\UnifiedAuditLog\Get-UserBlockedParty.ps1' -1
 
 function Get-UserBlockedParty {
     <#
@@ -10206,8 +10356,8 @@ function Get-UserBlockedParty {
         ConvertTo-TeamsParty -Upn $Member.UPN -TenantId $Member.OrganizationId
     }
 }
-#EndRegion './Private/UnifiedAuditLog/Get-UserBlockedParty.ps1' 47
-#Region './Private/UnifiedAuditLog/Invoke-GraphUALRequest.ps1' -1
+#EndRegion '.\Private\UnifiedAuditLog\Get-UserBlockedParty.ps1' 47
+#Region '.\Private\UnifiedAuditLog\Invoke-GraphUALRequest.ps1' -1
 
 function Invoke-GraphUALRequest {
     <#
@@ -10410,8 +10560,8 @@ function Invoke-GraphUALRequest {
         }
     }
 }
-#EndRegion './Private/UnifiedAuditLog/Invoke-GraphUALRequest.ps1' 202
-#Region './Private/UnifiedAuditLog/New-GraphUALName.ps1' -1
+#EndRegion '.\Private\UnifiedAuditLog\Invoke-GraphUALRequest.ps1' 202
+#Region '.\Private\UnifiedAuditLog\New-GraphUALName.ps1' -1
 
 function New-GraphUALName {
     <#
@@ -10525,8 +10675,8 @@ function New-GraphUALName {
 
     return $Prefix + ($Parts -join '|')
 }
-#EndRegion './Private/UnifiedAuditLog/New-GraphUALName.ps1' 113
-#Region './Private/UnifiedAuditLog/New-UalGapMarker.ps1' -1
+#EndRegion '.\Private\UnifiedAuditLog\New-GraphUALName.ps1' 113
+#Region '.\Private\UnifiedAuditLog\New-UalGapMarker.ps1' -1
 
 function New-UalGapMarker {
     <#
@@ -10598,8 +10748,8 @@ function New-UalGapMarker {
         AuditData    = $AuditData
     }
 }
-#EndRegion './Private/UnifiedAuditLog/New-UalGapMarker.ps1' 71
-#Region './Private/UnifiedAuditLog/Read-GraphUALName.ps1' -1
+#EndRegion '.\Private\UnifiedAuditLog\New-UalGapMarker.ps1' 71
+#Region '.\Private\UnifiedAuditLog\Read-GraphUALName.ps1' -1
 
 function Read-GraphUALName {
     <#
@@ -10691,8 +10841,8 @@ function Read-GraphUALName {
         Index      = $Index
     }
 }
-#EndRegion './Private/UnifiedAuditLog/Read-GraphUALName.ps1' 91
-#Region './Private/UnifiedAuditLog/Remove-ODataAnnotation.ps1' -1
+#EndRegion '.\Private\UnifiedAuditLog\Read-GraphUALName.ps1' 91
+#Region '.\Private\UnifiedAuditLog\Remove-ODataAnnotation.ps1' -1
 
 function Remove-ODataAnnotation {
     <#
@@ -10765,8 +10915,8 @@ function Remove-ODataAnnotation {
 
     return $InputObject
 }
-#EndRegion './Private/UnifiedAuditLog/Remove-ODataAnnotation.ps1' 72
-#Region './Private/UnifiedAuditLog/Select-GraphUALFocus.ps1' -1
+#EndRegion '.\Private\UnifiedAuditLog\Remove-ODataAnnotation.ps1' 72
+#Region '.\Private\UnifiedAuditLog\Select-GraphUALFocus.ps1' -1
 
 function Select-GraphUALFocus {
     <#
@@ -10871,8 +11021,8 @@ function Select-GraphUALFocus {
 
     return [string[]]$GroupIds
 }
-#EndRegion './Private/UnifiedAuditLog/Select-GraphUALFocus.ps1' 104
-#Region './Private/UnifiedAuditLog/Show-GraphUALStatus.ps1' -1
+#EndRegion '.\Private\UnifiedAuditLog\Select-GraphUALFocus.ps1' 104
+#Region '.\Private\UnifiedAuditLog\Show-GraphUALStatus.ps1' -1
 
 function Show-GraphUALStatus {
     <#
@@ -10971,8 +11121,8 @@ function Show-GraphUALStatus {
         }
     }
 }
-#EndRegion './Private/UnifiedAuditLog/Show-GraphUALStatus.ps1' 98
-#Region './Private/UnifiedAuditLog/Test-GraphUALRecordType.ps1' -1
+#EndRegion '.\Private\UnifiedAuditLog\Show-GraphUALStatus.ps1' 98
+#Region '.\Private\UnifiedAuditLog\Test-GraphUALRecordType.ps1' -1
 
 function Test-GraphUALRecordType {
     <#
@@ -11062,8 +11212,8 @@ function Test-GraphUALRecordType {
 
     return [string[]]$Unknown
 }
-#EndRegion './Private/UnifiedAuditLog/Test-GraphUALRecordType.ps1' 89
-#Region './Private/UnifiedAuditLog/Test-IRTInteractiveHost.ps1' -1
+#EndRegion '.\Private\UnifiedAuditLog\Test-GraphUALRecordType.ps1' 89
+#Region '.\Private\UnifiedAuditLog\Test-IRTInteractiveHost.ps1' -1
 
 function Test-IRTInteractiveHost {
     <#
@@ -11103,8 +11253,8 @@ function Test-IRTInteractiveHost {
 
     return $true
 }
-#EndRegion './Private/UnifiedAuditLog/Test-IRTInteractiveHost.ps1' 39
-#Region './Private/User/Format-SentinelDate.ps1' -1
+#EndRegion '.\Private\UnifiedAuditLog\Test-IRTInteractiveHost.ps1' 39
+#Region '.\Private\User\Format-SentinelDate.ps1' -1
 
 function Format-SentinelDate {
     param(
@@ -11129,8 +11279,8 @@ function Format-SentinelDate {
         if ($IsEmptyDate) { $Obj.$Name = $null }
     }
 }
-#EndRegion './Private/User/Format-SentinelDate.ps1' 24
-#Region './Private/User/Get-FullUserObject.ps1' -1
+#EndRegion '.\Private\User\Format-SentinelDate.ps1' 24
+#Region '.\Private\User\Get-FullUserObject.ps1' -1
 
 function Get-FullUserObject {
     <#
@@ -11269,8 +11419,8 @@ function Get-FullUserObject {
         Write-Output $ScriptUserObject
     }
 }
-#EndRegion './Private/User/Get-FullUserObject.ps1' 138
-#Region './Private/User/Set-UserEnabled.ps1' -1
+#EndRegion '.\Private\User\Get-FullUserObject.ps1' 138
+#Region '.\Private\User\Set-UserEnabled.ps1' -1
 
 function Set-UserEnabled {
     <#
@@ -11402,8 +11552,8 @@ function Set-UserEnabled {
         }
     }
 }
-#EndRegion './Private/User/Set-UserEnabled.ps1' 131
-#Region './Private/User/Show-GraphUserTree.ps1' -1
+#EndRegion '.\Private\User\Set-UserEnabled.ps1' 131
+#Region '.\Private\User\Show-GraphUserTree.ps1' -1
 
 function Show-GraphUserTree {
     <#
@@ -11454,8 +11604,8 @@ function Show-GraphUserTree {
         }
     }
 }
-#EndRegion './Private/User/Show-GraphUserTree.ps1' 50
-#Region './Private/Utility/Add-IpInfoToSheet.ps1' -1
+#EndRegion '.\Private\User\Show-GraphUserTree.ps1' 50
+#Region '.\Private\Utility\Add-IpInfoToSheet.ps1' -1
 
 function Add-IpInfoToSheet {
     <#
@@ -11663,8 +11813,8 @@ function Add-IpInfoToSheet {
         }
     }
 }
-#EndRegion './Private/Utility/Add-IpInfoToSheet.ps1' 207
-#Region './Private/Utility/Convert-DecimalToExcelColumn.ps1' -1
+#EndRegion '.\Private\Utility\Add-IpInfoToSheet.ps1' 207
+#Region '.\Private\Utility\Convert-DecimalToExcelColumn.ps1' -1
 
 function Convert-DecimalToExcelColumn {
     <#
@@ -11719,8 +11869,8 @@ function Convert-DecimalToExcelColumn {
         return ($ColumnLetters -join '')
     }
 }
-#EndRegion './Private/Utility/Convert-DecimalToExcelColumn.ps1' 54
-#Region './Private/Utility/ConvertTo-HumanErrorDescription.ps1' -1
+#EndRegion '.\Private\Utility\Convert-DecimalToExcelColumn.ps1' 54
+#Region '.\Private\Utility\ConvertTo-HumanErrorDescription.ps1' -1
 
 function ConvertTo-HumanErrorDescription {
     <#
@@ -11780,8 +11930,8 @@ function ConvertTo-HumanErrorDescription {
         }
     }
 }
-#EndRegion './Private/Utility/ConvertTo-HumanErrorDescription.ps1' 59
-#Region './Private/Utility/Copy-ConditionalFormatting.ps1' -1
+#EndRegion '.\Private\Utility\ConvertTo-HumanErrorDescription.ps1' 59
+#Region '.\Private\Utility\Copy-ConditionalFormatting.ps1' -1
 
 function Copy-ConditionalFormatting {
     <#
@@ -12118,8 +12268,8 @@ function Copy-ConditionalFormatting {
         }
     }
 }
-#EndRegion './Private/Utility/Copy-ConditionalFormatting.ps1' 336
-#Region './Private/Utility/Format-PhoneNumber.ps1' -1
+#EndRegion '.\Private\Utility\Copy-ConditionalFormatting.ps1' 336
+#Region '.\Private\Utility\Format-PhoneNumber.ps1' -1
 
 function Format-PhoneNumber {
     <#
@@ -12164,8 +12314,8 @@ function Format-PhoneNumber {
         return $PhoneNumber
     }
 }
-#EndRegion './Private/Utility/Format-PhoneNumber.ps1' 44
-#Region './Private/Utility/Get-DefaultDomain.ps1' -1
+#EndRegion '.\Private\Utility\Format-PhoneNumber.ps1' 44
+#Region '.\Private\Utility\Get-DefaultDomain.ps1' -1
 
 function Get-DefaultDomain {
     <#
@@ -12281,8 +12431,8 @@ function Get-DefaultDomain {
         return $DefaultDomainName
     }
 }
-#EndRegion './Private/Utility/Get-DefaultDomain.ps1' 115
-#Region './Private/Utility/Get-GlobalServicePrincipalObject.ps1' -1
+#EndRegion '.\Private\Utility\Get-DefaultDomain.ps1' 115
+#Region '.\Private\Utility\Get-GlobalServicePrincipalObject.ps1' -1
 
 function Get-GlobalServicePrincipalObject {
     <#
@@ -12329,8 +12479,8 @@ function Get-GlobalServicePrincipalObject {
         return $ScriptSPObjects | Sort-Object Id -Unique | Sort-Object DisplayName
     }
 }
-#EndRegion './Private/Utility/Get-GlobalServicePrincipalObject.ps1' 46
-#Region './Private/Utility/Get-GlobalUserObject.ps1' -1
+#EndRegion '.\Private\Utility\Get-GlobalServicePrincipalObject.ps1' 46
+#Region '.\Private\Utility\Get-GlobalUserObject.ps1' -1
 
 function Get-GlobalUserObject {
     <#
@@ -12376,8 +12526,8 @@ function Get-GlobalUserObject {
         return $ScriptUserObjects | Sort-Object Id -Unique | Sort-Object DisplayName
     }
 }
-#EndRegion './Private/Utility/Get-GlobalUserObject.ps1' 45
-#Region './Private/Utility/Get-IRTAppDataPath.ps1' -1
+#EndRegion '.\Private\Utility\Get-GlobalUserObject.ps1' 45
+#Region '.\Private\Utility\Get-IRTAppDataPath.ps1' -1
 
 function Get-IRTAppDataPath {
     <#
@@ -12437,8 +12587,8 @@ function Get-IRTAppDataPath {
     Write-PSFMessage -Level 9 -Message "Get-IRTAppDataPath ($SpecialFolder): $Path"
     return $Path
 }
-#EndRegion './Private/Utility/Get-IRTAppDataPath.ps1' 59
-#Region './Private/Utility/Get-IRTClipboardSearch.ps1' -1
+#EndRegion '.\Private\Utility\Get-IRTAppDataPath.ps1' 59
+#Region '.\Private\Utility\Get-IRTClipboardSearch.ps1' -1
 
 function Get-IRTClipboardSearch {
     <#
@@ -12492,8 +12642,8 @@ function Get-IRTClipboardSearch {
         return [string[]] $Lines
     }
 }
-#EndRegion './Private/Utility/Get-IRTClipboardSearch.ps1' 53
-#Region './Private/Utility/Get-IRTJobNamePrefix.ps1' -1
+#EndRegion '.\Private\Utility\Get-IRTClipboardSearch.ps1' 53
+#Region '.\Private\Utility\Get-IRTJobNamePrefix.ps1' -1
 
 function Get-IRTJobNamePrefix {
     <#
@@ -12536,8 +12686,8 @@ function Get-IRTJobNamePrefix {
     }
     return 'IRT: '
 }
-#EndRegion './Private/Utility/Get-IRTJobNamePrefix.ps1' 42
-#Region './Private/Utility/Get-RandomPassword.ps1' -1
+#EndRegion '.\Private\Utility\Get-IRTJobNamePrefix.ps1' 42
+#Region '.\Private\Utility\Get-RandomPassword.ps1' -1
 
 function Get-RandomPassword {
     <#
@@ -12590,8 +12740,8 @@ function Get-RandomPassword {
 
     return ( -join $result )
 }
-#EndRegion './Private/Utility/Get-RandomPassword.ps1' 52
-#Region './Private/Utility/Import-IRTModule.ps1' -1
+#EndRegion '.\Private\Utility\Get-RandomPassword.ps1' 52
+#Region '.\Private\Utility\Import-IRTModule.ps1' -1
 
 function Import-IRTModule {
     <#
@@ -12663,8 +12813,8 @@ function Import-IRTModule {
         Import-LockedModule -ModuleName $module
     }
 }
-#EndRegion './Private/Utility/Import-IRTModule.ps1' 71
-#Region './Private/Utility/Import-ReferenceData.ps1' -1
+#EndRegion '.\Private\Utility\Import-IRTModule.ps1' 71
+#Region '.\Private\Utility\Import-ReferenceData.ps1' -1
 
 function Import-ReferenceData {
     <#
@@ -12761,8 +12911,8 @@ function Import-ReferenceData {
         "UserTypes=$($Global:IRT_UalUserTypeTable.Count), " +
         "TenantCache=$($Global:IRT_TenantInfoTable.Count)")
 }
-#EndRegion './Private/Utility/Import-ReferenceData.ps1' 96
-#Region './Private/Utility/Initialize-IRTFileLogging.ps1' -1
+#EndRegion '.\Private\Utility\Import-ReferenceData.ps1' 96
+#Region '.\Private\Utility\Initialize-IRTFileLogging.ps1' -1
 
 function Initialize-IRTFileLogging {
     <#
@@ -12867,8 +13017,8 @@ function Initialize-IRTFileLogging {
         Write-IRT -Level Warn -Message "Failed to enable file logging in '$LogFolder': $_"
     }
 }
-#EndRegion './Private/Utility/Initialize-IRTFileLogging.ps1' 104
-#Region './Private/Utility/Invoke-IRTNativeCommand.ps1' -1
+#EndRegion '.\Private\Utility\Initialize-IRTFileLogging.ps1' 104
+#Region '.\Private\Utility\Invoke-IRTNativeCommand.ps1' -1
 
 function Invoke-IRTNativeCommand {
     <#
@@ -13013,8 +13163,8 @@ function Invoke-IRTNativeCommand {
         ExitCode = $ExitCode
     }
 }
-#EndRegion './Private/Utility/Invoke-IRTNativeCommand.ps1' 144
-#Region './Private/Utility/New-IpConditionalFormattingTemplate.ps1' -1
+#EndRegion '.\Private\Utility\Invoke-IRTNativeCommand.ps1' 144
+#Region '.\Private\Utility\New-IpConditionalFormattingTemplate.ps1' -1
 
 function New-IpConditionalFormattingTemplate {
     <#
@@ -13122,8 +13272,8 @@ function New-IpConditionalFormattingTemplate {
         $Package
     }
 }
-#EndRegion './Private/Utility/New-IpConditionalFormattingTemplate.ps1' 107
-#Region './Private/Utility/Write-IRT.ps1' -1
+#EndRegion '.\Private\Utility\New-IpConditionalFormattingTemplate.ps1' 107
+#Region '.\Private\Utility\Write-IRT.ps1' -1
 
 function Write-IRT {
     <#
@@ -13237,8 +13387,8 @@ function Write-IRT {
         Write-Host $text -ForegroundColor $color -NoNewline:$NoNewline
     }
 }
-#EndRegion './Private/Utility/Write-IRT.ps1' 113
-#Region './Public/Connect/Clear-IRTTokenCache.ps1' -1
+#EndRegion '.\Private\Utility\Write-IRT.ps1' 113
+#Region '.\Public\Connect\Clear-IRTTokenCache.ps1' -1
 
 function Clear-IRTTokenCache {
     <#
@@ -13325,8 +13475,8 @@ function Clear-IRTTokenCache {
         Write-IRT 'No token cache file found.'
     }
 }
-#EndRegion './Public/Connect/Clear-IRTTokenCache.ps1' 86
-#Region './Public/Connect/Connect-IRT.ps1' -1
+#EndRegion '.\Public\Connect\Clear-IRTTokenCache.ps1' 86
+#Region '.\Public\Connect\Connect-IRT.ps1' -1
 
 function Connect-IRT {
     <#
@@ -13645,8 +13795,8 @@ function Connect-IRT {
         }
     }
 }
-#EndRegion './Public/Connect/Connect-IRT.ps1' 318
-#Region './Public/Connect/Connect-IRTRunspaceExchange.ps1' -1
+#EndRegion '.\Public\Connect\Connect-IRT.ps1' 318
+#Region '.\Public\Connect\Connect-IRTRunspaceExchange.ps1' -1
 
 function Connect-IRTRunspaceExchange {
     <#
@@ -13774,8 +13924,8 @@ function Connect-IRTRunspaceExchange {
         "ConnectionId: $($NewConnection.ConnectionId), " +
         "BoundTokenExpiry: $($TokenResult.ExpiresOn.UtcDateTime)")
 }
-#EndRegion './Public/Connect/Connect-IRTRunspaceExchange.ps1' 127
-#Region './Public/Connect/Connect-IRTTenant.ps1' -1
+#EndRegion '.\Public\Connect\Connect-IRTRunspaceExchange.ps1' 127
+#Region '.\Public\Connect\Connect-IRTTenant.ps1' -1
 
 function Connect-IRTTenant {
     <#
@@ -13944,8 +14094,8 @@ function Connect-IRTTenant {
         Connect-IRT @ConnectParams
     }
 }
-#EndRegion './Public/Connect/Connect-IRTTenant.ps1' 168
-#Region './Public/Connect/Disconnect-IRT.ps1' -1
+#EndRegion '.\Public\Connect\Connect-IRTTenant.ps1' 168
+#Region '.\Public\Connect\Disconnect-IRT.ps1' -1
 
 function Disconnect-IRT {
     <#
@@ -14056,8 +14206,8 @@ function Disconnect-IRT {
         }
     }
 }
-#EndRegion './Public/Connect/Disconnect-IRT.ps1' 110
-#Region './Public/Connect/Get-IRTAccessToken.ps1' -1
+#EndRegion '.\Public\Connect\Disconnect-IRT.ps1' 110
+#Region '.\Public\Connect\Get-IRTAccessToken.ps1' -1
 
 function Get-IRTAccessToken {
     <#
@@ -14315,8 +14465,8 @@ function Get-IRTAccessToken {
         return $Result
     }
 }
-#EndRegion './Public/Connect/Get-IRTAccessToken.ps1' 257
-#Region './Public/Connect/Open-IRTTab.ps1' -1
+#EndRegion '.\Public\Connect\Get-IRTAccessToken.ps1' 257
+#Region '.\Public\Connect\Open-IRTTab.ps1' -1
 
 function Open-IRTTab {
     <#
@@ -14433,8 +14583,8 @@ function Open-IRTTab {
         }
     }
 }
-#EndRegion './Public/Connect/Open-IRTTab.ps1' 116
-#Region './Public/Connect/Test-IRTConnection.ps1' -1
+#EndRegion '.\Public\Connect\Open-IRTTab.ps1' 116
+#Region '.\Public\Connect\Test-IRTConnection.ps1' -1
 
 function Test-IRTConnection {
     <#
@@ -14580,8 +14730,8 @@ function Test-IRTConnection {
         }
     }
 }
-#EndRegion './Public/Connect/Test-IRTConnection.ps1' 145
-#Region './Public/Connect/Update-IRTToken.ps1' -1
+#EndRegion '.\Public\Connect\Test-IRTConnection.ps1' 145
+#Region '.\Public\Connect\Update-IRTToken.ps1' -1
 
 function Update-IRTToken {
     <#
@@ -14811,8 +14961,8 @@ function Update-IRTToken {
         return $status
     }
 }
-#EndRegion './Public/Connect/Update-IRTToken.ps1' 229
-#Region './Public/Device/Disable-IRTDevice.ps1' -1
+#EndRegion '.\Public\Connect\Update-IRTToken.ps1' 229
+#Region '.\Public\Device\Disable-IRTDevice.ps1' -1
 
 function Disable-IRTDevice {
     <#
@@ -14839,8 +14989,8 @@ function Disable-IRTDevice {
 
     Set-IRTDeviceEnabled @Params
 }
-#EndRegion './Public/Device/Disable-IRTDevice.ps1' 26
-#Region './Public/Device/Enable-IRTDevice.ps1' -1
+#EndRegion '.\Public\Device\Disable-IRTDevice.ps1' 26
+#Region '.\Public\Device\Enable-IRTDevice.ps1' -1
 
 function Enable-IRTDevice {
     <#
@@ -14867,8 +15017,8 @@ function Enable-IRTDevice {
 
     Set-IRTDeviceEnabled @Params
 }
-#EndRegion './Public/Device/Enable-IRTDevice.ps1' 26
-#Region './Public/Device/Find-IRTDevice.ps1' -1
+#EndRegion '.\Public\Device\Enable-IRTDevice.ps1' 26
+#Region '.\Public\Device\Find-IRTDevice.ps1' -1
 
 function Find-IRTDevice {
     <#
@@ -15074,8 +15224,8 @@ function Find-IRTDevice {
         }
     }
 }
-#EndRegion './Public/Device/Find-IRTDevice.ps1' 205
-#Region './Public/Device/Get-IRTAllEntraDevice.ps1' -1
+#EndRegion '.\Public\Device\Find-IRTDevice.ps1' 205
+#Region '.\Public\Device\Get-IRTAllEntraDevice.ps1' -1
 
 function Get-IRTAllEntraDevice {
     <#
@@ -15351,8 +15501,8 @@ function Get-IRTAllEntraDevice {
         }
     }
 }
-#EndRegion './Public/Device/Get-IRTAllEntraDevice.ps1' 275
-#Region './Public/Device/Remove-IRTDevice.ps1' -1
+#EndRegion '.\Public\Device\Get-IRTAllEntraDevice.ps1' 275
+#Region '.\Public\Device\Remove-IRTDevice.ps1' -1
 
 function Remove-IRTDevice {
     <#
@@ -15485,8 +15635,8 @@ function Remove-IRTDevice {
         Write-IRT ''
     }
 }
-#EndRegion './Public/Device/Remove-IRTDevice.ps1' 132
-#Region './Public/Device/Show-IRTDevice.ps1' -1
+#EndRegion '.\Public\Device\Remove-IRTDevice.ps1' 132
+#Region '.\Public\Device\Show-IRTDevice.ps1' -1
 
 function Show-IRTDevice {
     <#
@@ -15593,8 +15743,8 @@ function Show-IRTDevice {
         }
     }
 }
-#EndRegion './Public/Device/Show-IRTDevice.ps1' 106
-#Region './Public/Email/Get-IRTEmailSearch.ps1' -1
+#EndRegion '.\Public\Device\Show-IRTDevice.ps1' 106
+#Region '.\Public\Email\Get-IRTEmailSearch.ps1' -1
 
 function Get-IRTEmailSearch {
     <#
@@ -16005,8 +16155,8 @@ function Get-IRTEmailSearch {
         }
     }
 }
-#EndRegion './Public/Email/Get-IRTEmailSearch.ps1' 410
-#Region './Public/Email/Get-IRTMessageTrace.ps1' -1
+#EndRegion '.\Public\Email\Get-IRTEmailSearch.ps1' 410
+#Region '.\Public\Email\Get-IRTMessageTrace.ps1' -1
 
 function Get-IRTMessageTrace {
     <#
@@ -16511,8 +16661,8 @@ function Get-IRTMessageTrace {
         }
     }
 }
-#EndRegion './Public/Email/Get-IRTMessageTrace.ps1' 504
-#Region './Public/Email/New-IRTEmailSearch.ps1' -1
+#EndRegion '.\Public\Email\Get-IRTMessageTrace.ps1' 504
+#Region '.\Public\Email\New-IRTEmailSearch.ps1' -1
 
 function New-IRTEmailSearch {
     <#
@@ -16816,8 +16966,8 @@ function New-IRTEmailSearch {
 
     return $Result
 }
-#EndRegion './Public/Email/New-IRTEmailSearch.ps1' 303
-#Region './Public/Email/Show-IRTMessageTrace.ps1' -1
+#EndRegion '.\Public\Email\New-IRTEmailSearch.ps1' 303
+#Region '.\Public\Email\Show-IRTMessageTrace.ps1' -1
 
 function Show-IRTMessageTrace {
     <#
@@ -17192,8 +17342,8 @@ function Show-IRTMessageTrace {
         }
     }
 }
-#EndRegion './Public/Email/Show-IRTMessageTrace.ps1' 374
-#Region './Public/Entra/Get-IRTEntraAuditLog.ps1' -1
+#EndRegion '.\Public\Email\Show-IRTMessageTrace.ps1' 374
+#Region '.\Public\Entra\Get-IRTEntraAuditLog.ps1' -1
 
 function Get-IRTEntraAuditLog {
     <#
@@ -17433,8 +17583,8 @@ function Get-IRTEntraAuditLog {
         }
     }
 }
-#EndRegion './Public/Entra/Get-IRTEntraAuditLog.ps1' 239
-#Region './Public/Entra/Get-IRTEntraSPSignInLog.ps1' -1
+#EndRegion '.\Public\Entra\Get-IRTEntraAuditLog.ps1' 239
+#Region '.\Public\Entra\Get-IRTEntraSPSignInLog.ps1' -1
 
 function Get-IRTEntraSPSignInLog {
     <#
@@ -17689,8 +17839,8 @@ function Get-IRTEntraSPSignInLog {
         }
     }
 }
-#EndRegion './Public/Entra/Get-IRTEntraSPSignInLog.ps1' 254
-#Region './Public/Entra/Get-IRTEntraUserSignInLog.ps1' -1
+#EndRegion '.\Public\Entra\Get-IRTEntraSPSignInLog.ps1' 254
+#Region '.\Public\Entra\Get-IRTEntraUserSignInLog.ps1' -1
 
 function Get-IRTEntraUserSignInLog {
     <#
@@ -18083,8 +18233,8 @@ function Get-IRTEntraUserSignInLog {
         }
     }
 }
-#EndRegion './Public/Entra/Get-IRTEntraUserSignInLog.ps1' 392
-#Region './Public/Entra/Show-IRTEntraAuditLog.ps1' -1
+#EndRegion '.\Public\Entra\Get-IRTEntraUserSignInLog.ps1' 392
+#Region '.\Public\Entra\Show-IRTEntraAuditLog.ps1' -1
 
 function Show-IRTEntraAuditLog {
     <#
@@ -18689,8 +18839,8 @@ function Show-IRTEntraAuditLog {
         }
     }
 }
-#EndRegion './Public/Entra/Show-IRTEntraAuditLog.ps1' 604
-#Region './Public/Entra/Show-IRTEntraSPSignInLog.ps1' -1
+#EndRegion '.\Public\Entra\Show-IRTEntraAuditLog.ps1' 604
+#Region '.\Public\Entra\Show-IRTEntraSPSignInLog.ps1' -1
 
 function Show-IRTEntraSPSignInLog {
     <#
@@ -18985,8 +19135,8 @@ function Show-IRTEntraSPSignInLog {
         }
     }
 }
-#EndRegion './Public/Entra/Show-IRTEntraSPSignInLog.ps1' 294
-#Region './Public/Entra/Show-IRTEntraUserSignInLog.ps1' -1
+#EndRegion '.\Public\Entra\Show-IRTEntraSPSignInLog.ps1' 294
+#Region '.\Public\Entra\Show-IRTEntraUserSignInLog.ps1' -1
 
 function Show-IRTEntraUserSignInLog {
     <#
@@ -19489,8 +19639,8 @@ function Show-IRTEntraUserSignInLog {
         }
     }
 }
-#EndRegion './Public/Entra/Show-IRTEntraUserSignInLog.ps1' 502
-#Region './Public/Lib/Get-TenantOidc.ps1' -1
+#EndRegion '.\Public\Entra\Show-IRTEntraUserSignInLog.ps1' 502
+#Region '.\Public\Lib\Get-TenantOidc.ps1' -1
 
 function Get-TenantOidc {
     <#
@@ -19707,8 +19857,8 @@ function Get-TenantOidc {
 
     return $null
 }
-#EndRegion './Public/Lib/Get-TenantOidc.ps1' 216
-#Region './Public/Mailbox/Add-IRTMailboxFullAccess.ps1' -1
+#EndRegion '.\Public\Lib\Get-TenantOidc.ps1' 216
+#Region '.\Public\Mailbox\Add-IRTMailboxFullAccess.ps1' -1
 
 function Add-IRTMailboxFullAccess {
     <#
@@ -19890,8 +20040,8 @@ function Add-IRTMailboxFullAccess {
         }
     }
 }
-#EndRegion './Public/Mailbox/Add-IRTMailboxFullAccess.ps1' 181
-#Region './Public/Mailbox/Get-IRTInboxRule.ps1' -1
+#EndRegion '.\Public\Mailbox\Add-IRTMailboxFullAccess.ps1' 181
+#Region '.\Public\Mailbox\Get-IRTInboxRule.ps1' -1
 
 function Get-IRTInboxRule {
     <#
@@ -20209,8 +20359,8 @@ function Get-IRTInboxRule {
         }
     }
 }
-#EndRegion './Public/Mailbox/Get-IRTInboxRule.ps1' 317
-#Region './Public/Mailbox/Open-IRTMailboxInOwa.ps1' -1
+#EndRegion '.\Public\Mailbox\Get-IRTInboxRule.ps1' 317
+#Region '.\Public\Mailbox\Open-IRTMailboxInOwa.ps1' -1
 
 function Open-IRTMailboxInOwa {
     <#
@@ -20320,8 +20470,8 @@ function Open-IRTMailboxInOwa {
         }
     }
 }
-#EndRegion './Public/Mailbox/Open-IRTMailboxInOwa.ps1' 109
-#Region './Public/Mailbox/Remove-IRTMailboxFullAccess.ps1' -1
+#EndRegion '.\Public\Mailbox\Open-IRTMailboxInOwa.ps1' 109
+#Region '.\Public\Mailbox\Remove-IRTMailboxFullAccess.ps1' -1
 
 function Remove-IRTMailboxFullAccess {
     <#
@@ -20366,8 +20516,8 @@ function Remove-IRTMailboxFullAccess {
         }
     }
 }
-#EndRegion './Public/Mailbox/Remove-IRTMailboxFullAccess.ps1' 44
-#Region './Public/Mailbox/Show-IRTMailbox.ps1' -1
+#EndRegion '.\Public\Mailbox\Remove-IRTMailboxFullAccess.ps1' 44
+#Region '.\Public\Mailbox\Show-IRTMailbox.ps1' -1
 
 function Show-IRTMailbox {
     <#
@@ -20521,8 +20671,8 @@ function Show-IRTMailbox {
         }
     }
 }
-#EndRegion './Public/Mailbox/Show-IRTMailbox.ps1' 153
-#Region './Public/Mailbox/Show-IRTMailboxAccess.ps1' -1
+#EndRegion '.\Public\Mailbox\Show-IRTMailbox.ps1' 153
+#Region '.\Public\Mailbox\Show-IRTMailboxAccess.ps1' -1
 
 function Show-IRTMailboxAccess {
     <#
@@ -20597,8 +20747,8 @@ function Show-IRTMailboxAccess {
         }
     }
 }
-#EndRegion './Public/Mailbox/Show-IRTMailboxAccess.ps1' 74
-#Region './Public/OnPremAd/Disable-IRTAdUser.ps1' -1
+#EndRegion '.\Public\Mailbox\Show-IRTMailboxAccess.ps1' 74
+#Region '.\Public\OnPremAd\Disable-IRTAdUser.ps1' -1
 
 function Disable-IRTAdUser {
     <#
@@ -20659,8 +20809,8 @@ function Disable-IRTAdUser {
 
     Set-AdUserEnabled @Params
 }
-#EndRegion './Public/OnPremAd/Disable-IRTAdUser.ps1' 60
-#Region './Public/OnPremAd/Enable-IRTAdUser.ps1' -1
+#EndRegion '.\Public\OnPremAd\Disable-IRTAdUser.ps1' 60
+#Region '.\Public\OnPremAd\Enable-IRTAdUser.ps1' -1
 
 function Enable-IRTAdUser {
     <#
@@ -20721,8 +20871,8 @@ function Enable-IRTAdUser {
 
     Set-AdUserEnabled @Params
 }
-#EndRegion './Public/OnPremAd/Enable-IRTAdUser.ps1' 60
-#Region './Public/OnPremAd/Find-IRTAdDevice.ps1' -1
+#EndRegion '.\Public\OnPremAd\Enable-IRTAdUser.ps1' 60
+#Region '.\Public\OnPremAd\Find-IRTAdDevice.ps1' -1
 
 function Find-IRTAdDevice {
     <#
@@ -20910,8 +21060,8 @@ function Find-IRTAdDevice {
         }
     }
 }
-#EndRegion './Public/OnPremAd/Find-IRTAdDevice.ps1' 187
-#Region './Public/OnPremAd/Find-IRTAdOu.ps1' -1
+#EndRegion '.\Public\OnPremAd\Find-IRTAdDevice.ps1' 187
+#Region '.\Public\OnPremAd\Find-IRTAdOu.ps1' -1
 
 function Find-IRTAdOu {
     <#
@@ -21037,8 +21187,8 @@ function Find-IRTAdOu {
         }
     }
 }
-#EndRegion './Public/OnPremAd/Find-IRTAdOu.ps1' 125
-#Region './Public/OnPremAd/Find-IRTAdUser.ps1' -1
+#EndRegion '.\Public\OnPremAd\Find-IRTAdOu.ps1' 125
+#Region '.\Public\OnPremAd\Find-IRTAdUser.ps1' -1
 
 function Find-IRTAdUser {
     <#
@@ -21245,8 +21395,8 @@ function Find-IRTAdUser {
         }
     }
 }
-#EndRegion './Public/OnPremAd/Find-IRTAdUser.ps1' 206
-#Region './Public/OnPremAd/Find-IRTDomainController.ps1' -1
+#EndRegion '.\Public\OnPremAd\Find-IRTAdUser.ps1' 206
+#Region '.\Public\OnPremAd\Find-IRTDomainController.ps1' -1
 
 function Find-IRTDomainController {
     <#
@@ -21291,8 +21441,8 @@ function Find-IRTDomainController {
 
     Get-ADDomainController -Filter * | Select-Object Name
 }
-#EndRegion './Public/OnPremAd/Find-IRTDomainController.ps1' 44
-#Region './Public/OnPremAd/Get-IRTAdAdminUser.ps1' -1
+#EndRegion '.\Public\OnPremAd\Find-IRTDomainController.ps1' 44
+#Region '.\Public\OnPremAd\Get-IRTAdAdminUser.ps1' -1
 
 function Get-IRTAdAdminUser {
     <#
@@ -21399,8 +21549,8 @@ function Get-IRTAdAdminUser {
         }
     }
 }
-#EndRegion './Public/OnPremAd/Get-IRTAdAdminUser.ps1' 106
-#Region './Public/OnPremAd/Push-IRTAdSync.ps1' -1
+#EndRegion '.\Public\OnPremAd\Get-IRTAdAdminUser.ps1' 106
+#Region '.\Public\OnPremAd\Push-IRTAdSync.ps1' -1
 
 function Push-IRTAdSync {
     <#
@@ -21768,8 +21918,8 @@ function Push-IRTAdSync {
         }
     }
 }
-#EndRegion './Public/OnPremAd/Push-IRTAdSync.ps1' 367
-#Region './Public/OnPremAd/Reset-IRTAdUserPassword.ps1' -1
+#EndRegion '.\Public\OnPremAd\Push-IRTAdSync.ps1' 367
+#Region '.\Public\OnPremAd\Reset-IRTAdUserPassword.ps1' -1
 
 function Reset-IRTAdUserPassword {
     <#
@@ -22014,8 +22164,8 @@ function Reset-IRTAdUserPassword {
         }
     }
 }
-#EndRegion './Public/OnPremAd/Reset-IRTAdUserPassword.ps1' 244
-#Region './Public/OnPremAd/Show-IRTAdDevice.ps1' -1
+#EndRegion '.\Public\OnPremAd\Reset-IRTAdUserPassword.ps1' 244
+#Region '.\Public\OnPremAd\Show-IRTAdDevice.ps1' -1
 
 function Show-IRTAdDevice {
     <#
@@ -22165,8 +22315,8 @@ function Show-IRTAdDevice {
         }
     }
 }
-#EndRegion './Public/OnPremAd/Show-IRTAdDevice.ps1' 149
-#Region './Public/OnPremAd/Show-IRTAdOus.ps1' -1
+#EndRegion '.\Public\OnPremAd\Show-IRTAdDevice.ps1' 149
+#Region '.\Public\OnPremAd\Show-IRTAdOus.ps1' -1
 
 function Show-IRTAdOus {
     <#
@@ -22261,8 +22411,8 @@ function Show-IRTAdOus {
         }
     }
 }
-#EndRegion './Public/OnPremAd/Show-IRTAdOus.ps1' 94
-#Region './Public/OnPremAd/Show-IRTAdUser.ps1' -1
+#EndRegion '.\Public\OnPremAd\Show-IRTAdOus.ps1' 94
+#Region '.\Public\OnPremAd\Show-IRTAdUser.ps1' -1
 
 function Show-IRTAdUser {
     <#
@@ -22420,8 +22570,8 @@ function Show-IRTAdUser {
         }
     }
 }
-#EndRegion './Public/OnPremAd/Show-IRTAdUser.ps1' 157
-#Region './Public/Role/Get-IRTAdminRole.ps1' -1
+#EndRegion '.\Public\OnPremAd\Show-IRTAdUser.ps1' 157
+#Region '.\Public\Role\Get-IRTAdminRole.ps1' -1
 
 function Get-IRTAdminRole {
     <#
@@ -22781,8 +22931,8 @@ function Get-IRTAdminRole {
         }
     }
 }
-#EndRegion './Public/Role/Get-IRTAdminRole.ps1' 359
-#Region './Public/ServicePrincipal/Find-IRTRiskyServicePrincipal.ps1' -1
+#EndRegion '.\Public\Role\Get-IRTAdminRole.ps1' 359
+#Region '.\Public\ServicePrincipal\Find-IRTRiskyServicePrincipal.ps1' -1
 
 function Find-IRTRiskyServicePrincipal {
     <#
@@ -22798,8 +22948,6 @@ function Find-IRTRiskyServicePrincipal {
 
     New feeds can be added to the $ThreatFeeds array in the begin block.
     Each feed requires: Name, Url, Parser (scriptblock), AppIdField, and DisplayProperties.
-
-    Requires the PSToml module for feeds that use TOML format.
 
     .PARAMETER Cached
     Use pre-cached Graph service principal and OAuth grant data instead of making new
@@ -22846,18 +22994,6 @@ function Find-IRTRiskyServicePrincipal {
             'Id'
         )
         $ThreatFeeds = @(
-            @{
-                Name              = 'Huntress RogueApps'
-                Url               = 'https://raw.githubusercontent.com/' +
-                'huntresslabs/rogueapps/refs/heads/main/data/rogueapps.toml'
-                Parser            = {
-                    param($r)
-                    ($r | ConvertFrom-Toml).apps | ForEach-Object { [PSCustomObject]$_ }
-                }
-                AppIdField        = 'appId'
-                DisplayProperties = @('appDisplayName', 'description', 'tags', 'references')
-                Apps              = $null
-            }
             @{
                 Name              = 'Syne/randomaccess3'
                 Url               = 'https://raw.githubusercontent.com/' +
@@ -22938,8 +23074,8 @@ function Find-IRTRiskyServicePrincipal {
         }
     }
 }
-#EndRegion './Public/ServicePrincipal/Find-IRTRiskyServicePrincipal.ps1' 155
-#Region './Public/ServicePrincipal/Find-IRTServicePrincipal.ps1' -1
+#EndRegion '.\Public\ServicePrincipal\Find-IRTRiskyServicePrincipal.ps1' 141
+#Region '.\Public\ServicePrincipal\Find-IRTServicePrincipal.ps1' -1
 
 function Find-IRTServicePrincipal {
     <#
@@ -23167,8 +23303,8 @@ function Find-IRTServicePrincipal {
         }
     }
 }
-#EndRegion './Public/ServicePrincipal/Find-IRTServicePrincipal.ps1' 227
-#Region './Public/ServicePrincipal/Get-IRTServicePrincipal.ps1' -1
+#EndRegion '.\Public\ServicePrincipal\Find-IRTServicePrincipal.ps1' 227
+#Region '.\Public\ServicePrincipal\Get-IRTServicePrincipal.ps1' -1
 
 function Get-IRTServicePrincipal {
     <#
@@ -23396,8 +23532,8 @@ function Get-IRTServicePrincipal {
         }
     }
 }
-#EndRegion './Public/ServicePrincipal/Get-IRTServicePrincipal.ps1' 227
-#Region './Public/ServicePrincipal/Get-IRTTenantOwner.ps1' -1
+#EndRegion '.\Public\ServicePrincipal\Get-IRTServicePrincipal.ps1' 227
+#Region '.\Public\ServicePrincipal\Get-IRTTenantOwner.ps1' -1
 
 function Get-IRTTenantOwner {
     <#
@@ -23725,8 +23861,8 @@ function Get-IRTTenantOwner {
         }
     }
 }
-#EndRegion './Public/ServicePrincipal/Get-IRTTenantOwner.ps1' 327
-#Region './Public/ServicePrincipal/Get-IRTUserServicePrincipal.ps1' -1
+#EndRegion '.\Public\ServicePrincipal\Get-IRTTenantOwner.ps1' 327
+#Region '.\Public\ServicePrincipal\Get-IRTUserServicePrincipal.ps1' -1
 
 function Get-IRTUserServicePrincipal { # FIXME rename to Get-IRTUserAppConsent
     <#
@@ -23957,8 +24093,8 @@ function Get-IRTUserServicePrincipal { # FIXME rename to Get-IRTUserAppConsent
         }
     }
 }
-#EndRegion './Public/ServicePrincipal/Get-IRTUserServicePrincipal.ps1' 230
-#Region './Public/ServicePrincipal/Open-IRTTenantOwnerCSV.ps1' -1
+#EndRegion '.\Public\ServicePrincipal\Get-IRTUserServicePrincipal.ps1' 230
+#Region '.\Public\ServicePrincipal\Open-IRTTenantOwnerCSV.ps1' -1
 
 function Open-IRTTenantOwnerCSV {
     <#
@@ -23995,8 +24131,8 @@ function Open-IRTTenantOwnerCSV {
     Write-PSFMessage -Level 8 -Message "Opening $cachePath"
     Start-Process $cachePath
 }
-#EndRegion './Public/ServicePrincipal/Open-IRTTenantOwnerCSV.ps1' 36
-#Region './Public/ServicePrincipal/Open-IRTTenantSheet.ps1' -1
+#EndRegion '.\Public\ServicePrincipal\Open-IRTTenantOwnerCSV.ps1' 36
+#Region '.\Public\ServicePrincipal\Open-IRTTenantSheet.ps1' -1
 
 function Open-IRTTenantSheet {
     <#
@@ -24063,8 +24199,8 @@ function Open-IRTTenantSheet {
         Invoke-Item $TenantFile
     }
 }
-#EndRegion './Public/ServicePrincipal/Open-IRTTenantSheet.ps1' 66
-#Region './Public/ServicePrincipal/Show-IRTServicePrincipal.ps1' -1
+#EndRegion '.\Public\ServicePrincipal\Open-IRTTenantSheet.ps1' 66
+#Region '.\Public\ServicePrincipal\Show-IRTServicePrincipal.ps1' -1
 
 function Show-IRTServicePrincipal {
     <#
@@ -24388,8 +24524,8 @@ function Show-IRTServicePrincipal {
         }
     }
 }
-#EndRegion './Public/ServicePrincipal/Show-IRTServicePrincipal.ps1' 323
-#Region './Public/UnifiedAuditLog/Get-IRTTeamsExternalDomain.ps1' -1
+#EndRegion '.\Public\ServicePrincipal\Show-IRTServicePrincipal.ps1' 323
+#Region '.\Public\UnifiedAuditLog\Get-IRTTeamsExternalDomain.ps1' -1
 
 function Get-IRTTeamsExternalDomain {
     <#
@@ -24761,8 +24897,8 @@ function Get-IRTTeamsExternalDomain {
         Write-PSFMessage -Level 8 -Message "${FunctionName}: Complete [$Elapsed]"
     }
 }
-#EndRegion './Public/UnifiedAuditLog/Get-IRTTeamsExternalDomain.ps1' 371
-#Region './Public/UnifiedAuditLog/Get-IRTUnifiedAuditLog.ps1' -1
+#EndRegion '.\Public\UnifiedAuditLog\Get-IRTTeamsExternalDomain.ps1' 371
+#Region '.\Public\UnifiedAuditLog\Get-IRTUnifiedAuditLog.ps1' -1
 
 function Get-IRTUnifiedAuditLog {
     <#
@@ -25887,8 +26023,8 @@ function Get-IRTUnifiedAuditLog {
         }
     }
 }
-#EndRegion './Public/UnifiedAuditLog/Get-IRTUnifiedAuditLog.ps1' 1124
-#Region './Public/UnifiedAuditLog/Open-IRTAllOperationsSheet.ps1' -1
+#EndRegion '.\Public\UnifiedAuditLog\Get-IRTUnifiedAuditLog.ps1' 1124
+#Region '.\Public\UnifiedAuditLog\Open-IRTAllOperationsSheet.ps1' -1
 
 function Open-IRTAllOperationsSheet {
     <#
@@ -25917,8 +26053,8 @@ function Open-IRTAllOperationsSheet {
         Invoke-Item $SheetPath
     }
 }
-#EndRegion './Public/UnifiedAuditLog/Open-IRTAllOperationsSheet.ps1' 28
-#Region './Public/UnifiedAuditLog/Receive-IRTGraphUAL.ps1' -1
+#EndRegion '.\Public\UnifiedAuditLog\Open-IRTAllOperationsSheet.ps1' 28
+#Region '.\Public\UnifiedAuditLog\Receive-IRTGraphUAL.ps1' -1
 
 function Receive-IRTGraphUAL {
     <#
@@ -26187,8 +26323,8 @@ function Receive-IRTGraphUAL {
         }
     }
 }
-#EndRegion './Public/UnifiedAuditLog/Receive-IRTGraphUAL.ps1' 268
-#Region './Public/UnifiedAuditLog/Show-IRTTeamsExternalDomain.ps1' -1
+#EndRegion '.\Public\UnifiedAuditLog\Receive-IRTGraphUAL.ps1' 268
+#Region '.\Public\UnifiedAuditLog\Show-IRTTeamsExternalDomain.ps1' -1
 
 function Show-IRTTeamsExternalDomain {
     <#
@@ -26798,8 +26934,8 @@ function Show-IRTTeamsExternalDomain {
         Write-PSFMessage -Level 8 -Message "${FunctionName}: Complete [$Elapsed]"
     }
 }
-#EndRegion './Public/UnifiedAuditLog/Show-IRTTeamsExternalDomain.ps1' 609
-#Region './Public/UnifiedAuditLog/Show-IRTUnifiedAuditLog.ps1' -1
+#EndRegion '.\Public\UnifiedAuditLog\Show-IRTTeamsExternalDomain.ps1' 609
+#Region '.\Public\UnifiedAuditLog\Show-IRTUnifiedAuditLog.ps1' -1
 
 function Show-IRTUnifiedAuditLog {
     <#
@@ -27102,8 +27238,8 @@ function Show-IRTUnifiedAuditLog {
         }
     }
 }
-#EndRegion './Public/UnifiedAuditLog/Show-IRTUnifiedAuditLog.ps1' 302
-#Region './Public/UnifiedAuditLog/Start-IRTGraphUAL.ps1' -1
+#EndRegion '.\Public\UnifiedAuditLog\Show-IRTUnifiedAuditLog.ps1' 302
+#Region '.\Public\UnifiedAuditLog\Start-IRTGraphUAL.ps1' -1
 
 function Start-IRTGraphUAL {
     <#
@@ -27604,8 +27740,8 @@ function Start-IRTGraphUAL {
         Wait-IRTGraphUAL @WaitParams
     }
 }
-#EndRegion './Public/UnifiedAuditLog/Start-IRTGraphUAL.ps1' 500
-#Region './Public/UnifiedAuditLog/Wait-IRTGraphUAL.ps1' -1
+#EndRegion '.\Public\UnifiedAuditLog\Start-IRTGraphUAL.ps1' 500
+#Region '.\Public\UnifiedAuditLog\Wait-IRTGraphUAL.ps1' -1
 
 function Wait-IRTGraphUAL {
     <#
@@ -27814,8 +27950,8 @@ function Wait-IRTGraphUAL {
         Receive-IRTGraphUAL @ReceiveParams
     }
 }
-#EndRegion './Public/UnifiedAuditLog/Wait-IRTGraphUAL.ps1' 208
-#Region './Public/User/Disable-IRTUser.ps1' -1
+#EndRegion '.\Public\UnifiedAuditLog\Wait-IRTGraphUAL.ps1' 208
+#Region '.\Public\User\Disable-IRTUser.ps1' -1
 
 function Disable-IRTUser {
     <#
@@ -27843,8 +27979,8 @@ function Disable-IRTUser {
 
     Set-UserEnabled @Params
 }
-#EndRegion './Public/User/Disable-IRTUser.ps1' 27
-#Region './Public/User/Enable-IRTUser.ps1' -1
+#EndRegion '.\Public\User\Disable-IRTUser.ps1' 27
+#Region '.\Public\User\Enable-IRTUser.ps1' -1
 
 function Enable-IRTUser {
     <#
@@ -27872,8 +28008,8 @@ function Enable-IRTUser {
 
     Set-UserEnabled @Params
 }
-#EndRegion './Public/User/Enable-IRTUser.ps1' 27
-#Region './Public/User/Find-IRTUser.ps1' -1
+#EndRegion '.\Public\User\Enable-IRTUser.ps1' 27
+#Region '.\Public\User\Find-IRTUser.ps1' -1
 
 function Find-IRTUser {
     <#
@@ -28070,8 +28206,8 @@ function Find-IRTUser {
         }
     }
 }
-#EndRegion './Public/User/Find-IRTUser.ps1' 196
-#Region './Public/User/Reset-IRTUserPassword.ps1' -1
+#EndRegion '.\Public\User\Find-IRTUser.ps1' 196
+#Region '.\Public\User\Reset-IRTUserPassword.ps1' -1
 
 function Reset-IRTUserPassword {
     <#
@@ -28329,8 +28465,8 @@ function Reset-IRTUserPassword {
         }
     }
 }
-#EndRegion './Public/User/Reset-IRTUserPassword.ps1' 257
-#Region './Public/User/Revoke-IRTUserSession.ps1' -1
+#EndRegion '.\Public\User\Reset-IRTUserPassword.ps1' 257
+#Region '.\Public\User\Revoke-IRTUserSession.ps1' -1
 
 function Revoke-IRTUserSession {
     <#
@@ -28386,8 +28522,8 @@ function Revoke-IRTUserSession {
         }
     }
 }
-#EndRegion './Public/User/Revoke-IRTUserSession.ps1' 55
-#Region './Public/User/Set-IRTUserUsageLocation.ps1' -1
+#EndRegion '.\Public\User\Revoke-IRTUserSession.ps1' 55
+#Region '.\Public\User\Set-IRTUserUsageLocation.ps1' -1
 
 function Set-IRTUserUsageLocation {
     <#
@@ -28504,8 +28640,8 @@ function Set-IRTUserUsageLocation {
         }
     }
 }
-#EndRegion './Public/User/Set-IRTUserUsageLocation.ps1' 116
-#Region './Public/User/Show-IRTUser.ps1' -1
+#EndRegion '.\Public\User\Set-IRTUserUsageLocation.ps1' 116
+#Region '.\Public\User\Show-IRTUser.ps1' -1
 
 function Show-IRTUser {
     <#
@@ -28608,8 +28744,8 @@ function Show-IRTUser {
         }
     }
 }
-#EndRegion './Public/User/Show-IRTUser.ps1' 102
-#Region './Public/User/Show-IRTUserMfa.ps1' -1
+#EndRegion '.\Public\User\Show-IRTUser.ps1' 102
+#Region '.\Public\User\Show-IRTUserMfa.ps1' -1
 
 function Show-IRTUserMfa {
     <#
@@ -29107,8 +29243,8 @@ function Show-IRTUserMfa {
         }
     }
 }
-#EndRegion './Public/User/Show-IRTUserMfa.ps1' 497
-#Region './Public/Utility/Compress-IRTInvestigationFolder.ps1' -1
+#EndRegion '.\Public\User\Show-IRTUserMfa.ps1' 497
+#Region '.\Public\Utility\Compress-IRTInvestigationFolder.ps1' -1
 
 function Compress-IRTInvestigationFolder {
     <#
@@ -29191,8 +29327,8 @@ function Compress-IRTInvestigationFolder {
         }
     }
 }
-#EndRegion './Public/Utility/Compress-IRTInvestigationFolder.ps1' 82
-#Region './Public/Utility/Copy-IRTFunction.ps1' -1
+#EndRegion '.\Public\Utility\Compress-IRTInvestigationFolder.ps1' 82
+#Region '.\Public\Utility\Copy-IRTFunction.ps1' -1
 
 function Copy-IRTFunction {
     <#
@@ -29380,8 +29516,8 @@ if (-not `$Global:IRT_Config) {
         Write-IRT "Copied $Resolved function(s) to clipboard."
     }
 }
-#EndRegion './Public/Utility/Copy-IRTFunction.ps1' 187
-#Region './Public/Utility/Find-IRTDirectoryObject.ps1' -1
+#EndRegion '.\Public\Utility\Copy-IRTFunction.ps1' 187
+#Region '.\Public\Utility\Find-IRTDirectoryObject.ps1' -1
 
 function Find-IRTDirectoryObject {
     [Alias('FindObject', 'FindObjects')]
@@ -29496,8 +29632,8 @@ function Find-IRTDirectoryObject {
         }
     }
 }
-#EndRegion './Public/Utility/Find-IRTDirectoryObject.ps1' 114
-#Region './Public/Utility/Get-IRTLicenseReport.ps1' -1
+#EndRegion '.\Public\Utility\Find-IRTDirectoryObject.ps1' 114
+#Region '.\Public\Utility\Get-IRTLicenseReport.ps1' -1
 
 function Get-IRTLicenseReport {
     <#
@@ -29641,8 +29777,8 @@ function Get-IRTLicenseReport {
         }
     }
 }
-#EndRegion './Public/Utility/Get-IRTLicenseReport.ps1' 143
-#Region './Public/Utility/Import-IRT.ps1' -1
+#EndRegion '.\Public\Utility\Get-IRTLicenseReport.ps1' 143
+#Region '.\Public\Utility\Import-IRT.ps1' -1
 
 function Import-IRT {
     <#
@@ -29677,8 +29813,8 @@ function Import-IRT {
     [OutputType([void])]
     param()
 }
-#EndRegion './Public/Utility/Import-IRT.ps1' 34
-#Region './Public/Utility/Import-IRTConfig.ps1' -1
+#EndRegion '.\Public\Utility\Import-IRT.ps1' 34
+#Region '.\Public\Utility\Import-IRTConfig.ps1' -1
 
 function Import-IRTConfig {
     <#
@@ -29739,8 +29875,8 @@ function Import-IRTConfig {
         $Global:IRT_Config.TenantsSheetPath = Get-IRTAppDataPath -ChildPath 'tenants.xlsx'
     }
 }
-#EndRegion './Public/Utility/Import-IRTConfig.ps1' 60
-#Region './Public/Utility/New-IRTInvestigationFolder.ps1' -1
+#EndRegion '.\Public\Utility\Import-IRTConfig.ps1' 60
+#Region '.\Public\Utility\New-IRTInvestigationFolder.ps1' -1
 
 function New-IRTInvestigationFolder {
     <#
@@ -29869,8 +30005,8 @@ function New-IRTInvestigationFolder {
         }
     }
 }
-#EndRegion './Public/Utility/New-IRTInvestigationFolder.ps1' 128
-#Region './Public/Utility/Open-IRTConfig.ps1' -1
+#EndRegion '.\Public\Utility\New-IRTInvestigationFolder.ps1' 128
+#Region '.\Public\Utility\Open-IRTConfig.ps1' -1
 
 function Open-IRTConfig {
     <#
@@ -29889,8 +30025,8 @@ function Open-IRTConfig {
 
     Invoke-Item $ConfigPath
 }
-#EndRegion './Public/Utility/Open-IRTConfig.ps1' 18
-#Region './Public/Utility/Open-IRTSpreadsheet.ps1' -1
+#EndRegion '.\Public\Utility\Open-IRTConfig.ps1' 18
+#Region '.\Public\Utility\Open-IRTSpreadsheet.ps1' -1
 
 function Open-IRTSpreadsheet {
     <#
@@ -29966,8 +30102,8 @@ function Open-IRTSpreadsheet {
         }
     }
 }
-#EndRegion './Public/Utility/Open-IRTSpreadsheet.ps1' 75
-#Region './Public/Utility/Set-IRTConfig.ps1' -1
+#EndRegion '.\Public\Utility\Open-IRTSpreadsheet.ps1' 75
+#Region '.\Public\Utility\Set-IRTConfig.ps1' -1
 
 function Set-IRTConfig {
     <#
@@ -30300,8 +30436,8 @@ function Set-IRTConfig {
         }
     }
 }
-#EndRegion './Public/Utility/Set-IRTConfig.ps1' 332
-#Region './Public/Utility/Start-IRTPlaybook.ps1' -1
+#EndRegion '.\Public\Utility\Set-IRTConfig.ps1' 332
+#Region '.\Public\Utility\Start-IRTPlaybook.ps1' -1
 
 function Start-IRTPlaybook {
     <#
@@ -30823,8 +30959,8 @@ function Start-IRTPlaybook {
             "${FunctionName}: Playbook complete. Total elapsed: $TotalElapsed")
     }
 }
-#EndRegion './Public/Utility/Start-IRTPlaybook.ps1' 521
-#Region './Suffix.ps1' -1
+#EndRegion '.\Public\Utility\Start-IRTPlaybook.ps1' 521
+#Region '.\Suffix.ps1' -1
 
 # ModuleBuilder Notes: Code in this file will be appended to the built .psm1 file.
 
@@ -30892,4 +31028,4 @@ if ($Global:IRT_LoadStopwatch) {
     Write-PSFMessage -Level 8 -Message "Module loaded in $($Elapsed.ToString('N2'))s."
     Remove-Variable -Name 'IRT_LoadStopwatch' -Scope Global
 }
-#EndRegion './Suffix.ps1' 67
+#EndRegion '.\Suffix.ps1' 67
