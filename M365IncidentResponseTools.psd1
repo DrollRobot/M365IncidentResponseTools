@@ -12,7 +12,7 @@
     RootModule = 'M365IncidentResponseTools.psm1'
 
     # Version number of this module.
-    ModuleVersion     = '2.11.0'
+    ModuleVersion     = '2.12.0'
 
     # Supported PSEditions
     # CompatiblePSEditions = @()
