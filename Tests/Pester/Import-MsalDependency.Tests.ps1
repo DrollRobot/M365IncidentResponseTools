@@ -36,9 +36,22 @@ InModuleScope M365IncidentResponseTools {
         $script:AbsName = 'Microsoft.IdentityModel.Abstractions'
         $script:GraphBase = 'TestDrive:\Graph'
         $script:ExoBase = 'TestDrive:\Exo'
-        $script:GraphDll = "$script:GraphBase\Dependencies\$script:AbsName.dll"
-        $script:GraphCoreDll = "$script:GraphBase\Dependencies\Core\$script:AbsName.dll"
-        $script:ExoDll = "$script:ExoBase\netCore\$script:AbsName.dll"
+        # built with Join-Path like the function does, so separators match on every OS
+        $DllName = "$script:AbsName.dll"
+        $GraphDeps = Join-Path -Path $script:GraphBase -ChildPath 'Dependencies'
+        $script:GraphDll = Join-Path -Path $GraphDeps -ChildPath $DllName
+        $GraphCoreParams = @{
+            Path                = $GraphDeps
+            ChildPath           = 'Core'
+            AdditionalChildPath = $DllName
+        }
+        $script:GraphCoreDll = Join-Path @GraphCoreParams
+        $ExoDllParams = @{
+            Path                = $script:ExoBase
+            ChildPath           = 'netCore'
+            AdditionalChildPath = $DllName
+        }
+        $script:ExoDll = Join-Path @ExoDllParams
     }
 
     Describe 'Import-MsalDependency' -Tag 'unit' {
