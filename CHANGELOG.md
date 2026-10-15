@@ -3,7 +3,7 @@
 All notable changes to this project will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [3.0.0] - 2026-10-03 - Linux and macOS support, Graph audit log search
+## [2.12.0] - 2026-10-15 - Linux and macOS support, Graph audit log search
 
 ### Added
 
