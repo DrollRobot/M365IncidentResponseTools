@@ -452,13 +452,14 @@ function Show-IRTEntraAuditLog {
 
         # export spreadsheet
         $ExcelParams = @{
-            Path          = $ExcelOutputPath
-            WorkSheetname = $WorksheetName
-            Title         = $WorksheetTitle
-            TableStyle    = $TableStyle
-            AutoSize      = $true
-            FreezeTopRow  = $true
-            Passthru      = $true
+            Path                  = $ExcelOutputPath
+            WorkSheetname         = $WorksheetName
+            Title                 = $WorksheetTitle
+            TableStyle            = $TableStyle
+            AutoSize              = $true
+            FreezeTopRow          = $true
+            Passthru              = $true
+            NoHyperLinkConversion = '*'
         }
         try {
             $Workbook = $Rows | Export-Excel @ExcelParams

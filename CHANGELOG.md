@@ -3,6 +3,13 @@
 All notable changes to this project will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Fixed
+
+- Exported workbooks saved IPv6 addresses that start with a letter, such as
+  `fd00::...`, as links.
+
 ## [2.12.0] - 2026-10-15 - Linux and macOS support, Graph audit log search
 
 ### Added

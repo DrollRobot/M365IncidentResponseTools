@@ -83,12 +83,13 @@ function New-TenantSheet {
             "${FunctionName}: writing ${RowCount} sample rows to '${Path}'")
 
         $ExcelParams = @{
-            Path          = $Path
-            WorksheetName = 'tenants'
-            TableName     = 'Tenants'
-            TableStyle    = 'Medium15'
-            AutoSize      = $true
-            PassThru      = $true
+            Path                  = $Path
+            WorksheetName         = 'tenants'
+            TableName             = 'Tenants'
+            TableStyle            = 'Medium15'
+            AutoSize              = $true
+            PassThru              = $true
+            NoHyperLinkConversion = '*'
         }
         $Package = $SampleTenants | Export-Excel @ExcelParams
         Close-ExcelPackage -ExcelPackage $Package

@@ -253,12 +253,13 @@ function Build-AllOperationSheet {
             "${FunctionName}: Export-Excel -> '$WorksheetName' " +
             "[$($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))]")
         $ExcelParams = @{
-            ExcelPackage  = $ExcelPackage
-            WorkSheetname = $WorksheetName
-            Title         = $Title
-            TableStyle    = $TableStyle
-            FreezeTopRow  = $true
-            Passthru      = $true
+            ExcelPackage          = $ExcelPackage
+            WorkSheetname         = $WorksheetName
+            Title                 = $Title
+            TableStyle            = $TableStyle
+            FreezeTopRow          = $true
+            Passthru              = $true
+            NoHyperLinkConversion = '*'
         }
         $Workbook = $Rows | Export-Excel @ExcelParams
         $Worksheet = $Workbook.Workbook.Worksheets[$WorksheetName]
@@ -386,9 +387,10 @@ function Build-AllOperationSheet {
             $OperationsToAdd | Format-Table | Out-Host
             Write-IRT "Appending to: ${OperationsSheetPath}" -Level Warn
             $ExportParams = @{
-                Path          = $OperationsSheetPath
-                WorksheetName = 'Operations'
-                Append        = $true
+                Path                  = $OperationsSheetPath
+                WorksheetName         = 'Operations'
+                Append                = $true
+                NoHyperLinkConversion = '*'
             }
             $OperationsToAdd | Export-Excel @ExportParams
         }

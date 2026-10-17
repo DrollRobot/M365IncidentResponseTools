@@ -505,12 +505,13 @@ function Show-IRTTeamsExternalDomain {
         $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
         Write-PSFMessage -Level 8 -Message "${FunctionName}: Export-Excel [$Elapsed]"
         $ExcelParams = @{
-            Path          = $ExcelOutputPath
-            WorkSheetname = $WorksheetName
-            Title         = $WorksheetTitle
-            TableStyle    = $TableStyle
-            FreezeTopRow  = $true
-            Passthru      = $true
+            Path                  = $ExcelOutputPath
+            WorkSheetname         = $WorksheetName
+            Title                 = $WorksheetTitle
+            TableStyle            = $TableStyle
+            FreezeTopRow          = $true
+            Passthru              = $true
+            NoHyperLinkConversion = '*'
         }
         try {
             $Workbook = $Rows | Export-Excel @ExcelParams

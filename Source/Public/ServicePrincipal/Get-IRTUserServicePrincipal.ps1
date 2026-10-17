@@ -157,13 +157,14 @@ function Get-IRTUserServicePrincipal { # FIXME rename to Get-IRTUserAppConsent
 
             #region EXCEL
             $ExcelParams = @{
-                Path          = $ExcelOutputPath
-                WorkSheetname = $WorkSheetName
-                Title         = $WorksheetTitle
-                TableStyle    = $TableStyle
-                AutoSize      = $true
-                FreezeTopRow  = $true
-                Passthru      = $true
+                Path                  = $ExcelOutputPath
+                WorkSheetname         = $WorkSheetName
+                Title                 = $WorksheetTitle
+                TableStyle            = $TableStyle
+                AutoSize              = $true
+                FreezeTopRow          = $true
+                Passthru              = $true
+                NoHyperLinkConversion = '*'
             }
             try {
                 $Workbook = $OutputTable |

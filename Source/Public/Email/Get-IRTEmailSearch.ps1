@@ -272,13 +272,14 @@ function Get-IRTEmailSearch {
                     $Path = "EmailSearchResults_${Safe}_${Stamp}.xlsx"
                     $OpenSheet = [bool]$Global:IRT_Config.OpenSpreadsheets
                     $ExcelParams = @{
-                        Path          = $Path
-                        WorkSheetname = 'Results'
-                        Title         = $TitleParts -join '   '
-                        TableStyle    = $Global:IRT_Config.ExcelTableStyle
-                        AutoSize      = $true
-                        FreezeTopRow  = $true
-                        Show          = $OpenSheet
+                        Path                  = $Path
+                        WorkSheetname         = 'Results'
+                        Title                 = $TitleParts -join '   '
+                        TableStyle            = $Global:IRT_Config.ExcelTableStyle
+                        AutoSize              = $true
+                        FreezeTopRow          = $true
+                        Show                  = $OpenSheet
+                        NoHyperLinkConversion = '*'
                     }
                     try {
                         $Results | Export-Excel @ExcelParams

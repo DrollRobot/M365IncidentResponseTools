@@ -155,12 +155,13 @@ function Build-UserLoginOperationsSheet {
             "${FunctionName}: Export-Excel -> '$WorksheetName' " +
             "[$($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))]")
         $ExcelParams = @{
-            ExcelPackage  = $ExcelPackage
-            WorkSheetname = $WorksheetName
-            Title         = $Title
-            TableStyle    = $TableStyle
-            FreezeTopRow  = $true
-            Passthru      = $true
+            ExcelPackage          = $ExcelPackage
+            WorkSheetname         = $WorksheetName
+            Title                 = $Title
+            TableStyle            = $TableStyle
+            FreezeTopRow          = $true
+            Passthru              = $true
+            NoHyperLinkConversion = '*'
         }
         $Workbook = $Rows | Export-Excel @ExcelParams
         $Worksheet = $Workbook.Workbook.Worksheets[$WorksheetName]

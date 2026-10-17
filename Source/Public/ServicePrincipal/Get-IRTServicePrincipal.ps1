@@ -181,13 +181,14 @@ function Get-IRTServicePrincipal {
             )
 
             $ExcelParams = @{
-                Path          = $ExcelOutputPath
-                WorkSheetname = $WorksheetName
-                TableName     = 'ServicePrincipals'
-                TableStyle    = $TableStyle
-                StartRow      = 3
-                AutoSize      = $true
-                Passthru      = $true
+                Path                  = $ExcelOutputPath
+                WorkSheetname         = $WorksheetName
+                TableName             = 'ServicePrincipals'
+                TableStyle            = $TableStyle
+                StartRow              = 3
+                AutoSize              = $true
+                Passthru              = $true
+                NoHyperLinkConversion = '*'
             }
 
             try {

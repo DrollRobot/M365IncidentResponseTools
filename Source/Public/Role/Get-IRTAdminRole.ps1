@@ -228,12 +228,13 @@ function Get-IRTAdminRole {
                 if ( $TypeObjects.Count -gt 0 ) {
 
                     $SectionParams = @{
-                        WorkSheetname = $WorksheetName
-                        TableName     = "Table${TypeKey}"
-                        TableStyle    = $TableStyle
-                        StartRow      = $LabelRow + 1
-                        AutoSize      = $true
-                        Passthru      = $true
+                        WorkSheetname         = $WorksheetName
+                        TableName             = "Table${TypeKey}"
+                        TableStyle            = $TableStyle
+                        StartRow              = $LabelRow + 1
+                        AutoSize              = $true
+                        Passthru              = $true
+                        NoHyperLinkConversion = '*'
                     }
                     if ( $null -eq $Workbook ) {
                         $SectionParams['Path'] = $ExcelOutputPath

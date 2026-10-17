@@ -199,13 +199,14 @@ function Show-IRTMessageTrace {
         Write-PSFMessage -Level 8 -Message (
             "${FunctionName}: Export-Excel [$($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))]")
         $ExcelParams = @{
-            Path          = $ExcelOutputPath
-            WorkSheetname = $FileNamePrefix
-            Title         = $WorksheetTitle
-            TableStyle    = $TableStyle
+            Path                  = $ExcelOutputPath
+            WorkSheetname         = $FileNamePrefix
+            Title                 = $WorksheetTitle
+            TableStyle            = $TableStyle
             # AutoSize      = $true # apparently very slow?
-            FreezeTopRow  = $true
-            Passthru      = $true
+            FreezeTopRow          = $true
+            Passthru              = $true
+            NoHyperLinkConversion = '*'
         }
         try {
             $Workbook = $Rows | Export-Excel @ExcelParams
