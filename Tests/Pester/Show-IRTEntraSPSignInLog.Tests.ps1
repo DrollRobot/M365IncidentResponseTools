@@ -15,6 +15,9 @@
     address whose first block starts with a letter, such as fd00::, reads as a
     URL scheme, so these addresses were saved as links. The IpAddress cell must
     hold plain text.
+
+    Rows are a fixed height, so a wrapped IP address showed only one line of
+    it. The IpAddress cell must not wrap.
 #>
 
 Describe 'Show-IRTEntraSPSignInLog workbook' -Tag 'integration', 'regression' {
@@ -62,6 +65,7 @@ Describe 'Show-IRTEntraSPSignInLog workbook' -Tag 'integration', 'regression' {
         $Cell = $Package.Workbook.Worksheets[$SheetName].Cells[$Row, $Column]
         $script:CellValue = $Cell.Value
         $script:CellLink = $Cell.Hyperlink
+        $script:CellWrap = $Cell.Style.WrapText
         Close-ExcelPackage -ExcelPackage $Package -NoSave
     }
 
@@ -71,5 +75,9 @@ Describe 'Show-IRTEntraSPSignInLog workbook' -Tag 'integration', 'regression' {
 
     It 'does not save an IPv6 address that starts with a letter as a link' {
         $script:CellLink | Should -BeNullOrEmpty
+    }
+
+    It 'does not wrap the IP address' {
+        $script:CellWrap | Should -BeFalse
     }
 }

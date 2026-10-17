@@ -285,9 +285,6 @@ function Show-IRTEntraUserSignInLog {
         $EndColumn = $WorkSheet.Dimension.End.Column | Convert-DecimalToExcelColumn
         $EndRow = $WorkSheet.Dimension.End.Row
 
-        $IpAddressColumn = ($Worksheet.Tables[0].Columns |
-                Where-Object { $_.Name -eq 'IpAddress' }).Id |
-                Convert-DecimalToExcelColumn
         $ApplicationColumn = ($Worksheet.Tables[0].Columns |
                 Where-Object { $_.Name -eq 'Application' }).Id |
                 Convert-DecimalToExcelColumn
@@ -446,14 +443,6 @@ function Show-IRTEntraUserSignInLog {
             NumberFormat  = 'm/d/yyyy h:mm:ss AM/PM'
         }
         Set-ExcelRange @FmtParams
-
-        # set text wrapping on ip address column
-        $WrapParams = @{
-            Worksheet = $Worksheet
-            Range = "${IpAddressColumn}:${IpAddressColumn}"
-            WrapText = $true
-        }
-        Set-ExcelRange @WrapParams
 
         # set font and size
         $SetParams = @{

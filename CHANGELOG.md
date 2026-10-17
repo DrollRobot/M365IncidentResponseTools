@@ -10,6 +10,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Exported workbooks saved IPv6 addresses that start with a letter, such as
   `fd00::...`, as links.
 
+### Changed
+
+- Entra user and service principal sign-in log exports no longer wrap the IpAddress
+  column. Rows are a fixed height, so a wrapped address showed only one line.
+
 ## [2.12.0] - 2026-10-15 - Linux and macOS support, Graph audit log search
 
 ### Added

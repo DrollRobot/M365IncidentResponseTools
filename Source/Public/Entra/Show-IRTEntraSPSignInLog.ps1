@@ -208,10 +208,6 @@ function Show-IRTEntraSPSignInLog {
         $EndColumn = $WorkSheet.Dimension.End.Column | Convert-DecimalToExcelColumn
         $EndRow = $WorkSheet.Dimension.End.Row
 
-        $IpAddressColumn = ($Worksheet.Tables[0].Columns |
-                Where-Object { $_.Name -eq 'IpAddress' }).Id |
-                Convert-DecimalToExcelColumn
-
         #region CELL COLORING
 
         #region COLUMN WIDTH
@@ -244,14 +240,6 @@ function Show-IRTEntraSPSignInLog {
             NumberFormat = 'm/d/yyyy h:mm:ss AM/PM'
         }
         Set-ExcelRange @FmtParams
-
-        # set text wrapping on ip address column
-        $WrapParams = @{
-            Worksheet = $Worksheet
-            Range     = "${IpAddressColumn}:${IpAddressColumn}"
-            WrapText  = $true
-        }
-        Set-ExcelRange @WrapParams
 
         # set font and size
         $SetParams = @{
