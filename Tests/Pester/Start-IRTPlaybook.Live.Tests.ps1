@@ -6,13 +6,17 @@
 
 .DESCRIPTION
     Runs the real playbook against the test tenant: resolves the test user
-    (from $env:IRT_TEST_USER_ID), runs Start-IRTPlaybook into a temporary
-    investigation folder, and verifies that the parallel runspace steps
+    (from $env:IRT_TEST_USER_ID), runs Start-IRTPlaybook, and verifies that the
+    parallel runspace steps
     actually completed by checking the generated spreadsheets and the error
     stream. This is the regression net for the runspace token redesign: a
     worker that cannot import the right module version, silently mint an
     Exchange token, or reach Graph through the shared context shows up here
     as a step error and a missing output file.
+
+    The investigation folder is written under $env:IRT_TEST_OUTPUT_PATH and kept
+    for review. Without that setting it goes in a temporary folder that is
+    deleted afterwards.
 
     Depends on the session established by 'Connect-IRT session state (live)'
     (tests.ps1 runs that file first; the session persists for the remaining
@@ -43,13 +47,12 @@ Describe 'Start-IRTPlaybook end-to-end (live)' -Tag 'live', 'e2e' {
                 "Run '.\tests.ps1 Online' so the session is established first.")
         }
 
-        # Resolve the test user from the environment or the .env.ps1 file.
-        $TestUserId = $env:IRT_TEST_USER_ID
-        if (-not $TestUserId) {
+        # Resolve the test user and output folder from the environment or the .env.ps1 file.
+        if (-not ($env:IRT_TEST_USER_ID -and $env:IRT_TEST_OUTPUT_PATH)) {
             $EnvFile = Join-Path -Path $PSScriptRoot -ChildPath '..\.env.ps1'
             if (Test-Path $EnvFile) { . $EnvFile }
-            $TestUserId = $env:IRT_TEST_USER_ID
         }
+        $TestUserId = $env:IRT_TEST_USER_ID
         if (-not $TestUserId) {
             throw ('Set $env:IRT_TEST_USER_ID or add it to Tests/.env.ps1 ' +
                 'before running the playbook test.')
@@ -62,18 +65,29 @@ Describe 'Start-IRTPlaybook end-to-end (live)' -Tag 'live', 'e2e' {
 
         $script:ParentConnectionId = $Global:IRT_Session.Exchange.ConnectionId
 
-        # Keep the run headless and self-contained: no new terminal tab, no workbook
-        # opened in Excel, and all output files in a disposable working directory. The
-        # workers get this session's config, so the settings reach every step.
+        # Keep the run headless: no new terminal tab and no workbook opened in Excel.
+        # The workers get this session's config, so the settings reach every step.
         $script:SavedOpenNewTab = $Global:IRT_Config.PlaybookOpenNewTab
         $script:SavedOpenSpreadsheets = $Global:IRT_Config.OpenSpreadsheets
         $Global:IRT_Config.PlaybookOpenNewTab = $false
         $Global:IRT_Config.OpenSpreadsheets = $false
 
-        $TempName = "irt-playbook-test-$([guid]::NewGuid().ToString('N').Substring(0, 8))"
-        $script:TempRoot = Join-Path -Path ([System.IO.Path]::GetTempPath()) -ChildPath $TempName
-        $null = New-Item -ItemType Directory -Path $script:TempRoot -Force
-        Push-Location -Path $script:TempRoot
+        # Write the investigation folder under IRT_TEST_OUTPUT_PATH and keep it. Without
+        # that setting, use a temporary folder and delete it afterwards.
+        $script:TempRoot = $null
+        $OutputRoot = $env:IRT_TEST_OUTPUT_PATH
+        if (-not $OutputRoot) {
+            $TempName = "irt-playbook-test-$([guid]::NewGuid().ToString('N').Substring(0, 8))"
+            $TempParams = @{
+                Path      = [System.IO.Path]::GetTempPath()
+                ChildPath = $TempName
+            }
+            $script:TempRoot = Join-Path @TempParams
+            $OutputRoot = $script:TempRoot
+        }
+        $null = New-Item -ItemType Directory -Path $OutputRoot -Force
+        Push-Location -Path $OutputRoot
+        $RootPath = (Get-Location).Path
 
         # Worker runspaces share the parent host; their module loads must not
         # reset the terminal title Connect-IRT set.
@@ -93,9 +107,16 @@ Describe 'Start-IRTPlaybook end-to-end (live)' -Tag 'live', 'e2e' {
         Start-IRTPlaybook @PlaybookParams
         $script:PlaybookErrors = @($PlaybookErrors)
 
-        $script:Spreadsheets = @(
-            Get-ChildItem -Path $script:TempRoot -Filter '*.xlsx' -Recurse -File
-        )
+        # New-IRTInvestigationFolder moves into the folder it creates. Scan only that
+        # folder, never the whole output folder, which holds earlier runs.
+        $RunFolder = (Get-Location).Path
+        $script:Spreadsheets = @()
+        if ($RunFolder -ne $RootPath) {
+            Write-Host "Playbook output: $RunFolder"
+            $script:Spreadsheets = @(
+                Get-ChildItem -Path $RunFolder -Filter '*.xlsx' -Recurse -File
+            )
+        }
     }
 
     AfterAll {
