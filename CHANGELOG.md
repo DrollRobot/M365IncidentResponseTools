@@ -3,7 +3,7 @@
 All notable changes to this project will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [2.12.1] - 2026-10-17 - IPv6 addresses no longer exported as links
 
 ### Fixed
 
