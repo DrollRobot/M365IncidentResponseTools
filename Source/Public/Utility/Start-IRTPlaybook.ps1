@@ -361,9 +361,12 @@ function Start-IRTPlaybook {
             # apps (thread-safe), so workers mint their own Exchange tokens silently via
             # Connect-IRTRunspaceExchange instead of receiving a static token snapshot
             # that would expire mid-playbook. IRT_IsRunspaceWorker forces Get-IRTAccessToken
-            # to silent mode so a worker can never pop a hidden browser prompt.
+            # to silent mode so a worker can never pop a hidden browser prompt. IRT_Config
+            # gives workers this session's settings; Import-IRTConfig only reads config.json
+            # when none are loaded.
             $SharedRefs = @{
                 IRT_Banner                     = $Global:IRT_Banner
+                IRT_Config                     = $Global:IRT_Config
                 IRT_IpInfo                     = $Global:IRT_IpInfo
                 IRT_MessageTraceTable          = $Global:IRT_MessageTraceTable
                 IRT_WaitFlags                  = $Global:IRT_WaitFlags

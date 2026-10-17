@@ -62,10 +62,13 @@ Describe 'Start-IRTPlaybook end-to-end (live)' -Tag 'live', 'e2e' {
 
         $script:ParentConnectionId = $Global:IRT_Session.Exchange.ConnectionId
 
-        # Keep the run headless and self-contained: no new terminal tab, and all
-        # output files in a disposable working directory.
+        # Keep the run headless and self-contained: no new terminal tab, no workbook
+        # opened in Excel, and all output files in a disposable working directory. The
+        # workers get this session's config, so the settings reach every step.
         $script:SavedOpenNewTab = $Global:IRT_Config.PlaybookOpenNewTab
+        $script:SavedOpenSpreadsheets = $Global:IRT_Config.OpenSpreadsheets
         $Global:IRT_Config.PlaybookOpenNewTab = $false
+        $Global:IRT_Config.OpenSpreadsheets = $false
 
         $TempName = "irt-playbook-test-$([guid]::NewGuid().ToString('N').Substring(0, 8))"
         $script:TempRoot = Join-Path -Path ([System.IO.Path]::GetTempPath()) -ChildPath $TempName
@@ -99,6 +102,9 @@ Describe 'Start-IRTPlaybook end-to-end (live)' -Tag 'live', 'e2e' {
         Pop-Location
         if ($script:SavedOpenNewTab -is [bool]) {
             $Global:IRT_Config.PlaybookOpenNewTab = $script:SavedOpenNewTab
+        }
+        if ($script:SavedOpenSpreadsheets -is [bool]) {
+            $Global:IRT_Config.OpenSpreadsheets = $script:SavedOpenSpreadsheets
         }
         if ($script:TempRoot -and (Test-Path $script:TempRoot)) {
             Remove-Item -Path $script:TempRoot -Recurse -Force -ErrorAction SilentlyContinue
