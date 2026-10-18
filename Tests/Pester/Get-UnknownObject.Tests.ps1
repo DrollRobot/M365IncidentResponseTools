@@ -58,6 +58,10 @@ InModuleScope M365IncidentResponseTools {
     Describe 'Get-UnknownObject' -Tag 'unit' {
 
         BeforeAll {
+            # These tests expect non-terminating errors, as the module sees them under
+            # PowerShell's default preference. The pre-push hook runs with 'Stop'.
+            $ErrorActionPreference = 'Continue'
+
             Mock Import-IRTModule { }
 
             # print every message; collect Error-level ones for the tests to check

@@ -114,6 +114,10 @@ InModuleScope M365IncidentResponseTools {
     ) {
 
         BeforeAll {
+            # These tests expect non-terminating errors, as the module sees them under
+            # PowerShell's default preference. The pre-push hook runs with 'Stop'.
+            $ErrorActionPreference = 'Continue'
+
             Mock Import-IRTModule { }
             Mock Get-DefaultDomain { 'contoso' }
             Mock Get-MgGroupMember { }
@@ -177,6 +181,10 @@ InModuleScope M365IncidentResponseTools {
     Describe 'Request-GraphGroup member lookups' -Tag 'unit' {
 
         BeforeAll {
+            # These tests expect non-terminating errors, as the module sees them under
+            # PowerShell's default preference. The pre-push hook runs with 'Stop'.
+            $ErrorActionPreference = 'Continue'
+
             Mock Import-IRTModule { }
             Mock Get-DefaultDomain { 'contoso' }
             Mock Write-IRT { Write-Host "[$Level] $Message" }
@@ -202,6 +210,10 @@ InModuleScope M365IncidentResponseTools {
     Describe 'Get-DefaultDomain caching' -Tag 'unit' {
 
         BeforeAll {
+            # These tests expect non-terminating errors, as the module sees them under
+            # PowerShell's default preference. The pre-push hook runs with 'Stop'.
+            $ErrorActionPreference = 'Continue'
+
             Mock Import-IRTModule { }
             Mock Write-IRT { Write-Host "[$Level] $Message" }
             Mock Write-IRT -ParameterFilter { $Level -eq 'Error' } {

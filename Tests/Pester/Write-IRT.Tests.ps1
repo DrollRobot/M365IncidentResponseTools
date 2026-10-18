@@ -20,6 +20,10 @@ InModuleScope M365IncidentResponseTools {
     Describe 'Write-IRT' -Tag 'unit' {
 
         BeforeAll {
+            # These tests expect non-terminating errors, as the module sees them under
+            # PowerShell's default preference. The pre-push hook runs with 'Stop'.
+            $ErrorActionPreference = 'Continue'
+
             Mock Write-Host { }
             $script:SavedStrict = $env:IRT_TEST_STRICT_ERRORS
         }
