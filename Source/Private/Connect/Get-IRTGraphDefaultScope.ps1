@@ -30,31 +30,62 @@ function Get-IRTGraphDefaultScope {
     Write-PSFMessage -Level 9 -Message 'Get-IRTGraphDefaultScope: returning default scope set.'
 
     return [string[]]@(
+        # Read Entra sign-in and directory audit logs.
+        # Used by: Get-IRTEntraUserSignInLog, Get-IRTEntraSPSignInLog, Get-IRTEntraAuditLog
         'AuditLog.Read.All'
+        # Run Unified Audit Log searches through Graph.
+        # Used by: Start-IRTGraphUAL, Receive-IRTGraphUAL
         'AuditLogsQuery.Read.All'
+        # Look up basic details of any tenant by ID or domain.
+        # Used by: Get-IRTTenantOwner
         'CrossTenantInformation.ReadBasic.All'
-        'DelegatedPermissionGrant.ReadWrite.All'
+        # Read app consent grants.
+        # Used by: Get-IRTUserServicePrincipal, Find-IRTRiskyServicePrincipal, Connect-IRT
+        'DelegatedPermissionGrant.Read.All'
+        # Read Entra device objects.
+        # Used by: Find-IRTDevice, Show-IRTDevice, Get-IRTAllEntraDevice
         'Device.Read.All'
-        'DeviceManagementApps.Read.All'
-        'DeviceManagementConfiguration.Read.All'
-        # ReadWrite: Remove-IRTDevice deletes the Intune managed device record.
+        # Read and delete Intune managed devices.
+        # Used by: Remove-IRTDevice, Show-IRTDevice, Find-IRTDevice
         'DeviceManagementManagedDevices.ReadWrite.All'
-        'DeviceManagementServiceConfig.Read.All'
-        # Delegated device update/delete accept no other scope (Set-IRTDeviceEnabled,
-        # Remove-IRTDevice).
+        # Act as the signed-in user, with all of their directory rights.
+        # Used by: Disable-IRTDevice, Enable-IRTDevice, Remove-IRTDevice
         'Directory.AccessAsUser.All'
+        # Read all directory data (users, groups, roles, devices, apps).
+        # Used by: Find-IRTDirectoryObject, Get-IRTAdminRole, Show-IRTServicePrincipal
         'Directory.Read.All'
+        # Read the tenant's domains.
+        # Used by: Connect-IRT, New-IRTInvestigationFolder, Get-IRTAdminRole
         'Domain.Read.All'
-        'Mail.ReadBasic.Shared'
+        # Read tenant details, such as licenses and directory sync status.
+        # Used by: Get-IRTLicenseReport, Disable-IRTUser, Connect-IRT
         'Organization.Read.All'
+        # Read tenant policies, such as the app consent (authorization) policy.
+        # Used by: Find-IRTRiskyServicePrincipal
         'Policy.Read.All'
-        'Policy.Read.ConditionalAccess'
-        'SecurityEvents.ReadWrite.All'
-        'SecurityIncident.ReadWrite.All'
-        # Least-privileged scope for passwordProfile; User.ReadWrite.All does not cover it.
+        # Read users' leave dates, which also needs the Lifecycle Workflows Administrator
+        # or Global Reader role.
+        # Used by: Show-IRTUser
+        'User-LifeCycleInfo.Read.All'
+        # Reset user passwords.
+        # Used by: Reset-IRTUserPassword
         'User-PasswordProfile.ReadWrite.All'
-        'User.ManageIdentities.All'
+        # Read and update user accounts, including enable/disable and session revocation.
+        # Used by: Disable-IRTUser, Revoke-IRTUserSession, Set-IRTUserUsageLocation
         'User.ReadWrite.All'
+        # Read and change users' MFA methods.
+        # Used by (read only): Show-IRTUserMfa
         'UserAuthenticationMethod.ReadWrite.All'
+
+        # No IRT functions use these. They're here so analysts can run Graph commands by
+        # hand during investigations.
+        # Read basic message details (no body) in mailboxes the user can open.
+        'Mail.ReadBasic.Shared'
+        # Read Conditional Access policies.
+        'Policy.Read.ConditionalAccess'
+        # Read Defender XDR alerts.
+        'SecurityAlert.Read.All'
+        # Read Defender XDR incidents.
+        'SecurityIncident.Read.All'
     )
 }

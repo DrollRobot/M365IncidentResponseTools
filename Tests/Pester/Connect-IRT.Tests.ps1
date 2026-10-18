@@ -932,6 +932,10 @@ Describe 'Connect-IRT session state (live)' -Tag 'live', 'integration' {
 # Administrator in the browser and click Accept. It is skipped automatically
 # when running in -CachedAuth (silent) mode.
 #
+# Exception to the AGENTS.TESTING.md rule that tests changing a remote system
+# carry the 'destructive' and 'remote' tags: the repo owner has said this test
+# keeps only 'live' and 'integration', so it runs with the normal live suite.
+#
 # Depends on the session established by 'Connect-IRT session state (live)'
 # earlier in this file - run order within a file is guaranteed by Pester.
 #
@@ -969,6 +973,9 @@ Describe 'Connect-IRT admin consent workflow (live)' -Tag 'live', 'integration' 
         Write-Output '--- Admin Consent Test Setup ---'
         Write-Output (
             'Revoking all consent grants for the Graph CLI Tools app...'
+        )
+        Write-Output (
+            'A browser window may open to approve the grant write permission this needs.'
         )
         $script:RevokedCount = Revoke-IRTGraphConsent
         Write-Output "$($script:RevokedCount) grant(s) removed."

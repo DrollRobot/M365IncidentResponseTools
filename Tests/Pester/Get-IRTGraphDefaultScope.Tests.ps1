@@ -20,7 +20,7 @@ InModuleScope M365IncidentResponseTools {
         }
 
         It 'returns a non-trivial list of scope names' {
-            $script:Result.Count | Should -BeGreaterThan 20
+            $script:Result.Count | Should -BeGreaterThan 10
         }
 
         It 'contains no duplicates' {
