@@ -14,6 +14,7 @@
         @{ ModuleName = 'Microsoft.Graph.Identity.DirectoryManagement'
             ModuleVersion = '2.30.0'
         }
+        @{ ModuleName = 'Microsoft.Graph.Identity.Governance'; ModuleVersion = '2.30.0' }
         @{ ModuleName = 'Microsoft.Graph.Identity.Signins'; ModuleVersion = '2.30.0' }
         @{ ModuleName = 'Microsoft.Graph.Reports'; ModuleVersion = '2.30.0' }
         @{ ModuleName = 'Microsoft.Graph.Users'; ModuleVersion = '2.30.0' }
