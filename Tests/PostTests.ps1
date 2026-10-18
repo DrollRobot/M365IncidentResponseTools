@@ -6,8 +6,8 @@
 
 .DESCRIPTION
     Dot-sourced by Tests.ps1 in a finally block, so it always runs -- even if a
-    test section or PreTests.ps1 threw. Restores the token-cache config and auth
-    env var that PreTests.ps1 overrode for a Live run. Reads saved values from
+    test section or PreTests.ps1 threw. Restores the token-cache config and clears
+    the auth and strict-error env vars that PreTests.ps1 set for a Live run. Reads saved values from
     the shared $TestContext hashtable and guards each one so a partial or failed
     setup still tears down cleanly.
 #>
@@ -25,4 +25,5 @@ if ($TestContext.LiveHandled) {
         $Global:IRT_Config.EnableTokenCache = $TestContext.OriginalCacheEnable
     }
     $env:IRT_TEST_SILENT_AUTH = $null
+    $env:IRT_TEST_STRICT_ERRORS = $null
 }

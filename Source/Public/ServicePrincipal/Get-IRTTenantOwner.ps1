@@ -72,7 +72,9 @@ function Get-IRTTenantOwner {
     .NOTES
     The Graph lookup requires the CrossTenantInformation.ReadBasic.All scope.
 
-    Version: 1.3.0
+    Version: 1.3.1
+    1.3.1 - FIXME temporary workaround: a failed Graph lookup is reported during live test
+    runs. See Write-IRTSuppressedError.
     1.3.0 - -TenantId accepts domains as well as GUIDs.
     1.2.1 - -Cached no longer throws on a cache hit. The entry was assigned to $cached,
     which is the [switch] $Cached parameter under PowerShell's case-insensitive names.
@@ -260,6 +262,14 @@ function Get-IRTTenantOwner {
                     "$( $_.Exception.Message )"
                     Write-PSFMessage -Level 8 -Message $Msg
                     if (-not $Quiet) { Write-IRT $Msg -Level Warn }
+
+                    # FIXME: temporary workaround until it's known whether this lookup
+                    # fails for some normal tenants, so real failures can be reported.
+                    $SuppressParams = @{
+                        ErrorRecord = $_
+                        Message     = "Graph cross-tenant lookup failed for '$Tid'"
+                    }
+                    Write-IRTSuppressedError @SuppressParams
                 }
             }
 

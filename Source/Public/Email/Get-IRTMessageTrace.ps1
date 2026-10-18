@@ -82,7 +82,9 @@ function Get-IRTMessageTrace {
     None. Results are exported to Excel and stored in a session variable.
 
     .NOTES
-    Version: 1.5.0
+    Version: 1.5.1
+    1.5.1 - FIXME temporary workaround: a failed mailbox lookup is reported during live
+    test runs. See Write-IRTSuppressedError.
     1.5.0 - Integrated V1 and V2 into same function.
     1.4.0 - Switched to separate get/show functions. Updated to passing objects, not files.
         Added global variables.
@@ -273,7 +275,16 @@ function Get-IRTMessageTrace {
                     }
                     $Mailbox = Get-EXOMailbox @Params
                 }
-                catch {}
+                catch {
+                    # FIXME: temporary workaround until a user without a mailbox, which
+                    # is normal, can be told apart from a failed lookup.
+                    $SuppressParams = @{
+                        ErrorRecord = $_
+                        Message     = 'Get-EXOMailbox failed for ' +
+                        "$($ScriptUserObject.UserPrincipalName)"
+                    }
+                    Write-IRTSuppressedError @SuppressParams
+                }
                 if (-not $Mailbox) {
                     Write-IRT "No mailbox for $($ScriptUserObject.UserPrincipalName)" -Level Warn
                     if ($Global:IRT_WaitFlags) {

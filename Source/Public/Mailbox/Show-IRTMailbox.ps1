@@ -33,7 +33,9 @@ function Show-IRTMailbox {
     None. Results are displayed in the console.
 
     .NOTES
-    Version: 1.1.1
+    Version: 1.1.2
+    1.1.2 - FIXME temporary workaround: a failed mailbox lookup is reported during live
+    test runs. See Write-IRTSuppressedError.
     1.1.1 - A failed mailbox lookup no longer shows the previous user's mailbox.
     #>
     [Alias('ShowMailbox')]
@@ -93,7 +95,16 @@ function Show-IRTMailbox {
                 }
                 $Mailbox = Get-EXOMailbox @Params
             }
-            catch {}
+            catch {
+                # FIXME: temporary workaround until a user without a mailbox, which is
+                # normal and reported as a warning below, can be told apart from a
+                # failed lookup.
+                $SuppressParams = @{
+                    ErrorRecord = $_
+                    Message     = "Get-EXOMailbox failed for ${UserPrincipalName}"
+                }
+                Write-IRTSuppressedError @SuppressParams
+            }
             if ( -not $Mailbox ) {
                 Write-IRT "No mailbox for ${UserPrincipalName}" -Level Warn
                 continue

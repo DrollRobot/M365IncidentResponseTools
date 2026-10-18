@@ -43,10 +43,14 @@ function Write-IRT {
     Writes a yellow warning message.
 
     .OUTPUTS
-    None. Output is written directly to the console.
+    None. Output is written directly to the console. During a live test run
+    (IRT_TEST_STRICT_ERRORS = '1'), an Error-level message is also written to the
+    error stream.
 
     .NOTES
-    Version: 1.0.0
+    Version: 1.1.0
+    1.1.0 - FIXME temporary workaround: during live test runs, Error-level messages are
+    also written to the error stream. See Write-IRTSuppressedError.
     #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '')]
     [CmdletBinding()]
@@ -108,5 +112,13 @@ function Write-IRT {
         Write-Host $text -NoNewline:$NoNewline
     } else {
         Write-Host $text -ForegroundColor $color -NoNewline:$NoNewline
+    }
+
+    # FIXME: temporary workaround, removed along with Write-IRTSuppressedError. Playbook
+    # steps run in their own PowerShell sessions, where the live tests' Write-IRT mock
+    # doesn't reach. Writing the message to the error stream during a live test run lets
+    # the playbook pass it back like any other step error, so its test fails on it.
+    if ($Level -eq 'Error' -and $env:IRT_TEST_STRICT_ERRORS -eq '1') {
+        Write-Error -Message $text
     }
 }

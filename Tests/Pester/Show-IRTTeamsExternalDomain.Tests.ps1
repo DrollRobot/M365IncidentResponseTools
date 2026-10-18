@@ -311,6 +311,21 @@ Describe 'Show-IRTTeamsExternalDomain' -Tag 'unit' {
             Should -Invoke Write-IRT -ModuleName $Mod -ParameterFilter $F
         }
 
+        It 'reports a failed chunk during a live test run (temporary workaround)' {
+            Mock Get-IRTTenantOwner { throw 'lookup broke' } -ModuleName $Mod
+            Save-SteFile -FilePath $script:WeekFile -Record $script:TenantRecords
+            $SavedStrict = $env:IRT_TEST_STRICT_ERRORS
+            $env:IRT_TEST_STRICT_ERRORS = '1'
+            try {
+                Show-IRTTeamsExternalDomain -Path $TestPath -Open $false
+            }
+            finally {
+                $env:IRT_TEST_STRICT_ERRORS = $SavedStrict
+            }
+            $F = { $Level -eq 'Error' -and $Message -match 'lookup failed: lookup broke' }
+            Should -Invoke Write-IRT -ModuleName $Mod -ParameterFilter $F
+        }
+
         It 'warns when a tenant ID cannot be resolved' {
             Save-SteFile -FilePath $script:WeekFile -Record @($script:BlockRecord)
             Show-IRTTeamsExternalDomain -Path $TestPath -Open $false

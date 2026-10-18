@@ -76,4 +76,38 @@ InModuleScope M365IncidentResponseTools {
             Should -Invoke Write-IRT -ParameterFilter $NoMailbox -Times 1 -Exactly -Scope Describe
         }
     }
+
+    Describe 'Show-IRTMailbox during a live test run' -Tag 'unit' {
+
+        BeforeAll {
+            Mock Update-IRTToken { }
+            Mock Import-IRTModule { }
+            Mock Get-EXOMailboxPermission { }
+            Mock Format-List { }
+            Mock Get-EXOMailbox { throw 'Mailbox not found' }
+
+            # print every message; collect Error-level ones for the test to check
+            $script:Errors = [System.Collections.Generic.List[string]]::new()
+            Mock Write-IRT { Write-Host "[$Level] $Message" }
+            Mock Write-IRT -ParameterFilter { $Level -eq 'Error' } {
+                $script:Errors.Add($Message)
+            }
+
+            $script:SavedStrict = $env:IRT_TEST_STRICT_ERRORS
+            $env:IRT_TEST_STRICT_ERRORS = '1'
+        }
+
+        AfterAll {
+            $env:IRT_TEST_STRICT_ERRORS = $script:SavedStrict
+        }
+
+        It 'reports the failed lookup (temporary workaround)' {
+            $User = [pscustomobject]@{ UserPrincipalName = 'two@contoso.com' }
+
+            Show-IRTMailbox -UserObject $User
+
+            $script:Errors.Count | Should -Be 1
+            $script:Errors[0] | Should -Match 'two@contoso\.com: Mailbox not found'
+        }
+    }
 }

@@ -91,6 +91,12 @@ if ('Live' -in $TestContext.Test) {
         $env:IRT_TEST_SILENT_AUTH = '1'
     }
 
+    # FIXME: temporary workaround, removed along with
+    # Source\Private\Utility\Write-IRTSuppressedError.ps1. Makes the module report the
+    # errors it normally keeps quiet, so live tests fail on them, including inside
+    # playbook steps. PostTests.ps1 clears it.
+    $env:IRT_TEST_STRICT_ERRORS = '1'
+
     # This hook owns the Live run; tell the orchestrator to skip its generic one.
     $TestContext.LiveHandled = $true
 

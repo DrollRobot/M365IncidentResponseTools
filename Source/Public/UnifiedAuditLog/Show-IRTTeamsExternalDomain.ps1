@@ -95,7 +95,9 @@ function Show-IRTTeamsExternalDomain {
     None. Writes an Excel workbook into -Path.
 
     .NOTES
-    Version: 1.2.0
+    Version: 1.2.1
+    1.2.1 - FIXME temporary workaround: a failed tenant lookup is reported during live
+    test runs. See Write-IRTSuppressedError.
     1.2.0 - -Open defaults to the OpenSpreadsheets config setting instead of $true.
     1.1.1 - Progress is shown with Write-Progress instead of a console line for each file
     and each lookup chunk.
@@ -415,6 +417,12 @@ function Show-IRTTeamsExternalDomain {
                             "$($Chunk.Count) tenant ID(s) stay unresolved: " +
                             "$($_.Exception.Message)") -Level Warn
                         $Owners = @()
+                        # FIXME: temporary workaround; see Get-IRTTenantOwner.
+                        $SuppressParams = @{
+                            ErrorRecord = $_
+                            Message     = "${ChunkLabel}: tenant lookup failed"
+                        }
+                        Write-IRTSuppressedError @SuppressParams
                     }
                     foreach ($Owner in $Owners) {
                         if ($Owner.Exists -and $Owner.DefaultDomain) {

@@ -41,7 +41,9 @@ function Show-IRTEntraAuditLog {
     None. Results are written to an Excel workbook.
 
     .NOTES
-    Version: 1.2.1
+    Version: 1.2.2
+    1.2.2 - FIXME temporary workaround: a failed tenant owner lookup is reported during
+            live test runs. See Write-IRTSuppressedError.
     1.2.1 - Updates to use new get-graphobject functions.
     1.2.0 - Many small updates to standardize across IR functions. Updated to readable
             date format.
@@ -407,6 +409,13 @@ function Show-IRTEntraAuditLog {
                         }
                         catch {
                             $Value = $Detail.Value
+                            # FIXME: temporary workaround; see Get-IRTTenantOwner.
+                            $SuppressParams = @{
+                                ErrorRecord = $_
+                                Message     = 'Tenant owner lookup failed for ' +
+                                "'$AppOwnerOrganizationId'"
+                            }
+                            Write-IRTSuppressedError @SuppressParams
                         }
                     }
                     default {

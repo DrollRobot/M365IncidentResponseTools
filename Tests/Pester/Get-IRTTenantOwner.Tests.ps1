@@ -29,6 +29,13 @@
     what the output and cache use. The discovery result is reused, so a domain costs
     one OIDC call, not two. With -Cached, a domain matching a cached default domain is
     returned with no lookup. A domain OIDC cannot resolve is reported as not found.
+
+-- failed Graph lookup ----------------------------------------------------
+
+    A failed cross-tenant lookup still returns what OIDC found, and is kept quiet with
+    -Quiet. As a temporary workaround it is reported with an Error-level message while
+    IRT_TEST_STRICT_ERRORS is '1'. Get-MgContext and Invoke-MgGraphRequest are global
+    stubs mocked in the module, and Error-level messages are captured for the check.
 #>
 
 InModuleScope M365IncidentResponseTools {
@@ -170,6 +177,65 @@ InModuleScope M365IncidentResponseTools {
                 $Result = Get-IRTTenantOwner -TenantId 'nope.invalid' -Quiet -SkipGraph
                 $Result.TenantId | Should -Be 'nope.invalid'
                 $Result.Exists | Should -BeFalse
+            }
+        }
+
+        # -------------------------------------------------------------------
+        Context 'failed Graph lookup' {
+
+            BeforeAll {
+                # params exist only so Mock can bind them
+                function global:Get-MgContext { [CmdletBinding()] param() }
+                function global:Invoke-MgGraphRequest {
+                    [CmdletBinding()] param([string] $Method, [string] $Uri)
+                    $null = $Method, $Uri
+                }
+
+                # no session, so the lookup is never skipped as cross-cloud
+                $GvParams = @{ Scope = 'Global'; Name = 'IRT_Session'; ErrorAction = 'Ignore' }
+                $script:SavedSession = Get-Variable @GvParams
+                Remove-Variable -Scope Global -Name 'IRT_Session' -ErrorAction Ignore
+                $script:SavedStrict = $env:IRT_TEST_STRICT_ERRORS
+            }
+
+            AfterAll {
+                $Stubs = 'Function:\Get-MgContext', 'Function:\Invoke-MgGraphRequest'
+                Remove-Item -Path $Stubs -ErrorAction Ignore
+                if ($script:SavedSession) {
+                    Set-Variable -Scope Global -Name 'IRT_Session' -Value $script:SavedSession.Value
+                }
+                $env:IRT_TEST_STRICT_ERRORS = $script:SavedStrict
+            }
+
+            BeforeEach {
+                Mock Get-MgContext { [pscustomobject]@{ Account = 'admin@contoso.com' } }
+                Mock Get-TenantOidc {
+                    [pscustomobject]@{ TenantId = $script:UncachedTid; Cloud = 'Commercial' }
+                }
+                Mock Invoke-MgGraphRequest { throw 'Forbidden' }
+
+                $script:Errors = [System.Collections.Generic.List[string]]::new()
+                Mock Write-IRT -ParameterFilter { $Level -eq 'Error' } {
+                    $script:Errors.Add($Message)
+                }
+            }
+
+            It 'keeps the failure quiet on a normal run' {
+                $env:IRT_TEST_STRICT_ERRORS = $null
+
+                $Result = Get-IRTTenantOwner -TenantId $script:UncachedTid -Quiet
+
+                $Result.Source | Should -Be 'PublicEndpoints'
+                $script:Errors | Should -BeNullOrEmpty
+            }
+
+            It 'reports the failure during a live test run' {
+                $env:IRT_TEST_STRICT_ERRORS = '1'
+
+                $null = Get-IRTTenantOwner -TenantId $script:UncachedTid -Quiet
+
+                $script:Errors.Count | Should -Be 1
+                $script:Errors[0] | Should -Match 'Forbidden'
             }
         }
     }
