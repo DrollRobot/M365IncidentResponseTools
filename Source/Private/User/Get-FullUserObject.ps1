@@ -4,7 +4,9 @@ function Get-FullUserObject {
     retrieves a user with a broad set of properties and augments with optional ones.
 
     .NOTES
-    version: 1.0.5
+    version: 1.1.0
+    - fetch the optional properties in one Graph batch request instead of one request
+      each; drop deviceEnrollmentLimit and print, which aren't v1.0 user properties
     - add pipeline support (by object or by id/upn)
     - keep signInActivity in initial selection
     #>
@@ -28,7 +30,10 @@ function Get-FullUserObject {
 
     begin {
         Update-IRTToken -Service 'Graph'
-        Import-IRTModule -Name 'Microsoft.Graph.Users', 'PSFramework'
+        $ImportParams = @{
+            Name = 'Microsoft.Graph.Authentication', 'Microsoft.Graph.Users', 'PSFramework'
+        }
+        Import-IRTModule @ImportParams
         $ScriptUserObject = $UserObject
 
         # properties you can safely query on all users
@@ -51,11 +56,13 @@ function Get-FullUserObject {
             'usageLocation', 'userType', 'signInActivity'
         )
 
-        # properties that may error depending on licensing/mailbox/etc.
+        # properties that may error depending on licensing/mailbox/etc. A $select naming
+        # one the user or tenant doesn't have fails the whole request, so each is asked
+        # for separately. A Graph batch request takes at most 20.
         $OptionalProps = @(
-            'aboutMe', 'birthday', 'deviceEnrollmentLimit', 'hireDate', 'interests',
-            'mailboxSettings', 'mailFolders', 'mySite', 'pastProjects', 'preferredName',
-            'print', 'responsibilities', 'schools', 'skills'
+            'aboutMe', 'birthday', 'hireDate', 'interests', 'mailboxSettings',
+            'mailFolders', 'mySite', 'pastProjects', 'preferredName', 'responsibilities',
+            'schools', 'skills'
         )
     }
 
@@ -104,23 +111,58 @@ function Get-FullUserObject {
             return
         }
 
-        # augment with optional properties (best-effort)
-        foreach ($Property in $OptionalProps) {
-            Write-PSFMessage -Level 9 -Message (
-                "Get-FullUserObject: Fetching optional property '$Property' for '$ResolvedId'.")
+        # augment with optional properties (best-effort), one request per property sent
+        # together in a single batch. Each comes back with its own status, so a property
+        # the user or tenant doesn't have is just a failed entry, which is expected.
+        $Requests = for ($Index = 0; $Index -lt $OptionalProps.Count; $Index++) {
+            @{
+                id     = [string]$Index
+                method = 'GET'
+                url    = "/users/$($ScriptUserObject.Id)?`$select=$($OptionalProps[$Index])"
+            }
+        }
+        $BatchParams = @{
+            Method      = 'POST'
+            Uri         = 'v1.0/$batch'
+            Body        = @{ requests = @($Requests) } | ConvertTo-Json -Depth 5
+            ContentType = 'application/json'
+            ErrorAction = 'Stop'
+        }
+        Write-PSFMessage -Level 8 -Message (
+            "Get-FullUserObject: Fetching $($OptionalProps.Count) optional properties " +
+            "for '$ResolvedId' in one batch.")
+        $Responses = @()
+        try {
+            $Responses = @((Invoke-MgGraphRequest @BatchParams).responses)
+        }
+        catch {
+            # FIXME: temporary workaround. A failed batch, unlike a failed property,
+            # isn't a normal per-user condition, but it can't be classified yet.
+            $SuppressParams = @{
+                ErrorRecord = $_
+                Message     = "Optional property batch failed for '$ResolvedId'"
+            }
+            Write-IRTSuppressedError @SuppressParams
+        }
+
+        foreach ($Response in $Responses) {
+            $Property = $OptionalProps[[int]$Response.id]
+            $HasValue = $Response.status -eq 200 -and $Response.body -and
+            $Response.body.ContainsKey($Property)
+            if (-not $HasValue) {
+                Write-PSFMessage -Level 8 -Message (
+                    "Get-FullUserObject: Unable to retrieve property '$Property' for " +
+                    "'$ResolvedId' (HTTP $($Response.status)): " +
+                    "$($Response.body.error.message)")
+                continue
+            }
             try {
-                $OptionalParams = @{
-                    UserId      = $ResolvedId
-                    Property    = $Property
-                    ErrorAction = 'Stop'
-                }
-                $TempUserObject = Get-MgUser @OptionalParams
-                $ScriptUserObject.$Property = $TempUserObject.$Property
+                $ScriptUserObject.$Property = $Response.body[$Property]
             }
             catch {
-                $ErrMsg = "Unable to retrieve property '$Property' for '$ResolvedId': " +
-                $_.Exception.Message
-                Write-PSFMessage -Level 8 -Message "Get-FullUserObject: $ErrMsg"
+                Write-PSFMessage -Level 8 -Message (
+                    "Get-FullUserObject: Unable to set property '$Property' for " +
+                    "'$ResolvedId': $($_.Exception.Message)")
             }
         }
 
