@@ -56,7 +56,9 @@ function Show-IRTServicePrincipal {
     None. Output is written to the console.
 
     .NOTES
-    Version: 1.3.0
+    Version: 1.3.1
+    1.3.1 - A failed grant or role template lookup is reported as a failure instead of
+    as "No OAuth2 permission grants found" or an unnamed role.
     #>
     [Alias(
         'Show-IRTServicePrincipals',
@@ -158,16 +160,24 @@ function Show-IRTServicePrincipal {
                 Write-IRT $Msg -Level Error
             }
 
-            # OAuth2 Permission Grants (delegated permissions)
+            # OAuth2 Permission Grants (delegated permissions). The Request-* helpers
+            # report Graph errors without stopping, so -ErrorAction Stop is what sends a
+            # failed lookup to the catch below instead of an empty grant list.
             try {
                 $GrantsParams = @{
-                    Cached = $Cached
-                    Return = 'tablebyclientid'
+                    Cached      = $Cached
+                    Return      = 'tablebyclientid'
+                    ErrorAction = 'Stop'
                 }
                 $GrantsByClientId = Request-GraphOauth2Grant @GrantsParams
                 $OAuth2Grants = @( $GrantsByClientId[$ScriptServicePrincipalObject.Id] )
-                $SPsById = Request-GraphServicePrincipal -Cached:$Cached -Return 'tablebyid'
-                $UsersById = Request-GraphUser -Cached:$Cached -Return 'tablebyid'
+                $LookupParams = @{
+                    Cached      = $Cached
+                    Return      = 'tablebyid'
+                    ErrorAction = 'Stop'
+                }
+                $SPsById = Request-GraphServicePrincipal @LookupParams
+                $UsersById = Request-GraphUser @LookupParams
 
                 Write-IRT "OAuth2 Permission Grants (delegated) for: ${SpName}"
                 if (($OAuth2Grants | Measure-Object).Count -gt 0) {
@@ -256,8 +266,9 @@ function Show-IRTServicePrincipal {
                 }
                 $RoleAssignments = Get-MgRoleManagementDirectoryRoleAssignment @DirRoleParams
                 $DrtParams = @{
-                    Cached = $Cached
-                    Return = 'tablebyid'
+                    Cached      = $Cached
+                    Return      = 'tablebyid'
+                    ErrorAction = 'Stop'
                 }
                 $RoleTemplatesById = Request-DirectoryRoleTemplate @DrtParams
 
