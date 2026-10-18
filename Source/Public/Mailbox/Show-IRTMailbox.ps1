@@ -33,7 +33,8 @@ function Show-IRTMailbox {
     None. Results are displayed in the console.
 
     .NOTES
-    Version: 1.1.0
+    Version: 1.1.1
+    1.1.1 - A failed mailbox lookup no longer shows the previous user's mailbox.
     #>
     [Alias('ShowMailbox')]
     [CmdletBinding()]
@@ -80,8 +81,10 @@ function Show-IRTMailbox {
     process {
         foreach ( $ScriptUserObject in $ScriptUserObjects ) {
 
-            # get user mailbox info
+            # get user mailbox info. Cleared first: a failed lookup leaves $Mailbox as it
+            # was, which would show the previous user's mailbox under this user's name.
             $UserPrincipalName = $ScriptUserObject.UserPrincipalName
+            $Mailbox = $null
             try {
                 $Params = @{
                     UserPrincipalName = $UserPrincipalName
