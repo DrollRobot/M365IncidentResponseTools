@@ -72,7 +72,8 @@ function Find-IRTDirectoryObject {
                     Write-IRT "Unable to find object."
                 }
                 else {
-                    $_
+                    # any other failure, such as access denied, is a real error
+                    Write-Error -ErrorRecord $_
                 }
             }
 
