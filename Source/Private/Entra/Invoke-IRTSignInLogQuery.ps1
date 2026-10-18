@@ -99,7 +99,8 @@ function Invoke-IRTSignInLogQuery {
     None. Results are exported via the Show- command and optional XML.
 
     .NOTES
-    Version: 1.0.0
+    Version: 1.0.1
+    1.0.1 - "No logs found" is a warning, not an error: an empty search is a valid result.
     #>
     [CmdletBinding()]
     param (
@@ -290,7 +291,7 @@ function Invoke-IRTSignInLogQuery {
     }
 
     if (($Logs | Measure-Object).Count -eq 0 ) {
-        Write-IRT "No logs found for ${Target} for past ${Days} days. Exiting." -Level Error
+        Write-IRT "No logs found for ${Target} for past ${Days} days. Exiting." -Level Warn
         return
     }
 

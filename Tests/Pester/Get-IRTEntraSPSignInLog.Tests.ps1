@@ -212,10 +212,10 @@ Describe 'Get-IRTEntraSPSignInLog' -Tag 'unit' {
             $script:CapturedLogs[0].Title | Should -Match '^Service principal sign-in logs for '
         }
 
-        It 'writes a no-logs error and skips export when nothing is returned' {
+        It 'writes a no-logs warning and skips export when nothing is returned' {
             Mock Get-MgBetaAuditLogSignIn { @() } -ModuleName $script:Mod
             Get-IRTEntraSPSignInLog -AllServicePrincipals -ChunkDays 30 -Excel $true -Xml $false
-            $F = { $Level -eq 'Error' -and $Message -match 'No logs found' }
+            $F = { $Level -eq 'Warn' -and $Message -match 'No logs found' }
             $IA = @{ ModuleName = $script:Mod; ParameterFilter = $F }
             Should -Invoke Write-IRT @IA
             Should -Invoke Show-IRTEntraSPSignInLog -Times 0 -ModuleName $script:Mod
