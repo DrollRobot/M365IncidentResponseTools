@@ -10,7 +10,8 @@ function Request-GraphServicePrincipal {
     to resolve service principal identities without repeated Graph requests.
 
     .NOTES
-    Version: 2.0.0
+    Version: 2.1.0
+    2.1.0 - A fetch that returns a Graph error is no longer cached.
     #>
     [OutputType([hashtable])]
     [CmdletBinding()]
@@ -78,7 +79,8 @@ function Request-GraphServicePrincipal {
         $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
         Write-PSFMessage -Level 8 -Message (
             "${FunctionName}: Get-MgServicePrincipal [$Elapsed]")
-        $Objects = Get-MgServicePrincipal -All | Select-Object ($GetProperties)
+        $Objects = Get-MgServicePrincipal -All -ErrorVariable GraphErrors |
+            Select-Object ($GetProperties)
 
         $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
         Write-PSFMessage -Level 8 -Message (
@@ -97,18 +99,27 @@ function Request-GraphServicePrincipal {
             }
         }
 
-        # store in global variables
-        $Global:IRT_ServicePrincipals = $Objects
-        $Global:IRT_ServicePrincipalsByAppId = [hashtable]::Synchronized(@{})
-        $Global:IRT_ServicePrincipalsById = [hashtable]::Synchronized(@{})
+        $SPsByAppId = [hashtable]::Synchronized(@{})
+        $SPsById = [hashtable]::Synchronized(@{})
         foreach ($o in $Objects) {
-            if ($o.AppId) { $Global:IRT_ServicePrincipalsByAppId[$o.AppId] = $o }
-            if ($o.Id) { $Global:IRT_ServicePrincipalsById[$o.Id] = $o }
+            if ($o.AppId) { $SPsByAppId[$o.AppId] = $o }
+            if ($o.Id) { $SPsById[$o.Id] = $o }
         }
         Write-PSFMessage -Level 8 -Message (
             "${FunctionName}: Indexes built - " +
-            "$($Global:IRT_ServicePrincipalsByAppId.Count) by AppId, " +
-            "$($Global:IRT_ServicePrincipalsById.Count) by Id.")
+            "$($SPsByAppId.Count) by AppId, $($SPsById.Count) by Id.")
+
+        # store in global variables. Graph errors don't stop this function, so a failed
+        # fetch would otherwise be cached and returned by every later -Cached call.
+        if ($GraphErrors) {
+            Write-PSFMessage -Level 8 -Message (
+                "${FunctionName}: Graph returned an error; result not cached.")
+        }
+        else {
+            $Global:IRT_ServicePrincipals = $Objects
+            $Global:IRT_ServicePrincipalsByAppId = $SPsByAppId
+            $Global:IRT_ServicePrincipalsById = $SPsById
+        }
 
         # export to file
         if ($Xml) {
@@ -122,9 +133,9 @@ function Request-GraphServicePrincipal {
 
         # return
         switch ($Return) {
-            'objects' { return $Global:IRT_ServicePrincipals }
-            'tablebyappid' { return $Global:IRT_ServicePrincipalsByAppId }
-            'tablebyid' { return $Global:IRT_ServicePrincipalsById }
+            'objects' { return $Objects }
+            'tablebyappid' { return $SPsByAppId }
+            'tablebyid' { return $SPsById }
             'none' { return }
         }
     }

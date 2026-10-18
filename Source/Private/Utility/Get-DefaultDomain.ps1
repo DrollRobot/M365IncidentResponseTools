@@ -92,12 +92,19 @@ function Get-DefaultDomain {
         # cache miss -- fetch from Graph
         $FunctionName = $MyInvocation.MyCommand.Name
         Write-PSFMessage -Level 8 -Message "${FunctionName}: Get-MgDomain (cache miss)"
-        $DefaultDomain = Get-MgDomain | Where-Object { $_.IsDefault -eq $true }
+        $DefaultDomain = Get-MgDomain -ErrorVariable GraphErrors |
+            Where-Object { $_.IsDefault -eq $true }
         $DefaultDomainName = $DefaultDomain.Id -split '\.' | Select-Object -First 1
         Write-PSFMessage -Level 8 -Message (
             "Get-DefaultDomain: Resolved '$($DefaultDomain.Id)' (SLD: '$DefaultDomainName')")
 
-        if ($Global:IRT_Session) {
+        # Graph errors don't stop this function, so a failed lookup would otherwise be
+        # cached and returned, empty, for the rest of the session.
+        if ($GraphErrors) {
+            Write-PSFMessage -Level 8 -Message (
+                'Get-DefaultDomain: Graph returned an error; result not cached.')
+        }
+        elseif ($Global:IRT_Session) {
             $AmParams = @{ Force = $true }
             $AmParams.NotePropertyName = 'DefaultDomain'
             $AmParams.NotePropertyValue = $DefaultDomain

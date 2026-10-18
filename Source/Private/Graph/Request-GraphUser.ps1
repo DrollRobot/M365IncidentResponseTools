@@ -10,7 +10,8 @@ function Request-GraphUser {
     to resolve user identities without repeated Graph requests.
 
     .NOTES
-    Version: 2.0.0
+    Version: 2.1.0
+    2.1.0 - A fetch that returns a Graph error is no longer cached.
     #>
     [OutputType([hashtable])]
     [CmdletBinding()]
@@ -68,20 +69,30 @@ function Request-GraphUser {
         # query graph
         Write-PSFMessage -Level 8 -Message (
             "${FunctionName}: Get-MgUser [$($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))]")
-        $Objects = Get-MgUser -All -Property $GetProperties | Select-Object $GetProperties
+        $Objects = Get-MgUser -All -Property $GetProperties -ErrorVariable GraphErrors |
+            Select-Object $GetProperties
 
         $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
         Write-PSFMessage -Level 8 -Message (
             "${FunctionName}: Graph returned $($Objects.Count) user(s) [$Elapsed]")
 
-        # store in global variables
-        $Global:IRT_Users = $Objects
-        $Global:IRT_UsersById = [hashtable]::Synchronized(@{})
+        $UsersById = [hashtable]::Synchronized(@{})
         foreach ( $o in $Objects ) {
-            if ( $o.Id ) { $Global:IRT_UsersById[$o.Id] = $o }
+            if ( $o.Id ) { $UsersById[$o.Id] = $o }
         }
         Write-PSFMessage -Level 8 -Message (
-            "${FunctionName}: Index built - $($Global:IRT_UsersById.Count) entry/entries.")
+            "${FunctionName}: Index built - $($UsersById.Count) entry/entries.")
+
+        # store in global variables. Graph errors don't stop this function, so a failed
+        # fetch would otherwise be cached and returned by every later -Cached call.
+        if ( $GraphErrors ) {
+            Write-PSFMessage -Level 8 -Message (
+                "${FunctionName}: Graph returned an error; result not cached.")
+        }
+        else {
+            $Global:IRT_Users = $Objects
+            $Global:IRT_UsersById = $UsersById
+        }
 
         # export to file
         if ($Xml) {
@@ -95,8 +106,8 @@ function Request-GraphUser {
 
         # return
         switch ( $Return ) {
-            'objects' { return $Global:IRT_Users }
-            'tablebyid' { return $Global:IRT_UsersById }
+            'objects' { return $Objects }
+            'tablebyid' { return $UsersById }
             'none' { return }
         }
     }

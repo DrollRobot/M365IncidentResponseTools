@@ -9,7 +9,8 @@ function Request-DirectoryRoleTemplate {
     Request-DirectoryRole to resolve role display names during admin role reporting.
 
     .NOTES
-    Version: 2.0.0
+    Version: 2.1.0
+    2.1.0 - A fetch that returns a Graph error is no longer cached.
     #>
     [OutputType([hashtable])]
     [CmdletBinding()]
@@ -67,8 +68,9 @@ function Request-DirectoryRoleTemplate {
         Write-PSFMessage -Level 8 -Message (
             "${FunctionName}: Get-MgDirectoryRoleTemplate [$Elapsed]")
         $GdrtParams = @{
-            All      = $true
-            Property = $GetProperties
+            All           = $true
+            Property      = $GetProperties
+            ErrorVariable = 'GraphErrors'
         }
         $Objects = Get-MgDirectoryRoleTemplate @GdrtParams | Select-Object $GetProperties
 
@@ -76,15 +78,23 @@ function Request-DirectoryRoleTemplate {
         Write-PSFMessage -Level 8 -Message (
             "${FunctionName}: Graph returned $($Objects.Count) template(s) [$Elapsed]")
 
-        # store in global variables
-        $Global:IRT_DirectoryRoleTemplates = $Objects
-        $Global:IRT_DirectoryRoleTemplatesById = [hashtable]::Synchronized(@{})
+        $TemplatesById = [hashtable]::Synchronized(@{})
         foreach ( $o in $Objects ) {
-            if ( $o.Id ) { $Global:IRT_DirectoryRoleTemplatesById[$o.Id] = $o }
+            if ( $o.Id ) { $TemplatesById[$o.Id] = $o }
         }
         Write-PSFMessage -Level 8 -Message (
-            "${FunctionName}: Index built - " +
-            "$($Global:IRT_DirectoryRoleTemplatesById.Count) entry/entries.")
+            "${FunctionName}: Index built - $($TemplatesById.Count) entry/entries.")
+
+        # store in global variables. Graph errors don't stop this function, so a failed
+        # fetch would otherwise be cached and returned by every later -Cached call.
+        if ( $GraphErrors ) {
+            Write-PSFMessage -Level 8 -Message (
+                "${FunctionName}: Graph returned an error; result not cached.")
+        }
+        else {
+            $Global:IRT_DirectoryRoleTemplates = $Objects
+            $Global:IRT_DirectoryRoleTemplatesById = $TemplatesById
+        }
 
         # export to file
         if ($Xml) {
@@ -98,8 +108,8 @@ function Request-DirectoryRoleTemplate {
 
         # return
         switch ( $Return ) {
-            'objects' { return $Global:IRT_DirectoryRoleTemplates }
-            'tablebyid' { return $Global:IRT_DirectoryRoleTemplatesById }
+            'objects' { return $Objects }
+            'tablebyid' { return $TemplatesById }
             'none' { return }
         }
     }

@@ -10,7 +10,8 @@ function Request-GraphOauth2Grant {
     have consented to which applications without repeated Graph requests.
 
     .NOTES
-    Version: 2.0.0
+    Version: 2.1.0
+    2.1.0 - A fetch that returns a Graph error is no longer cached.
     #>
     [OutputType([hashtable])]
     [CmdletBinding()]
@@ -65,27 +66,35 @@ function Request-GraphOauth2Grant {
         $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
         Write-PSFMessage -Level 8 -Message (
             "${FunctionName}: Get-MgOauth2PermissionGrant [$Elapsed]")
-        $Objects = Get-MgOauth2PermissionGrant -All
+        $Objects = Get-MgOauth2PermissionGrant -All -ErrorVariable GraphErrors
 
         $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
         Write-PSFMessage -Level 8 -Message (
             "${FunctionName}: Graph returned $($Objects.Count) grant(s) [$Elapsed]")
 
-        # store in global variables
-        $Global:IRT_Oauth2Grants = $Objects
-        $Global:IRT_Oauth2GrantsByClientId = [hashtable]::Synchronized(@{})
+        $GrantsByClientId = [hashtable]::Synchronized(@{})
         foreach ( $o in $Objects ) {
             $ClientId = $o.ClientId
             if ( $ClientId ) {
-                if ( -not $Global:IRT_Oauth2GrantsByClientId.ContainsKey( $ClientId ) ) {
-                    $Global:IRT_Oauth2GrantsByClientId[$ClientId] = @()
+                if ( -not $GrantsByClientId.ContainsKey( $ClientId ) ) {
+                    $GrantsByClientId[$ClientId] = @()
                 }
-                $Global:IRT_Oauth2GrantsByClientId[$ClientId] += $o
+                $GrantsByClientId[$ClientId] += $o
             }
         }
         Write-PSFMessage -Level 8 -Message (
-            "${FunctionName}: Index built - $($Global:IRT_Oauth2GrantsByClientId.Count) " +
-            "unique client(s).")
+            "${FunctionName}: Index built - $($GrantsByClientId.Count) unique client(s).")
+
+        # store in global variables. Graph errors don't stop this function, so a failed
+        # fetch would otherwise be cached and returned by every later -Cached call.
+        if ( $GraphErrors ) {
+            Write-PSFMessage -Level 8 -Message (
+                "${FunctionName}: Graph returned an error; result not cached.")
+        }
+        else {
+            $Global:IRT_Oauth2Grants = $Objects
+            $Global:IRT_Oauth2GrantsByClientId = $GrantsByClientId
+        }
 
         # export to file
         if ($Xml) {
@@ -99,8 +108,8 @@ function Request-GraphOauth2Grant {
 
         # return
         switch ( $Return ) {
-            'objects' { return $Global:IRT_Oauth2Grants }
-            'tablebyclientid' { return $Global:IRT_Oauth2GrantsByClientId }
+            'objects' { return $Objects }
+            'tablebyclientid' { return $GrantsByClientId }
             'none' { return }
         }
     }

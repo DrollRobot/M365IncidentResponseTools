@@ -10,7 +10,8 @@ function Request-DirectoryRole {
     Get-IRTAdminRole and the incident response playbook to avoid redundant Graph requests.
 
     .NOTES
-    Version: 2.0.0
+    Version: 2.1.0
+    2.1.0 - A fetch that returns a Graph error is no longer cached.
     #>
     [OutputType([hashtable])]
     [CmdletBinding()]
@@ -72,6 +73,7 @@ function Request-DirectoryRole {
             All            = $true
             Property       = $GetProperties
             ExpandProperty = $ExpandProperties
+            ErrorVariable  = 'GraphErrors'
         }
         $Objects = Get-MgDirectoryRole @GdrParams |
             Select-Object ( $GetProperties + $ExpandProperties )
@@ -80,14 +82,23 @@ function Request-DirectoryRole {
         Write-PSFMessage -Level 8 -Message (
             "${FunctionName}: Graph returned $($Objects.Count) role(s) [$Elapsed]")
 
-        # store in global variables
-        $Global:IRT_DirectoryRoles = $Objects
-        $Global:IRT_DirectoryRolesById = [hashtable]::Synchronized(@{})
+        $RolesById = [hashtable]::Synchronized(@{})
         foreach ( $o in $Objects ) {
-            if ( $o.Id ) { $Global:IRT_DirectoryRolesById[$o.Id] = $o }
+            if ( $o.Id ) { $RolesById[$o.Id] = $o }
         }
         Write-PSFMessage -Level 8 -Message (
-            "${FunctionName}: Index built - $($Global:IRT_DirectoryRolesById.Count) entry/entries.")
+            "${FunctionName}: Index built - $($RolesById.Count) entry/entries.")
+
+        # store in global variables. Graph errors don't stop this function, so a failed
+        # fetch would otherwise be cached and returned by every later -Cached call.
+        if ( $GraphErrors ) {
+            Write-PSFMessage -Level 8 -Message (
+                "${FunctionName}: Graph returned an error; result not cached.")
+        }
+        else {
+            $Global:IRT_DirectoryRoles = $Objects
+            $Global:IRT_DirectoryRolesById = $RolesById
+        }
 
         # export to file
         if ($Xml) {
@@ -101,8 +112,8 @@ function Request-DirectoryRole {
 
         # return
         switch ( $Return ) {
-            'objects' { return $Global:IRT_DirectoryRoles }
-            'tablebyid' { return $Global:IRT_DirectoryRolesById }
+            'objects' { return $Objects }
+            'tablebyid' { return $RolesById }
             'none' { return }
         }
     }

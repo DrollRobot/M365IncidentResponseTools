@@ -13,7 +13,8 @@ function Request-GraphDevice {
     Devices that appear only in Intune (no matching Entra record) are included with .Entra = $null.
 
 	.NOTES
-	Version: 2.0.0
+	Version: 2.1.0
+	2.1.0 - An Entra device fetch that returns a Graph error is no longer cached.
 	#>
     [OutputType([System.Object[]], [hashtable])]
     [CmdletBinding()]
@@ -60,7 +61,12 @@ function Request-GraphDevice {
         # --- Entra devices ---
         Write-PSFMessage -Level 8 -Message (
             "${FunctionName}: Get-MgDevice [$($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))]")
-        $EntraDevices = Get-MgDevice -All -ExpandProperty 'RegisteredOwners'
+        $GetDeviceParams = @{
+            All            = $true
+            ExpandProperty = 'RegisteredOwners'
+            ErrorVariable  = 'GraphErrors'
+        }
+        $EntraDevices = Get-MgDevice @GetDeviceParams
         Write-PSFMessage -Level 8 -Message (
             "${FunctionName}: Entra returned $($EntraDevices.Count) device(s) " +
             "[$($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))]")
@@ -151,14 +157,23 @@ function Request-GraphDevice {
             "${FunctionName}: Combined total: $($Objects.Count) device(s) " +
             "[$($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))]")
 
-        # store in global variables
-        $Global:IRT_Devices = $Objects
-        $Global:IRT_DevicesById = [hashtable]::Synchronized(@{})
+        $DevicesById = [hashtable]::Synchronized(@{})
         foreach ( $Device in $Objects ) {
-            if ( $Device.DeviceId ) { $Global:IRT_DevicesById[$Device.DeviceId] = $Device }
+            if ( $Device.DeviceId ) { $DevicesById[$Device.DeviceId] = $Device }
         }
         Write-PSFMessage -Level 8 -Message (
-            "${FunctionName}: Index built - $($Global:IRT_DevicesById.Count) entry/entries.")
+            "${FunctionName}: Index built - $($DevicesById.Count) entry/entries.")
+
+        # store in global variables. Graph errors don't stop this function, so a failed
+        # Entra fetch would otherwise be cached and returned by every later -Cached call.
+        if ( $GraphErrors ) {
+            Write-PSFMessage -Level 8 -Message (
+                "${FunctionName}: Graph returned an error; result not cached.")
+        }
+        else {
+            $Global:IRT_Devices = $Objects
+            $Global:IRT_DevicesById = $DevicesById
+        }
 
         # export to file
         if ($Xml) {
@@ -172,8 +187,8 @@ function Request-GraphDevice {
 
         # return
         switch ( $Return ) {
-            'objects' { return $Global:IRT_Devices }
-            'tablebyid' { return $Global:IRT_DevicesById }
+            'objects' { return $Objects }
+            'tablebyid' { return $DevicesById }
             'none' { return }
         }
     }

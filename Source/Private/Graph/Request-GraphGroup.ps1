@@ -10,7 +10,8 @@ function Request-GraphGroup {
     to resolve group membership without repeated Graph requests.
 
     .NOTES
-    Version: 2.0.0
+    Version: 2.1.0
+    2.1.0 - A group list fetch that returns a Graph error is no longer cached.
     #>
     [OutputType([hashtable])]
     [CmdletBinding()]
@@ -67,8 +68,9 @@ function Request-GraphGroup {
         Write-PSFMessage -Level 8 -Message (
             "${FunctionName}: Get-MgGroup [$($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))]")
         $Params = @{
-            All = $true
-            Property = $GetProperties
+            All           = $true
+            Property      = $GetProperties
+            ErrorVariable = 'GraphErrors'
         }
         $Objects = Get-MgGroup @Params | Select-Object $GetProperties
         Write-PSFMessage -Level 8 -Message (
@@ -86,14 +88,25 @@ function Request-GraphGroup {
             "${FunctionName}: Member fetch complete " +
             "[$($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))]")
 
-        # store in global variables
-        $Global:IRT_Groups = $Objects
-        $Global:IRT_GroupsById = [hashtable]::Synchronized(@{})
+        $GroupsById = [hashtable]::Synchronized(@{})
         foreach ( $o in $Objects ) {
-            if ( $o.Id ) { $Global:IRT_GroupsById[$o.Id] = $o }
+            if ( $o.Id ) { $GroupsById[$o.Id] = $o }
         }
         Write-PSFMessage -Level 8 -Message (
-            "${FunctionName}: Index built - $($Global:IRT_GroupsById.Count) entry/entries.")
+            "${FunctionName}: Index built - $($GroupsById.Count) entry/entries.")
+
+        # store in global variables. Graph errors don't stop this function, so a failed
+        # group list fetch would otherwise be cached and returned by every later -Cached
+        # call. A failed member fetch for one group is left alone: some groups hide
+        # their membership, and that one group should not block the whole cache.
+        if ( $GraphErrors ) {
+            Write-PSFMessage -Level 8 -Message (
+                "${FunctionName}: Graph returned an error; result not cached.")
+        }
+        else {
+            $Global:IRT_Groups = $Objects
+            $Global:IRT_GroupsById = $GroupsById
+        }
 
         # export to file
         if ($Xml) {
@@ -107,8 +120,8 @@ function Request-GraphGroup {
 
         # return
         switch ( $Return ) {
-            'objects' { return $Global:IRT_Groups }
-            'tablebyid' { return $Global:IRT_GroupsById }
+            'objects' { return $Objects }
+            'tablebyid' { return $GroupsById }
             'none' { return }
         }
     }
