@@ -6,7 +6,7 @@ function Show-IRTMailbox {
     .DESCRIPTION
     Retrieves Exchange Online mailbox configuration and permissions for one or more users
     and displays the results in the console. Includes quota settings, forwarding rules,
-    litigation hold status, and current mailbox permissions.
+    litigation hold status, automatic replies, and current mailbox permissions.
 
     Falls back to $Global:IRT_UserObjects if no -UserObject is passed. Requires an active
     Exchange Online connection.
@@ -33,7 +33,8 @@ function Show-IRTMailbox {
     None. Results are displayed in the console.
 
     .NOTES
-    Version: 1.1.2
+    Version: 1.2.0
+    1.2.0 - Shows the mailbox's automatic reply settings.
     1.1.2 - FIXME temporary workaround: a failed mailbox lookup is reported during live
     test runs. See Write-IRTSuppressedError.
     1.1.1 - A failed mailbox lookup no longer shows the previous user's mailbox.
@@ -150,6 +151,35 @@ function Show-IRTMailbox {
                 UsageLocation = $Mailbox.UsageLocation
             }
             $OutputTable | Format-List | Out-Host
+
+            # automatic replies. The messages are HTML; show them as plain text.
+            Write-IRT "Showing automatic replies for: ${UserPrincipalName}"
+            $ToText = {
+                param([string] $Html)
+                $Text = [System.Net.WebUtility]::HtmlDecode(($Html -replace '<[^>]+>', ' '))
+                ($Text -replace '\s+', ' ').Trim()
+            }
+            try {
+                $AutoReplyParams = @{
+                    Identity    = $UserPrincipalName
+                    ErrorAction = 'Stop'
+                }
+                $AutoReply = Get-MailboxAutoReplyConfiguration @AutoReplyParams
+                [PSCustomObject]@{
+                    AutoReplyState   = $AutoReply.AutoReplyState
+                    StartTime        = $AutoReply.StartTime
+                    EndTime          = $AutoReply.EndTime
+                    ExternalAudience = $AutoReply.ExternalAudience
+                    InternalMessage  = & $ToText $AutoReply.InternalMessage
+                    ExternalMessage  = & $ToText $AutoReply.ExternalMessage
+                } | Format-List | Out-Host
+            }
+            catch {
+                # the mailbox exists, so a failure here is not a normal condition
+                $Msg = "Failed to get automatic replies for ${UserPrincipalName}: " +
+                $_.Exception.Message
+                Write-IRT $Msg -Level Error
+            }
 
             Write-IRT "Showing users who have delegated access to: ${UserPrincipalName}"
             $PermissionDisplayProperties = @(
