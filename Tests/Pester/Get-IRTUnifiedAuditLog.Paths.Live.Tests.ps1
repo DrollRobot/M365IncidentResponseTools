@@ -20,7 +20,8 @@
     blocks. Total live Exchange calls: 6.
 
     Show-IRTUnifiedAuditLog is mocked in each Context to capture -Log without
-    writing an Excel file. Write-IRT and Write-PSFMessage suppress console noise.
+    writing an Excel file. Write-IRT prints every message, and Error-level
+    messages fail the test.
 
 -- -UserObject, 7-day query -----------------------------------------------
 
@@ -145,8 +146,11 @@ InModuleScope M365IncidentResponseTools {
         Context '-UserObject, 7-day query' {
 
             BeforeAll {
-                Mock Write-IRT { }
-                Mock Write-PSFMessage { }
+                # Print every message rather than hiding it, and fail on Error-level ones.
+                Mock Write-IRT { Write-Host "[$Level] $Message" }
+                Mock Write-IRT -ParameterFilter { $Level -eq 'Error' } {
+                    throw "Write-IRT error: $Message"
+                }
 
                 $script:CapturedUser = $null
                 Mock Show-IRTUnifiedAuditLog { $script:CapturedUser = $Log }
@@ -185,8 +189,11 @@ InModuleScope M365IncidentResponseTools {
         Context '-SignInLog, AllUsers, 30-day query' {
 
             BeforeAll {
-                Mock Write-IRT { }
-                Mock Write-PSFMessage { }
+                # Print every message rather than hiding it, and fail on Error-level ones.
+                Mock Write-IRT { Write-Host "[$Level] $Message" }
+                Mock Write-IRT -ParameterFilter { $Level -eq 'Error' } {
+                    throw "Write-IRT error: $Message"
+                }
 
                 $script:CapturedSignIn = $null
                 Mock Show-IRTUnifiedAuditLog { $script:CapturedSignIn = $Log }
@@ -227,8 +234,11 @@ InModuleScope M365IncidentResponseTools {
                 if (-not $script:GraphCLT) {
                     throw 'Graph CLT service principal not found; cannot run this context'
                 }
-                Mock Write-IRT { }
-                Mock Write-PSFMessage { }
+                # Print every message rather than hiding it, and fail on Error-level ones.
+                Mock Write-IRT { Write-Host "[$Level] $Message" }
+                Mock Write-IRT -ParameterFilter { $Level -eq 'Error' } {
+                    throw "Write-IRT error: $Message"
+                }
 
                 $script:CapturedSPN = $null
                 Mock Show-IRTUnifiedAuditLog { $script:CapturedSPN = $Log }
@@ -262,8 +272,11 @@ InModuleScope M365IncidentResponseTools {
         Context '-RiskyOperation (test user, 180 days)' {
 
             BeforeAll {
-                Mock Write-IRT { }
-                Mock Write-PSFMessage { }
+                # Print every message rather than hiding it, and fail on Error-level ones.
+                Mock Write-IRT { Write-Host "[$Level] $Message" }
+                Mock Write-IRT -ParameterFilter { $Level -eq 'Error' } {
+                    throw "Write-IRT error: $Message"
+                }
 
                 $script:CapturedRisky = $null
                 Mock Show-IRTUnifiedAuditLog { $script:CapturedRisky = $Log }
@@ -305,8 +318,11 @@ InModuleScope M365IncidentResponseTools {
         Context '-FreeText with AllUsers, 30-day query' {
 
             BeforeAll {
-                Mock Write-IRT { }
-                Mock Write-PSFMessage { }
+                # Print every message rather than hiding it, and fail on Error-level ones.
+                Mock Write-IRT { Write-Host "[$Level] $Message" }
+                Mock Write-IRT -ParameterFilter { $Level -eq 'Error' } {
+                    throw "Write-IRT error: $Message"
+                }
 
                 $script:CapturedFT = $null
                 Mock Show-IRTUnifiedAuditLog { $script:CapturedFT = $Log }
@@ -343,8 +359,11 @@ InModuleScope M365IncidentResponseTools {
         Context '-Operation filter, AllUsers, 30-day query' {
 
             BeforeAll {
-                Mock Write-IRT { }
-                Mock Write-PSFMessage { }
+                # Print every message rather than hiding it, and fail on Error-level ones.
+                Mock Write-IRT { Write-Host "[$Level] $Message" }
+                Mock Write-IRT -ParameterFilter { $Level -eq 'Error' } {
+                    throw "Write-IRT error: $Message"
+                }
 
                 $script:CapturedOp = $null
                 Mock Show-IRTUnifiedAuditLog { $script:CapturedOp = $Log }
@@ -390,8 +409,11 @@ InModuleScope M365IncidentResponseTools {
         Context 'date chunking: 364-day query, UserLoggedIn, test user' {
 
             BeforeAll {
-                Mock Write-IRT { }
-                Mock Write-PSFMessage { }
+                # Print every message rather than hiding it, and fail on Error-level ones.
+                Mock Write-IRT { Write-Host "[$Level] $Message" }
+                Mock Write-IRT -ParameterFilter { $Level -eq 'Error' } {
+                    throw "Write-IRT error: $Message"
+                }
 
                 $script:CapturedChunked = $null
                 Mock Show-IRTUnifiedAuditLog { $script:CapturedChunked = $Log }

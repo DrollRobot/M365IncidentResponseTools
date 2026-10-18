@@ -108,8 +108,11 @@ InModuleScope M365IncidentResponseTools {
         Context 'full function end to end' {
 
             BeforeAll {
-                Mock Write-IRT { }
-                Mock Write-PSFMessage { }
+                # Print every message rather than hiding it, and fail on Error-level ones.
+                Mock Write-IRT { Write-Host "[$Level] $Message" }
+                Mock Write-IRT -ParameterFilter { $Level -eq 'Error' } {
+                    throw "Write-IRT error: $Message"
+                }
                 Mock Export-Excel { }
 
                 Get-IRTAllEntraDevice -Open $false -Xml $false

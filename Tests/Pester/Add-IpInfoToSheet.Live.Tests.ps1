@@ -9,8 +9,8 @@
     be installed. ip_info is NOT mocked; calls go to the real tool so the full
     query-parse-cache-rewrite pipeline is exercised end-to-end.
 
-    Copy-ConditionalFormatting and Write-IRT are still mocked to avoid file I/O
-    and console side-effects.
+    Copy-ConditionalFormatting is still mocked to avoid file I/O. Write-IRT is
+    mocked to print every message, and Error-level messages fail the test.
 
     Well-known stable public IPs used: 1.1.1.1 (Cloudflare), 8.8.8.8 (Google),
     9.9.9.9 (Quad9).
@@ -57,7 +57,11 @@ InModuleScope M365IncidentResponseTools {
                 throw 'ip_info CLI tool not found. Run Install-Dependency.ps1 first.'
             }
 
-            Mock Write-IRT {}
+            # Print every message rather than hiding it, and fail on Error-level ones.
+            Mock Write-IRT { Write-Host "[$Level] $Message" }
+            Mock Write-IRT -ParameterFilter { $Level -eq 'Error' } {
+                throw "Write-IRT error: $Message"
+            }
             Mock Copy-ConditionalFormatting {}
             # ip_info is NOT mocked; the real CLI tool is invoked.
 

@@ -13,12 +13,11 @@
     also run for real, so the full query / chunk / merge / sort pipeline is
     exercised end-to-end against live data.
 
-    Only three things are mocked, and only to avoid side effects unrelated to
-    the data path:
+    Only two things are mocked:
       - Show-IRTEntraUserSignInLog captures the -Logs argument so the test can
         inspect the records without writing an Excel workbook or invoking the
         ip_info enrichment tool.
-      - Write-IRT and Write-PSFMessage suppress console noise.
+      - Write-IRT prints every message, and Error-level messages fail the test.
 
     Prerequisites:
       - Connect-IRT must have completed (Graph session active). Tests.ps1 runs
@@ -182,8 +181,11 @@ InModuleScope M365IncidentResponseTools {
         Context '-UserObject, interactive, 30-day query' {
 
             BeforeAll {
-                Mock Write-IRT { }
-                Mock Write-PSFMessage { }
+                # Print every message rather than hiding it, and fail on Error-level ones.
+                Mock Write-IRT { Write-Host "[$Level] $Message" }
+                Mock Write-IRT -ParameterFilter { $Level -eq 'Error' } {
+                    throw "Write-IRT error: $Message"
+                }
 
                 $script:CapturedUser = $null
                 Mock Show-IRTEntraUserSignInLog { param($Logs) $script:CapturedUser = $Logs }
@@ -230,8 +232,11 @@ InModuleScope M365IncidentResponseTools {
         Context '-AllUsers, 7-day query (beta)' {
 
             BeforeAll {
-                Mock Write-IRT { }
-                Mock Write-PSFMessage { }
+                # Print every message rather than hiding it, and fail on Error-level ones.
+                Mock Write-IRT { Write-Host "[$Level] $Message" }
+                Mock Write-IRT -ParameterFilter { $Level -eq 'Error' } {
+                    throw "Write-IRT error: $Message"
+                }
 
                 $script:CapturedAll = $null
                 Mock Show-IRTEntraUserSignInLog { param($Logs) $script:CapturedAll = $Logs }
@@ -278,8 +283,11 @@ InModuleScope M365IncidentResponseTools {
         Context '-IpAddress (derived from a live sign-in)' {
 
             BeforeAll {
-                Mock Write-IRT { }
-                Mock Write-PSFMessage { }
+                # Print every message rather than hiding it, and fail on Error-level ones.
+                Mock Write-IRT { Write-Host "[$Level] $Message" }
+                Mock Write-IRT -ParameterFilter { $Level -eq 'Error' } {
+                    throw "Write-IRT error: $Message"
+                }
 
                 $script:CapturedIp = $null
                 Mock Show-IRTEntraUserSignInLog { param($Logs) $script:CapturedIp = $Logs }
@@ -323,8 +331,11 @@ InModuleScope M365IncidentResponseTools {
         Context '-AllUsers, -NonInteractive, 7-day query' {
 
             BeforeAll {
-                Mock Write-IRT { }
-                Mock Write-PSFMessage { }
+                # Print every message rather than hiding it, and fail on Error-level ones.
+                Mock Write-IRT { Write-Host "[$Level] $Message" }
+                Mock Write-IRT -ParameterFilter { $Level -eq 'Error' } {
+                    throw "Write-IRT error: $Message"
+                }
 
                 $script:CapturedNI = $null
                 Mock Show-IRTEntraUserSignInLog { param($Logs) $script:CapturedNI = $Logs }
@@ -366,8 +377,11 @@ InModuleScope M365IncidentResponseTools {
         Context '-Beta $false (v1.0 endpoint), AllUsers, 7-day query' {
 
             BeforeAll {
-                Mock Write-IRT { }
-                Mock Write-PSFMessage { }
+                # Print every message rather than hiding it, and fail on Error-level ones.
+                Mock Write-IRT { Write-Host "[$Level] $Message" }
+                Mock Write-IRT -ParameterFilter { $Level -eq 'Error' } {
+                    throw "Write-IRT error: $Message"
+                }
 
                 $script:CapturedV1 = $null
                 Mock Show-IRTEntraUserSignInLog { param($Logs) $script:CapturedV1 = $Logs }
@@ -408,8 +422,11 @@ InModuleScope M365IncidentResponseTools {
         Context 'date chunking: 7-day query split into 1-day chunks' {
 
             BeforeAll {
-                Mock Write-IRT { }
-                Mock Write-PSFMessage { }
+                # Print every message rather than hiding it, and fail on Error-level ones.
+                Mock Write-IRT { Write-Host "[$Level] $Message" }
+                Mock Write-IRT -ParameterFilter { $Level -eq 'Error' } {
+                    throw "Write-IRT error: $Message"
+                }
 
                 $script:CapturedChunked = $null
                 Mock Show-IRTEntraUserSignInLog { param($Logs) $script:CapturedChunked = $Logs }
@@ -456,8 +473,11 @@ InModuleScope M365IncidentResponseTools {
         Context 'single chunk: 1-day non-interactive query (default ChunkDays)' {
 
             BeforeAll {
-                Mock Write-IRT { }
-                Mock Write-PSFMessage { }
+                # Print every message rather than hiding it, and fail on Error-level ones.
+                Mock Write-IRT { Write-Host "[$Level] $Message" }
+                Mock Write-IRT -ParameterFilter { $Level -eq 'Error' } {
+                    throw "Write-IRT error: $Message"
+                }
 
                 $script:CapturedSingle = $null
                 Mock Show-IRTEntraUserSignInLog { param($Logs) $script:CapturedSingle = $Logs }
@@ -504,8 +524,11 @@ InModuleScope M365IncidentResponseTools {
         Context 'date range: -Start and -End absolute' {
 
             BeforeAll {
-                Mock Write-IRT { }
-                Mock Write-PSFMessage { }
+                # Print every message rather than hiding it, and fail on Error-level ones.
+                Mock Write-IRT { Write-Host "[$Level] $Message" }
+                Mock Write-IRT -ParameterFilter { $Level -eq 'Error' } {
+                    throw "Write-IRT error: $Message"
+                }
 
                 $script:CapturedAbs = $null
                 Mock Show-IRTEntraUserSignInLog { param($Logs) $script:CapturedAbs = $Logs }
