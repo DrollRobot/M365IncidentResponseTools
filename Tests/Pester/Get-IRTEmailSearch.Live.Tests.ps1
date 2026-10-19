@@ -19,6 +19,9 @@
     throw, so a wrong answer can't change it. The wait actions are not run; they
     only repeat reads already covered, and play a sound.
 
+    A second block, tagged 'destructive','remote', purges through the menu. It
+    runs only through '.\Tests.ps1 Destructive'.
+
     Write-IRT is mocked to print every message, and Error-level messages fail
     the test.
 
@@ -121,6 +124,112 @@ InModuleScope M365IncidentResponseTools {
             Should -Invoke Start-ComplianceSearch -Times 0 -Exactly -Scope Describe
             Should -Invoke Remove-ComplianceSearch -Times 0 -Exactly -Scope Describe
             Should -Invoke New-ComplianceSearchAction -Times 0 -Exactly -Scope Describe
+        }
+    }
+
+    # Purges through the menu. Start and delete are covered by the New-IRTEmailSearch
+    # test, which makes the same calls. The search only covers the disposable test
+    # user's mailbox, and looks for a random subject, so the purge has nothing to
+    # delete; it still needs the 'Search And Purge' role to be accepted. Waiting for
+    # the search to finish takes a few minutes.
+    Describe 'Get-IRTEmailSearch purge (live)' -Tag @(
+        'live', 'integration', 'destructive', 'remote', 'slow'
+    ) {
+
+        BeforeAll {
+            # InModuleScope makes $script: the module's scope, shared with other test
+            # files. Clear this first, so AfterAll never deletes a search left over
+            # from another file.
+            $script:PurgeSearchName = $null
+            $script:SavedDetail = $Global:IRT_EmailSearchDetail
+
+            if (-not ($Global:IRT_Session -and $Global:IRT_Session.Graph -and
+                    $Global:IRT_Session.IPPS)) {
+                throw ('Get-IRTEmailSearch online tests require active Graph and IPPS ' +
+                    'sessions. Ensure Connect-IRT ran successfully first.')
+            }
+            if (-not $env:IRT_TEST_DISPOSABLE_USER_ID) {
+                throw 'IRT_TEST_DISPOSABLE_USER_ID not set. Run Tests/.env.ps1 first.'
+            }
+
+            Import-IRTModule -Name 'Microsoft.Graph.Users'
+            $GetParams = @{
+                UserId   = $env:IRT_TEST_DISPOSABLE_USER_ID
+                Property = 'Id', 'UserPrincipalName'
+            }
+            $Mailbox = (Get-MgUser @GetParams).UserPrincipalName
+
+            $Token = (New-Guid).Guid
+            $NewParams = @{
+                Name              = "IRT live purge test $Token"
+                ExchangeLocation  = $Mailbox
+                ContentMatchQuery = "subject:`"$Token`""
+                ErrorAction       = 'Stop'
+            }
+            $null = New-ComplianceSearch @NewParams
+            $script:PurgeSearchName = $NewParams.Name
+            Start-ComplianceSearch -Identity $script:PurgeSearchName -ErrorAction Stop
+
+            # purge needs a completed search
+            $Deadline = (Get-Date).AddMinutes(10)
+            do {
+                Start-Sleep -Seconds 10
+                $Search = Get-ComplianceSearch -Identity $script:PurgeSearchName -ErrorAction Stop
+                Write-Host "Search status: $($Search.Status)"
+            } while ($Search.Status -ne 'Completed' -and (Get-Date) -lt $Deadline)
+            if ($Search.Status -ne 'Completed') {
+                throw "Search '$($script:PurgeSearchName)' did not complete in 10 minutes."
+            }
+
+            # Print every message rather than hiding it, and fail on Error-level ones.
+            Mock Write-IRT { Write-Host "[$Level] $Message" }
+            Mock Write-IRT -ParameterFilter { $Level -eq 'Error' } {
+                throw "Write-IRT error: $Message"
+            }
+
+            # purge, soft delete, confirm, quit
+            $script:Answers = [System.Collections.Generic.Queue[string]]::new()
+            foreach ($Answer in @('4', '1', 'y', 'Q')) {
+                $script:Answers.Enqueue($Answer)
+            }
+            Mock Read-Host { $script:Answers.Dequeue() }
+
+            $Global:IRT_EmailSearchDetail = $null
+            Get-IRTEmailSearch -Name $script:PurgeSearchName
+
+            $ActionParams = @{
+                Identity    = "$($script:PurgeSearchName)_Purge"
+                ErrorAction = 'Ignore'
+            }
+            $script:Purge = Get-ComplianceSearchAction @ActionParams
+        }
+
+        AfterAll {
+            $Global:IRT_EmailSearchDetail = $script:SavedDetail
+            if ($script:PurgeSearchName) {
+                # a search cannot be deleted while its purge is still running
+                $ActionParams = @{
+                    Identity    = "$($script:PurgeSearchName)_Purge"
+                    ErrorAction = 'Ignore'
+                }
+                $Deadline = (Get-Date).AddMinutes(5)
+                while (($Purge = Get-ComplianceSearchAction @ActionParams) -and
+                    $Purge.Status -ne 'Completed' -and (Get-Date) -lt $Deadline) {
+                    Start-Sleep -Seconds 10
+                }
+                if ($Purge) {
+                    Remove-ComplianceSearchAction @ActionParams -Confirm:$false
+                }
+                Remove-ComplianceSearch -Identity $script:PurgeSearchName -Confirm:$false
+            }
+        }
+
+        It 'uses every menu answer' {
+            $script:Answers.Count | Should -Be 0
+        }
+
+        It 'submits the purge' {
+            $script:Purge | Should -Not -BeNullOrEmpty
         }
     }
 }

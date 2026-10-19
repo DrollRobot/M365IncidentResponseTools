@@ -10,9 +10,12 @@
     looks up whether the search name is already in use, then creates and starts
     the search.
 
-    Only the reads run against the tenant. New-ComplianceSearch and
-    Start-ComplianceSearch are mocked, so no search is created; creating one is a
-    write test. The search is named after an existing one, with -Force, so the
+    In the first block only the reads run against the tenant. New-ComplianceSearch
+    and Start-ComplianceSearch are mocked, so no search is created. The second
+    block, tagged 'destructive','remote', creates a real search and deletes it;
+    it runs only through '.\Tests.ps1 Destructive'.
+
+    The first block's search is named after an existing one, with -Force, so the
     name lookup must find it and pick the next free name. A failed lookup looks
     the same as a free name, so this is the only way to see the lookup work.
 
@@ -83,6 +86,82 @@ InModuleScope M365IncidentResponseTools {
         It 'starts the search' {
             Should -Invoke Start-ComplianceSearch -Times 1 -Exactly -Scope Describe
             $script:Result.Started | Should -BeTrue
+        }
+    }
+
+    # Creates and starts a real search, then deletes it. Deleting it also covers
+    # Get-IRTEmailSearch's delete, which makes the same Remove-ComplianceSearch call.
+    # The search only covers the disposable test user's mailbox, and looks for a
+    # random subject, so it matches nothing.
+    Describe 'New-IRTEmailSearch creates a search (live)' -Tag @(
+        'live', 'integration', 'destructive', 'remote'
+    ) {
+
+        BeforeAll {
+            # InModuleScope makes $script: the module's scope, shared with other test
+            # files. Clear this first, so AfterAll never deletes a search left over
+            # from another file.
+            $script:CreatedName = $null
+            $script:SavedSearches = $Global:IRT_EmailSearch
+
+            if (-not ($Global:IRT_Session -and $Global:IRT_Session.Graph -and
+                    $Global:IRT_Session.IPPS)) {
+                throw ('New-IRTEmailSearch online tests require active Graph and IPPS ' +
+                    'sessions. Ensure Connect-IRT ran successfully first.')
+            }
+            if (-not $env:IRT_TEST_DISPOSABLE_USER_ID) {
+                throw 'IRT_TEST_DISPOSABLE_USER_ID not set. Run Tests/.env.ps1 first.'
+            }
+
+            Import-IRTModule -Name 'Microsoft.Graph.Users'
+            $GetParams = @{
+                UserId   = $env:IRT_TEST_DISPOSABLE_USER_ID
+                Property = 'Id', 'UserPrincipalName'
+            }
+            $script:Mailbox = (Get-MgUser @GetParams).UserPrincipalName
+
+            # Print every message rather than hiding it, and fail on Error-level ones.
+            Mock Write-IRT { Write-Host "[$Level] $Message" }
+            Mock Write-IRT -ParameterFilter { $Level -eq 'Error' } {
+                throw "Write-IRT error: $Message"
+            }
+
+            $Token = (New-Guid).Guid
+            $Global:IRT_EmailSearch = $null
+            $SearchParams = @{
+                Start            = (Get-Date).AddDays(-1).ToString('o')
+                Subject          = $Token
+                Name             = "IRT live test $Token"
+                NamePrefix       = ''
+                ExchangeLocation = $script:Mailbox
+            }
+            $script:Result = New-IRTEmailSearch @SearchParams
+            $script:CreatedName = $script:Result.Name
+
+            $script:Search = Get-ComplianceSearch -Identity $script:CreatedName -ErrorAction Stop
+        }
+
+        AfterAll {
+            $Global:IRT_EmailSearch = $script:SavedSearches
+            if ($script:CreatedName) {
+                $StopParams = @{
+                    Identity    = $script:CreatedName
+                    Confirm     = $false
+                    ErrorAction = 'Ignore'
+                }
+                Stop-ComplianceSearch @StopParams
+                Remove-ComplianceSearch -Identity $script:CreatedName -Confirm:$false
+            }
+        }
+
+        It 'creates the search' {
+            $script:Search.ContentMatchQuery | Should -Be $script:Result.Query
+            $script:Search.ExchangeLocation | Should -Contain $script:Mailbox
+        }
+
+        It 'starts the search' {
+            $script:Result.Started | Should -BeTrue
+            $script:Search.Status | Should -Not -Be 'NotStarted'
         }
     }
 }
