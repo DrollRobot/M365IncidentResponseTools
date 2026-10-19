@@ -6,9 +6,9 @@
 
 .DESCRIPTION
     Get-IRTClipboardSearch reads the clipboard and returns one trimmed, non-empty
-    search string per line. Get-Clipboard, Import-IRTModule, and Write-PSFMessage
-    are mocked so no clipboard I/O or module loads occur. Tests run InModuleScope so
-    the private function and its mocked dependencies resolve inside the module.
+    search string per line. Get-Clipboard is mocked so no clipboard I/O occurs. Tests
+    run InModuleScope so the private function and its mocked dependencies resolve inside
+    the module.
 
     Covers: one term per array line, line-ending normalization for a single
     multi-line string, whitespace trimming, blank-line removal, single-line input,
@@ -18,11 +18,6 @@
 InModuleScope M365IncidentResponseTools {
 
     Describe 'Get-IRTClipboardSearch' -Tag 'unit' {
-
-        BeforeEach {
-            Mock Import-IRTModule { }
-            Mock Write-PSFMessage { }
-        }
 
         It 'returns one term per array line, in order' {
             Mock Get-Clipboard { @('Test', 'test2', 'TAST3') }

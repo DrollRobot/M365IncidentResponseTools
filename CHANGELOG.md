@@ -3,6 +3,16 @@
 All notable changes to this project will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Fixed
+
+- On-prem AD functions pasted from `Copy-IRTFunction` failed with "not recognized"
+  errors: `Disable-IRTAdUser`, `Enable-IRTAdUser`, `Push-IRTAdSync`, and
+  `Reset-IRTAdUserPassword` when checking for the sync service, and `Find-IRTAdUser` and
+  `Find-IRTAdDevice` with `-FromClipboard`. The helpers they need are now copied, and no
+  longer need PSFramework.
+
 ## [2.12.2] - 2026-10-19 - Automatic replies, fewer Graph permissions
 
 ### Added

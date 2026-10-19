@@ -46,7 +46,7 @@ function Copy-IRTFunction {
     None. Output is sent to the clipboard.
 
     .NOTES
-    Version: 2.0.0
+    Version: 2.0.1
 
     #>
     [Alias(
@@ -65,6 +65,7 @@ function Copy-IRTFunction {
             'Get-RandomPassword'
             'Format-Tree'
             'Get-YesNo'
+            'Get-IRTClipboardSearch'
             # On-prem AD functions
             'Disable-IRTAdUser'
             'Enable-IRTAdUser'
@@ -74,6 +75,7 @@ function Copy-IRTFunction {
             'Find-IRTDomainController'
             'Get-IRTAdAdminUser'
             'Get-AdGlobalUserObject'
+            'Get-LocalAdSyncService'
             'Get-TargetDomainController'
             'Import-IRTModule'
             'Push-AdReplication'

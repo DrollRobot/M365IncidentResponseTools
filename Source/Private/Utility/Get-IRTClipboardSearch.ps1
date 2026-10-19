@@ -11,6 +11,9 @@ function Get-IRTClipboardSearch {
 
     Throws a terminating error when the clipboard is empty or contains no usable lines.
 
+    Uses no PSFramework, because the on-prem AD functions call it, and Copy-IRTFunction
+    pastes those onto servers without that module.
+
     .EXAMPLE
     $Search = Get-IRTClipboardSearch
     Returns each non-empty clipboard line as an element of the returned array.
@@ -19,16 +22,11 @@ function Get-IRTClipboardSearch {
     System.String[]
 
     .NOTES
-    Version: 1.0.0
+    Version: 1.0.1
     #>
     [OutputType([string[]])]
     [CmdletBinding()]
     param ()
-
-    begin {
-        Import-IRTModule -Name 'PSFramework'
-        $FunctionName = $MyInvocation.MyCommand.Name
-    }
 
     process {
 
@@ -43,9 +41,6 @@ function Get-IRTClipboardSearch {
         if ( @( $Lines ).Count -eq 0 ) {
             throw 'Clipboard is empty or contains no usable search text.'
         }
-
-        Write-PSFMessage -Level 8 -Message (
-            "${FunctionName}: Pulled $( @( $Lines ).Count ) search term(s) from clipboard.")
 
         return [string[]] $Lines
     }

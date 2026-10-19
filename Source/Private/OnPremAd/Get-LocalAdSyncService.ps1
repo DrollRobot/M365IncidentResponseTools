@@ -8,6 +8,9 @@ function Get-LocalAdSyncService {
     Windows, and Get-Service exists only there. Off Windows there is no such service to
     find, so this returns nothing instead of failing on the missing command.
 
+    Uses no PSFramework, like the other on-prem AD functions, so it still works when
+    Copy-IRTFunction pastes it onto a server without that module.
+
     .EXAMPLE
     ```powershell
     if (Get-LocalAdSyncService) { Start-ADSyncSyncCycle -PolicyType Delta }
@@ -18,15 +21,12 @@ function Get-LocalAdSyncService {
     The ADSync service object, or nothing when it is not on this device.
 
     .NOTES
-    Version: 1.0.0
+    Version: 1.0.1
     #>
     [CmdletBinding()]
     param()
 
-    Import-IRTModule -Name 'PSFramework'
-
     if (-not (Get-Command -Name 'Get-Service' -ErrorAction Ignore)) {
-        Write-PSFMessage -Level 8 -Message 'Get-Service is unavailable; no local ADSync service.'
         return
     }
     Get-Service -Name 'adsync' -ErrorAction SilentlyContinue
