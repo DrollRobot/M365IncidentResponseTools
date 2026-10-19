@@ -4,7 +4,7 @@ external help file: M365IncidentResponseTools-Help.xml
 HelpUri: ''
 Locale: en-US
 Module Name: M365IncidentResponseTools
-ms.date: 10/16/2026
+ms.date: 10/19/2026
 PlatyPS schema version: 2024-05-01
 title: Show-IRTMailbox
 ---
@@ -30,7 +30,7 @@ ShowMailbox
 Retrieves Exchange Online mailbox configuration and permissions for one or more users
 and displays the results in the console.
 Includes quota settings, forwarding rules,
-litigation hold status, and current mailbox permissions.
+litigation hold status, automatic replies, and current mailbox permissions.
 
 Falls back to $Global:IRT_UserObjects if no -UserObject is passed.
 Requires an active
@@ -113,7 +113,12 @@ This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable
 
 ## NOTES
 
-Version: 1.1.0
+Version: 1.2.0
+1.2.0 - Shows the mailbox's automatic reply settings.
+1.1.2 - FIXME temporary workaround: a failed mailbox lookup is reported during live
+test runs.
+See Write-IRTSuppressedError.
+1.1.1 - A failed mailbox lookup no longer shows the previous user's mailbox.
 
 
 ## RELATED LINKS

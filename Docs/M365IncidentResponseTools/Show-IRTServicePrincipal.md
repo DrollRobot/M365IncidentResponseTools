@@ -4,7 +4,7 @@ external help file: M365IncidentResponseTools-Help.xml
 HelpUri: ''
 Locale: en-US
 Module Name: M365IncidentResponseTools
-ms.date: 10/16/2026
+ms.date: 10/19/2026
 PlatyPS schema version: 2024-05-01
 title: Show-IRTServicePrincipal
 ---
@@ -139,7 +139,9 @@ This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable
 
 ## NOTES
 
-Version: 1.3.0
+Version: 1.3.1
+1.3.1 - A failed grant or role template lookup is reported as a failure instead of
+as "No OAuth2 permission grants found" or an unnamed role.
 
 
 ## RELATED LINKS

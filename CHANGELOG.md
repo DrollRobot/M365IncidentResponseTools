@@ -3,6 +3,37 @@
 All notable changes to this project will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.12.2] - 2026-10-19 - Automatic replies, fewer Graph permissions
+
+### Added
+
+- `Show-IRTMailbox` shows the mailbox's automatic replies: whether they're on, the
+  schedule, who gets the external reply, and both messages.
+
+### Changed
+
+- `Connect-IRT` asks for fewer Graph permissions, and read-only ones where the module
+  only reads. Each tenant is asked for admin consent again on the next connect.
+- User details load faster: optional user properties come back in one Graph request
+  instead of one per property.
+
+### Fixed
+
+- `Show-IRTServicePrincipal` stopped with an error before showing anything, because a
+  Graph module it needs was never installed.
+- `Show-IRTServicePrincipal` reported "No OAuth2 permission grants found" when the grant
+  or directory role lookup failed.
+- `Show-IRTMailbox` showed the previous user's mailbox when a user's mailbox lookup
+  failed.
+- A failed Graph fetch was cached as empty, so later lookups of users, groups, devices,
+  grants, roles, or the default domain returned nothing, without an error.
+- Device lookups hid Intune read failures, such as a missing permission, in tenants that
+  have Intune.
+- `Find-IRTDirectoryObject` did not report failed lookups, such as access denied, as
+  errors.
+- Sign-in log searches that found nothing printed an error instead of a warning.
+- User details always had an empty leave date.
+
 ## [2.12.1] - 2026-10-17 - IPv6 addresses no longer exported as links
 
 ### Fixed

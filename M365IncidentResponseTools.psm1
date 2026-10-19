@@ -900,35 +900,66 @@ function Get-IRTGraphDefaultScope {
     Write-PSFMessage -Level 9 -Message 'Get-IRTGraphDefaultScope: returning default scope set.'
 
     return [string[]]@(
+        # Read Entra sign-in and directory audit logs.
+        # Used by: Get-IRTEntraUserSignInLog, Get-IRTEntraSPSignInLog, Get-IRTEntraAuditLog
         'AuditLog.Read.All'
+        # Run Unified Audit Log searches through Graph.
+        # Used by: Start-IRTGraphUAL, Receive-IRTGraphUAL
         'AuditLogsQuery.Read.All'
+        # Look up basic details of any tenant by ID or domain.
+        # Used by: Get-IRTTenantOwner
         'CrossTenantInformation.ReadBasic.All'
-        'DelegatedPermissionGrant.ReadWrite.All'
+        # Read app consent grants.
+        # Used by: Get-IRTUserServicePrincipal, Find-IRTRiskyServicePrincipal, Connect-IRT
+        'DelegatedPermissionGrant.Read.All'
+        # Read Entra device objects.
+        # Used by: Find-IRTDevice, Show-IRTDevice, Get-IRTAllEntraDevice
         'Device.Read.All'
-        'DeviceManagementApps.Read.All'
-        'DeviceManagementConfiguration.Read.All'
-        # ReadWrite: Remove-IRTDevice deletes the Intune managed device record.
+        # Read and delete Intune managed devices.
+        # Used by: Remove-IRTDevice, Show-IRTDevice, Find-IRTDevice
         'DeviceManagementManagedDevices.ReadWrite.All'
-        'DeviceManagementServiceConfig.Read.All'
-        # Delegated device update/delete accept no other scope (Set-IRTDeviceEnabled,
-        # Remove-IRTDevice).
+        # Act as the signed-in user, with all of their directory rights.
+        # Used by: Disable-IRTDevice, Enable-IRTDevice, Remove-IRTDevice
         'Directory.AccessAsUser.All'
+        # Read all directory data (users, groups, roles, devices, apps).
+        # Used by: Find-IRTDirectoryObject, Get-IRTAdminRole, Show-IRTServicePrincipal
         'Directory.Read.All'
+        # Read the tenant's domains.
+        # Used by: Connect-IRT, New-IRTInvestigationFolder, Get-IRTAdminRole
         'Domain.Read.All'
-        'Mail.ReadBasic.Shared'
+        # Read tenant details, such as licenses and directory sync status.
+        # Used by: Get-IRTLicenseReport, Disable-IRTUser, Connect-IRT
         'Organization.Read.All'
+        # Read tenant policies, such as the app consent (authorization) policy.
+        # Used by: Find-IRTRiskyServicePrincipal
         'Policy.Read.All'
-        'Policy.Read.ConditionalAccess'
-        'SecurityEvents.ReadWrite.All'
-        'SecurityIncident.ReadWrite.All'
-        # Least-privileged scope for passwordProfile; User.ReadWrite.All does not cover it.
+        # Read users' leave dates, which also needs the Lifecycle Workflows Administrator
+        # or Global Reader role.
+        # Used by: Show-IRTUser
+        'User-LifeCycleInfo.Read.All'
+        # Reset user passwords.
+        # Used by: Reset-IRTUserPassword
         'User-PasswordProfile.ReadWrite.All'
-        'User.ManageIdentities.All'
+        # Read and update user accounts, including enable/disable and session revocation.
+        # Used by: Disable-IRTUser, Revoke-IRTUserSession, Set-IRTUserUsageLocation
         'User.ReadWrite.All'
+        # Read and change users' MFA methods.
+        # Used by (read only): Show-IRTUserMfa
         'UserAuthenticationMethod.ReadWrite.All'
+
+        # No IRT functions use these. They're here so analysts can run Graph commands by
+        # hand during investigations.
+        # Read basic message details (no body) in mailboxes the user can open.
+        'Mail.ReadBasic.Shared'
+        # Read Conditional Access policies.
+        'Policy.Read.ConditionalAccess'
+        # Read Defender XDR alerts.
+        'SecurityAlert.Read.All'
+        # Read Defender XDR incidents.
+        'SecurityIncident.Read.All'
     )
 }
-#EndRegion '.\Private\Connect\Get-IRTGraphDefaultScope.ps1' 61
+#EndRegion '.\Private\Connect\Get-IRTGraphDefaultScope.ps1' 92
 #Region '.\Private\Connect\Get-IRTPublicClient.ps1' -1
 
 function Get-IRTPublicClient {
@@ -2807,7 +2838,8 @@ function Invoke-IRTSignInLogQuery {
     None. Results are exported via the Show- command and optional XML.
 
     .NOTES
-    Version: 1.0.0
+    Version: 1.0.1
+    1.0.1 - "No logs found" is a warning, not an error: an empty search is a valid result.
     #>
     [CmdletBinding()]
     param (
@@ -2998,7 +3030,7 @@ function Invoke-IRTSignInLogQuery {
     }
 
     if (($Logs | Measure-Object).Count -eq 0 ) {
-        Write-IRT "No logs found for ${Target} for past ${Days} days. Exiting." -Level Error
+        Write-IRT "No logs found for ${Target} for past ${Days} days. Exiting." -Level Warn
         return
     }
 
@@ -3047,7 +3079,7 @@ function Invoke-IRTSignInLogQuery {
         Write-IRT "Retrieved 0 logs." -Level Error
     }
 }
-#EndRegion '.\Private\Entra\Invoke-IRTSignInLogQuery.ps1' 342
+#EndRegion '.\Private\Entra\Invoke-IRTSignInLogQuery.ps1' 343
 #Region '.\Private\Graph\Request-DirectoryRole.ps1' -1
 
 function Request-DirectoryRole {
@@ -3062,7 +3094,8 @@ function Request-DirectoryRole {
     Get-IRTAdminRole and the incident response playbook to avoid redundant Graph requests.
 
     .NOTES
-    Version: 2.0.0
+    Version: 2.1.0
+    2.1.0 - A fetch that returns a Graph error is no longer cached.
     #>
     [OutputType([hashtable])]
     [CmdletBinding()]
@@ -3124,6 +3157,7 @@ function Request-DirectoryRole {
             All            = $true
             Property       = $GetProperties
             ExpandProperty = $ExpandProperties
+            ErrorVariable  = 'GraphErrors'
         }
         $Objects = Get-MgDirectoryRole @GdrParams |
             Select-Object ( $GetProperties + $ExpandProperties )
@@ -3132,14 +3166,23 @@ function Request-DirectoryRole {
         Write-PSFMessage -Level 8 -Message (
             "${FunctionName}: Graph returned $($Objects.Count) role(s) [$Elapsed]")
 
-        # store in global variables
-        $Global:IRT_DirectoryRoles = $Objects
-        $Global:IRT_DirectoryRolesById = [hashtable]::Synchronized(@{})
+        $RolesById = [hashtable]::Synchronized(@{})
         foreach ( $o in $Objects ) {
-            if ( $o.Id ) { $Global:IRT_DirectoryRolesById[$o.Id] = $o }
+            if ( $o.Id ) { $RolesById[$o.Id] = $o }
         }
         Write-PSFMessage -Level 8 -Message (
-            "${FunctionName}: Index built - $($Global:IRT_DirectoryRolesById.Count) entry/entries.")
+            "${FunctionName}: Index built - $($RolesById.Count) entry/entries.")
+
+        # store in global variables. Graph errors don't stop this function, so a failed
+        # fetch would otherwise be cached and returned by every later -Cached call.
+        if ( $GraphErrors ) {
+            Write-PSFMessage -Level 8 -Message (
+                "${FunctionName}: Graph returned an error; result not cached.")
+        }
+        else {
+            $Global:IRT_DirectoryRoles = $Objects
+            $Global:IRT_DirectoryRolesById = $RolesById
+        }
 
         # export to file
         if ($Xml) {
@@ -3153,13 +3196,13 @@ function Request-DirectoryRole {
 
         # return
         switch ( $Return ) {
-            'objects' { return $Global:IRT_DirectoryRoles }
-            'tablebyid' { return $Global:IRT_DirectoryRolesById }
+            'objects' { return $Objects }
+            'tablebyid' { return $RolesById }
             'none' { return }
         }
     }
 }
-#EndRegion '.\Private\Graph\Request-DirectoryRole.ps1' 110
+#EndRegion '.\Private\Graph\Request-DirectoryRole.ps1' 121
 #Region '.\Private\Graph\Request-DirectoryRoleTemplate.ps1' -1
 
 function Request-DirectoryRoleTemplate {
@@ -3173,7 +3216,8 @@ function Request-DirectoryRoleTemplate {
     Request-DirectoryRole to resolve role display names during admin role reporting.
 
     .NOTES
-    Version: 2.0.0
+    Version: 2.1.0
+    2.1.0 - A fetch that returns a Graph error is no longer cached.
     #>
     [OutputType([hashtable])]
     [CmdletBinding()]
@@ -3231,8 +3275,9 @@ function Request-DirectoryRoleTemplate {
         Write-PSFMessage -Level 8 -Message (
             "${FunctionName}: Get-MgDirectoryRoleTemplate [$Elapsed]")
         $GdrtParams = @{
-            All      = $true
-            Property = $GetProperties
+            All           = $true
+            Property      = $GetProperties
+            ErrorVariable = 'GraphErrors'
         }
         $Objects = Get-MgDirectoryRoleTemplate @GdrtParams | Select-Object $GetProperties
 
@@ -3240,15 +3285,23 @@ function Request-DirectoryRoleTemplate {
         Write-PSFMessage -Level 8 -Message (
             "${FunctionName}: Graph returned $($Objects.Count) template(s) [$Elapsed]")
 
-        # store in global variables
-        $Global:IRT_DirectoryRoleTemplates = $Objects
-        $Global:IRT_DirectoryRoleTemplatesById = [hashtable]::Synchronized(@{})
+        $TemplatesById = [hashtable]::Synchronized(@{})
         foreach ( $o in $Objects ) {
-            if ( $o.Id ) { $Global:IRT_DirectoryRoleTemplatesById[$o.Id] = $o }
+            if ( $o.Id ) { $TemplatesById[$o.Id] = $o }
         }
         Write-PSFMessage -Level 8 -Message (
-            "${FunctionName}: Index built - " +
-            "$($Global:IRT_DirectoryRoleTemplatesById.Count) entry/entries.")
+            "${FunctionName}: Index built - $($TemplatesById.Count) entry/entries.")
+
+        # store in global variables. Graph errors don't stop this function, so a failed
+        # fetch would otherwise be cached and returned by every later -Cached call.
+        if ( $GraphErrors ) {
+            Write-PSFMessage -Level 8 -Message (
+                "${FunctionName}: Graph returned an error; result not cached.")
+        }
+        else {
+            $Global:IRT_DirectoryRoleTemplates = $Objects
+            $Global:IRT_DirectoryRoleTemplatesById = $TemplatesById
+        }
 
         # export to file
         if ($Xml) {
@@ -3262,13 +3315,13 @@ function Request-DirectoryRoleTemplate {
 
         # return
         switch ( $Return ) {
-            'objects' { return $Global:IRT_DirectoryRoleTemplates }
-            'tablebyid' { return $Global:IRT_DirectoryRoleTemplatesById }
+            'objects' { return $Objects }
+            'tablebyid' { return $TemplatesById }
             'none' { return }
         }
     }
 }
-#EndRegion '.\Private\Graph\Request-DirectoryRoleTemplate.ps1' 107
+#EndRegion '.\Private\Graph\Request-DirectoryRoleTemplate.ps1' 117
 #Region '.\Private\Graph\Request-GraphDevice.ps1' -1
 
 function Request-GraphDevice {
@@ -3286,7 +3339,8 @@ function Request-GraphDevice {
     Devices that appear only in Intune (no matching Entra record) are included with .Entra = $null.
 
 	.NOTES
-	Version: 2.0.0
+	Version: 2.1.0
+	2.1.0 - An Entra device fetch that returns a Graph error is no longer cached.
 	#>
     [OutputType([System.Object[]], [hashtable])]
     [CmdletBinding()]
@@ -3333,7 +3387,12 @@ function Request-GraphDevice {
         # --- Entra devices ---
         Write-PSFMessage -Level 8 -Message (
             "${FunctionName}: Get-MgDevice [$($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))]")
-        $EntraDevices = Get-MgDevice -All -ExpandProperty 'RegisteredOwners'
+        $GetDeviceParams = @{
+            All            = $true
+            ExpandProperty = 'RegisteredOwners'
+            ErrorVariable  = 'GraphErrors'
+        }
+        $EntraDevices = Get-MgDevice @GetDeviceParams
         Write-PSFMessage -Level 8 -Message (
             "${FunctionName}: Entra returned $($EntraDevices.Count) device(s) " +
             "[$($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))]")
@@ -3424,14 +3483,23 @@ function Request-GraphDevice {
             "${FunctionName}: Combined total: $($Objects.Count) device(s) " +
             "[$($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))]")
 
-        # store in global variables
-        $Global:IRT_Devices = $Objects
-        $Global:IRT_DevicesById = [hashtable]::Synchronized(@{})
+        $DevicesById = [hashtable]::Synchronized(@{})
         foreach ( $Device in $Objects ) {
-            if ( $Device.DeviceId ) { $Global:IRT_DevicesById[$Device.DeviceId] = $Device }
+            if ( $Device.DeviceId ) { $DevicesById[$Device.DeviceId] = $Device }
         }
         Write-PSFMessage -Level 8 -Message (
-            "${FunctionName}: Index built - $($Global:IRT_DevicesById.Count) entry/entries.")
+            "${FunctionName}: Index built - $($DevicesById.Count) entry/entries.")
+
+        # store in global variables. Graph errors don't stop this function, so a failed
+        # Entra fetch would otherwise be cached and returned by every later -Cached call.
+        if ( $GraphErrors ) {
+            Write-PSFMessage -Level 8 -Message (
+                "${FunctionName}: Graph returned an error; result not cached.")
+        }
+        else {
+            $Global:IRT_Devices = $Objects
+            $Global:IRT_DevicesById = $DevicesById
+        }
 
         # export to file
         if ($Xml) {
@@ -3445,13 +3513,13 @@ function Request-GraphDevice {
 
         # return
         switch ( $Return ) {
-            'objects' { return $Global:IRT_Devices }
-            'tablebyid' { return $Global:IRT_DevicesById }
+            'objects' { return $Objects }
+            'tablebyid' { return $DevicesById }
             'none' { return }
         }
     }
 }
-#EndRegion '.\Private\Graph\Request-GraphDevice.ps1' 181
+#EndRegion '.\Private\Graph\Request-GraphDevice.ps1' 196
 #Region '.\Private\Graph\Request-GraphGroup.ps1' -1
 
 function Request-GraphGroup {
@@ -3466,7 +3534,8 @@ function Request-GraphGroup {
     to resolve group membership without repeated Graph requests.
 
     .NOTES
-    Version: 2.0.0
+    Version: 2.1.0
+    2.1.0 - A group list fetch that returns a Graph error is no longer cached.
     #>
     [OutputType([hashtable])]
     [CmdletBinding()]
@@ -3523,8 +3592,9 @@ function Request-GraphGroup {
         Write-PSFMessage -Level 8 -Message (
             "${FunctionName}: Get-MgGroup [$($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))]")
         $Params = @{
-            All = $true
-            Property = $GetProperties
+            All           = $true
+            Property      = $GetProperties
+            ErrorVariable = 'GraphErrors'
         }
         $Objects = Get-MgGroup @Params | Select-Object $GetProperties
         Write-PSFMessage -Level 8 -Message (
@@ -3542,14 +3612,25 @@ function Request-GraphGroup {
             "${FunctionName}: Member fetch complete " +
             "[$($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))]")
 
-        # store in global variables
-        $Global:IRT_Groups = $Objects
-        $Global:IRT_GroupsById = [hashtable]::Synchronized(@{})
+        $GroupsById = [hashtable]::Synchronized(@{})
         foreach ( $o in $Objects ) {
-            if ( $o.Id ) { $Global:IRT_GroupsById[$o.Id] = $o }
+            if ( $o.Id ) { $GroupsById[$o.Id] = $o }
         }
         Write-PSFMessage -Level 8 -Message (
-            "${FunctionName}: Index built - $($Global:IRT_GroupsById.Count) entry/entries.")
+            "${FunctionName}: Index built - $($GroupsById.Count) entry/entries.")
+
+        # store in global variables. Graph errors don't stop this function, so a failed
+        # group list fetch would otherwise be cached and returned by every later -Cached
+        # call. A failed member fetch for one group is left alone: some groups hide
+        # their membership, and that one group should not block the whole cache.
+        if ( $GraphErrors ) {
+            Write-PSFMessage -Level 8 -Message (
+                "${FunctionName}: Graph returned an error; result not cached.")
+        }
+        else {
+            $Global:IRT_Groups = $Objects
+            $Global:IRT_GroupsById = $GroupsById
+        }
 
         # export to file
         if ($Xml) {
@@ -3563,13 +3644,13 @@ function Request-GraphGroup {
 
         # return
         switch ( $Return ) {
-            'objects' { return $Global:IRT_Groups }
-            'tablebyid' { return $Global:IRT_GroupsById }
+            'objects' { return $Objects }
+            'tablebyid' { return $GroupsById }
             'none' { return }
         }
     }
 }
-#EndRegion '.\Private\Graph\Request-GraphGroup.ps1' 116
+#EndRegion '.\Private\Graph\Request-GraphGroup.ps1' 129
 #Region '.\Private\Graph\Request-GraphOauth2Grant.ps1' -1
 
 function Request-GraphOauth2Grant {
@@ -3584,7 +3665,8 @@ function Request-GraphOauth2Grant {
     have consented to which applications without repeated Graph requests.
 
     .NOTES
-    Version: 2.0.0
+    Version: 2.1.0
+    2.1.0 - A fetch that returns a Graph error is no longer cached.
     #>
     [OutputType([hashtable])]
     [CmdletBinding()]
@@ -3639,27 +3721,35 @@ function Request-GraphOauth2Grant {
         $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
         Write-PSFMessage -Level 8 -Message (
             "${FunctionName}: Get-MgOauth2PermissionGrant [$Elapsed]")
-        $Objects = Get-MgOauth2PermissionGrant -All
+        $Objects = Get-MgOauth2PermissionGrant -All -ErrorVariable GraphErrors
 
         $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
         Write-PSFMessage -Level 8 -Message (
             "${FunctionName}: Graph returned $($Objects.Count) grant(s) [$Elapsed]")
 
-        # store in global variables
-        $Global:IRT_Oauth2Grants = $Objects
-        $Global:IRT_Oauth2GrantsByClientId = [hashtable]::Synchronized(@{})
+        $GrantsByClientId = [hashtable]::Synchronized(@{})
         foreach ( $o in $Objects ) {
             $ClientId = $o.ClientId
             if ( $ClientId ) {
-                if ( -not $Global:IRT_Oauth2GrantsByClientId.ContainsKey( $ClientId ) ) {
-                    $Global:IRT_Oauth2GrantsByClientId[$ClientId] = @()
+                if ( -not $GrantsByClientId.ContainsKey( $ClientId ) ) {
+                    $GrantsByClientId[$ClientId] = @()
                 }
-                $Global:IRT_Oauth2GrantsByClientId[$ClientId] += $o
+                $GrantsByClientId[$ClientId] += $o
             }
         }
         Write-PSFMessage -Level 8 -Message (
-            "${FunctionName}: Index built - $($Global:IRT_Oauth2GrantsByClientId.Count) " +
-            "unique client(s).")
+            "${FunctionName}: Index built - $($GrantsByClientId.Count) unique client(s).")
+
+        # store in global variables. Graph errors don't stop this function, so a failed
+        # fetch would otherwise be cached and returned by every later -Cached call.
+        if ( $GraphErrors ) {
+            Write-PSFMessage -Level 8 -Message (
+                "${FunctionName}: Graph returned an error; result not cached.")
+        }
+        else {
+            $Global:IRT_Oauth2Grants = $Objects
+            $Global:IRT_Oauth2GrantsByClientId = $GrantsByClientId
+        }
 
         # export to file
         if ($Xml) {
@@ -3673,13 +3763,13 @@ function Request-GraphOauth2Grant {
 
         # return
         switch ( $Return ) {
-            'objects' { return $Global:IRT_Oauth2Grants }
-            'tablebyclientid' { return $Global:IRT_Oauth2GrantsByClientId }
+            'objects' { return $Objects }
+            'tablebyclientid' { return $GrantsByClientId }
             'none' { return }
         }
     }
 }
-#EndRegion '.\Private\Graph\Request-GraphOauth2Grant.ps1' 108
+#EndRegion '.\Private\Graph\Request-GraphOauth2Grant.ps1' 117
 #Region '.\Private\Graph\Request-GraphServicePrincipal.ps1' -1
 
 function Request-GraphServicePrincipal {
@@ -3694,7 +3784,8 @@ function Request-GraphServicePrincipal {
     to resolve service principal identities without repeated Graph requests.
 
     .NOTES
-    Version: 2.0.0
+    Version: 2.1.0
+    2.1.0 - A fetch that returns a Graph error is no longer cached.
     #>
     [OutputType([hashtable])]
     [CmdletBinding()]
@@ -3762,7 +3853,8 @@ function Request-GraphServicePrincipal {
         $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
         Write-PSFMessage -Level 8 -Message (
             "${FunctionName}: Get-MgServicePrincipal [$Elapsed]")
-        $Objects = Get-MgServicePrincipal -All | Select-Object ($GetProperties)
+        $Objects = Get-MgServicePrincipal -All -ErrorVariable GraphErrors |
+            Select-Object ($GetProperties)
 
         $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
         Write-PSFMessage -Level 8 -Message (
@@ -3781,18 +3873,27 @@ function Request-GraphServicePrincipal {
             }
         }
 
-        # store in global variables
-        $Global:IRT_ServicePrincipals = $Objects
-        $Global:IRT_ServicePrincipalsByAppId = [hashtable]::Synchronized(@{})
-        $Global:IRT_ServicePrincipalsById = [hashtable]::Synchronized(@{})
+        $SPsByAppId = [hashtable]::Synchronized(@{})
+        $SPsById = [hashtable]::Synchronized(@{})
         foreach ($o in $Objects) {
-            if ($o.AppId) { $Global:IRT_ServicePrincipalsByAppId[$o.AppId] = $o }
-            if ($o.Id) { $Global:IRT_ServicePrincipalsById[$o.Id] = $o }
+            if ($o.AppId) { $SPsByAppId[$o.AppId] = $o }
+            if ($o.Id) { $SPsById[$o.Id] = $o }
         }
         Write-PSFMessage -Level 8 -Message (
             "${FunctionName}: Indexes built - " +
-            "$($Global:IRT_ServicePrincipalsByAppId.Count) by AppId, " +
-            "$($Global:IRT_ServicePrincipalsById.Count) by Id.")
+            "$($SPsByAppId.Count) by AppId, $($SPsById.Count) by Id.")
+
+        # store in global variables. Graph errors don't stop this function, so a failed
+        # fetch would otherwise be cached and returned by every later -Cached call.
+        if ($GraphErrors) {
+            Write-PSFMessage -Level 8 -Message (
+                "${FunctionName}: Graph returned an error; result not cached.")
+        }
+        else {
+            $Global:IRT_ServicePrincipals = $Objects
+            $Global:IRT_ServicePrincipalsByAppId = $SPsByAppId
+            $Global:IRT_ServicePrincipalsById = $SPsById
+        }
 
         # export to file
         if ($Xml) {
@@ -3806,14 +3907,14 @@ function Request-GraphServicePrincipal {
 
         # return
         switch ($Return) {
-            'objects' { return $Global:IRT_ServicePrincipals }
-            'tablebyappid' { return $Global:IRT_ServicePrincipalsByAppId }
-            'tablebyid' { return $Global:IRT_ServicePrincipalsById }
+            'objects' { return $Objects }
+            'tablebyappid' { return $SPsByAppId }
+            'tablebyid' { return $SPsById }
             'none' { return }
         }
     }
 }
-#EndRegion '.\Private\Graph\Request-GraphServicePrincipal.ps1' 132
+#EndRegion '.\Private\Graph\Request-GraphServicePrincipal.ps1' 143
 #Region '.\Private\Graph\Request-GraphUser.ps1' -1
 
 function Request-GraphUser {
@@ -3828,7 +3929,8 @@ function Request-GraphUser {
     to resolve user identities without repeated Graph requests.
 
     .NOTES
-    Version: 2.0.0
+    Version: 2.1.0
+    2.1.0 - A fetch that returns a Graph error is no longer cached.
     #>
     [OutputType([hashtable])]
     [CmdletBinding()]
@@ -3886,20 +3988,30 @@ function Request-GraphUser {
         # query graph
         Write-PSFMessage -Level 8 -Message (
             "${FunctionName}: Get-MgUser [$($Stopwatch.Elapsed.ToString('mm\:ss\.fff'))]")
-        $Objects = Get-MgUser -All -Property $GetProperties | Select-Object $GetProperties
+        $Objects = Get-MgUser -All -Property $GetProperties -ErrorVariable GraphErrors |
+            Select-Object $GetProperties
 
         $Elapsed = $Stopwatch.Elapsed.ToString('mm\:ss\.fff')
         Write-PSFMessage -Level 8 -Message (
             "${FunctionName}: Graph returned $($Objects.Count) user(s) [$Elapsed]")
 
-        # store in global variables
-        $Global:IRT_Users = $Objects
-        $Global:IRT_UsersById = [hashtable]::Synchronized(@{})
+        $UsersById = [hashtable]::Synchronized(@{})
         foreach ( $o in $Objects ) {
-            if ( $o.Id ) { $Global:IRT_UsersById[$o.Id] = $o }
+            if ( $o.Id ) { $UsersById[$o.Id] = $o }
         }
         Write-PSFMessage -Level 8 -Message (
-            "${FunctionName}: Index built - $($Global:IRT_UsersById.Count) entry/entries.")
+            "${FunctionName}: Index built - $($UsersById.Count) entry/entries.")
+
+        # store in global variables. Graph errors don't stop this function, so a failed
+        # fetch would otherwise be cached and returned by every later -Cached call.
+        if ( $GraphErrors ) {
+            Write-PSFMessage -Level 8 -Message (
+                "${FunctionName}: Graph returned an error; result not cached.")
+        }
+        else {
+            $Global:IRT_Users = $Objects
+            $Global:IRT_UsersById = $UsersById
+        }
 
         # export to file
         if ($Xml) {
@@ -3913,13 +4025,13 @@ function Request-GraphUser {
 
         # return
         switch ( $Return ) {
-            'objects' { return $Global:IRT_Users }
-            'tablebyid' { return $Global:IRT_UsersById }
+            'objects' { return $Objects }
+            'tablebyid' { return $UsersById }
             'none' { return }
         }
     }
 }
-#EndRegion '.\Private\Graph\Request-GraphUser.ps1' 104
+#EndRegion '.\Private\Graph\Request-GraphUser.ps1' 115
 #Region '.\Private\Graph\Request-IntuneDevice.ps1' -1
 
 function Request-IntuneDevice {
@@ -3928,15 +4040,37 @@ function Request-IntuneDevice {
     Requests all managed devices from Intune (Microsoft Graph).
     Returns $null when the tenant has no Intune license or the caller lacks permission.
 
+    .DESCRIPTION
+    Internal helper. A tenant without an Intune license rejects the managedDevices call
+    with the same 403 Forbidden as a caller without permission, so the error alone cannot
+    tell the two apart. After a failure, the tenant's licenses are checked. With an
+    active Intune plan the failure is unexpected and is reported as an error; otherwise
+    the tenant is treated as not using Intune and the failure is only logged.
+
+    .OUTPUTS
+    [object[]] - Intune managed device objects, or $null when they could not be read.
+
     .NOTES
-    Version: 1.1.0
+    Version: 1.2.0
+    1.2.0 - A failure in a tenant with an active Intune plan is reported as an error.
     #>
     [OutputType([System.Object[]])]
     [CmdletBinding()]
     param ()
 
     begin {
-        Import-IRTModule -Name 'Microsoft.Graph.DeviceManagement', 'PSFramework'
+        $ImportParams = @{
+            Name = @(
+                'Microsoft.Graph.DeviceManagement'
+                'Microsoft.Graph.Identity.DirectoryManagement'
+                'PSFramework'
+            )
+        }
+        Import-IRTModule @ImportParams
+
+        # service plans that include Intune device management. Basic Mobility and
+        # Security (INTUNE_O365) is left out on purpose.
+        $IntunePlanNames = @('INTUNE_A', 'INTUNE_EDU', 'INTUNE_SMBIZ')
     }
 
     process {
@@ -3951,11 +4085,37 @@ function Request-IntuneDevice {
             $Message = $_.Exception.Message
             Write-PSFMessage -Level 8 -Message (
                 "Request-IntuneDevice: Intune unavailable or insufficient permissions: $Message")
-            return $null
         }
+
+        # Decide whether the failure was expected. A license check that itself fails
+        # leaves the answer unknown, so it is treated like a tenant without Intune.
+        $ActivePlans = @()
+        try {
+            $ActivePlans = @(
+                Get-MgSubscribedSku -ErrorAction Stop |
+                    Where-Object { $_.CapabilityStatus -in 'Enabled', 'Warning' } |
+                    ForEach-Object { $_.ServicePlans } |
+                    Where-Object {
+                        $_.ServicePlanName -in $IntunePlanNames -and
+                        $_.ProvisioningStatus -eq 'Success'
+                    }
+            )
+        }
+        catch {
+            Write-PSFMessage -Level 8 -Message (
+                "Request-IntuneDevice: License check failed: $($_.Exception.Message)")
+        }
+        Write-PSFMessage -Level 8 -Message (
+            "Request-IntuneDevice: $($ActivePlans.Count) active Intune plan(s) found.")
+
+        if ($ActivePlans.Count -gt 0) {
+            Write-IRT ('Intune is licensed in this tenant, but its devices could not be ' +
+                "read, so device results leave out Intune data: $Message") -Level Error
+        }
+        return $null
     }
 }
-#EndRegion '.\Private\Graph\Request-IntuneDevice.ps1' 34
+#EndRegion '.\Private\Graph\Request-IntuneDevice.ps1' 82
 #Region '.\Private\Graph\Resolve-DateRange.ps1' -1
 
 function Resolve-DateRange {
@@ -7096,7 +7256,9 @@ function Get-UnknownObject {
 	Falls back to Get-MgDirectoryObject if not found in cache.
 
 	.NOTES
-	Version: 2.0.0
+	Version: 2.0.1
+    2.0.1 - FIXME temporary workaround: a failure other than not found is reported during
+            live test runs. See Write-IRTSuppressedError.
     2.0.0 - Rewrote to use Request-* cached ById hashtables instead of direct Graph calls.
 	#>
     [CmdletBinding()]
@@ -7146,11 +7308,21 @@ function Get-UnknownObject {
             return $DirectoryObject
         }
         catch {
+            # a deleted object is normal, such as one named in an old audit log
+            if ($_.FullyQualifiedErrorId -notlike 'Request_ResourceNotFound,*') {
+                # FIXME: temporary workaround until other failures, such as access
+                # denied, can be reproduced and reported properly here.
+                $SuppressParams = @{
+                    ErrorRecord = $_
+                    Message     = "Get-MgDirectoryObject failed for ${Id}"
+                }
+                Write-IRTSuppressedError @SuppressParams
+            }
             Write-Error "Unable to find object with Id: ${Id}"
         }
     }
 }
-#EndRegion '.\Private\Role\Get-UnknownObject.ps1' 62
+#EndRegion '.\Private\Role\Get-UnknownObject.ps1' 74
 #Region '.\Private\Role\New-RoleMemberObject.ps1' -1
 
 function New-RoleMemberObject {
@@ -11292,7 +11464,9 @@ function Get-FullUserObject {
     retrieves a user with a broad set of properties and augments with optional ones.
 
     .NOTES
-    version: 1.0.5
+    version: 1.1.0
+    - fetch the optional properties in one Graph batch request instead of one request
+      each; drop deviceEnrollmentLimit and print, which aren't v1.0 user properties
     - add pipeline support (by object or by id/upn)
     - keep signInActivity in initial selection
     #>
@@ -11316,7 +11490,10 @@ function Get-FullUserObject {
 
     begin {
         Update-IRTToken -Service 'Graph'
-        Import-IRTModule -Name 'Microsoft.Graph.Users', 'PSFramework'
+        $ImportParams = @{
+            Name = 'Microsoft.Graph.Authentication', 'Microsoft.Graph.Users', 'PSFramework'
+        }
+        Import-IRTModule @ImportParams
         $ScriptUserObject = $UserObject
 
         # properties you can safely query on all users
@@ -11339,11 +11516,13 @@ function Get-FullUserObject {
             'usageLocation', 'userType', 'signInActivity'
         )
 
-        # properties that may error depending on licensing/mailbox/etc.
+        # properties that may error depending on licensing/mailbox/etc. A $select naming
+        # one the user or tenant doesn't have fails the whole request, so each is asked
+        # for separately. A Graph batch request takes at most 20.
         $OptionalProps = @(
-            'aboutMe', 'birthday', 'deviceEnrollmentLimit', 'hireDate', 'interests',
-            'mailboxSettings', 'mailFolders', 'mySite', 'pastProjects', 'preferredName',
-            'print', 'responsibilities', 'schools', 'skills'
+            'aboutMe', 'birthday', 'hireDate', 'interests', 'mailboxSettings',
+            'mailFolders', 'mySite', 'pastProjects', 'preferredName', 'responsibilities',
+            'schools', 'skills'
         )
     }
 
@@ -11392,23 +11571,58 @@ function Get-FullUserObject {
             return
         }
 
-        # augment with optional properties (best-effort)
-        foreach ($Property in $OptionalProps) {
-            Write-PSFMessage -Level 9 -Message (
-                "Get-FullUserObject: Fetching optional property '$Property' for '$ResolvedId'.")
+        # augment with optional properties (best-effort), one request per property sent
+        # together in a single batch. Each comes back with its own status, so a property
+        # the user or tenant doesn't have is just a failed entry, which is expected.
+        $Requests = for ($Index = 0; $Index -lt $OptionalProps.Count; $Index++) {
+            @{
+                id     = [string]$Index
+                method = 'GET'
+                url    = "/users/$($ScriptUserObject.Id)?`$select=$($OptionalProps[$Index])"
+            }
+        }
+        $BatchParams = @{
+            Method      = 'POST'
+            Uri         = 'v1.0/$batch'
+            Body        = @{ requests = @($Requests) } | ConvertTo-Json -Depth 5
+            ContentType = 'application/json'
+            ErrorAction = 'Stop'
+        }
+        Write-PSFMessage -Level 8 -Message (
+            "Get-FullUserObject: Fetching $($OptionalProps.Count) optional properties " +
+            "for '$ResolvedId' in one batch.")
+        $Responses = @()
+        try {
+            $Responses = @((Invoke-MgGraphRequest @BatchParams).responses)
+        }
+        catch {
+            # FIXME: temporary workaround. A failed batch, unlike a failed property,
+            # isn't a normal per-user condition, but it can't be classified yet.
+            $SuppressParams = @{
+                ErrorRecord = $_
+                Message     = "Optional property batch failed for '$ResolvedId'"
+            }
+            Write-IRTSuppressedError @SuppressParams
+        }
+
+        foreach ($Response in $Responses) {
+            $Property = $OptionalProps[[int]$Response.id]
+            $HasValue = $Response.status -eq 200 -and $Response.body -and
+            $Response.body.ContainsKey($Property)
+            if (-not $HasValue) {
+                Write-PSFMessage -Level 8 -Message (
+                    "Get-FullUserObject: Unable to retrieve property '$Property' for " +
+                    "'$ResolvedId' (HTTP $($Response.status)): " +
+                    "$($Response.body.error.message)")
+                continue
+            }
             try {
-                $OptionalParams = @{
-                    UserId      = $ResolvedId
-                    Property    = $Property
-                    ErrorAction = 'Stop'
-                }
-                $TempUserObject = Get-MgUser @OptionalParams
-                $ScriptUserObject.$Property = $TempUserObject.$Property
+                $ScriptUserObject.$Property = $Response.body[$Property]
             }
             catch {
-                $ErrMsg = "Unable to retrieve property '$Property' for '$ResolvedId': " +
-                $_.Exception.Message
-                Write-PSFMessage -Level 8 -Message "Get-FullUserObject: $ErrMsg"
+                Write-PSFMessage -Level 8 -Message (
+                    "Get-FullUserObject: Unable to set property '$Property' for " +
+                    "'$ResolvedId': $($_.Exception.Message)")
             }
         }
 
@@ -11423,7 +11637,7 @@ function Get-FullUserObject {
         Write-Output $ScriptUserObject
     }
 }
-#EndRegion '.\Private\User\Get-FullUserObject.ps1' 138
+#EndRegion '.\Private\User\Get-FullUserObject.ps1' 180
 #Region '.\Private\User\Set-UserEnabled.ps1' -1
 
 function Set-UserEnabled {
@@ -12415,12 +12629,19 @@ function Get-DefaultDomain {
         # cache miss -- fetch from Graph
         $FunctionName = $MyInvocation.MyCommand.Name
         Write-PSFMessage -Level 8 -Message "${FunctionName}: Get-MgDomain (cache miss)"
-        $DefaultDomain = Get-MgDomain | Where-Object { $_.IsDefault -eq $true }
+        $DefaultDomain = Get-MgDomain -ErrorVariable GraphErrors |
+            Where-Object { $_.IsDefault -eq $true }
         $DefaultDomainName = $DefaultDomain.Id -split '\.' | Select-Object -First 1
         Write-PSFMessage -Level 8 -Message (
             "Get-DefaultDomain: Resolved '$($DefaultDomain.Id)' (SLD: '$DefaultDomainName')")
 
-        if ($Global:IRT_Session) {
+        # Graph errors don't stop this function, so a failed lookup would otherwise be
+        # cached and returned, empty, for the rest of the session.
+        if ($GraphErrors) {
+            Write-PSFMessage -Level 8 -Message (
+                'Get-DefaultDomain: Graph returned an error; result not cached.')
+        }
+        elseif ($Global:IRT_Session) {
             $AmParams = @{ Force = $true }
             $AmParams.NotePropertyName = 'DefaultDomain'
             $AmParams.NotePropertyValue = $DefaultDomain
@@ -12435,7 +12656,7 @@ function Get-DefaultDomain {
         return $DefaultDomainName
     }
 }
-#EndRegion '.\Private\Utility\Get-DefaultDomain.ps1' 115
+#EndRegion '.\Private\Utility\Get-DefaultDomain.ps1' 122
 #Region '.\Private\Utility\Get-GlobalServicePrincipalObject.ps1' -1
 
 function Get-GlobalServicePrincipalObject {
@@ -13324,10 +13545,14 @@ function Write-IRT {
     Writes a yellow warning message.
 
     .OUTPUTS
-    None. Output is written directly to the console.
+    None. Output is written directly to the console. During a live test run
+    (IRT_TEST_STRICT_ERRORS = '1'), an Error-level message is also written to the
+    error stream.
 
     .NOTES
-    Version: 1.0.0
+    Version: 1.1.0
+    1.1.0 - FIXME temporary workaround: during live test runs, Error-level messages are
+    also written to the error stream. See Write-IRTSuppressedError.
     #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '')]
     [CmdletBinding()]
@@ -13390,8 +13615,83 @@ function Write-IRT {
     } else {
         Write-Host $text -ForegroundColor $color -NoNewline:$NoNewline
     }
+
+    # FIXME: temporary workaround, removed along with Write-IRTSuppressedError. Playbook
+    # steps run in their own PowerShell sessions, where the live tests' Write-IRT mock
+    # doesn't reach. Writing the message to the error stream during a live test run lets
+    # the playbook pass it back like any other step error, so its test fails on it.
+    if ($Level -eq 'Error' -and $env:IRT_TEST_STRICT_ERRORS -eq '1') {
+        Write-Error -Message $text
+    }
 }
-#EndRegion '.\Private\Utility\Write-IRT.ps1' 113
+#EndRegion '.\Private\Utility\Write-IRT.ps1' 125
+#Region '.\Private\Utility\Write-IRTSuppressedError.ps1' -1
+
+function Write-IRTSuppressedError {
+    <#
+    .SYNOPSIS
+    Logs an error that is deliberately kept quiet, or reports it during live test runs.
+
+    .DESCRIPTION
+    FIXME: temporary workaround. Remove it, and its calls, once each caller can tell its
+    normal failures from real ones.
+
+    Some lookups keep their failures quiet because the failure is normal in some tenants,
+    such as a user without a mailbox. The same code path also hides failures that are not
+    normal, such as a missing permission. The two can't be told apart yet, because the
+    unexpected errors haven't been reproduced to learn what they look like.
+
+    On a normal run the error only goes to the debug log, so nothing changes for users.
+    When the IRT_TEST_STRICT_ERRORS environment variable is '1', which the live test run
+    sets, the error is reported with an Error-level Write-IRT message instead, so the
+    tests fail on it. An environment variable is used rather than a parameter because it
+    also reaches playbook steps, which run in their own PowerShell sessions.
+
+    .PARAMETER ErrorRecord
+    The caught error.
+
+    .PARAMETER Message
+    What was being attempted, such as "Get-EXOMailbox failed for jdoe@contoso.com". The
+    error's own message is appended.
+
+    .EXAMPLE
+    ```powershell
+    catch {
+        Write-IRTSuppressedError -ErrorRecord $_ -Message "Get-EXOMailbox failed for $Upn"
+    }
+    ```
+    Keeps the failure quiet on a normal run, and reports it during a live test run.
+
+    .OUTPUTS
+    None.
+
+    .NOTES
+    Version: 1.0.0
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [System.Management.Automation.ErrorRecord] $ErrorRecord,
+
+        [Parameter(Mandatory)]
+        [string] $Message
+    )
+
+    Import-IRTModule -Name 'PSFramework'
+
+    # name the function that caught the error, not this helper
+    $Caller = (Get-PSCallStack | Select-Object -Skip 1 -First 1).Command
+    $Text = "${Message}: $($ErrorRecord.Exception.Message)"
+
+    if ($env:IRT_TEST_STRICT_ERRORS -eq '1') {
+        Write-PSFMessage -Level 8 -Message "${Caller}: reporting (IRT_TEST_STRICT_ERRORS): $Text"
+        Write-IRT $Text -Level Error -FunctionName $Caller
+    }
+    else {
+        Write-PSFMessage -Level 8 -Message "${Caller}: kept quiet: $Text"
+    }
+}
+#EndRegion '.\Private\Utility\Write-IRTSuppressedError.ps1' 65
 #Region '.\Public\Connect\Clear-IRTTokenCache.ps1' -1
 
 function Clear-IRTTokenCache {
@@ -16248,7 +16548,9 @@ function Get-IRTMessageTrace {
     None. Results are exported to Excel and stored in a session variable.
 
     .NOTES
-    Version: 1.5.0
+    Version: 1.5.1
+    1.5.1 - FIXME temporary workaround: a failed mailbox lookup is reported during live
+    test runs. See Write-IRTSuppressedError.
     1.5.0 - Integrated V1 and V2 into same function.
     1.4.0 - Switched to separate get/show functions. Updated to passing objects, not files.
         Added global variables.
@@ -16439,7 +16741,16 @@ function Get-IRTMessageTrace {
                     }
                     $Mailbox = Get-EXOMailbox @Params
                 }
-                catch {}
+                catch {
+                    # FIXME: temporary workaround until a user without a mailbox, which
+                    # is normal, can be told apart from a failed lookup.
+                    $SuppressParams = @{
+                        ErrorRecord = $_
+                        Message     = 'Get-EXOMailbox failed for ' +
+                        "$($ScriptUserObject.UserPrincipalName)"
+                    }
+                    Write-IRTSuppressedError @SuppressParams
+                }
                 if (-not $Mailbox) {
                     Write-IRT "No mailbox for $($ScriptUserObject.UserPrincipalName)" -Level Warn
                     if ($Global:IRT_WaitFlags) {
@@ -16667,7 +16978,7 @@ function Get-IRTMessageTrace {
         }
     }
 }
-#EndRegion '.\Public\Email\Get-IRTMessageTrace.ps1' 504
+#EndRegion '.\Public\Email\Get-IRTMessageTrace.ps1' 515
 #Region '.\Public\Email\New-IRTEmailSearch.ps1' -1
 
 function New-IRTEmailSearch {
@@ -18286,7 +18597,9 @@ function Show-IRTEntraAuditLog {
     None. Results are written to an Excel workbook.
 
     .NOTES
-    Version: 1.2.1
+    Version: 1.2.2
+    1.2.2 - FIXME temporary workaround: a failed tenant owner lookup is reported during
+            live test runs. See Write-IRTSuppressedError.
     1.2.1 - Updates to use new get-graphobject functions.
     1.2.0 - Many small updates to standardize across IR functions. Updated to readable
             date format.
@@ -18652,6 +18965,13 @@ function Show-IRTEntraAuditLog {
                         }
                         catch {
                             $Value = $Detail.Value
+                            # FIXME: temporary workaround; see Get-IRTTenantOwner.
+                            $SuppressParams = @{
+                                ErrorRecord = $_
+                                Message     = 'Tenant owner lookup failed for ' +
+                                "'$AppOwnerOrganizationId'"
+                            }
+                            Write-IRTSuppressedError @SuppressParams
                         }
                     }
                     default {
@@ -18847,7 +19167,7 @@ function Show-IRTEntraAuditLog {
         }
     }
 }
-#EndRegion '.\Public\Entra\Show-IRTEntraAuditLog.ps1' 605
+#EndRegion '.\Public\Entra\Show-IRTEntraAuditLog.ps1' 614
 #Region '.\Public\Entra\Show-IRTEntraSPSignInLog.ps1' -1
 
 function Show-IRTEntraSPSignInLog {
@@ -20515,7 +20835,7 @@ function Show-IRTMailbox {
     .DESCRIPTION
     Retrieves Exchange Online mailbox configuration and permissions for one or more users
     and displays the results in the console. Includes quota settings, forwarding rules,
-    litigation hold status, and current mailbox permissions.
+    litigation hold status, automatic replies, and current mailbox permissions.
 
     Falls back to $Global:IRT_UserObjects if no -UserObject is passed. Requires an active
     Exchange Online connection.
@@ -20542,7 +20862,11 @@ function Show-IRTMailbox {
     None. Results are displayed in the console.
 
     .NOTES
-    Version: 1.1.0
+    Version: 1.2.0
+    1.2.0 - Shows the mailbox's automatic reply settings.
+    1.1.2 - FIXME temporary workaround: a failed mailbox lookup is reported during live
+    test runs. See Write-IRTSuppressedError.
+    1.1.1 - A failed mailbox lookup no longer shows the previous user's mailbox.
     #>
     [Alias('ShowMailbox')]
     [CmdletBinding()]
@@ -20589,8 +20913,10 @@ function Show-IRTMailbox {
     process {
         foreach ( $ScriptUserObject in $ScriptUserObjects ) {
 
-            # get user mailbox info
+            # get user mailbox info. Cleared first: a failed lookup leaves $Mailbox as it
+            # was, which would show the previous user's mailbox under this user's name.
             $UserPrincipalName = $ScriptUserObject.UserPrincipalName
+            $Mailbox = $null
             try {
                 $Params = @{
                     UserPrincipalName = $UserPrincipalName
@@ -20599,7 +20925,16 @@ function Show-IRTMailbox {
                 }
                 $Mailbox = Get-EXOMailbox @Params
             }
-            catch {}
+            catch {
+                # FIXME: temporary workaround until a user without a mailbox, which is
+                # normal and reported as a warning below, can be told apart from a
+                # failed lookup.
+                $SuppressParams = @{
+                    ErrorRecord = $_
+                    Message     = "Get-EXOMailbox failed for ${UserPrincipalName}"
+                }
+                Write-IRTSuppressedError @SuppressParams
+            }
             if ( -not $Mailbox ) {
                 Write-IRT "No mailbox for ${UserPrincipalName}" -Level Warn
                 continue
@@ -20646,6 +20981,35 @@ function Show-IRTMailbox {
             }
             $OutputTable | Format-List | Out-Host
 
+            # automatic replies. The messages are HTML; show them as plain text.
+            Write-IRT "Showing automatic replies for: ${UserPrincipalName}"
+            $ToText = {
+                param([string] $Html)
+                $Text = [System.Net.WebUtility]::HtmlDecode(($Html -replace '<[^>]+>', ' '))
+                ($Text -replace '\s+', ' ').Trim()
+            }
+            try {
+                $AutoReplyParams = @{
+                    Identity    = $UserPrincipalName
+                    ErrorAction = 'Stop'
+                }
+                $AutoReply = Get-MailboxAutoReplyConfiguration @AutoReplyParams
+                [PSCustomObject]@{
+                    AutoReplyState   = $AutoReply.AutoReplyState
+                    StartTime        = $AutoReply.StartTime
+                    EndTime          = $AutoReply.EndTime
+                    ExternalAudience = $AutoReply.ExternalAudience
+                    InternalMessage  = & $ToText $AutoReply.InternalMessage
+                    ExternalMessage  = & $ToText $AutoReply.ExternalMessage
+                } | Format-List | Out-Host
+            }
+            catch {
+                # the mailbox exists, so a failure here is not a normal condition
+                $Msg = "Failed to get automatic replies for ${UserPrincipalName}: " +
+                $_.Exception.Message
+                Write-IRT $Msg -Level Error
+            }
+
             Write-IRT "Showing users who have delegated access to: ${UserPrincipalName}"
             $PermissionDisplayProperties = @(
                 "User"
@@ -20659,7 +21023,7 @@ function Show-IRTMailbox {
         }
     }
 }
-#EndRegion '.\Public\Mailbox\Show-IRTMailbox.ps1' 153
+#EndRegion '.\Public\Mailbox\Show-IRTMailbox.ps1' 197
 #Region '.\Public\Mailbox\Show-IRTMailboxAccess.ps1' -1
 
 function Show-IRTMailboxAccess {
@@ -23599,7 +23963,9 @@ function Get-IRTTenantOwner {
     .NOTES
     The Graph lookup requires the CrossTenantInformation.ReadBasic.All scope.
 
-    Version: 1.3.0
+    Version: 1.3.1
+    1.3.1 - FIXME temporary workaround: a failed Graph lookup is reported during live test
+    runs. See Write-IRTSuppressedError.
     1.3.0 - -TenantId accepts domains as well as GUIDs.
     1.2.1 - -Cached no longer throws on a cache hit. The entry was assigned to $cached,
     which is the [switch] $Cached parameter under PowerShell's case-insensitive names.
@@ -23787,6 +24153,14 @@ function Get-IRTTenantOwner {
                     "$( $_.Exception.Message )"
                     Write-PSFMessage -Level 8 -Message $Msg
                     if (-not $Quiet) { Write-IRT $Msg -Level Warn }
+
+                    # FIXME: temporary workaround until it's known whether this lookup
+                    # fails for some normal tenants, so real failures can be reported.
+                    $SuppressParams = @{
+                        ErrorRecord = $_
+                        Message     = "Graph cross-tenant lookup failed for '$Tid'"
+                    }
+                    Write-IRTSuppressedError @SuppressParams
                 }
             }
 
@@ -23851,7 +24225,7 @@ function Get-IRTTenantOwner {
         }
     }
 }
-#EndRegion '.\Public\ServicePrincipal\Get-IRTTenantOwner.ps1' 327
+#EndRegion '.\Public\ServicePrincipal\Get-IRTTenantOwner.ps1' 337
 #Region '.\Public\ServicePrincipal\Get-IRTUserServicePrincipal.ps1' -1
 
 function Get-IRTUserServicePrincipal { # FIXME rename to Get-IRTUserAppConsent
@@ -24251,7 +24625,9 @@ function Show-IRTServicePrincipal {
     None. Output is written to the console.
 
     .NOTES
-    Version: 1.3.0
+    Version: 1.3.1
+    1.3.1 - A failed grant or role template lookup is reported as a failure instead of
+    as "No OAuth2 permission grants found" or an unnamed role.
     #>
     [Alias(
         'Show-IRTServicePrincipals',
@@ -24353,16 +24729,24 @@ function Show-IRTServicePrincipal {
                 Write-IRT $Msg -Level Error
             }
 
-            # OAuth2 Permission Grants (delegated permissions)
+            # OAuth2 Permission Grants (delegated permissions). The Request-* helpers
+            # report Graph errors without stopping, so -ErrorAction Stop is what sends a
+            # failed lookup to the catch below instead of an empty grant list.
             try {
                 $GrantsParams = @{
-                    Cached = $Cached
-                    Return = 'tablebyclientid'
+                    Cached      = $Cached
+                    Return      = 'tablebyclientid'
+                    ErrorAction = 'Stop'
                 }
                 $GrantsByClientId = Request-GraphOauth2Grant @GrantsParams
                 $OAuth2Grants = @( $GrantsByClientId[$ScriptServicePrincipalObject.Id] )
-                $SPsById = Request-GraphServicePrincipal -Cached:$Cached -Return 'tablebyid'
-                $UsersById = Request-GraphUser -Cached:$Cached -Return 'tablebyid'
+                $LookupParams = @{
+                    Cached      = $Cached
+                    Return      = 'tablebyid'
+                    ErrorAction = 'Stop'
+                }
+                $SPsById = Request-GraphServicePrincipal @LookupParams
+                $UsersById = Request-GraphUser @LookupParams
 
                 Write-IRT "OAuth2 Permission Grants (delegated) for: ${SpName}"
                 if (($OAuth2Grants | Measure-Object).Count -gt 0) {
@@ -24451,8 +24835,9 @@ function Show-IRTServicePrincipal {
                 }
                 $RoleAssignments = Get-MgRoleManagementDirectoryRoleAssignment @DirRoleParams
                 $DrtParams = @{
-                    Cached = $Cached
-                    Return = 'tablebyid'
+                    Cached      = $Cached
+                    Return      = 'tablebyid'
+                    ErrorAction = 'Stop'
                 }
                 $RoleTemplatesById = Request-DirectoryRoleTemplate @DrtParams
 
@@ -24515,7 +24900,7 @@ function Show-IRTServicePrincipal {
         }
     }
 }
-#EndRegion '.\Public\ServicePrincipal\Show-IRTServicePrincipal.ps1' 323
+#EndRegion '.\Public\ServicePrincipal\Show-IRTServicePrincipal.ps1' 334
 #Region '.\Public\UnifiedAuditLog\Get-IRTTeamsExternalDomain.ps1' -1
 
 function Get-IRTTeamsExternalDomain {
@@ -26414,7 +26799,9 @@ function Show-IRTTeamsExternalDomain {
     None. Writes an Excel workbook into -Path.
 
     .NOTES
-    Version: 1.2.0
+    Version: 1.2.1
+    1.2.1 - FIXME temporary workaround: a failed tenant lookup is reported during live
+    test runs. See Write-IRTSuppressedError.
     1.2.0 - -Open defaults to the OpenSpreadsheets config setting instead of $true.
     1.1.1 - Progress is shown with Write-Progress instead of a console line for each file
     and each lookup chunk.
@@ -26734,6 +27121,12 @@ function Show-IRTTeamsExternalDomain {
                             "$($Chunk.Count) tenant ID(s) stay unresolved: " +
                             "$($_.Exception.Message)") -Level Warn
                         $Owners = @()
+                        # FIXME: temporary workaround; see Get-IRTTenantOwner.
+                        $SuppressParams = @{
+                            ErrorRecord = $_
+                            Message     = "${ChunkLabel}: tenant lookup failed"
+                        }
+                        Write-IRTSuppressedError @SuppressParams
                     }
                     foreach ($Owner in $Owners) {
                         if ($Owner.Exists -and $Owner.DefaultDomain) {
@@ -26926,7 +27319,7 @@ function Show-IRTTeamsExternalDomain {
         Write-PSFMessage -Level 8 -Message "${FunctionName}: Complete [$Elapsed]"
     }
 }
-#EndRegion '.\Public\UnifiedAuditLog\Show-IRTTeamsExternalDomain.ps1' 610
+#EndRegion '.\Public\UnifiedAuditLog\Show-IRTTeamsExternalDomain.ps1' 618
 #Region '.\Public\UnifiedAuditLog\Show-IRTUnifiedAuditLog.ps1' -1
 
 function Show-IRTUnifiedAuditLog {
@@ -29586,7 +29979,8 @@ function Find-IRTDirectoryObject {
                     Write-IRT "Unable to find object."
                 }
                 else {
-                    $_
+                    # any other failure, such as access denied, is a real error
+                    Write-Error -ErrorRecord $_
                 }
             }
 
@@ -29625,7 +30019,7 @@ function Find-IRTDirectoryObject {
         }
     }
 }
-#EndRegion '.\Public\Utility\Find-IRTDirectoryObject.ps1' 114
+#EndRegion '.\Public\Utility\Find-IRTDirectoryObject.ps1' 115
 #Region '.\Public\Utility\Get-IRTLicenseReport.ps1' -1
 
 function Get-IRTLicenseReport {

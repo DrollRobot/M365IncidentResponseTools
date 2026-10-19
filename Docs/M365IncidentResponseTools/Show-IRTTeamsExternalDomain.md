@@ -4,7 +4,7 @@ external help file: M365IncidentResponseTools-Help.xml
 HelpUri: ''
 Locale: en-US
 Module Name: M365IncidentResponseTools
-ms.date: 10/16/2026
+ms.date: 10/19/2026
 PlatyPS schema version: 2024-05-01
 title: Show-IRTTeamsExternalDomain
 ---
@@ -243,7 +243,10 @@ This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable
 
 ## NOTES
 
-Version: 1.2.0
+Version: 1.2.1
+1.2.1 - FIXME temporary workaround: a failed tenant lookup is reported during live
+test runs.
+See Write-IRTSuppressedError.
 1.2.0 - -Open defaults to the OpenSpreadsheets config setting instead of $true.
 1.1.1 - Progress is shown with Write-Progress instead of a console line for each file
 and each lookup chunk.

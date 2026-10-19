@@ -4,7 +4,7 @@ external help file: M365IncidentResponseTools-Help.xml
 HelpUri: ''
 Locale: en-US
 Module Name: M365IncidentResponseTools
-ms.date: 10/16/2026
+ms.date: 10/19/2026
 PlatyPS schema version: 2024-05-01
 title: Show-IRTEntraAuditLog
 ---
@@ -225,7 +225,10 @@ This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable
 
 ## NOTES
 
-Version: 1.2.1
+Version: 1.2.2
+1.2.2 - FIXME temporary workaround: a failed tenant owner lookup is reported during
+        live test runs.
+See Write-IRTSuppressedError.
 1.2.1 - Updates to use new get-graphobject functions.
 1.2.0 - Many small updates to standardize across IR functions.
 Updated to readable

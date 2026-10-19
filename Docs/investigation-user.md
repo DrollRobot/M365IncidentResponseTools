@@ -49,7 +49,7 @@ The following steps run in parallel.
 | [Get-IRTLicenseReport](M365IncidentResponseTools/Get-IRTLicenseReport.md) | Displays tenant license consumption across all subscribed SKUs. |
 | [Show-IRTUser](M365IncidentResponseTools/Show-IRTUser.md) | Displays all user properties as a formatted tree. |
 | [Get-IRTUserServicePrincipal](M365IncidentResponseTools/Get-IRTUserServicePrincipal.md) | Lists OAuth2 applications the user has personally consented to. |
-| [Show-IRTMailbox](M365IncidentResponseTools/Show-IRTMailbox.md) | Displays Exchange Online mailbox configuration including quotas, forwarding, hold status, and permissions. |
+| [Show-IRTMailbox](M365IncidentResponseTools/Show-IRTMailbox.md) | Displays Exchange Online mailbox configuration including quotas, forwarding, hold status, automatic replies, and permissions. |
 | [Get-IRTAdminRole](M365IncidentResponseTools/Get-IRTAdminRole.md) | Lists all Entra ID directory roles and their effective members, expanding nested groups inline. |
 | [Find-IRTRiskyServicePrincipal](M365IncidentResponseTools/Find-IRTRiskyServicePrincipal.md) | Checks tenant service principals against threat intelligence feeds for known malicious OAuth apps. |
 | [Show-IRTUserMfa](M365IncidentResponseTools/Show-IRTUserMfa.md) | Lists all registered authentication methods for the user. |

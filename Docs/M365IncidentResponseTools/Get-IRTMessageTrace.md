@@ -4,7 +4,7 @@ external help file: M365IncidentResponseTools-Help.xml
 HelpUri: ''
 Locale: en-US
 Module Name: M365IncidentResponseTools
-ms.date: 10/16/2026
+ms.date: 10/19/2026
 PlatyPS schema version: 2024-05-01
 title: Get-IRTMessageTrace
 ---
@@ -432,7 +432,10 @@ This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable
 
 ## NOTES
 
-Version: 1.5.0
+Version: 1.5.1
+1.5.1 - FIXME temporary workaround: a failed mailbox lookup is reported during live
+test runs.
+See Write-IRTSuppressedError.
 1.5.0 - Integrated V1 and V2 into same function.
 1.4.0 - Switched to separate get/show functions.
 Updated to passing objects, not files.
