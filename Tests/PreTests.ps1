@@ -18,6 +18,8 @@
         connection succeeded). Sets $TestContext.LiveHandled so the
         orchestrator skips its generic Live run. PostTests.ps1 restores the
         cache config and auth env var.
+      * For Destructive runs: the same auth/cache setup, then connect to the
+        test tenant if no session is open yet.
 
     A throw here aborts the run; Tests.ps1 still runs PostTests.ps1 for cleanup.
 #>
@@ -55,10 +57,10 @@ $Global:Dev_PSSAConfig = @{
     PerPathSuppressions = @{}
 }
 
-# --- Live auth/cache setup + run ---------------------------------------------
-if ('Live' -in $TestContext.Test) {
-    $PesterTestsFolder = $TestContext.PesterTestsFolder
-
+# --- Live/Destructive auth/cache setup ----------------------------------------
+# Both talk to the test tenant, so both get the isolated test cache, the auth
+# mode, and strict errors.
+if ('Live' -in $TestContext.Test -or 'Destructive' -in $TestContext.Test) {
     # Derive the test cache path alongside the primary cache.
     $PrimaryCache = $Global:IRT_Config.MsalCachePath
     $CacheParentDir = Split-Path $PrimaryCache -Parent
@@ -96,6 +98,11 @@ if ('Live' -in $TestContext.Test) {
     # errors it normally keeps quiet, so live tests fail on them, including inside
     # playbook steps. PostTests.ps1 clears it.
     $env:IRT_TEST_STRICT_ERRORS = '1'
+}
+
+# --- Live run ------------------------------------------------------------------
+if ('Live' -in $TestContext.Test) {
+    $PesterTestsFolder = $TestContext.PesterTestsFolder
 
     # This hook owns the Live run; tell the orchestrator to skip its generic one.
     $TestContext.LiveHandled = $true
@@ -144,5 +151,40 @@ if ('Live' -in $TestContext.Test) {
             $RemainingResult = Invoke-Pester -Path $RemainingTests @LiveFilter
             $PesterFailedCount += $RemainingResult.FailedCount
         }
+    }
+}
+
+# --- Destructive connection ----------------------------------------------------
+# Remote destructive tests, and Tests\Confirm-RemoteDisposable.ps1 that gates
+# them, need a session to the test tenant. A Live run in the same call already
+# opened one; otherwise connect here. The session variable does not exist until
+# something connects, so read it without tripping strict mode.
+$Session = Get-Variable -Name 'IRT_Session' -Scope Global -ValueOnly -ErrorAction Ignore
+if ('Destructive' -in $TestContext.Test -and -not $Session) {
+    if (-not $env:IRT_TEST_TENANT_ID) {
+        $EnvFile = Join-Path -Path $TestContext.TestsFolder -ChildPath '.env.ps1'
+        if (Test-Path $EnvFile) { . $EnvFile }
+    }
+    if (-not $env:IRT_TEST_TENANT_ID) {
+        throw ('Set $env:IRT_TEST_TENANT_ID or create Tests/.env.ps1 ' +
+            'before running destructive tests.')
+    }
+
+    Write-Host "`n=== Connect-IRT (Destructive) ===" -ForegroundColor Cyan
+    $ConnectParams = @{ TenantId = $env:IRT_TEST_TENANT_ID }
+    if ($env:IRT_TEST_SILENT_AUTH -eq '1') {
+        $ConnectParams['Silent'] = $true
+        try {
+            Connect-IRT @ConnectParams
+        }
+        catch {
+            throw ('No cached test credentials found for silent auth. ' +
+                "Run '.\Tests.ps1 Destructive -InteractiveAuth' to sign in " +
+                'interactively and populate the test token cache first. ' +
+                "Original error: $_")
+        }
+    }
+    else {
+        Connect-IRT @ConnectParams
     }
 }

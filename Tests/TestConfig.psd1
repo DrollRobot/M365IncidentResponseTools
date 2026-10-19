@@ -29,4 +29,13 @@
         #     '\bSuppressMessageAttribute\b'
         # )
     }
+
+    remote = @{
+        # A tenant with this address in its organization's
+        # marketingNotificationEmails is marked disposable, so destructive
+        # 'remote' tests may change it. Read by Tests\Confirm-RemoteDisposable.ps1,
+        # written by Scripts\Set-RemoteDisposable.ps1. Other repos (azure-auth)
+        # read the same address, so never change it.
+        DisposableMarker = 'disposable-environment@example.invalid'
+    }
 }
