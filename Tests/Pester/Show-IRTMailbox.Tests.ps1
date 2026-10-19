@@ -75,6 +75,11 @@ InModuleScope M365IncidentResponseTools {
                 }
             }
 
+            # a normal run, where the failed lookup is kept quiet. The live run sets this
+            # and NotLive can run after it in the same session.
+            $script:SavedStrict = $env:IRT_TEST_STRICT_ERRORS
+            $env:IRT_TEST_STRICT_ERRORS = $null
+
             $Users = @(
                 [pscustomobject]@{ UserPrincipalName = 'one@contoso.com' }
                 [pscustomobject]@{ UserPrincipalName = 'two@contoso.com' }
@@ -83,6 +88,10 @@ InModuleScope M365IncidentResponseTools {
 
             $script:Mailboxes = @($script:Printed | Where-Object { $_.DisplayName })
             $script:AutoReplies = @($script:Printed | Where-Object { $_.AutoReplyState })
+        }
+
+        AfterAll {
+            $env:IRT_TEST_STRICT_ERRORS = $script:SavedStrict
         }
 
         It 'prints the mailbox of the user who has one' {
