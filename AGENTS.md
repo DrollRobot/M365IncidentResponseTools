@@ -19,20 +19,6 @@ built artifacts in module root.
 Do not attempt to modify built code, such as any of the following in the module root or
 Output/ folders: *.psm1 and *.psd1, ScriptsToProcess/, Data/. Or: `Docs/<ModuleName>/`.
 
-## detect-secrets
-This repo uses detect-secrets.
-- Baseline updates during pre-commit checks are expected. Do not attempt to revert.
-- Agents can/should freely scan for secrets:
-```bash
-uv run detect-secrets scan --baseline .secrets.baseline
-```
-- Agents should NEVER regenerate the baseline
-```bash
-detect-secrets scan > .secrets.baseline
-```
-- Agents should NEVER attempt to audit (that's user only), modify the `.secrets.baseline`
-  file directly, or suppress findings with `# pragma: allowlist secret`.
-
 ## Code Style
 
 ### Naming Conventions
@@ -72,8 +58,31 @@ function Write-Trace {
    operator (-f).
 - Building paths: Prefer Join-Path over [System.IO.Path]::Combine(). Always use named
    parameters. (`Join-Path -Path $x -ChildPath $y` over `Join-Path $x $y`)
+
+## pre-commit
 - Do not fight automatic formatting. Always commit autoformatting changes, even if
-   they're out of scope for the current task.
+  they're out of scope for the current task.
+- Formatting changes and detect-secrets updates to the .secrets.baseline are routine
+  and expected. If all that's required is re-staging and re-committing, DO NOT REPORT
+  TO THE USER. Only report when user interaction is required.
+
+## detect-secrets
+This repo uses detect-secrets.
+- Do not try to work around secret detection by renaming, splitting
+  strings, `# pragma: allowlist secret`, or any other means. Let detect-secrets do
+  its job. A new entry in the baseline for a user to audit is not a problem to be
+  avoided. Simply tell the user an audit is required.
+- Baseline updates during pre-commit checks are expected. Do not attempt to revert.
+- Agents can/should freely scan for secrets:
+```bash
+uv run detect-secrets scan --baseline .secrets.baseline
+```
+- Agents should NEVER regenerate the baseline from scratch.
+```bash
+detect-secrets scan > .secrets.baseline
+```
+- Agents should NEVER attempt to audit (users only), or modify the `.secrets.baseline`
+  file directly.
 
 ## Commit Messages
 Review before writing commit messages: [AGENTS.COMMITTING.md](AGENTS.COMMITTING.md).
