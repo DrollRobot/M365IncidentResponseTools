@@ -97,8 +97,11 @@ is local, the sync runs immediately; otherwise candidate servers are checked in 
 the sync is invoked remotely on the first server found running the service. A slow or
 unreachable server does not hold up the others, and each failed check is reported.
 
+The server that synced is remembered for the session. The next run syncs there without
+searching; if that server fails, it searches again. Use `-ResetSyncServer` to search anyway.
+
 The ActiveDirectory module is needed only to discover the sync servers. On the sync server
-itself, or with `-SyncServer`, the command runs without RSAT.
+itself, on a remembered server, or with `-SyncServer`, the command runs without RSAT.
 
 Domain admin credentials are cached for the session; use `-ResetCredentials` to re-prompt.
 
@@ -108,6 +111,9 @@ Push-IRTAdSync
 
 # target a known sync server directly, skipping discovery
 Push-AdSync -SyncServer 'sync01.contoso.com'
+
+# forget the remembered sync server and search again
+adsync -ResetSyncServer
 
 # clear cached domain admin credentials and re-prompt
 adsync -ResetCredentials
