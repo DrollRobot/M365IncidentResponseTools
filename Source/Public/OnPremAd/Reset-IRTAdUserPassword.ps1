@@ -93,7 +93,9 @@ function Reset-IRTAdUserPassword {
     None. Updated user properties are displayed as a formatted table in the console.
 
     .NOTES
-    Version: 1.2.0
+    Version: 1.2.1
+    1.2.1 - Loads the ADSync module from the Entra Connect install folder when this shell
+            can't find it.
     1.2.0 - Targets one writable DC (this computer if it is one, otherwise a discovered
             DC), so it no longer needs to run on a DC. Replication is pushed from that DC.
     1.1.0 - Added ForceChangePasswordNextSignIn parameter set. Removed default parameter
@@ -231,8 +233,10 @@ function Reset-IRTAdUserPassword {
         # push azure sync, if on this server
         $SyncService = Get-LocalAdSyncService
         if ($SyncService) {
-            Write-IRT "Pushing Azure sync."
-            Start-ADSyncSyncCycle -PolicyType Delta
+            if (Import-AdSyncModule) {
+                Write-IRT "Pushing Azure sync."
+                Start-ADSyncSyncCycle -PolicyType Delta
+            }
         }
         else {
             $Msg = "Azure sync isn't running on this server. " +

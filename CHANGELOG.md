@@ -13,6 +13,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- On a sync server, `Push-IRTAdSync`, `Reset-IRTAdUserPassword`, `Disable-IRTAdUser`,
+  and `Enable-IRTAdUser` failed with "Start-ADSyncSyncCycle is not recognized" when the
+  shell couldn't find the ADSync module, as in a shell opened by a remote support tool.
+  They now load it from the Entra Connect install folder.
 - On-prem AD functions pasted from `Copy-IRTFunction` failed with "not recognized"
   errors: `Disable-IRTAdUser`, `Enable-IRTAdUser`, `Push-IRTAdSync`, and
   `Reset-IRTAdUserPassword` when checking for the sync service, and `Find-IRTAdUser` and

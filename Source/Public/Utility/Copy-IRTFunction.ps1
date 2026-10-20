@@ -46,7 +46,7 @@ function Copy-IRTFunction {
     None. Output is sent to the clipboard.
 
     .NOTES
-    Version: 2.0.2
+    Version: 2.0.3
 
     #>
     [Alias(
@@ -77,6 +77,7 @@ function Copy-IRTFunction {
             'Get-AdGlobalUserObject'
             'Get-LocalAdSyncService'
             'Get-TargetDomainController'
+            'Import-AdSyncModule'
             'Import-IRTModule'
             'Push-AdReplication'
             'Push-IRTAdSync'

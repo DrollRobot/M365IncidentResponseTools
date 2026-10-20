@@ -24,6 +24,11 @@
 
     'pushes AD replication from the target DC'
         Push-AdReplication gets the same DC the change was made on.
+
+    'pushes the sync when the ADSync service is on this device'
+    'skips the sync when the ADSync module cannot be loaded'
+        Import-AdSyncModule (mocked) loads the module when the shell can't find it, and
+        reports the error when it can't be loaded.
 #>
 
 BeforeAll {
@@ -80,6 +85,7 @@ InModuleScope M365IncidentResponseTools {
             Mock Disable-ADAccount { }
             Mock Get-ADUser { [pscustomobject]@{ SamAccountName = 'jdoe' } }
             Mock Start-ADSyncSyncCycle { }
+            Mock Import-AdSyncModule { $true }
 
             # adsync service is not on this device
             Mock Get-Service { } -ParameterFilter { $Name -eq 'adsync' }
@@ -107,6 +113,24 @@ InModuleScope M365IncidentResponseTools {
 
             $F = { $Server -eq 'dc1.contoso.com' }
             Should -Invoke Push-AdReplication -Times 1 -Exactly -ParameterFilter $F
+        }
+
+        It 'pushes the sync when the ADSync service is on this device' {
+            Mock Get-LocalAdSyncService { [pscustomobject]@{ Name = 'adsync' } }
+
+            Set-AdUserEnabled -UserObject $script:User -Enabled $false
+
+            $F = { $PolicyType -eq 'Delta' }
+            Should -Invoke Start-ADSyncSyncCycle -Times 1 -Exactly -ParameterFilter $F
+        }
+
+        It 'skips the sync when the ADSync module cannot be loaded' {
+            Mock Get-LocalAdSyncService { [pscustomobject]@{ Name = 'adsync' } }
+            Mock Import-AdSyncModule { $false }
+
+            Set-AdUserEnabled -UserObject $script:User -Enabled $false
+
+            Should -Invoke Start-ADSyncSyncCycle -Times 0 -Exactly
         }
     }
 }

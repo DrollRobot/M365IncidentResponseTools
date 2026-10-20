@@ -10,7 +10,8 @@ function Push-IRTAdSync {
        from a writable DC via repadmin (this computer if it is one, otherwise a
        discovered DC). Skipped with a warning otherwise.
     2. If the ADSync service is running locally, invokes Start-ADSyncSyncCycle directly
-       and exits.
+       and exits. If this shell can't find the ADSync module, it is loaded from the
+       Entra Connect install folder.
     3. If an earlier run in this session synced on a server, pushes the sync there
        without asking or searching. If that fails, the saved server is forgotten and the
        search below runs.
@@ -73,7 +74,9 @@ function Push-IRTAdSync {
     None. Progress is written to the console.
 
     .NOTES
-    Version: 2.2.0
+    Version: 2.2.1
+    2.2.1 - Loads the ADSync module from the Entra Connect install folder when this shell
+            can't find it.
     2.2.0 - Saves the server that synced, and syncs there next time without searching.
             Added -ResetSyncServer parameter.
     2.1.0 - ActiveDirectory module only required for AD discovery.
@@ -131,8 +134,10 @@ function Push-IRTAdSync {
         # if sync service is running on this server, push sync locally
         $SyncService = Get-LocalAdSyncService
         if ($SyncService) {
-            Write-IRT "Pushing sync."
-            Start-ADSyncSyncCycle -PolicyType Delta
+            if (Import-AdSyncModule) {
+                Write-IRT "Pushing sync."
+                Start-ADSyncSyncCycle -PolicyType Delta
+            }
             return
         }
         Write-IRT "Adsync service not running on this device."

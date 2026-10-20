@@ -29,6 +29,12 @@
     'imports the ActiveDirectory module when AD is available'
         The module is loaded only once AD is known to be reachable.
 
+-- local sync (unit) ---------------------------------------------------------------
+
+    'skips the sync when the ADSync module cannot be loaded'
+        Import-AdSyncModule reports the error. With the sync service on this device,
+        there is no other server to search.
+
 -- AD replication (unit) -----------------------------------------------------------
 
     'pushes replication from the target DC when AD is available'
@@ -148,6 +154,7 @@ Describe 'Push-IRTAdSync' {
         Mock Get-ADComputer { } -ModuleName $Mod
         Mock Get-ADDomainController { } -ModuleName $Mod
         Mock Get-TargetDomainController { 'dc1.contoso.com' } -ModuleName $Mod
+        Mock Import-AdSyncModule { $true } -ModuleName $Mod
 
         # default: no sync server saved by an earlier run
         Remove-Variable -Name 'IRT_AdSyncServer' -Scope Global -ErrorAction Ignore
@@ -203,6 +210,20 @@ Describe 'Push-IRTAdSync' {
             $IA = @{ ModuleName = $script:Mod; ParameterFilter = $F }
             Should -Invoke Import-IRTModule -Times 1 -Exactly @IA
             Should -Invoke Get-ADComputer -ModuleName $script:Mod -Times 1 -Exactly
+        }
+    }
+
+    # -------------------------------------------------------------------
+    Context 'local sync' -Tag 'unit' {
+
+        It 'skips the sync when the ADSync module cannot be loaded' {
+            Set-LocalAdsync
+            Mock Import-AdSyncModule { $false } -ModuleName $script:Mod
+
+            Push-IRTAdSync
+
+            Should -Invoke Start-ADSyncSyncCycle -ModuleName $script:Mod -Times 0 -Exactly
+            Should -Invoke Get-YesNo -ModuleName $script:Mod -Times 0 -Exactly
         }
     }
 

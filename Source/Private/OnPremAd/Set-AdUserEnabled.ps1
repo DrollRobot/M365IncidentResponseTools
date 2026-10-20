@@ -28,7 +28,9 @@ function Set-AdUserEnabled {
     None. Status is written to the console.
 
     .NOTES
-    Version: 1.1.0
+    Version: 1.1.1
+    1.1.1 - Loads the ADSync module from the Entra Connect install folder when this shell
+            can't find it.
     1.1.0 - Targets one writable DC (this computer if it is one, otherwise a discovered
             DC), so it no longer needs to run on a DC. Replication is pushed from that DC.
     #>
@@ -125,8 +127,10 @@ function Set-AdUserEnabled {
         # push azure sync, if on this server
         $SyncService = Get-LocalAdSyncService
         if ( $SyncService ) {
-            Write-IRT "`nPushing Azure sync."
-            Start-ADSyncSyncCycle -PolicyType Delta
+            if (Import-AdSyncModule) {
+                Write-IRT "`nPushing Azure sync."
+                Start-ADSyncSyncCycle -PolicyType Delta
+            }
         }
         else {
             $Msg = "Azure sync isn't running on this server. " +

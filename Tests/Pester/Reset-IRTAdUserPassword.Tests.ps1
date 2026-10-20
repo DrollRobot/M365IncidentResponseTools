@@ -25,6 +25,11 @@
 
     'pushes AD replication from the target DC'
         Push-AdReplication gets the same DC the change was made on.
+
+    'pushes the sync when the ADSync service is on this device'
+    'skips the sync when the ADSync module cannot be loaded'
+        Import-AdSyncModule (mocked) loads the module when the shell can't find it, and
+        reports the error when it can't be loaded.
 #>
 
 BeforeAll {
@@ -86,6 +91,7 @@ Describe 'Reset-IRTAdUserPassword' -Tag 'unit' {
         Mock Set-ADUser { } -ModuleName $Mod
         Mock Get-ADUser { [pscustomobject]@{ SamAccountName = 'jdoe' } } -ModuleName $Mod
         Mock Start-ADSyncSyncCycle { } -ModuleName $Mod
+        Mock Import-AdSyncModule { $true } -ModuleName $Mod
 
         # adsync service is not on this device
         Mock Get-Service { } -ModuleName $Mod -ParameterFilter { $Name -eq 'adsync' }
@@ -114,5 +120,23 @@ Describe 'Reset-IRTAdUserPassword' -Tag 'unit' {
 
         $IA = @{ ModuleName = $script:Mod; ParameterFilter = { $Server -eq 'dc1.contoso.com' } }
         Should -Invoke Push-AdReplication -Times 1 -Exactly @IA
+    }
+
+    It 'pushes the sync when the ADSync service is on this device' {
+        Mock Get-LocalAdSyncService { [pscustomobject]@{ Name = 'adsync' } } -ModuleName $script:Mod
+
+        Reset-IRTAdUserPassword -UserObjects $script:User -Custom
+
+        $IA = @{ ModuleName = $script:Mod; ParameterFilter = { $PolicyType -eq 'Delta' } }
+        Should -Invoke Start-ADSyncSyncCycle -Times 1 -Exactly @IA
+    }
+
+    It 'skips the sync when the ADSync module cannot be loaded' {
+        Mock Get-LocalAdSyncService { [pscustomobject]@{ Name = 'adsync' } } -ModuleName $script:Mod
+        Mock Import-AdSyncModule { $false } -ModuleName $script:Mod
+
+        Reset-IRTAdUserPassword -UserObjects $script:User -Custom
+
+        Should -Invoke Start-ADSyncSyncCycle -ModuleName $script:Mod -Times 0 -Exactly
     }
 }
