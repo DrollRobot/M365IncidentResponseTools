@@ -4,7 +4,7 @@ external help file: M365IncidentResponseTools-Help.xml
 HelpUri: ''
 Locale: en-US
 Module Name: M365IncidentResponseTools
-ms.date: 10/19/2026
+ms.date: 10/20/2026
 PlatyPS schema version: 2024-05-01
 title: Reset-IRTAdUserPassword
 ---
@@ -303,7 +303,9 @@ This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable
 
 ## NOTES
 
-Version: 1.2.0
+Version: 1.2.1
+1.2.1 - Loads the ADSync module from the Entra Connect install folder when this shell
+        can't find it.
 1.2.0 - Targets one writable DC (this computer if it is one, otherwise a discovered
         DC), so it no longer needs to run on a DC.
 Replication is pushed from that DC.

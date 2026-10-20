@@ -4,7 +4,7 @@ external help file: M365IncidentResponseTools-Help.xml
 HelpUri: ''
 Locale: en-US
 Module Name: M365IncidentResponseTools
-ms.date: 10/19/2026
+ms.date: 10/20/2026
 PlatyPS schema version: 2024-05-01
 title: Copy-IRTFunction
 ---
@@ -110,7 +110,7 @@ This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable
 
 ## NOTES
 
-Version: 2.0.0
+Version: 2.0.3
 
 
 ## RELATED LINKS

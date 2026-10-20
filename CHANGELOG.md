@@ -3,25 +3,18 @@
 All notable changes to this project will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [2.12.3] - 2026-10-20 - Saved AD sync server, on-prem AD fixes
 
 ### Added
 
-- `Push-IRTAdSync` remembers the server it synced on, and next time syncs there without
-  asking or searching. If that server fails, it searches again. Use `-ResetSyncServer` to
-  search anyway, or `-SyncServer` to name other servers.
+- `Push-IRTAdSync` remembers the sync server and goes straight to it next time.
 
 ### Fixed
 
-- On a sync server, `Push-IRTAdSync`, `Reset-IRTAdUserPassword`, `Disable-IRTAdUser`,
-  and `Enable-IRTAdUser` failed with "Start-ADSyncSyncCycle is not recognized" when the
-  shell couldn't find the ADSync module, as in a shell opened by a remote support tool.
-  They now load it from the Entra Connect install folder.
-- On-prem AD functions pasted from `Copy-IRTFunction` failed with "not recognized"
-  errors: `Disable-IRTAdUser`, `Enable-IRTAdUser`, `Push-IRTAdSync`, and
-  `Reset-IRTAdUserPassword` when checking for the sync service, and `Find-IRTAdUser` and
-  `Find-IRTAdDevice` with `-FromClipboard`. The helpers they need are now copied, and no
-  longer need PSFramework.
+- On-prem AD sync may not load the sync module correctly. Added function to
+  load module directly when this happens.
+- Some on-prem AD function were missing from `Copy-IRTFunction` in 2.12.2. Fixed
+  and added test.
 
 ## [2.12.2] - 2026-10-19 - Automatic replies, fewer Graph permissions
 

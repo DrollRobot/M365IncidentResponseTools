@@ -4,7 +4,7 @@ external help file: M365IncidentResponseTools-Help.xml
 HelpUri: ''
 Locale: en-US
 Module Name: M365IncidentResponseTools
-ms.date: 10/19/2026
+ms.date: 10/20/2026
 PlatyPS schema version: 2024-05-01
 title: Push-IRTAdSync
 ---
@@ -19,7 +19,7 @@ Forces an Active Directory / Entra ID (Azure AD Connect) sync cycle.
 
 ```
 Push-IRTAdSync [[-SyncServer] <string[]>] [[-ThrottleLimit] <int>] [-ResetCredentials]
- [<CommonParameters>]
+ [-ResetSyncServer] [<CommonParameters>]
 ```
 
 ## ALIASES
@@ -39,7 +39,14 @@ Skipped with a warning otherwise.
 2.
 If the ADSync service is running locally, invokes Start-ADSyncSyncCycle directly
    and exits.
+If this shell can't find the ADSync module, it is loaded from the
+   Entra Connect install folder.
 3.
+If an earlier run in this session synced on a server, pushes the sync there
+   without asking or searching.
+If that fails, the saved server is forgotten and the
+   search below runs.
+4.
 Otherwise, checks candidate servers in parallel using a runspace pool (opening a
    PSSession and looking for the service) and invokes the sync cycle remotely on the
    first server to report the service.
@@ -49,10 +56,14 @@ Each check is handled as soon as it finishes,
 Candidates are the -SyncServer names if given, or else
    discovered from AD (DCs first, then other enabled servers by last logon).
 
+The server that synced is saved in $Global:IRT_AdSyncServer for the session.
+Use
+-ResetSyncServer to search again, or -SyncServer to target other servers.
+
 The ActiveDirectory module is only required for AD discovery.
 It is not needed when
-the ADSync service is on this device or when -SyncServer is given; without it, only
-the replication push is skipped.
+the ADSync service is on this device, when a saved server syncs, or when -SyncServer
+is given; without it, only the replication push is skipped.
 
 Domain admin credentials are cached in $Global:Storage for the session.
 Use -ResetCredentials to force a re-prompt.
@@ -64,7 +75,8 @@ Use -ResetCredentials to force a re-prompt.
 ```powershell
 Push-IRTAdSync
 ```
-Automatically discovers and triggers a delta sync.
+Automatically discovers and triggers a delta sync. Run again, it syncs on the same
+server without searching.
 
 ### EXAMPLE 2
 
@@ -74,6 +86,13 @@ Push-IRTAdSync -SyncServer 'sync01.contoso.com'
 Triggers sync on a known server without discovery.
 
 ### EXAMPLE 3
+
+```powershell
+Push-IRTAdSync -ResetSyncServer
+```
+Ignores the saved sync server and searches for it again.
+
+### EXAMPLE 4
 
 ```powershell
 Push-IRTAdSync -ResetCredentials
@@ -105,11 +124,32 @@ AcceptedValues: []
 HelpMessage: ''
 ```
 
+### -ResetSyncServer
+
+Forget the sync server saved by an earlier run, and search for it again.
+
+```yaml
+Type: System.Management.Automation.SwitchParameter
+DefaultValue: False
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
 ### -SyncServer
 
-Target one or more specific server names directly, bypassing AD discovery.
-The
-ActiveDirectory module is not required when this is used.
+Target one or more specific server names directly, bypassing the saved server and AD
+discovery.
+The ActiveDirectory module is not required when this is used.
 
 ```yaml
 Type: System.String[]
@@ -166,7 +206,11 @@ This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable
 
 ## NOTES
 
-Version: 2.1.0
+Version: 2.2.1
+2.2.1 - Loads the ADSync module from the Entra Connect install folder when this shell
+        can't find it.
+2.2.0 - Saves the server that synced, and syncs there next time without searching.
+        Added -ResetSyncServer parameter.
 2.1.0 - ActiveDirectory module only required for AD discovery.
         Removed ping check; session and service check errors are reported per server.
         Server checks are handled as they finish instead of in query order.
