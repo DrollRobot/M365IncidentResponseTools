@@ -46,7 +46,7 @@ function Copy-IRTFunction {
     None. Output is sent to the clipboard.
 
     .NOTES
-    Version: 2.0.1
+    Version: 2.0.2
 
     #>
     [Alias(
@@ -80,6 +80,7 @@ function Copy-IRTFunction {
             'Import-IRTModule'
             'Push-AdReplication'
             'Push-IRTAdSync'
+            'Push-RemoteAdSync'
             'Reset-IRTAdUserPassword'
             'Set-AdUserEnabled'
             'Show-IRTAdDevice'

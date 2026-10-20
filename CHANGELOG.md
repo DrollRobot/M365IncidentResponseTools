@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- `Push-IRTAdSync` remembers the server it synced on, and next time syncs there without
+  asking or searching. If that server fails, it searches again. Use `-ResetSyncServer` to
+  search anyway, or `-SyncServer` to name other servers.
+
 ### Fixed
 
 - On-prem AD functions pasted from `Copy-IRTFunction` failed with "not recognized"

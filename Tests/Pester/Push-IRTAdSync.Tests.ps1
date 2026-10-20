@@ -3,7 +3,7 @@
 <#
 .SYNOPSIS
     Tests for Push-IRTAdSync: when the ActiveDirectory module is required, the AD
-    replication push, and how candidate servers are checked.
+    replication push, the saved sync server, and how candidate servers are checked.
 
 .DESCRIPTION
     The ActiveDirectory and ADSync cmdlets (Get-ADComputer, Get-ADDomainController,
@@ -11,8 +11,10 @@
     are created in BeforeAll and mocked. The IRT helpers (Get-TargetDomainController,
     Push-AdReplication, Get-YesNo, Test-AdAvailable, Import-IRTModule, Write-IRT) are
     mocked. $Global:Storage is preloaded with a dummy credential so no prompt appears, and
+    restored in AfterAll. $Global:IRT_AdSyncServer is cleared before each test and
     restored in AfterAll. Which DC gets picked is covered by the
-    Get-TargetDomainController tests.
+    Get-TargetDomainController tests, and how servers are checked by the
+    Push-RemoteAdSync tests.
 
 -- ActiveDirectory module requirement (unit) --------------------------------------
 
@@ -37,6 +39,29 @@
 
     'still pushes the sync when finding a DC fails'
         A DC discovery error is a warning, not a stop.
+
+-- saved sync server (unit) -------------------------------------------------------
+
+    Push-RemoteAdSync is mocked to return the server that synced, or nothing.
+
+    'saves the server that synced'
+        The next run can skip the search.
+
+    'syncs on the saved server without asking or searching'
+        No prompt, no AD query, and only the saved server is checked.
+
+    'searches when the saved server fails'
+        Warns, searches without asking, and saves the server that synced instead.
+
+    'forgets the saved server when it fails'
+        The next run doesn't wait on it again. Without AD there is nothing to search,
+        so it stops with an error.
+
+    'searches instead of using the saved server with -ResetSyncServer'
+        Asks before searching, as when nothing is saved.
+
+    'uses -SyncServer instead of the saved server'
+        The saved server is not checked, and the -SyncServer target is saved.
 
 -- server checks (integration) -----------------------------------------------------
 
@@ -82,6 +107,8 @@ BeforeAll {
 
     $script:OriginalStorage = Get-Variable -Name 'Storage' -Scope Global -ErrorAction Ignore
     $Global:Storage = [pscredential]::new('irt-pester', [securestring]::new())
+    $GvParams = @{ Name = 'IRT_AdSyncServer'; Scope = 'Global'; ErrorAction = 'Ignore' }
+    $script:OriginalSyncServer = Get-Variable @GvParams
 }
 
 AfterAll {
@@ -95,6 +122,12 @@ AfterAll {
     }
     else {
         Remove-Variable -Name 'Storage' -Scope Global -ErrorAction Ignore
+    }
+    if ($script:OriginalSyncServer) {
+        $Global:IRT_AdSyncServer = $script:OriginalSyncServer.Value
+    }
+    else {
+        Remove-Variable -Name 'IRT_AdSyncServer' -Scope Global -ErrorAction Ignore
     }
 }
 
@@ -115,6 +148,9 @@ Describe 'Push-IRTAdSync' {
         Mock Get-ADComputer { } -ModuleName $Mod
         Mock Get-ADDomainController { } -ModuleName $Mod
         Mock Get-TargetDomainController { 'dc1.contoso.com' } -ModuleName $Mod
+
+        # default: no sync server saved by an earlier run
+        Remove-Variable -Name 'IRT_AdSyncServer' -Scope Global -ErrorAction Ignore
 
         # default: adsync service is not on this device
         $SvcFilter = { $Name -eq 'adsync' }
@@ -208,6 +244,94 @@ Describe 'Push-IRTAdSync' {
                 Where-Object { $_ -like 'Finding a domain controller failed*no DC found*' } |
                 Should -HaveCount 1
             Should -Invoke Start-ADSyncSyncCycle -ModuleName $script:Mod -Times 1 -Exactly
+        }
+    }
+
+    # -------------------------------------------------------------------
+    Context 'saved sync server' -Tag 'unit' {
+
+        BeforeEach {
+            # syncs on new01 or sync02 when checked; any other server fails
+            Mock Push-RemoteAdSync {
+                $ComputerName | Where-Object { $_ -in 'new01', 'sync02' } |
+                    Select-Object -First 1
+            } -ModuleName $script:Mod
+            # AD discovery finds new01
+            Mock Get-ADComputer {
+                [pscustomobject]@{ Name = 'new01'; LastLogOnDate = [datetime]'2026-01-01' }
+            } -ModuleName $script:Mod
+        }
+
+        It 'saves the server that synced' {
+            Mock Test-AdAvailable { $true } -ModuleName $script:Mod
+
+            Push-IRTAdSync
+
+            $Global:IRT_AdSyncServer | Should -Be 'new01'
+        }
+
+        It 'syncs on the saved server without asking or searching' {
+            $Global:IRT_AdSyncServer = 'new01'
+            Mock Test-AdAvailable { $true } -ModuleName $script:Mod
+
+            Push-IRTAdSync
+
+            $F = { "$ComputerName" -eq 'new01' }
+            $IA = @{ ModuleName = $script:Mod; ParameterFilter = $F }
+            Should -Invoke Push-RemoteAdSync -Times 1 -Exactly @IA
+            Should -Invoke Push-RemoteAdSync -ModuleName $script:Mod -Times 1 -Exactly
+            Should -Invoke Get-YesNo -ModuleName $script:Mod -Times 0 -Exactly
+            Should -Invoke Get-ADComputer -ModuleName $script:Mod -Times 0 -Exactly
+        }
+
+        It 'searches when the saved server fails' {
+            $Global:IRT_AdSyncServer = 'old01'
+            Mock Test-AdAvailable { $true } -ModuleName $script:Mod
+
+            Push-IRTAdSync
+
+            $script:Messages |
+                Where-Object { $_ -like 'Sync failed on saved server old01*' } |
+                Should -HaveCount 1
+            Should -Invoke Get-YesNo -ModuleName $script:Mod -Times 0 -Exactly
+            Should -Invoke Get-ADComputer -ModuleName $script:Mod -Times 1 -Exactly
+            $Global:IRT_AdSyncServer | Should -Be 'new01'
+        }
+
+        It 'forgets the saved server when it fails' {
+            $Global:IRT_AdSyncServer = 'old01'
+
+            Push-IRTAdSync
+
+            $GvParams = @{ Name = 'IRT_AdSyncServer'; Scope = 'Global'; ErrorAction = 'Ignore' }
+            Get-Variable @GvParams | Should -BeNullOrEmpty
+            $IA = @{ ModuleName = $script:Mod; ParameterFilter = { $Level -eq 'Error' } }
+            Should -Invoke Write-IRT -Times 1 -Exactly @IA
+            Should -Invoke Get-ADComputer -ModuleName $script:Mod -Times 0 -Exactly
+        }
+
+        It 'searches instead of using the saved server with -ResetSyncServer' {
+            $Global:IRT_AdSyncServer = 'old01'
+            Mock Test-AdAvailable { $true } -ModuleName $script:Mod
+
+            Push-IRTAdSync -ResetSyncServer
+
+            $F = { $ComputerName -contains 'old01' }
+            $IA = @{ ModuleName = $script:Mod; ParameterFilter = $F }
+            Should -Invoke Push-RemoteAdSync -Times 0 -Exactly @IA
+            Should -Invoke Get-YesNo -ModuleName $script:Mod -Times 1 -Exactly
+            $Global:IRT_AdSyncServer | Should -Be 'new01'
+        }
+
+        It 'uses -SyncServer instead of the saved server' {
+            $Global:IRT_AdSyncServer = 'old01'
+
+            Push-IRTAdSync -SyncServer 'sync02'
+
+            $F = { $ComputerName -contains 'old01' }
+            $IA = @{ ModuleName = $script:Mod; ParameterFilter = $F }
+            Should -Invoke Push-RemoteAdSync -Times 0 -Exactly @IA
+            $Global:IRT_AdSyncServer | Should -Be 'sync02'
         }
     }
 
