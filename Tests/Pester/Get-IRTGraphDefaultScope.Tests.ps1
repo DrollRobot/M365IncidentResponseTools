@@ -8,7 +8,8 @@
     Get-IRTGraphDefaultScope is the single source of truth for the default
     Graph delegated scope set shared by Get-IRTAccessToken and
     Connect-IRTGraph. These tests pin the contract its consumers rely on:
-    plain scope names (no resource-URL prefix) and no duplicates.
+    plain scope names (no resource-URL prefix), no duplicates, and the Read
+    permission requested alongside every ReadWrite permission.
 #>
 
 InModuleScope M365IncidentResponseTools {
@@ -31,6 +32,17 @@ InModuleScope M365IncidentResponseTools {
         It 'returns plain scope names without a resource-URL prefix' {
             $Prefixed = @($script:Result | Where-Object { $_ -like 'http*' })
             $Prefixed | Should -HaveCount 0
+        }
+
+        It 'requests the Read permission alongside every ReadWrite permission' {
+            # User-PasswordProfile has no Read permission.
+            $ReadWrite = @($script:Result | Where-Object {
+                    $_ -like '*.ReadWrite.*' -and $_ -ne 'User-PasswordProfile.ReadWrite.All'
+                })
+            $ReadWrite.Count | Should -BeGreaterThan 0
+            foreach ($Scope in $ReadWrite) {
+                $script:Result | Should -Contain ($Scope -replace '\.ReadWrite\.', '.Read.')
+            }
         }
     }
 }

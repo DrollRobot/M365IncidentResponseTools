@@ -3,6 +3,19 @@
 All notable changes to this project will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Added
+
+- `Disable-IRTServicePrincipal` and `Enable-IRTServicePrincipal` block and unblock
+  sign-ins to an enterprise app selected with `Find-IRTServicePrincipal`.
+
+### Changed
+
+- `Connect-IRT` asks for the Graph permission the new commands need, and for the read
+  permission alongside each write permission. Each tenant is asked for admin consent
+  again on the next connect.
+
 ## [2.12.3] - 2026-10-20 - Saved AD sync server, on-prem AD fixes
 
 ### Added

@@ -47,6 +47,22 @@ Get-IRTEntraSPSignInLog -AllServicePrincipals -Days 7
 
 Results are enriched with IP geolocation and Entra error descriptions, then exported to an Excel workbook.
 
+## Disabling a Service Principal
+
+```powershell
+# disable the service principal(s) selected with Find-IRTServicePrincipal
+Disable-IRTServicePrincipal
+
+# disable a specific service principal object
+DisableSP -ServicePrincipalObject $SP
+```
+
+Entra stops issuing tokens for the app: users can no longer sign in to it, and the app
+can no longer get tokens of its own. Tokens already issued stay valid until they expire.
+Use [Enable-IRTServicePrincipal](M365IncidentResponseTools/Enable-IRTServicePrincipal.md)
+(alias `EnableSP`) to reverse. Your account needs the Application Administrator or Cloud
+Application Administrator role.
+
 ## Service Principal Commands
 
 | Command | Description |
@@ -56,6 +72,8 @@ Results are enriched with IP geolocation and Entra error descriptions, then expo
 | [Get-IRTServicePrincipal](M365IncidentResponseTools/Get-IRTServicePrincipal.md) | Displays all service principals in the tenant, or filters by a search term. |
 | [Find-IRTRiskyServicePrincipal](M365IncidentResponseTools/Find-IRTRiskyServicePrincipal.md) | Checks tenant service principals against threat intelligence feeds for known malicious OAuth apps. |
 | [Get-IRTUserServicePrincipal](M365IncidentResponseTools/Get-IRTUserServicePrincipal.md) | Lists OAuth2 applications a user has personally consented to. |
+| [Disable-IRTServicePrincipal](M365IncidentResponseTools/Disable-IRTServicePrincipal.md) | Disables a service principal, so Entra stops issuing tokens for the app. |
+| [Enable-IRTServicePrincipal](M365IncidentResponseTools/Enable-IRTServicePrincipal.md) | Re-enables a previously disabled service principal. |
 | [Get-IRTEntraSPSignInLog](M365IncidentResponseTools/Get-IRTEntraSPSignInLog.md) | Downloads service principal sign-in logs enriched with geolocation and error descriptions. |
 | [Show-IRTEntraSPSignInLog](M365IncidentResponseTools/Show-IRTEntraSPSignInLog.md) | Processes service principal sign-in log objects into an Excel spreadsheet. |
 | [Get-IRTTenantOwner](M365IncidentResponseTools/Get-IRTTenantOwner.md) | Looks up an Entra ID tenant by domain or GUID and returns its display name, domain, tenant ID, and cloud. Useful for resolving an app's AppOwnerOrganizationId. |

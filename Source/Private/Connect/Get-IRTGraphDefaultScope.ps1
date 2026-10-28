@@ -9,6 +9,9 @@ function Get-IRTGraphDefaultScope {
     URL prefix); callers prefix with the cloud-specific Graph base URL when building
     MSAL scope strings.
 
+    Every ReadWrite permission is requested together with its Read permission, when one
+    exists.
+
     .EXAMPLE
     Get-IRTGraphDefaultScope
 
@@ -16,7 +19,9 @@ function Get-IRTGraphDefaultScope {
     [string[]] - the default Graph scope names.
 
     .NOTES
-    Version: 1.1.0
+    Version: 1.2.0
+    1.2.0 - Added Application.ReadWrite.All for Disable-IRTServicePrincipal, and the Read
+    permission alongside each ReadWrite permission.
     #>
     [OutputType([string[]])]
     [CmdletBinding()]
@@ -30,6 +35,12 @@ function Get-IRTGraphDefaultScope {
     Write-PSFMessage -Level 9 -Message 'Get-IRTGraphDefaultScope: returning default scope set.'
 
     return [string[]]@(
+        # Read applications and service principals, including their app role assignments.
+        # Used by: Show-IRTServicePrincipal, Get-IRTServicePrincipal, Find-IRTDirectoryObject
+        'Application.Read.All'
+        # Enable and disable service principals.
+        # Used by: Disable-IRTServicePrincipal, Enable-IRTServicePrincipal
+        'Application.ReadWrite.All'
         # Read Entra sign-in and directory audit logs.
         # Used by: Get-IRTEntraUserSignInLog, Get-IRTEntraSPSignInLog, Get-IRTEntraAuditLog
         'AuditLog.Read.All'
@@ -45,8 +56,11 @@ function Get-IRTGraphDefaultScope {
         # Read Entra device objects.
         # Used by: Find-IRTDevice, Show-IRTDevice, Get-IRTAllEntraDevice
         'Device.Read.All'
-        # Read and delete Intune managed devices.
-        # Used by: Remove-IRTDevice, Show-IRTDevice, Find-IRTDevice
+        # Read Intune managed devices.
+        # Used by: Show-IRTDevice, Find-IRTDevice
+        'DeviceManagementManagedDevices.Read.All'
+        # Delete Intune managed devices.
+        # Used by: Remove-IRTDevice
         'DeviceManagementManagedDevices.ReadWrite.All'
         # Act as the signed-in user, with all of their directory rights.
         # Used by: Disable-IRTDevice, Enable-IRTDevice, Remove-IRTDevice
@@ -67,14 +81,20 @@ function Get-IRTGraphDefaultScope {
         # or Global Reader role.
         # Used by: Show-IRTUser
         'User-LifeCycleInfo.Read.All'
-        # Reset user passwords.
+        # Reset user passwords. There is no Read permission for password profiles.
         # Used by: Reset-IRTUserPassword
         'User-PasswordProfile.ReadWrite.All'
-        # Read and update user accounts, including enable/disable and session revocation.
+        # Read user accounts.
+        # Used by: Find-IRTUser, Show-IRTUser, Get-IRTAdminRole
+        'User.Read.All'
+        # Update user accounts, including enable/disable and session revocation.
         # Used by: Disable-IRTUser, Revoke-IRTUserSession, Set-IRTUserUsageLocation
         'User.ReadWrite.All'
-        # Read and change users' MFA methods.
-        # Used by (read only): Show-IRTUserMfa
+        # Read users' MFA methods.
+        # Used by: Show-IRTUserMfa
+        'UserAuthenticationMethod.Read.All'
+        # Remove users' MFA methods. No function removes them; Show-IRTUserMfa prints the
+        # Remove-Mg* command for each method, for the analyst to run by hand.
         'UserAuthenticationMethod.ReadWrite.All'
 
         # No IRT functions use these. They're here so analysts can run Graph commands by
