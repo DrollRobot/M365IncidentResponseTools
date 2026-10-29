@@ -879,6 +879,9 @@ function Get-IRTGraphDefaultScope {
     URL prefix); callers prefix with the cloud-specific Graph base URL when building
     MSAL scope strings.
 
+    Every ReadWrite permission is requested together with its Read permission, when one
+    exists.
+
     .EXAMPLE
     Get-IRTGraphDefaultScope
 
@@ -886,7 +889,9 @@ function Get-IRTGraphDefaultScope {
     [string[]] - the default Graph scope names.
 
     .NOTES
-    Version: 1.1.0
+    Version: 1.2.0
+    1.2.0 - Added Application.ReadWrite.All for Disable-IRTServicePrincipal, and the Read
+    permission alongside each ReadWrite permission.
     #>
     [OutputType([string[]])]
     [CmdletBinding()]
@@ -900,6 +905,12 @@ function Get-IRTGraphDefaultScope {
     Write-PSFMessage -Level 9 -Message 'Get-IRTGraphDefaultScope: returning default scope set.'
 
     return [string[]]@(
+        # Read applications and service principals, including their app role assignments.
+        # Used by: Show-IRTServicePrincipal, Get-IRTServicePrincipal, Find-IRTDirectoryObject
+        'Application.Read.All'
+        # Enable and disable service principals.
+        # Used by: Disable-IRTServicePrincipal, Enable-IRTServicePrincipal
+        'Application.ReadWrite.All'
         # Read Entra sign-in and directory audit logs.
         # Used by: Get-IRTEntraUserSignInLog, Get-IRTEntraSPSignInLog, Get-IRTEntraAuditLog
         'AuditLog.Read.All'
@@ -915,8 +926,11 @@ function Get-IRTGraphDefaultScope {
         # Read Entra device objects.
         # Used by: Find-IRTDevice, Show-IRTDevice, Get-IRTAllEntraDevice
         'Device.Read.All'
-        # Read and delete Intune managed devices.
-        # Used by: Remove-IRTDevice, Show-IRTDevice, Find-IRTDevice
+        # Read Intune managed devices.
+        # Used by: Show-IRTDevice, Find-IRTDevice
+        'DeviceManagementManagedDevices.Read.All'
+        # Delete Intune managed devices.
+        # Used by: Remove-IRTDevice
         'DeviceManagementManagedDevices.ReadWrite.All'
         # Act as the signed-in user, with all of their directory rights.
         # Used by: Disable-IRTDevice, Enable-IRTDevice, Remove-IRTDevice
@@ -937,14 +951,20 @@ function Get-IRTGraphDefaultScope {
         # or Global Reader role.
         # Used by: Show-IRTUser
         'User-LifeCycleInfo.Read.All'
-        # Reset user passwords.
+        # Reset user passwords. There is no Read permission for password profiles.
         # Used by: Reset-IRTUserPassword
         'User-PasswordProfile.ReadWrite.All'
-        # Read and update user accounts, including enable/disable and session revocation.
+        # Read user accounts.
+        # Used by: Find-IRTUser, Show-IRTUser, Get-IRTAdminRole
+        'User.Read.All'
+        # Update user accounts, including enable/disable and session revocation.
         # Used by: Disable-IRTUser, Revoke-IRTUserSession, Set-IRTUserUsageLocation
         'User.ReadWrite.All'
-        # Read and change users' MFA methods.
-        # Used by (read only): Show-IRTUserMfa
+        # Read users' MFA methods.
+        # Used by: Show-IRTUserMfa
+        'UserAuthenticationMethod.Read.All'
+        # Remove users' MFA methods. No function removes them; Show-IRTUserMfa prints the
+        # Remove-Mg* command for each method, for the analyst to run by hand.
         'UserAuthenticationMethod.ReadWrite.All'
 
         # No IRT functions use these. They're here so analysts can run Graph commands by
@@ -959,7 +979,7 @@ function Get-IRTGraphDefaultScope {
         'SecurityIncident.Read.All'
     )
 }
-#EndRegion '.\Private\Connect\Get-IRTGraphDefaultScope.ps1' 92
+#EndRegion '.\Private\Connect\Get-IRTGraphDefaultScope.ps1' 112
 #Region '.\Private\Connect\Get-IRTPublicClient.ps1' -1
 
 function Get-IRTPublicClient {
@@ -7801,6 +7821,152 @@ function New-TenantSheet {
     }
 }
 #EndRegion '.\Private\ServicePrincipal\New-TenantSheet.ps1' 102
+#Region '.\Private\ServicePrincipal\Set-ServicePrincipalEnabled.ps1' -1
+
+function Set-ServicePrincipalEnabled {
+    <#
+    .SYNOPSIS
+    Sets the accountEnabled property on service principal(s). Called by
+    Disable-IRTServicePrincipal and Enable-IRTServicePrincipal.
+
+    .DESCRIPTION
+    Internal helper. Updates accountEnabled on each service principal through Graph, then
+    reads the object back and shows its new state. A failed update is reported as an
+    error and the next service principal is processed.
+
+    Falls back to the service principals selected with Find-IRTServicePrincipal, in
+    $Global:IRT_ServicePrincipalObjects, when no -ServicePrincipalObject is passed.
+
+    .PARAMETER ServicePrincipalObject
+    One or more service principal objects, as returned by Find-IRTServicePrincipal. Only
+    the Id is needed; AppDisplayName or DisplayName is used in messages.
+
+    .PARAMETER Enabled
+    $true to enable the service principals, $false to disable them.
+
+    .EXAMPLE
+    Set-ServicePrincipalEnabled -ServicePrincipalObject $Sp -Enabled $false
+    Disables one service principal.
+
+    .OUTPUTS
+    None. Output is written to the console.
+
+    .NOTES
+    Version: 1.0.0
+    #>
+    [CmdletBinding(SupportsShouldProcess = $true)]
+    param(
+        [Parameter( Position = 0 )]
+        [Alias('ServicePrincipalObjects')]
+        [psobject[]] $ServicePrincipalObject,
+
+        [Parameter( Mandatory )]
+        [bool] $Enabled
+    )
+
+    begin {
+        Update-IRTToken -Service 'Graph'
+        Import-IRTModule -Name 'Microsoft.Graph.Applications', 'PSFramework'
+        $FunctionName = $MyInvocation.MyCommand.Name
+
+        # if not passed directly, find global
+        if ( -not $ServicePrincipalObject -or $ServicePrincipalObject.Count -eq 0 ) {
+            $ScriptSPObjects = @( Get-GlobalServicePrincipalObject )
+            if ( -not $ScriptSPObjects -or $ScriptSPObjects.Count -eq 0 ) {
+                throw "No service principal objects passed or found in global variables."
+            }
+        }
+        else {
+            $ScriptSPObjects = $ServicePrincipalObject
+        }
+
+        # variables
+        $GetProperties = @(
+            'accountEnabled'
+            'appDisplayName'
+            'appId'
+            'displayName'
+            'id'
+            'servicePrincipalType'
+        )
+        $DisplayProperties = @(
+            'AccountEnabled'
+            'AppDisplayName'
+            'ServicePrincipalType'
+            'AppId'
+            'Id'
+        )
+
+        # set action string
+        if ( $Enabled ) {
+            $Action = 'Enable'
+        }
+        else {
+            $Action = 'Disable'
+        }
+        Write-PSFMessage -Level 8 -Message (
+            "${FunctionName}: ${Action} $($ScriptSPObjects.Count) service principal(s).")
+    }
+
+    process {
+
+        foreach ( $ScriptSPObject in $ScriptSPObjects ) {
+
+            $SpName = if ( $ScriptSPObject.AppDisplayName ) {
+                $ScriptSPObject.AppDisplayName
+            }
+            else {
+                $ScriptSPObject.DisplayName
+            }
+            $SpId = $ScriptSPObject.Id
+
+            if ( -not $SpId ) {
+                Write-IRT "No object ID for: $SpName. Skipping." -Level Warn
+                continue
+            }
+
+            # disable/enable service principal
+            Write-IRT "$($Action.TrimEnd('e'))ing service principal: $SpName"
+            if ( $PSCmdlet.ShouldProcess($SpName, "$Action service principal") ) {
+                Write-PSFMessage -Level 8 -Message (
+                    "${FunctionName}: Update-MgServicePrincipal $SpId accountEnabled=$Enabled")
+                $UpdateParams = @{
+                    ServicePrincipalId = $SpId
+                    AccountEnabled     = $Enabled
+                    ErrorAction        = 'Stop'
+                }
+                try {
+                    Update-MgServicePrincipal @UpdateParams
+                }
+                catch {
+                    $Msg = "Failed to $($Action.ToLower()) ${SpName}: $($_.Exception.Message)"
+                    Write-IRT $Msg -Level Error
+                    continue
+                }
+            }
+
+            # get updated object
+            Write-IRT "Getting updated service principal properties."
+            $GetParams = @{
+                ServicePrincipalId = $SpId
+                Property           = $GetProperties
+                ErrorAction        = 'Stop'
+            }
+            try {
+                $NewSPObject = Get-MgServicePrincipal @GetParams
+            }
+            catch {
+                $Msg = "Failed to get service principal ${SpName}: $($_.Exception.Message)"
+                Write-IRT $Msg -Level Error
+                continue
+            }
+
+            # display updated object
+            $NewSPObject | Format-Table $DisplayProperties
+        }
+    }
+}
+#EndRegion '.\Private\ServicePrincipal\Set-ServicePrincipalEnabled.ps1' 144
 #Region '.\Private\ServicePrincipal\Show-GraphServicePrincipalTree.ps1' -1
 
 function Show-GraphServicePrincipalTree {
@@ -23476,6 +23642,155 @@ function Get-IRTAdminRole {
     }
 }
 #EndRegion '.\Public\Role\Get-IRTAdminRole.ps1' 360
+#Region '.\Public\ServicePrincipal\Disable-IRTServicePrincipal.ps1' -1
+
+function Disable-IRTServicePrincipal {
+    <#
+    .SYNOPSIS
+    Disables service principals (enterprise apps), so Entra stops issuing tokens for them.
+
+    .DESCRIPTION
+    Sets accountEnabled to false on each service principal. Users can no longer sign in to
+    the app, and the app can no longer get tokens of its own. Tokens already issued stay
+    valid until they expire. Use Enable-IRTServicePrincipal to reverse.
+
+    Falls back to the service principals selected with Find-IRTServicePrincipal, in
+    $Global:IRT_ServicePrincipalObjects, when no -ServicePrincipalObject is passed.
+
+    Needs the Application.ReadWrite.All Graph permission, which Connect-IRT requests, and
+    the Application Administrator or Cloud Application Administrator role.
+
+    .PARAMETER ServicePrincipalObject
+    One or more service principal objects, as returned by Find-IRTServicePrincipal. Falls
+    back to $Global:IRT_ServicePrincipalObjects if omitted.
+
+    .EXAMPLE
+    ```powershell
+    Find-IRTServicePrincipal MyApp
+    Disable-IRTServicePrincipal
+    ```
+    Two-step workflow: find then disable.
+
+    .EXAMPLE
+    ```powershell
+    Disable-IRTServicePrincipal -ServicePrincipalObject $SP
+    ```
+    Disable a specific service principal object passed directly.
+
+    .OUTPUTS
+    None. Output is written to the console.
+
+    .NOTES
+    Version: 1.0.0
+    #>
+    [Alias(
+        # ServicePrincipal
+        'Disable-IRTServicePrincipals',
+        'Disable-ServicePrincipal', 'Disable-ServicePrincipals',
+        'DisableIRTServicePrincipal', 'DisableIRTServicePrincipals',
+        'DisableServicePrincipal', 'DisableServicePrincipals',
+        # SP
+        'Disable-IRTSP', 'Disable-IRTSPs',
+        'Disable-SP', 'Disable-SPs',
+        'DisableIRTSP', 'DisableIRTSPs',
+        'DisableSP', 'DisableSPs',
+        # EnterpriseApplication
+        'Disable-IRTEnterpriseApplication', 'Disable-IRTEnterpriseApplications',
+        'Disable-EnterpriseApplication', 'Disable-EnterpriseApplications',
+        'DisableIRTEnterpriseApplication', 'DisableIRTEnterpriseApplications',
+        'DisableEnterpriseApplication', 'DisableEnterpriseApplications'
+    )]
+    [CmdletBinding()]
+    param(
+        [Parameter( Position = 0 )]
+        [Alias('ServicePrincipalObjects')]
+        [psobject[]] $ServicePrincipalObject
+    )
+
+    $Params = @{
+        Enabled = $false
+    }
+    if ( $ServicePrincipalObject ) {
+        $Params['ServicePrincipalObject'] = $ServicePrincipalObject
+    }
+
+    Set-ServicePrincipalEnabled @Params
+}
+#EndRegion '.\Public\ServicePrincipal\Disable-IRTServicePrincipal.ps1' 73
+#Region '.\Public\ServicePrincipal\Enable-IRTServicePrincipal.ps1' -1
+
+function Enable-IRTServicePrincipal {
+    <#
+    .SYNOPSIS
+    Enables service principals (enterprise apps) that Disable-IRTServicePrincipal disabled.
+
+    .DESCRIPTION
+    Sets accountEnabled to true on each service principal, so Entra issues tokens for it
+    again.
+
+    Falls back to the service principals selected with Find-IRTServicePrincipal, in
+    $Global:IRT_ServicePrincipalObjects, when no -ServicePrincipalObject is passed.
+
+    Needs the Application.ReadWrite.All Graph permission, which Connect-IRT requests, and
+    the Application Administrator or Cloud Application Administrator role.
+
+    .PARAMETER ServicePrincipalObject
+    One or more service principal objects, as returned by Find-IRTServicePrincipal. Falls
+    back to $Global:IRT_ServicePrincipalObjects if omitted.
+
+    .EXAMPLE
+    ```powershell
+    Find-IRTServicePrincipal MyApp
+    Enable-IRTServicePrincipal
+    ```
+    Two-step workflow: find then enable.
+
+    .EXAMPLE
+    ```powershell
+    Enable-IRTServicePrincipal -ServicePrincipalObject $SP
+    ```
+    Enable a specific service principal object passed directly.
+
+    .OUTPUTS
+    None. Output is written to the console.
+
+    .NOTES
+    Version: 1.0.0
+    #>
+    [Alias(
+        # ServicePrincipal
+        'Enable-IRTServicePrincipals',
+        'Enable-ServicePrincipal', 'Enable-ServicePrincipals',
+        'EnableIRTServicePrincipal', 'EnableIRTServicePrincipals',
+        'EnableServicePrincipal', 'EnableServicePrincipals',
+        # SP
+        'Enable-IRTSP', 'Enable-IRTSPs',
+        'Enable-SP', 'Enable-SPs',
+        'EnableIRTSP', 'EnableIRTSPs',
+        'EnableSP', 'EnableSPs',
+        # EnterpriseApplication
+        'Enable-IRTEnterpriseApplication', 'Enable-IRTEnterpriseApplications',
+        'Enable-EnterpriseApplication', 'Enable-EnterpriseApplications',
+        'EnableIRTEnterpriseApplication', 'EnableIRTEnterpriseApplications',
+        'EnableEnterpriseApplication', 'EnableEnterpriseApplications'
+    )]
+    [CmdletBinding()]
+    param(
+        [Parameter( Position = 0 )]
+        [Alias('ServicePrincipalObjects')]
+        [psobject[]] $ServicePrincipalObject
+    )
+
+    $Params = @{
+        Enabled = $true
+    }
+    if ( $ServicePrincipalObject ) {
+        $Params['ServicePrincipalObject'] = $ServicePrincipalObject
+    }
+
+    Set-ServicePrincipalEnabled @Params
+}
+#EndRegion '.\Public\ServicePrincipal\Enable-IRTServicePrincipal.ps1' 72
 #Region '.\Public\ServicePrincipal\Find-IRTRiskyServicePrincipal.ps1' -1
 
 function Find-IRTRiskyServicePrincipal {

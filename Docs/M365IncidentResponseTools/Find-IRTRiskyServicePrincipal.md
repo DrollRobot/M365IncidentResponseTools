@@ -4,7 +4,7 @@ external help file: M365IncidentResponseTools-Help.xml
 HelpUri: ''
 Locale: en-US
 Module Name: M365IncidentResponseTools
-ms.date: 10/20/2026
+ms.date: 10/29/2026
 PlatyPS schema version: 2024-05-01
 title: Find-IRTRiskyServicePrincipal
 ---
